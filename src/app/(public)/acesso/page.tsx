@@ -1,17 +1,21 @@
 "use client";
-import { useEffect, useState } from "react";
+
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { auth } from "@/lib/firebase";
 import { signInWithCustomToken } from "firebase/auth";
 
-export default function Page() {
+function AccessPageContent() {
   const router = useRouter();
-  const sp = useSearchParams();
+  const searchParams = useSearchParams();
   const [msg, setMsg] = useState("Processando token…");
+  const tokenId = searchParams.get("token");
 
   useEffect(() => {
-    const tokenId = sp.get("token");
-    if (!tokenId) { setMsg("Token ausente na URL."); return; }
+    if (!tokenId) {
+      setMsg("Token ausente na URL.");
+      return;
+    }
 
     (async () => {
       try {
@@ -22,7 +26,6 @@ export default function Page() {
         });
         const data = await res.json();
         if (!res.ok) {
-          // 👇 mostra a message vinda do server (em vez de só "internal")
           const detail = data?.message || data?.error || "Falha ao validar";
           throw new Error(detail);
         }
@@ -38,7 +41,15 @@ export default function Page() {
         setMsg(`Falha ao validar: ${e?.message || e}`);
       }
     })();
-  }, [sp, router]);
+  }, [router, tokenId]);
 
   return <div className="p-6">{msg}</div>;
+}
+
+export default function Page() {
+  return (
+    <Suspense fallback={<div className="p-6">Processando token…</div>}>
+      <AccessPageContent />
+    </Suspense>
+  );
 }
