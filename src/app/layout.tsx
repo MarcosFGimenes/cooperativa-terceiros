@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 // @ts-ignore: allow global CSS side-effect import without type declarations
 import "./globals.css";
+import PreloadAsFix from "@/components/PreloadAsFix";
 
 export const metadata: Metadata = {
   title: "Create Next App",
@@ -13,8 +14,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="pt-BR" suppressHydrationWarning>
       <body className="antialiased">
+        <PreloadAsFix />
         {children}
       </body>
     </html>
