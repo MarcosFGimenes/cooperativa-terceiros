@@ -68,3 +68,50 @@ body {
 .input {
   @apply w-full rounded-md border bg-white px-3 py-2 outline-none ring-offset-2 focus:ring-2 focus:ring-primary/30;
 }
+
+/* Dark tokens */
+:root.dark {
+  --background: 222 47% 7%;
+  --foreground: 210 40% 98%;
+  --card: 222 47% 9%;
+  --card-foreground: 210 40% 98%;
+  --popover: 222 47% 9%;
+  --popover-foreground: 210 40% 98%;
+  --primary: 160 64% 41%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 215 27% 17%;
+  --secondary-foreground: 210 40% 98%;
+  --muted: 215 27% 17%;
+  --muted-foreground: 215 20% 65%;
+  --accent: 160 22% 18%;
+  --accent-foreground: 160 60% 84%;
+  --destructive: 0 84% 63%;
+  --destructive-foreground: 0 0% 98%;
+  --border: 215 25% 20%;
+  --input: 215 25% 20%;
+  --ring: 160 64% 41%;
+}
+
+/* Text selection */
+::selection { background: hsl(var(--primary) / .18); }
+
+/* Headings rhythm */
+h1,h2,h3 { @apply tracking-tight; }
+h1 { @apply text-2xl sm:text-3xl font-semibold; }
+h2 { @apply text-xl sm:text-2xl font-semibold; }
+h3 { @apply text-lg sm:text-xl font-medium; }
+
+/* Focus visibility */
+:focus-visible { @apply outline-none ring-2 ring-primary/40 ring-offset-2 ring-offset-background; }
+
+/* Skeleton & spinner */
+.skeleton { @apply animate-pulse rounded-md bg-muted; }
+.spinner {
+  @apply inline-block h-5 w-5 animate-spin rounded-full border-2 border-current border-t-transparent align-[-0.125em];
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+}
+
