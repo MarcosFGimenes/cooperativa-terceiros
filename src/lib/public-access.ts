@@ -99,14 +99,18 @@ function ensureCompanyMatch(token: AccessTokenData, data: FirebaseFirestore.Docu
   }
 }
 
-export async function requireServiceAccess(tokenId: string, serviceId: string): Promise<{
+export async function requireServiceAccess(
+  tokenId: string,
+  serviceId: string,
+  preloadedToken?: AccessTokenData,
+): Promise<{
   token: AccessTokenData;
   service: Service;
 }> {
   if (!tokenId) throw new PublicAccessError(400, "Token ausente");
   if (!serviceId) throw new PublicAccessError(400, "serviceId ausente");
 
-  const token = await fetchToken(tokenId);
+  const token = preloadedToken ?? await fetchToken(tokenId);
   if (token.targetType !== "service" || token.targetId !== serviceId) {
     throw new PublicAccessError(403, "Token não corresponde ao serviço");
   }
@@ -118,7 +122,7 @@ export async function requireServiceAccess(tokenId: string, serviceId: string): 
 
   const data = snap.data() ?? {};
   if ((data.status ?? "aberto") !== "aberto") {
-    throw new PublicAccessError(403, "Serviço não está disponível para atualização");
+    throw new PublicAccessError(403, "Serviço fechado");
   }
 
   ensureCompanyMatch(token, data);
@@ -138,14 +142,18 @@ function mapPackageDoc(doc: FirebaseFirestore.DocumentSnapshot): Package {
   };
 }
 
-export async function requirePackageAccess(tokenId: string, packageId: string): Promise<{
+export async function requirePackageAccess(
+  tokenId: string,
+  packageId: string,
+  preloadedToken?: AccessTokenData,
+): Promise<{
   token: AccessTokenData;
   pkg: Package;
 }> {
   if (!tokenId) throw new PublicAccessError(400, "Token ausente");
   if (!packageId) throw new PublicAccessError(400, "packageId ausente");
 
-  const token = await fetchToken(tokenId);
+  const token = preloadedToken ?? await fetchToken(tokenId);
   if (token.targetType !== "package" || token.targetId !== packageId) {
     throw new PublicAccessError(403, "Token não corresponde ao pacote");
   }
@@ -195,4 +203,39 @@ export async function fetchServiceChecklist(serviceId: string): Promise<Checklis
 export async function fetchPackageServices(packageId: string): Promise<Service[]> {
   const snap = await servicesCollection().where("packageId", "==", packageId).get();
   return snap.docs.map((doc) => mapServiceDoc(doc));
+}
+
+export async function resolvePublicAccessRedirect(tokenId: string): Promise<{
+  redirectPath: string;
+  targetType: "service" | "package";
+  targetId: string;
+}> {
+  if (!tokenId) throw new PublicAccessError(400, "Token ausente");
+
+  const token = await fetchToken(tokenId);
+  const targetId = token.targetId?.trim();
+
+  if (!targetId) {
+    throw new PublicAccessError(400, "Token sem destino configurado");
+  }
+
+  if (token.targetType === "service") {
+    const { service } = await requireServiceAccess(tokenId, targetId, token);
+    return {
+      redirectPath: `/s/${service.id}`,
+      targetType: "service",
+      targetId: service.id,
+    };
+  }
+
+  if (token.targetType === "package") {
+    const { pkg } = await requirePackageAccess(tokenId, targetId, token);
+    return {
+      redirectPath: `/p/${pkg.id}`,
+      targetType: "package",
+      targetId: pkg.id,
+    };
+  }
+
+  throw new PublicAccessError(400, "Token sem destino configurado");
 }
