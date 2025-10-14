@@ -41,7 +41,7 @@ export default function LoginPage() {
           <input id="email" className="input" value={email} onChange={(e)=>setEmail(e.target.value)} type="email" autoComplete="username" />
           <label className="label mt-2" htmlFor="password">Senha</label>
           <input id="password" className="input" value={password} onChange={(e)=>setPassword(e.target.value)} type="password" autoComplete="current-password" />
-          <button className="btn-primary mt-3" disabled={loading} type="submit">
+          <button className="btn-primary mt-3" disabled={loading} type="submit" aria-busy={loading}>
             {loading ? "Entrando…" : "Entrar"}
           </button>
         </form>

@@ -30,6 +30,8 @@ export default function AcessoPage() {
       if ("ok" in json && json.ok && json.redirectPath) {
         toast.success("Token válido. Redirecionando...");
         router.replace(json.redirectPath);
+      } else if ("ok" in json && json.ok && !json.redirectPath) {
+        toast.info("Token válido. Aguarde o redirecionamento pelo PCM ou utilize o link enviado.");
       } else if (!("ok" in json) || !json.ok) {
         toast.error("Token inválido ou expirado.");
       }
@@ -47,8 +49,18 @@ export default function AcessoPage() {
         <h1 className="text-xl font-semibold">Acesso por Token</h1>
         <p className="text-sm text-muted-foreground mb-4">Informe o código recebido para acessar seu serviço ou pacote.</p>
         <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
-          <input className="input" placeholder="EX: RFHX9T86" value={token} onChange={(e)=>setToken(e.target.value.trim())} />
-          <button onClick={validar} disabled={loading || !token} className="btn-primary">
+          <div className="flex flex-col gap-1">
+            <label className="label" htmlFor="token">Código do token</label>
+            <input
+              id="token"
+              className="input"
+              placeholder="EX: RFHX9T86"
+              value={token}
+              onChange={(e)=>setToken(e.target.value.trim())}
+              aria-label="Código do token"
+            />
+          </div>
+          <button type="button" onClick={validar} disabled={loading || !token} className="btn-primary" aria-busy={loading}>
             {loading ? "Validando…" : "Validar token"}
           </button>
         </div>

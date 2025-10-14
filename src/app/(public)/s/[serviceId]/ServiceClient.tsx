@@ -322,9 +322,7 @@ export default function ServiceClient({ serviceId, token }: Props) {
               <form onSubmit={submitChecklistUpdate} className="space-y-4">
                 <div className="space-y-3">
                   {checklistDraft.length === 0 && (
-                    <p className="rounded-lg bg-gray-50 p-4 text-sm text-gray-600">
-                      Nenhum item encontrado no checklist.
-                    </p>
+                    <div className="card p-6 text-sm text-muted-foreground">Nenhum item encontrado.</div>
                   )}
                   {checklistDraft.map((item) => (
                     <div key={item.id} className="space-y-3 rounded-lg border p-4">
