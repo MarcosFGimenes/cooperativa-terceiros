@@ -1,15 +1,10 @@
-'use client';
-
-import { Suspense } from 'react';
-
-import AcessoInner from './AcessoInner';
-
-export const dynamic = 'force-dynamic'; // evita static render
-
+import { Suspense } from "react";
+import { AcessoClient } from "./ui/AcessoClient";
+export const dynamic = "force-dynamic";
 export default function Page() {
   return (
-    <Suspense fallback={<div className="p-6">Carregando…</div>}>
-      <AcessoInner />
+    <Suspense fallback={<p className="p-6">Carregando…</p>}>
+      <AcessoClient />
     </Suspense>
   );
 }

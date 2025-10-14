@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { db } from "@/lib/firebase";
+import { db } from "@/lib/firebaseClient";
 import { addDoc, collection, doc, serverTimestamp, setDoc } from "firebase/firestore";
 import { customAlphabet } from "nanoid";
 

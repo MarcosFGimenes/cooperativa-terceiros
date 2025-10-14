@@ -1,17 +1,17 @@
 import { NextResponse } from "next/server";
-import { adminDb, adminAuth, getAdminApp } from "@/lib/firebaseAdmin";
+import { adminApp, adminDb } from "@/lib/firebaseAdmin";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
-    const app = getAdminApp();
-    const pid = app.options.projectId || process.env.FIREBASE_ADMIN_PROJECT_ID;
+    const app = adminApp;
+    const pid = app.options.projectId || process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
 
     // ping rápido ao Firestore
-    await adminDb().collection("_ping").doc("now").set({ t: Date.now() });
-    const currentUsers = await adminAuth().listUsers(1);
+    await adminDb.collection("_ping").doc("now").set({ t: Date.now() });
+    const currentUsers = await app.auth().listUsers(1);
 
     return NextResponse.json({
       ok: true,
