@@ -18,8 +18,9 @@ export async function GET() {
       projectId: pid,
       authUsersSample: currentUsers.users?.length || 0,
     });
-  } catch (e: any) {
-    console.error("[_debug/admin] ERRO:", e?.stack || e);
-    return NextResponse.json({ ok: false, message: e?.message || String(e) }, { status: 500 });
+  } catch (e: unknown) {
+    const error = e instanceof Error ? e : new Error(String(e));
+    console.error("[_debug/admin] ERRO:", error.stack ?? error.message);
+    return NextResponse.json({ ok: false, message: error.message }, { status: 500 });
   }
 }

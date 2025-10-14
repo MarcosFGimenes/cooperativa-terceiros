@@ -70,7 +70,9 @@ export default function SCurveChart({
         if (!response.ok || !json.ok) {
           const message = !response.ok
             ? `Falha ao carregar curva (${response.status})`
-            : json.error ?? "Falha ao carregar curva";
+            : "error" in json && json.error
+              ? json.error
+              : "Falha ao carregar curva";
           setError(message);
           setData([]);
         } else {
