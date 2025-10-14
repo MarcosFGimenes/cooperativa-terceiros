@@ -3,10 +3,9 @@ import { notFound } from "next/navigation";
 
 import ChecklistManager from "./_components/ChecklistManager";
 import ServiceMetadataForm from "./_components/ServiceMetadataForm";
-import PdfExportBar from "@/components/PdfExportBar";
-import SCurveChart from "@/components/charts/SCurveChart";
 import ServiceTimeline from "@/components/ServiceTimeline";
 import { getChecklist, getService, listUpdates } from "@/lib/repo/services";
+import ServiceGraphSection from "./_components/ServiceGraphSection";
 
 const TABS = [
   { id: "details", label: "Detalhes" },
@@ -162,22 +161,7 @@ export default async function Page({ params, searchParams }: PageProps) {
         </section>
       )}
 
-      {activeTab === "graph" && (
-        <section className="space-y-4 rounded-lg border bg-white p-6 shadow-sm">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <h2 className="text-lg font-semibold text-gray-900">Curva S</h2>
-              <p className="text-sm text-gray-500">
-                Compare a evolução planejada com o progresso real do serviço.
-              </p>
-            </div>
-            <PdfExportBar targetId="service-curve" filename={`curva-s-${service.id}.pdf`} />
-          </div>
-          <div id="service-curve">
-            <SCurveChart serviceId={service.id} />
-          </div>
-        </section>
-      )}
+      {activeTab === "graph" && <ServiceGraphSection service={service} />}
     </div>
   );
 }
