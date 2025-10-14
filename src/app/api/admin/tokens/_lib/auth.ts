@@ -1,4 +1,5 @@
 import { adminAuth } from "@/lib/firebaseAdmin";
+import { isPCMUser } from "@/lib/pcmAuth";
 import type { DecodedIdToken } from "firebase-admin/auth";
 
 export class HttpError extends Error {
@@ -6,14 +7,6 @@ export class HttpError extends Error {
     super(message);
     this.name = "HttpError";
   }
-}
-
-function normalizeAllowlist(value: string | undefined): string[] {
-  if (!value) return [];
-  return value
-    .split(/[,;\s]+/)
-    .map((item) => item.trim().toLowerCase())
-    .filter(Boolean);
 }
 
 export type AuthenticatedUser = {
@@ -41,20 +34,15 @@ export async function requirePcmUser(req: Request): Promise<AuthenticatedUser> {
     throw new HttpError(401, "Token inválido");
   }
 
-  const email = decoded.email?.toLowerCase();
+  const email = decoded.email;
   if (!email) {
-    throw new HttpError(403, "Token não possui e-mail associado");
+    throw new HttpError(401, "Token não possui e-mail associado");
   }
 
-  const allowlist = normalizeAllowlist(process.env.PCM_EMAILS);
-  if (!allowlist.length) {
-    console.error("[requirePcmUser] PCM_EMAILS não configurado");
-    throw new HttpError(403, "PCM_EMAILS não configurado");
+  if (!isPCMUser(email)) {
+    console.error("[requirePcmUser] Usuário não autorizado", { email });
+    throw new HttpError(401, "Usuário não autorizado");
   }
 
-  if (!allowlist.includes(email)) {
-    throw new HttpError(403, "Usuário não autorizado");
-  }
-
-  return { uid: decoded.uid, email, token: decoded };
+  return { uid: decoded.uid, email: email.toLowerCase(), token: decoded };
 }
