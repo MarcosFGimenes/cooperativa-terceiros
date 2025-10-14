@@ -5,9 +5,9 @@ import { mergeToSCurve, plannedSeries, realizedSeries } from "@/lib/scurve";
 
 export async function GET(
   _req: Request,
-  { params }: { params: { serviceId: string } },
+  context: { params: Promise<{ serviceId: string }> },
 ): Promise<NextResponse> {
-  const serviceId = params.serviceId;
+  const { serviceId } = await context.params;
 
   if (!serviceId) {
     return NextResponse.json({ ok: false, error: "serviceId ausente" }, { status: 400 });

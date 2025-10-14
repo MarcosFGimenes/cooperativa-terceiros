@@ -1,13 +1,16 @@
 import ServiceClient from "./ServiceClient";
 
 type PageProps = {
-  params: { serviceId: string };
-  searchParams?: { token?: string };
+  params: Promise<{ serviceId: string }>;
+  searchParams?: Promise<{ token?: string }>;
 };
 
 export const dynamic = "force-dynamic";
 
-export default function ServicePage({ params, searchParams }: PageProps) {
-  const token = typeof searchParams?.token === "string" ? searchParams.token : "";
-  return <ServiceClient serviceId={params.serviceId} token={token} />;
+export default async function ServicePage({ params, searchParams }: PageProps) {
+  const { serviceId } = await params;
+  const resolvedSearchParams = searchParams ? await searchParams : undefined;
+  const token =
+    typeof resolvedSearchParams?.token === "string" ? resolvedSearchParams.token : "";
+  return <ServiceClient serviceId={serviceId} token={token} />;
 }

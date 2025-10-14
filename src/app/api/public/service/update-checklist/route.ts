@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { PublicAccessError, requireServiceAccess } from "@/lib/public-access";
 import { addComputedUpdate, updateChecklistProgress } from "@/lib/repo/services";
+import type { ChecklistItem } from "@/lib/types";
 
 export async function POST(req: Request) {
   const { searchParams } = new URL(req.url);
@@ -23,10 +24,19 @@ export async function POST(req: Request) {
       throw new PublicAccessError(400, "updates deve ser um array");
     }
 
+    const validStatuses: ChecklistItem["status"][] = [
+      "nao_iniciado",
+      "andamento",
+      "concluido",
+    ];
+
     const updates = body.updates.map((item) => {
       const id = typeof item.id === "string" ? item.id : null;
       const progress = Number(item.progress);
-      const status = typeof item.status === "string" ? item.status : undefined;
+      const status =
+        typeof item.status === "string" && validStatuses.includes(item.status as ChecklistItem["status"])
+          ? (item.status as ChecklistItem["status"])
+          : undefined;
       if (!id || !Number.isFinite(progress)) {
         throw new PublicAccessError(400, "updates inválidos");
       }
