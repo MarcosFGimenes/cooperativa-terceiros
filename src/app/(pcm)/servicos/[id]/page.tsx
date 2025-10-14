@@ -4,9 +4,8 @@ import { notFound } from "next/navigation";
 import ChecklistManager from "./_components/ChecklistManager";
 import ServiceMetadataForm from "./_components/ServiceMetadataForm";
 import PdfExportBar from "@/components/PdfExportBar";
-import SCurve from "@/components/SCurve";
+import SCurveChart from "@/components/charts/SCurveChart";
 import ServiceTimeline from "@/components/ServiceTimeline";
-import { plannedSeries, realizedSeries, mergeToSCurve } from "@/lib/scurve";
 import { getChecklist, getService, listUpdates } from "@/lib/repo/services";
 
 const TABS = [
@@ -57,20 +56,6 @@ export default async function Page({ params, searchParams }: PageProps) {
   } catch (error) {
     console.error("[servicos/id] Falha ao carregar checklist ou updates", error);
   }
-
-  const planned = plannedSeries(service);
-  let realized: Awaited<ReturnType<typeof realizedSeries>> = [];
-  try {
-    realized = await realizedSeries(service.id);
-  } catch (error) {
-    console.error("[servicos/id] Falha ao carregar curva real", error);
-  }
-  const merged = mergeToSCurve(planned, realized);
-  const scurveData = merged.labels.map((date, index) => ({
-    date,
-    planned: merged.planned[index] ?? 0,
-    realized: merged.realized[index] ?? 0,
-  }));
 
   const timelineItems = updates
     .slice()
@@ -189,11 +174,7 @@ export default async function Page({ params, searchParams }: PageProps) {
             <PdfExportBar targetId="service-curve" filename={`curva-s-${service.id}.pdf`} />
           </div>
           <div id="service-curve">
-            {scurveData.length > 0 ? (
-              <SCurve data={scurveData} />
-            ) : (
-              <p className="text-sm text-gray-500">Sem dados suficientes para gerar o gráfico.</p>
-            )}
+            <SCurveChart serviceId={service.id} />
           </div>
         </section>
       )}
