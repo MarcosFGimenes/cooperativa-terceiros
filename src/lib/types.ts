@@ -51,9 +51,9 @@ export type AccessTokenTarget =
   | { targetType: "service"; targetId: string; company?: string }
   | { targetType: "package"; targetId: string; company?: string };
 
-export interface AccessToken extends AccessTokenTarget {
+export type AccessToken = AccessTokenTarget & {
   id: string; // o próprio código do token (docId)
   active: boolean;
   expiresAt?: number | null;
   createdAt?: number;
-}
+};
