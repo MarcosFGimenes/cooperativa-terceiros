@@ -50,41 +50,35 @@ export default function ChecklistItemsEditor({ items, onChange, disabled }: Chec
   const hasExactHundred = Math.round(percent) === 100;
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-4 rounded-lg border border-border/60 bg-white p-4 shadow-soft">
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-medium text-gray-700">Itens do checklist</h3>
-        <button
-          type="button"
-          onClick={addItem}
-          disabled={disabled}
-          className="rounded border px-3 py-1 text-sm font-medium hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
-        >
+        <h3 className="text-sm font-semibold tracking-tight">Itens do checklist</h3>
+        <button type="button" onClick={addItem} disabled={disabled} className="btn-secondary text-xs">
           Adicionar linha
         </button>
       </div>
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[32rem] border text-sm">
-          <thead className="bg-gray-50 text-left">
+        <table className="w-full min-w-[32rem] text-sm">
+          <thead className="bg-muted/60 text-left text-xs uppercase tracking-wide text-muted-foreground">
             <tr>
               <th className="px-3 py-2 font-semibold">Descrição</th>
               <th className="w-32 px-3 py-2 font-semibold">Peso (%)</th>
-              <th className="w-24 px-3 py-2 text-right font-semibold">Ações</th>
+              <th className="w-28 px-3 py-2 text-right font-semibold">Ações</th>
             </tr>
           </thead>
           <tbody>
-            {items.length === 0 && (
+            {items.length === 0 ? (
               <tr>
-                <td colSpan={3} className="px-3 py-4 text-center text-sm text-gray-500">
+                <td colSpan={3} className="px-3 py-4 text-center text-sm text-muted-foreground">
                   Nenhum item adicionado.
                 </td>
               </tr>
-            )}
+            ) : null}
             {items.map((item) => (
               <tr key={item.id} className="border-t">
                 <td className="px-3 py-2 align-top">
                   <textarea
-                    className="w-full rounded border px-2 py-1 text-sm"
-                    rows={2}
+                    className="input min-h-[72px] resize-y text-sm"
                     value={item.description}
                     onChange={(event) => updateItem(item.id, { description: event.target.value })}
                     disabled={disabled}
@@ -96,7 +90,7 @@ export default function ChecklistItemsEditor({ items, onChange, disabled }: Chec
                     min={0}
                     max={100}
                     step="0.5"
-                    className="w-full rounded border px-2 py-1 text-sm"
+                    className="input text-sm"
                     value={item.weight}
                     onChange={(event) =>
                       updateItem(item.id, {
@@ -111,7 +105,7 @@ export default function ChecklistItemsEditor({ items, onChange, disabled }: Chec
                     type="button"
                     onClick={() => removeItem(item.id)}
                     disabled={disabled}
-                    className="rounded border px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
+                    className="btn-ghost text-xs text-destructive disabled:opacity-50"
                   >
                     Remover
                   </button>
@@ -123,20 +117,20 @@ export default function ChecklistItemsEditor({ items, onChange, disabled }: Chec
       </div>
       <div className="space-y-1">
         <div className="flex items-center justify-between text-sm">
-          <span className="font-medium text-gray-700">Soma dos pesos</span>
-          <span className={hasExactHundred ? "font-semibold text-emerald-600" : "font-semibold text-amber-600"}>
+          <span className="font-medium text-foreground/80">Soma dos pesos</span>
+          <span className={hasExactHundred ? "font-semibold text-primary" : "font-semibold text-amber-600"}>
             {percent.toFixed(1)}%
           </span>
         </div>
-        <div className="h-2 w-full overflow-hidden rounded bg-gray-100">
+        <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
           <div
-            className={`h-full rounded ${hasExactHundred ? "bg-emerald-500" : "bg-amber-500"}`}
+            className={`h-full rounded-full transition-all ${hasExactHundred ? "bg-primary" : "bg-amber-500"}`}
             style={{ width: `${Math.min(100, percent)}%` }}
           />
         </div>
-        {!hasExactHundred && (
+        {!hasExactHundred ? (
           <p className="text-xs text-amber-600">A soma dos pesos deve ser exatamente 100%.</p>
-        )}
+        ) : null}
       </div>
     </div>
   );

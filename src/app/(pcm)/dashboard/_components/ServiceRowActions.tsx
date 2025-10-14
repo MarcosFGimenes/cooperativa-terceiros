@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { toast } from "sonner";
 
 type Props = {
   service: {
@@ -51,9 +52,11 @@ export default function ServiceRowActions({ service }: Props) {
         : `${window.location.origin}${payload.link}`;
 
       setToken({ token: payload.token, link });
+      toast.success("Token gerado com sucesso");
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Erro inesperado";
       setError(message);
+      toast.error(message);
     } finally {
       setIsLoading(false);
     }
@@ -65,50 +68,37 @@ export default function ServiceRowActions({ service }: Props) {
   }
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-3">
       <div className="flex flex-wrap gap-2">
-        <Link
-          href={`/(pcm)/servicos/${service.id}?tab=details`}
-          className="rounded border px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50"
-        >
+        <Link href={`/(pcm)/servicos/${service.id}?tab=details`} className="btn-secondary text-xs">
           Editar
         </Link>
-        <Link
-          href={`/(pcm)/servicos/${service.id}?tab=updates`}
-          className="rounded border px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50"
-        >
+        <Link href={`/(pcm)/servicos/${service.id}?tab=updates`} className="btn-secondary text-xs">
           Abrir serviço
         </Link>
-        <button
-          type="button"
-          onClick={generateToken}
-          disabled={isLoading}
-          className="rounded border px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50"
-        >
-          {isLoading ? "Gerando..." : "Gerar token"}
+        <button type="button" onClick={generateToken} disabled={isLoading} className="btn-primary text-xs">
+          {isLoading ? "Gerando…" : "Gerar token"}
         </button>
-        <button
-          type="button"
-          onClick={openPdf}
-          className="rounded border px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50"
-        >
+        <button type="button" onClick={openPdf} className="btn-secondary text-xs">
           Exportar PDF
         </button>
       </div>
-      {token && (
-        <div className="space-y-1 rounded border bg-emerald-50 p-2 text-[0.75rem] text-emerald-700">
-          <div>
-            <span className="font-semibold">Token:</span> {token.token}
-          </div>
-          <div className="truncate">
-            <span className="font-semibold">Link:</span>{" "}
-            <a className="underline" href={token.link} target="_blank" rel="noreferrer">
+      {token ? (
+        <div className="rounded-md border border-primary/30 bg-primary/10 p-3 text-xs">
+          <div className="font-semibold text-primary">Token: {token.token}</div>
+          <div className="mt-1 truncate text-muted-foreground">
+            Link: {" "}
+            <a className="link" href={token.link} target="_blank" rel="noreferrer">
               {token.link}
             </a>
           </div>
         </div>
-      )}
-      {error && <div className="rounded border border-amber-300 bg-amber-50 p-2 text-[0.75rem] text-amber-700">{error}</div>}
+      ) : null}
+      {error ? (
+        <div className="rounded-md border border-destructive/40 bg-destructive/10 p-2 text-xs text-destructive">
+          {error}
+        </div>
+      ) : null}
     </div>
   );
 }

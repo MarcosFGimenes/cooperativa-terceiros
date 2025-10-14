@@ -2,6 +2,7 @@
 
 import { useState, useTransition, FormEvent } from "react";
 import { usePathname, useRouter } from "next/navigation";
+import { toast } from "sonner";
 
 type DashboardFiltersProps = {
   companies: string[];
@@ -37,6 +38,7 @@ export default function DashboardFilters({ companies, packages, current }: Dashb
 
     startTransition(() => {
       router.replace(params.size ? `${pathname}?${params.toString()}` : pathname, { scroll: false });
+      toast.success("Filtros aplicados");
     });
   }
 
@@ -46,16 +48,17 @@ export default function DashboardFilters({ companies, packages, current }: Dashb
     setPackageId("");
     startTransition(() => {
       router.replace(pathname, { scroll: false });
+      toast.success("Filtros limpos");
     });
   }
 
   return (
-    <form onSubmit={handleSubmit} className="rounded-lg border bg-white p-4 shadow-sm">
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <label className="space-y-1 text-sm">
-          <span className="font-medium text-gray-700">Status</span>
+    <form onSubmit={handleSubmit} className="card p-5">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <label className="label">
+          Status
           <select
-            className="w-full rounded border px-3 py-2"
+            className="input mt-1"
             value={status}
             onChange={(event) => setStatus(event.target.value)}
           >
@@ -67,10 +70,10 @@ export default function DashboardFilters({ companies, packages, current }: Dashb
           </select>
         </label>
 
-        <label className="space-y-1 text-sm">
-          <span className="font-medium text-gray-700">Empresa</span>
+        <label className="label">
+          Empresa
           <select
-            className="w-full rounded border px-3 py-2"
+            className="input mt-1"
             value={company}
             onChange={(event) => setCompany(event.target.value)}
           >
@@ -83,10 +86,10 @@ export default function DashboardFilters({ companies, packages, current }: Dashb
           </select>
         </label>
 
-        <label className="space-y-1 text-sm">
-          <span className="font-medium text-gray-700">Pacote</span>
+        <label className="label">
+          Pacote
           <select
-            className="w-full rounded border px-3 py-2"
+            className="input mt-1"
             value={packageId}
             onChange={(event) => setPackageId(event.target.value)}
           >
@@ -102,18 +105,18 @@ export default function DashboardFilters({ companies, packages, current }: Dashb
         <div className="flex items-end gap-2">
           <button
             type="submit"
-            className="flex-1 rounded bg-black px-3 py-2 text-sm font-semibold text-white disabled:opacity-60"
+            className="btn-primary flex-1"
             disabled={isPending}
           >
-            Aplicar filtros
+            {isPending ? "Aplicando…" : "Aplicar filtros"}
           </button>
           <button
             type="button"
             onClick={resetFilters}
-            className="rounded border px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+            className="btn-secondary"
             disabled={isPending}
           >
-            Limpar
+            {isPending ? "…" : "Limpar"}
           </button>
         </div>
       </div>

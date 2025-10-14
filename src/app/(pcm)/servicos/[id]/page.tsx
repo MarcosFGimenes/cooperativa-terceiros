@@ -6,6 +6,8 @@ import ServiceMetadataForm from "./_components/ServiceMetadataForm";
 import ServiceTimeline from "@/components/ServiceTimeline";
 import { getChecklist, getService, listUpdates } from "@/lib/repo/services";
 import ServiceGraphSection from "./_components/ServiceGraphSection";
+import PageHeader from "@/components/PageHeader";
+import BackButton from "@/components/BackButton";
 
 const TABS = [
   { id: "details", label: "Detalhes" },
@@ -13,6 +15,12 @@ const TABS = [
   { id: "updates", label: "Atualizações" },
   { id: "graph", label: "Gráfico" },
 ] as const;
+
+const STATUS_LABEL = {
+  aberto: "Aberto",
+  concluido: "Concluído",
+  encerrado: "Encerrado",
+} as const;
 
 type PageProps = {
   params: { id: string };
@@ -75,26 +83,27 @@ export default async function Page({ params, searchParams }: PageProps) {
   }));
 
   return (
-    <div className="space-y-6 p-6">
-      <div className="space-y-1">
-        <h1 className="text-2xl font-semibold text-gray-900">Serviço {service.os || service.id}</h1>
-        <p className="text-sm text-gray-600">
-          Gerencie todos os aspectos do serviço: dados cadastrais, checklist, atualizações e relatórios de progresso.
-        </p>
-      </div>
+    <div className="space-y-6">
+      <PageHeader
+        title={`Serviço ${service.os || service.id}`}
+        description="Gerencie dados, checklist, atualizações e relatórios do serviço selecionado."
+        actions={<BackButton />}
+      />
 
       <div className="grid gap-4 md:grid-cols-3">
-        <div className="rounded-lg border bg-white p-4 shadow-sm">
-          <div className="text-sm text-gray-500">Status</div>
-          <div className="mt-1 text-xl font-semibold text-gray-900">{service.status.toUpperCase()}</div>
+        <div className="card p-4">
+          <div className="text-sm text-muted-foreground">Status</div>
+          <div className="mt-2 text-lg font-semibold text-foreground">
+            {STATUS_LABEL[service.status as keyof typeof STATUS_LABEL] ?? service.status}
+          </div>
         </div>
-        <div className="rounded-lg border bg-white p-4 shadow-sm">
-          <div className="text-sm text-gray-500">Percentual realizado</div>
-          <div className="mt-1 text-xl font-semibold text-gray-900">{Number(service.realPercent ?? 0).toFixed(1)}%</div>
+        <div className="card p-4">
+          <div className="text-sm text-muted-foreground">Percentual realizado</div>
+          <div className="mt-2 text-lg font-semibold text-foreground">{Number(service.realPercent ?? 0).toFixed(1)}%</div>
         </div>
-        <div className="rounded-lg border bg-white p-4 shadow-sm">
-          <div className="text-sm text-gray-500">Checklist</div>
-          <div className="mt-1 text-xl font-semibold text-gray-900">
+        <div className="card p-4">
+          <div className="text-sm text-muted-foreground">Checklist</div>
+          <div className="mt-2 text-lg font-semibold text-foreground">
             {service.hasChecklist ? "Ativo" : "Não configurado"}
           </div>
         </div>
@@ -107,9 +116,7 @@ export default async function Page({ params, searchParams }: PageProps) {
             <Link
               key={tab.id}
               href={`${basePath}?tab=${tab.id}`}
-              className={`rounded-full px-4 py-2 text-sm font-medium transition ${
-                isActive ? "bg-black text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-              }`}
+              className={`btn-ghost text-sm ${isActive ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}
             >
               {tab.label}
             </Link>
@@ -117,9 +124,9 @@ export default async function Page({ params, searchParams }: PageProps) {
         })}
       </nav>
 
-      {activeTab === "details" && (
-        <section className="rounded-lg border bg-white p-6 shadow-sm">
-          <h2 className="text-lg font-semibold text-gray-900">Dados do serviço</h2>
+      {activeTab === "details" ? (
+        <section className="card p-6 space-y-4">
+          <h2 className="text-lg font-semibold tracking-tight">Dados do serviço</h2>
           <ServiceMetadataForm
             serviceId={service.id}
             initial={{
@@ -136,32 +143,32 @@ export default async function Page({ params, searchParams }: PageProps) {
             }}
           />
         </section>
-      )}
+      ) : null}
 
-      {activeTab === "checklist" && (
-        <section className="rounded-lg border bg-white p-6 shadow-sm">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-gray-900">Checklist do serviço</h2>
-            <span className="text-sm text-gray-500">Itens atuais: {checklistDraft.length}</span>
+      {activeTab === "checklist" ? (
+        <section className="card p-6 space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 className="text-lg font-semibold tracking-tight">Checklist do serviço</h2>
+            <span className="text-sm text-muted-foreground">Itens atuais: {checklistDraft.length}</span>
           </div>
-          <div className="mt-4">
-            <ChecklistManager serviceId={service.id} initialItems={checklistDraft} />
-          </div>
+          <ChecklistManager serviceId={service.id} initialItems={checklistDraft} />
         </section>
-      )}
+      ) : null}
 
-      {activeTab === "updates" && (
-        <section className="rounded-lg border bg-white p-6 shadow-sm">
-          <h2 className="text-lg font-semibold text-gray-900">Atualizações</h2>
+      {activeTab === "updates" ? (
+        <section className="card p-6">
+          <h2 className="text-lg font-semibold tracking-tight">Atualizações</h2>
           {timelineItems.length > 0 ? (
             <ServiceTimeline items={timelineItems} />
           ) : (
-            <p className="mt-3 text-sm text-gray-500">Nenhuma atualização registrada até o momento.</p>
+            <div className="mt-4 rounded-md border border-dashed border-border/70 bg-muted/40 p-4 text-sm text-muted-foreground">
+              Nenhuma atualização registrada até o momento.
+            </div>
           )}
         </section>
-      )}
+      ) : null}
 
-      {activeTab === "graph" && <ServiceGraphSection service={service} />}
+      {activeTab === "graph" ? <ServiceGraphSection service={service} /> : null}
     </div>
   );
 }

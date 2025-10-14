@@ -2,6 +2,7 @@
 
 import { FormEvent, useState } from "react";
 import type { ServiceStatus } from "@/lib/types";
+import { toast } from "sonner";
 
 type Props = {
   serviceId: string;
@@ -65,106 +66,96 @@ export default function ServiceMetadataForm({ serviceId, initial }: Props) {
       }
 
       setFeedback("Dados atualizados com sucesso.");
+      toast.success("Dados do serviço salvos");
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Erro inesperado.";
       setError(message);
+      toast.error(message);
     } finally {
       setSaving(false);
     }
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <form onSubmit={handleSubmit} className="space-y-6">
       <div className="grid gap-4 md:grid-cols-2">
-        <label className="space-y-1 text-sm">
-          <span className="font-medium text-gray-700">OS</span>
-          <input
-            className="w-full rounded border px-3 py-2"
-            value={form.os}
-            onChange={(event) => updateField("os", event.target.value)}
-          />
+        <label className="label">
+          OS
+          <input className="input mt-1" value={form.os} onChange={(event) => updateField("os", event.target.value)} />
         </label>
 
-        <label className="space-y-1 text-sm">
-          <span className="font-medium text-gray-700">OC</span>
+        <label className="label">
+          OC
           <input
-            className="w-full rounded border px-3 py-2"
+            className="input mt-1"
             value={form.oc ?? ""}
             onChange={(event) => updateField("oc", event.target.value)}
           />
         </label>
 
-        <label className="space-y-1 text-sm">
-          <span className="font-medium text-gray-700">Tag</span>
-          <input
-            className="w-full rounded border px-3 py-2"
-            value={form.tag}
-            onChange={(event) => updateField("tag", event.target.value)}
-          />
+        <label className="label">
+          Tag
+          <input className="input mt-1" value={form.tag} onChange={(event) => updateField("tag", event.target.value)} />
         </label>
 
-        <label className="space-y-1 text-sm">
-          <span className="font-medium text-gray-700">Equipamento</span>
+        <label className="label">
+          Equipamento
           <input
-            className="w-full rounded border px-3 py-2"
+            className="input mt-1"
             value={form.equipmentName}
             onChange={(event) => updateField("equipmentName", event.target.value)}
           />
         </label>
 
-        <label className="space-y-1 text-sm">
-          <span className="font-medium text-gray-700">Setor</span>
-          <input
-            className="w-full rounded border px-3 py-2"
-            value={form.sector}
-            onChange={(event) => updateField("sector", event.target.value)}
-          />
+        <label className="label">
+          Setor
+          <input className="input mt-1" value={form.sector} onChange={(event) => updateField("sector", event.target.value)} />
         </label>
 
-        <label className="space-y-1 text-sm">
-          <span className="font-medium text-gray-700">Empresa</span>
+        <label className="label">
+          Empresa
           <input
-            className="w-full rounded border px-3 py-2"
+            className="input mt-1"
             value={form.company ?? ""}
             onChange={(event) => updateField("company", event.target.value)}
           />
         </label>
 
-        <label className="space-y-1 text-sm">
-          <span className="font-medium text-gray-700">Início previsto</span>
+        <label className="label">
+          Início previsto
           <input
             type="date"
-            className="w-full rounded border px-3 py-2"
+            className="input mt-1"
             value={form.plannedStart ?? ""}
             onChange={(event) => updateField("plannedStart", event.target.value)}
           />
         </label>
 
-        <label className="space-y-1 text-sm">
-          <span className="font-medium text-gray-700">Término previsto</span>
+        <label className="label">
+          Término previsto
           <input
             type="date"
-            className="w-full rounded border px-3 py-2"
+            className="input mt-1"
             value={form.plannedEnd ?? ""}
             onChange={(event) => updateField("plannedEnd", event.target.value)}
           />
         </label>
 
-        <label className="space-y-1 text-sm">
-          <span className="font-medium text-gray-700">Horas totais</span>
+        <label className="label">
+          Horas totais
           <input
             type="number"
             min={0}
-            className="w-full rounded border px-3 py-2"
+            className="input mt-1"
             value={form.totalHours}
             onChange={(event) => updateField("totalHours", Number(event.target.value))}
           />
         </label>
 
-        <label className="space-y-1 text-sm">
-          <span className="font-medium text-gray-700">Status</span>
+        <label className="label">
+          Status
           <select
-            className="w-full rounded border px-3 py-2"
+            className="input mt-1"
             value={form.status}
             onChange={(event) => updateField("status", event.target.value as ServiceStatus)}
           >
@@ -177,16 +168,16 @@ export default function ServiceMetadataForm({ serviceId, initial }: Props) {
         </label>
       </div>
 
-      {feedback && <div className="rounded border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700">{feedback}</div>}
-      {error && <div className="rounded border border-amber-300 bg-amber-50 p-3 text-sm text-amber-700">{error}</div>}
+      {feedback ? (
+        <div className="rounded-md border border-primary/30 bg-primary/10 p-3 text-sm text-primary">{feedback}</div>
+      ) : null}
+      {error ? (
+        <div className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">{error}</div>
+      ) : null}
 
       <div className="flex justify-end">
-        <button
-          type="submit"
-          className="rounded bg-black px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
-          disabled={saving}
-        >
-          {saving ? "Salvando..." : "Salvar alterações"}
+        <button type="submit" className="btn-primary" disabled={saving}>
+          {saving ? "Salvando…" : "Salvar alterações"}
         </button>
       </div>
     </form>

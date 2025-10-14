@@ -3,6 +3,7 @@
 import { type RefObject, useCallback, useState } from "react";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
+import { toast } from "sonner";
 
 type PdfExportBarProps = {
   targetRef: RefObject<HTMLElement>;
@@ -91,8 +92,10 @@ export default function PdfExportBar({
       pdf.save(
         `${resolvedServiceName.replace(/\s+/g, "-").toLowerCase() || "relatorio-servico"}.pdf`,
       );
+      toast.success("PDF gerado com sucesso");
     } catch (error) {
       console.error("[PdfExportBar] Falha ao exportar PDF", error);
+      toast.error("Falha ao exportar PDF");
     } finally {
       setIsExporting(false);
     }
@@ -100,20 +103,11 @@ export default function PdfExportBar({
 
   return (
     <div className="flex gap-2">
-      <button
-        type="button"
-        onClick={handlePrint}
-        className="rounded border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-100"
-      >
+      <button type="button" onClick={handlePrint} className="btn-secondary">
         Imprimir
       </button>
-      <button
-        type="button"
-        onClick={handleExportPdf}
-        disabled={isExporting}
-        className="rounded bg-black px-3 py-2 text-sm font-medium text-white transition hover:bg-gray-900 disabled:cursor-not-allowed disabled:bg-gray-500"
-      >
-        {isExporting ? "Exportando..." : "Exportar PDF"}
+      <button type="button" onClick={handleExportPdf} disabled={isExporting} className="btn-primary">
+        {isExporting ? "Exportando…" : "Exportar PDF"}
       </button>
     </div>
   );
