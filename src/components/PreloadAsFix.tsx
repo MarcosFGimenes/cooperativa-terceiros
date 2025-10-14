@@ -2,7 +2,16 @@
 
 import { useEffect } from "react";
 
-type PreloadType = "audio" | "document" | "font" | "image" | "script" | "style" | "track" | "video";
+type PreloadType =
+  | "audio"
+  | "document"
+  | "fetch"
+  | "font"
+  | "image"
+  | "script"
+  | "style"
+  | "track"
+  | "video";
 
 function inferAsFromHref(href: string): PreloadType | null {
   if (!href) return null;
@@ -39,9 +48,7 @@ function applyAsAttribute(link: HTMLLinkElement) {
   if (current && current.trim().length > 0) return;
 
   const inferred = inferAsFromHref(link.getAttribute("href") ?? "");
-  if (inferred) {
-    link.setAttribute("as", inferred);
-  }
+  link.setAttribute("as", inferred ?? "fetch");
 }
 
 function applyToNode(node: Node) {
