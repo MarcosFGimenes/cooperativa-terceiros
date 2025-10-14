@@ -34,6 +34,8 @@ type Props = {
   token: string;
 };
 
+type ToastState = { type: "success" | "error"; message: string; id: number } | null;
+
 function formatPercent(value: number | null | undefined): string {
   if (!Number.isFinite(Number(value))) return "0%";
   return `${Number(value ?? 0).toFixed(1)}%`;
@@ -62,8 +64,18 @@ export default function ServiceClient({ serviceId, token }: Props) {
   const [checklistDraft, setChecklistDraft] = useState<ChecklistDraft>([]);
   const [checklistNote, setChecklistNote] = useState("");
   const [saving, setSaving] = useState(false);
-  const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
+  const [toast, setToast] = useState<ToastState>(null);
   const [refreshIndex, setRefreshIndex] = useState(0);
+
+  useEffect(() => {
+    if (!toast) return;
+    const timeout = window.setTimeout(() => setToast(null), 4000);
+    return () => window.clearTimeout(timeout);
+  }, [toast]);
+
+  function showToast(type: "success" | "error", message: string) {
+    setToast({ type, message, id: Date.now() });
+  }
 
   useEffect(() => {
     if (!token) {
@@ -136,7 +148,6 @@ export default function ServiceClient({ serviceId, token }: Props) {
     event.preventDefault();
     if (!data) return;
     setSaving(true);
-    setFeedback(null);
     try {
       const body = {
         percent: Number(manualPercent),
@@ -154,13 +165,13 @@ export default function ServiceClient({ serviceId, token }: Props) {
       if (!response.ok || json.ok === false) {
         throw new Error(json.error || "Falha ao salvar atualização");
       }
-      setFeedback({ type: "success", message: "Atualização registrada com sucesso!" });
+      showToast("success", "Atualização registrada com sucesso!");
       setManualNote("");
       triggerReload();
     } catch (err: unknown) {
       console.error("[update-manual] falha", err);
       const message = err instanceof Error ? err.message : "Não foi possível salvar a atualização.";
-      setFeedback({ type: "error", message });
+      showToast("error", message);
     } finally {
       setSaving(false);
     }
@@ -170,7 +181,6 @@ export default function ServiceClient({ serviceId, token }: Props) {
     event.preventDefault();
     if (!data) return;
     setSaving(true);
-    setFeedback(null);
     try {
       const payload = {
         updates: checklistDraft.map((item) => ({
@@ -193,13 +203,13 @@ export default function ServiceClient({ serviceId, token }: Props) {
       if (!response.ok || json.ok === false) {
         throw new Error(json.error || "Falha ao salvar atualização");
       }
-      setFeedback({ type: "success", message: "Atualização registrada com sucesso!" });
+      showToast("success", "Atualização registrada com sucesso!");
       setChecklistNote("");
       triggerReload();
     } catch (err: unknown) {
       console.error("[update-checklist] falha", err);
       const message = err instanceof Error ? err.message : "Não foi possível salvar a atualização.";
-      setFeedback({ type: "error", message });
+      showToast("error", message);
     } finally {
       setSaving(false);
     }
@@ -213,7 +223,7 @@ export default function ServiceClient({ serviceId, token }: Props) {
 
   if (!token) {
     return (
-      <main className="mx-auto flex w-full max-w-3xl flex-col gap-4 p-4 sm:p-6">
+      <main className="mx-auto flex w-full max-w-xl flex-col gap-4 p-4 sm:p-6">
         <section className="rounded-lg border bg-white p-6 shadow-sm">
           <h1 className="text-xl font-semibold text-gray-900">Acesso público</h1>
           <p className="mt-2 text-sm text-gray-600">Informe um token de acesso válido na URL para visualizar o serviço.</p>
@@ -223,7 +233,23 @@ export default function ServiceClient({ serviceId, token }: Props) {
   }
 
   return (
-    <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 p-4 sm:p-6">
+    <main className="mx-auto flex w-full max-w-xl flex-col gap-4 p-4 sm:p-6">
+      <div aria-live="assertive" className="pointer-events-none fixed inset-x-0 top-4 z-50 flex justify-center px-4">
+        {toast && (
+          <div
+            key={toast.id}
+            role="alert"
+            className={`pointer-events-auto inline-flex min-h-[44px] items-center gap-2 rounded-lg px-4 py-3 text-sm font-medium shadow-lg ${
+              toast.type === "error"
+                ? "border border-red-200 bg-red-50 text-red-700"
+                : "border border-emerald-200 bg-emerald-50 text-emerald-700"
+            }`}
+          >
+            {toast.message}
+          </div>
+        )}
+      </div>
+
       <section className="rounded-lg border bg-white p-6 shadow-sm">
         <div className="space-y-1">
           <h1 className="text-2xl font-semibold text-gray-900">Serviço {serviceId}</h1>
@@ -232,7 +258,7 @@ export default function ServiceClient({ serviceId, token }: Props) {
       </section>
 
       {loading && (
-        <section className="rounded-lg border bg-white p-6 shadow-sm">
+        <section className="rounded-lg border bg-white p-6 shadow-sm" role="status" aria-live="polite">
           <p className="text-sm text-gray-600">Carregando dados do serviço...</p>
         </section>
       )}
@@ -244,7 +270,7 @@ export default function ServiceClient({ serviceId, token }: Props) {
           <button
             type="button"
             onClick={triggerReload}
-            className="mt-4 w-full rounded-lg bg-black px-4 py-3 text-center text-sm font-semibold text-white"
+            className="mt-4 inline-flex w-full min-h-[44px] min-w-[44px] items-center justify-center rounded-lg bg-black px-4 text-center text-sm font-semibold text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-black"
           >
             Tentar novamente
           </button>
@@ -278,7 +304,7 @@ export default function ServiceClient({ serviceId, token }: Props) {
                   {formatPercent(data.service.realPercent)}
                 </span>
               </div>
-              <div className="h-3 w-full overflow-hidden rounded-full bg-gray-100">
+              <div className="h-3 w-full overflow-hidden rounded-full bg-gray-100" aria-hidden="true">
                 <div
                   className="h-full rounded-full bg-emerald-500 transition-all"
                   style={{ width: `${Math.min(100, Math.max(0, Number(data.service.realPercent ?? 0)))}%` }}
@@ -286,22 +312,6 @@ export default function ServiceClient({ serviceId, token }: Props) {
               </div>
             </div>
           </section>
-
-          {feedback && (
-            <section
-              className={`rounded-lg border p-4 shadow-sm ${
-                feedback.type === "error" ? "border-red-200 bg-red-50" : "border-emerald-200 bg-emerald-50"
-              }`}
-            >
-              <p
-                className={`text-sm ${
-                  feedback.type === "error" ? "text-red-700" : "text-emerald-700"
-                }`}
-              >
-                {feedback.message}
-              </p>
-            </section>
-          )}
 
           {data.service.hasChecklist ? (
             <section className="space-y-4 rounded-lg border bg-white p-6 shadow-sm">
@@ -333,6 +343,7 @@ export default function ServiceClient({ serviceId, token }: Props) {
                             updateChecklistItem(item.id, { progress: Number(event.target.value) })
                           }
                           className="w-full"
+                          aria-label={`Progresso do item ${item.description || item.id}`}
                         />
                         <div className="flex items-center justify-between text-xs text-gray-500">
                           <span>0%</span>
@@ -354,7 +365,8 @@ export default function ServiceClient({ serviceId, token }: Props) {
                               status: event.target.value as ChecklistItem["status"],
                             })
                           }
-                          className="w-full rounded-lg border px-3 py-2"
+                          className="w-full rounded-lg border px-3 py-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-black"
+                          aria-label={`Status do item ${item.description || item.id}`}
                         >
                           {STATUS_OPTIONS.map((status) => (
                             <option key={status} value={status}>
@@ -383,17 +395,20 @@ export default function ServiceClient({ serviceId, token }: Props) {
                     value={checklistNote}
                     onChange={(event) => setChecklistNote(event.target.value)}
                     rows={3}
-                    className="w-full rounded-lg border px-3 py-2"
+                    className="w-full rounded-lg border px-3 py-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-black"
                     placeholder="Registre observações relevantes sobre esta atualização"
+                    aria-label="Nota para atualização do checklist"
                   />
                 </div>
-                <button
-                  type="submit"
-                  disabled={saving}
-                  className="w-full rounded-lg bg-black px-4 py-3 text-sm font-semibold text-white disabled:opacity-60"
-                >
-                  {saving ? "Salvando..." : "Salvar atualização"}
-                </button>
+                <div className="sticky bottom-0 -mx-6 -mb-6 border-t border-gray-200 bg-gradient-to-t from-white via-white/95 to-white px-6 py-4">
+                  <button
+                    type="submit"
+                    disabled={saving}
+                    className="inline-flex w-full min-h-[44px] min-w-[44px] items-center justify-center rounded-lg bg-black px-4 text-sm font-semibold text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-black disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {saving ? "Salvando..." : "Salvar atualização"}
+                  </button>
+                </div>
               </form>
             </section>
           ) : (
@@ -415,9 +430,10 @@ export default function ServiceClient({ serviceId, token }: Props) {
                     step={0.5}
                     value={manualPercent}
                     onChange={(event) => setManualPercent(event.target.value)}
-                    className="w-full rounded-lg border px-3 py-2"
+                    className="w-full rounded-lg border px-3 py-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-black"
                     placeholder="0 a 100"
                     required
+                    aria-label="Percentual total concluído"
                   />
                 </div>
                 <div className="space-y-1 text-sm">
@@ -429,17 +445,20 @@ export default function ServiceClient({ serviceId, token }: Props) {
                     value={manualNote}
                     onChange={(event) => setManualNote(event.target.value)}
                     rows={3}
-                    className="w-full rounded-lg border px-3 py-2"
+                    className="w-full rounded-lg border px-3 py-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-black"
                     placeholder="Registre observações relevantes"
+                    aria-label="Nota sobre o progresso manual"
                   />
                 </div>
-                <button
-                  type="submit"
-                  disabled={saving}
-                  className="w-full rounded-lg bg-black px-4 py-3 text-sm font-semibold text-white disabled:opacity-60"
-                >
-                  {saving ? "Salvando..." : "Salvar atualização"}
-                </button>
+                <div className="sticky bottom-0 -mx-6 -mb-6 border-t border-gray-200 bg-gradient-to-t from-white via-white/95 to-white px-6 py-4">
+                  <button
+                    type="submit"
+                    disabled={saving}
+                    className="inline-flex w-full min-h-[44px] min-w-[44px] items-center justify-center rounded-lg bg-black px-4 text-sm font-semibold text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-black disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {saving ? "Salvando..." : "Salvar atualização"}
+                  </button>
+                </div>
               </form>
             </section>
           )}
