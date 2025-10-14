@@ -1,4 +1,4 @@
-import { db } from "@/lib/firebase";
+import { db } from "@/lib/firebaseClient";
 import { doc, getDoc } from "firebase/firestore";
 import type { PackageDoc } from "@/lib/types";
 
