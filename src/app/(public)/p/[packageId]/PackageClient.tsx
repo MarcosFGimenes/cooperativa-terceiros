@@ -80,7 +80,7 @@ export default function PackageClient({ packageId, token }: Props) {
 
   if (!token) {
     return (
-      <main className="mx-auto flex w-full max-w-4xl flex-col gap-4 p-4 sm:p-6">
+      <main className="mx-auto flex w-full max-w-xl flex-col gap-4 p-4 sm:p-6">
         <section className="rounded-lg border bg-white p-6 shadow-sm">
           <h1 className="text-xl font-semibold text-gray-900">Pacote de serviços</h1>
           <p className="mt-2 text-sm text-gray-600">Informe um token válido para visualizar os serviços vinculados.</p>
@@ -90,7 +90,7 @@ export default function PackageClient({ packageId, token }: Props) {
   }
 
   return (
-    <main className="mx-auto flex w-full max-w-4xl flex-col gap-6 p-4 sm:p-6">
+    <main className="mx-auto flex w-full max-w-xl flex-col gap-4 p-4 sm:p-6">
       <section className="rounded-lg border bg-white p-6 shadow-sm">
         <div className="space-y-1">
           <h1 className="text-2xl font-semibold text-gray-900">Pacote {packageId}</h1>
@@ -99,7 +99,7 @@ export default function PackageClient({ packageId, token }: Props) {
       </section>
 
       {loading && (
-        <section className="rounded-lg border bg-white p-6 shadow-sm">
+        <section className="rounded-lg border bg-white p-6 shadow-sm" role="status" aria-live="polite">
           <p className="text-sm text-gray-600">Carregando serviços do pacote...</p>
         </section>
       )}
@@ -111,7 +111,7 @@ export default function PackageClient({ packageId, token }: Props) {
           <button
             type="button"
             onClick={triggerReload}
-            className="mt-4 w-full rounded-lg bg-black px-4 py-3 text-center text-sm font-semibold text-white"
+            className="mt-4 inline-flex w-full min-h-[44px] min-w-[44px] items-center justify-center rounded-lg bg-black px-4 text-center text-sm font-semibold text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-black"
           >
             Tentar novamente
           </button>
@@ -148,7 +148,7 @@ export default function PackageClient({ packageId, token }: Props) {
                   </div>
                   <Link
                     href={`/s/${service.id}?token=${encodeURIComponent(token)}`}
-                    className="inline-flex w-full items-center justify-center rounded-lg bg-black px-4 py-3 text-sm font-semibold text-white"
+                    className="inline-flex w-full min-h-[44px] min-w-[44px] items-center justify-center rounded-lg bg-black px-4 text-sm font-semibold text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-black"
                   >
                     Abrir serviço
                   </Link>

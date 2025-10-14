@@ -71,17 +71,21 @@ export function AcessoClient() {
   }, [router, token]);
 
   return (
-    <main className="max-w-xl mx-auto p-6">
-      <h1 className="text-2xl font-semibold mb-3">Acesso por Token</h1>
-      <p className="mb-2 text-sm text-gray-600">
-        Token detectado: <b>{token || "(vazio)"}</b>
-      </p>
+    <main className="mx-auto flex w-full max-w-xl flex-col gap-4 p-4 sm:p-6">
+      <header className="space-y-2">
+        <h1 className="text-2xl font-semibold text-gray-900">Acesso por Token</h1>
+        <p className="text-sm text-gray-600">
+          Token detectado: <b>{token || "(vazio)"}</b>
+        </p>
+      </header>
       {feedback.message && (
         <p
+          role="status"
+          aria-live="assertive"
           className={
             feedback.status === "error"
-              ? "mt-4 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700"
-              : "mt-4 rounded border border-gray-200 bg-gray-50 p-3 text-sm text-gray-700"
+              ? "rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700"
+              : "rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-700"
           }
         >
           {feedback.message}
