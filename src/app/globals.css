@@ -3,25 +3,68 @@
 @tailwind utilities;
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica,
-    Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
-  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco,
-    Consolas, "Liberation Mono", "Courier New", monospace;
+  --background: 0 0% 100%;
+  --foreground: 222.2 47.4% 11.2%;
+
+  --card: 0 0% 100%;
+  --card-foreground: 222.2 47.4% 11.2%;
+
+  --popover: 0 0% 100%;
+  --popover-foreground: 222.2 47.4% 11.2%;
+
+  --primary: 160 64% 41%;              /* brand-500 */
+  --primary-foreground: 0 0% 100%;
+
+  --secondary: 210 20% 96%;
+  --secondary-foreground: 222.2 47.4% 11.2%;
+
+  --muted: 210 20% 96%;
+  --muted-foreground: 215 16.3% 46.9%;
+
+  --accent: 160 40% 92%;
+  --accent-foreground: 160 60% 20%;
+
+  --destructive: 0 84.2% 60.2%;
+  --destructive-foreground: 0 0% 98%;
+
+  --border: 214.3 31.8% 91.4%;
+  --input: 214.3 31.8% 91.4%;
+  --ring: 160 64% 41%;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
+* { @apply border-border; }
+html, body { height: 100%; }
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: var(--font-sans);
+  @apply bg-background text-foreground antialiased;
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Apple Color Emoji", "Segoe UI Emoji";
+}
+
+.container-page {
+  @apply container mx-auto max-w-5xl p-4 sm:p-6;
+}
+
+.card {
+  @apply bg-card text-card-foreground rounded-lg shadow-soft border;
+}
+
+.btn {
+  @apply inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-medium transition disabled:opacity-60 disabled:pointer-events-none;
+}
+.btn-primary {
+  @apply btn bg-primary text-primary-foreground hover:opacity-90 focus:ring-2 focus:ring-primary/40;
+}
+.btn-secondary {
+  @apply btn bg-secondary text-secondary-foreground hover:opacity-90;
+}
+.btn-ghost {
+  @apply btn hover:bg-accent;
+}
+.link {
+  @apply text-primary hover:underline;
+}
+.label {
+  @apply block text-sm font-medium text-muted-foreground;
+}
+.input {
+  @apply w-full rounded-md border bg-white px-3 py-2 outline-none ring-offset-2 focus:ring-2 focus:ring-primary/30;
 }

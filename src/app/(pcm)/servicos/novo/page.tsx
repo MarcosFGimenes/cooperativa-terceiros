@@ -2,6 +2,9 @@
 
 import { FormEvent, useMemo, useState } from "react";
 import ChecklistItemsEditor, { ChecklistDraftItem } from "@/components/forms/ChecklistItemsEditor";
+import PageHeader from "@/components/PageHeader";
+import BackButton from "@/components/BackButton";
+import { toast } from "sonner";
 
 type ServiceResult = {
   serviceId: string;
@@ -153,178 +156,185 @@ export default function Page() {
           ? `${window.location.origin}${data.link}`
           : undefined;
 
-      setResult({ serviceId: data.serviceId, token: data.token, link });
+      const nextResult = { serviceId: data.serviceId, token: data.token, link };
+      setResult(nextResult);
+      toast.success("Serviço criado com sucesso!");
       resetForm();
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Erro inesperado.";
       setError(message);
+      toast.error(message);
     } finally {
       setSubmitting(false);
     }
   }
 
   return (
-    <div className="space-y-6 p-6">
-      <div className="space-y-1">
-        <h1 className="text-2xl font-semibold text-gray-900">Novo serviço</h1>
-        <p className="text-sm text-gray-600">
-          Preencha os dados para criar um novo serviço. Gere tokens de acesso para terceiros automaticamente, se necessário.
-        </p>
+    <div className="space-y-6">
+      <PageHeader
+        title="Novo serviço"
+        description="Preencha os dados para criar um novo serviço e gerar o token de acesso para terceiros."
+        actions={<BackButton />}
+      />
+
+      <div className="card p-6 space-y-6">
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <div className="grid gap-4 md:grid-cols-2">
+            <label className="label">
+              OS
+              <input
+                className="input mt-1"
+                value={form.os}
+                onChange={(event) => updateField("os", event.target.value)}
+                placeholder="Número da ordem de serviço"
+              />
+            </label>
+
+            <label className="label">
+              OC
+              <input
+                className="input mt-1"
+                value={form.oc}
+                onChange={(event) => updateField("oc", event.target.value)}
+                placeholder="Número da ordem de compra"
+              />
+            </label>
+
+            <label className="label">
+              Tag do equipamento
+              <input
+                className="input mt-1"
+                value={form.tag}
+                onChange={(event) => updateField("tag", event.target.value)}
+                placeholder="TAG principal"
+              />
+            </label>
+
+            <label className="label">
+              Equipamento
+              <input
+                className="input mt-1"
+                value={form.equipmentName}
+                onChange={(event) => updateField("equipmentName", event.target.value)}
+                placeholder="Descrição do equipamento"
+              />
+            </label>
+
+            <label className="label">
+              Setor responsável
+              <input
+                className="input mt-1"
+                value={form.sector}
+                onChange={(event) => updateField("sector", event.target.value)}
+                placeholder="Setor responsável"
+              />
+            </label>
+
+            <label className="label">
+              Empresa executora
+              <input
+                className="input mt-1"
+                value={form.company}
+                onChange={(event) => updateField("company", event.target.value)}
+                placeholder="Empresa executora"
+              />
+            </label>
+
+            <label className="label">
+              Início previsto
+              <input
+                type="date"
+                className="input mt-1"
+                value={form.plannedStart}
+                onChange={(event) => updateField("plannedStart", event.target.value)}
+              />
+            </label>
+
+            <label className="label">
+              Término previsto
+              <input
+                type="date"
+                className="input mt-1"
+                value={form.plannedEnd}
+                onChange={(event) => updateField("plannedEnd", event.target.value)}
+              />
+            </label>
+
+            <label className="label">
+              Horas totais
+              <input
+                type="number"
+                min={1}
+                className="input mt-1"
+                value={form.totalHours}
+                onChange={(event) => updateField("totalHours", event.target.value)}
+                placeholder="Quantidade de horas planejadas"
+              />
+            </label>
+          </div>
+
+          <div className="rounded-lg border border-dashed border-border/60 bg-muted/40 p-4 text-sm">
+            <label className="flex items-center gap-2 text-sm font-medium text-foreground">
+              <input
+                type="checkbox"
+                checked={useChecklist}
+                onChange={(event) => {
+                  setUseChecklist(event.target.checked);
+                  if (!event.target.checked) {
+                    setChecklistItems(initialChecklist);
+                  }
+                }}
+                className="h-4 w-4 rounded border-border text-primary focus:ring-primary/40"
+              />
+              Usar checklist de entregas
+            </label>
+            <label className="mt-3 flex items-center gap-2 text-sm font-medium text-foreground">
+              <input
+                type="checkbox"
+                checked={generateToken}
+                onChange={(event) => setGenerateToken(event.target.checked)}
+                className="h-4 w-4 rounded border-border text-primary focus:ring-primary/40"
+              />
+              Gerar token de acesso para terceiros automaticamente
+            </label>
+            {useChecklist ? (
+              <p className="mt-3 text-xs text-muted-foreground">
+                Configure os itens abaixo. A soma dos pesos precisa totalizar 100% ({totalWeight.toFixed(1)}%).
+              </p>
+            ) : null}
+          </div>
+
+          {useChecklist ? <ChecklistItemsEditor items={checklistItems} onChange={setChecklistItems} /> : null}
+
+          {error ? (
+            <div className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+              {error}
+            </div>
+          ) : null}
+
+          <div className="flex flex-wrap justify-end gap-2">
+            <button type="button" onClick={resetForm} className="btn-secondary" disabled={submitting}>
+              {submitting ? "…" : "Limpar"}
+            </button>
+            <button type="submit" className="btn-primary" disabled={submitting}>
+              {submitting ? "Salvando…" : "Criar serviço"}
+            </button>
+          </div>
+        </form>
+
+        {result ? (
+          <div className="rounded-md border border-primary/40 bg-primary/10 p-4 text-sm">
+            <p className="font-semibold text-primary">Serviço criado com sucesso!</p>
+            <p className="mt-1 text-muted-foreground">ID: {result.serviceId}</p>
+            {result.token ? <p className="mt-1 text-muted-foreground">Token: {result.token}</p> : null}
+            {result.link ? (
+              <p className="mt-1 truncate text-muted-foreground">
+                Link: <a className="link" href={result.link} target="_blank" rel="noreferrer">{result.link}</a>
+              </p>
+            ) : null}
+          </div>
+        ) : null}
       </div>
-
-      <form onSubmit={handleSubmit} className="space-y-6 rounded-lg border bg-white p-6 shadow-sm">
-        <div className="grid gap-4 md:grid-cols-2">
-          <label className="space-y-1 text-sm">
-            <span className="font-medium text-gray-700">OS</span>
-            <input
-              className="w-full rounded border px-3 py-2"
-              value={form.os}
-              onChange={(event) => updateField("os", event.target.value)}
-              placeholder="Número da ordem de serviço"
-            />
-          </label>
-
-          <label className="space-y-1 text-sm">
-            <span className="font-medium text-gray-700">OC</span>
-            <input
-              className="w-full rounded border px-3 py-2"
-              value={form.oc}
-              onChange={(event) => updateField("oc", event.target.value)}
-              placeholder="Número da ordem de compra"
-            />
-          </label>
-
-          <label className="space-y-1 text-sm">
-            <span className="font-medium text-gray-700">Tag do equipamento</span>
-            <input
-              className="w-full rounded border px-3 py-2"
-              value={form.tag}
-              onChange={(event) => updateField("tag", event.target.value)}
-            />
-          </label>
-
-          <label className="space-y-1 text-sm">
-            <span className="font-medium text-gray-700">Equipamento</span>
-            <input
-              className="w-full rounded border px-3 py-2"
-              value={form.equipmentName}
-              onChange={(event) => updateField("equipmentName", event.target.value)}
-              placeholder="Descrição do equipamento"
-            />
-          </label>
-
-          <label className="space-y-1 text-sm">
-            <span className="font-medium text-gray-700">Setor</span>
-            <input
-              className="w-full rounded border px-3 py-2"
-              value={form.sector}
-              onChange={(event) => updateField("sector", event.target.value)}
-              placeholder="Setor responsável"
-            />
-          </label>
-
-          <label className="space-y-1 text-sm">
-            <span className="font-medium text-gray-700">Empresa</span>
-            <input
-              className="w-full rounded border px-3 py-2"
-              value={form.company}
-              onChange={(event) => updateField("company", event.target.value)}
-              placeholder="Empresa executora"
-            />
-          </label>
-
-          <label className="space-y-1 text-sm">
-            <span className="font-medium text-gray-700">Início previsto</span>
-            <input
-              type="date"
-              className="w-full rounded border px-3 py-2"
-              value={form.plannedStart}
-              onChange={(event) => updateField("plannedStart", event.target.value)}
-            />
-          </label>
-
-          <label className="space-y-1 text-sm">
-            <span className="font-medium text-gray-700">Término previsto</span>
-            <input
-              type="date"
-              className="w-full rounded border px-3 py-2"
-              value={form.plannedEnd}
-              onChange={(event) => updateField("plannedEnd", event.target.value)}
-            />
-          </label>
-
-          <label className="space-y-1 text-sm">
-            <span className="font-medium text-gray-700">Horas totais</span>
-            <input
-              type="number"
-              min={1}
-              className="w-full rounded border px-3 py-2"
-              value={form.totalHours}
-              onChange={(event) => updateField("totalHours", event.target.value)}
-              placeholder="Quantidade de horas planejadas"
-            />
-          </label>
-        </div>
-
-        <div className="flex flex-col gap-2 rounded-lg border bg-gray-50 p-4 text-sm">
-          <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={useChecklist}
-              onChange={(event) => {
-                setUseChecklist(event.target.checked);
-                if (!event.target.checked) {
-                  setChecklistItems(initialChecklist);
-                }
-              }}
-            />
-            <span className="font-medium text-gray-700">Usar checklist?</span>
-          </label>
-          <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={generateToken}
-              onChange={(event) => setGenerateToken(event.target.checked)}
-            />
-            <span className="font-medium text-gray-700">Gerar token de acesso para terceiros</span>
-          </label>
-        </div>
-
-        {useChecklist && <ChecklistItemsEditor items={checklistItems} onChange={setChecklistItems} />}
-
-        {error && <div className="rounded border border-amber-300 bg-amber-50 p-3 text-sm text-amber-700">{error}</div>}
-
-        <div className="flex justify-end gap-2">
-          <button
-            type="button"
-            onClick={resetForm}
-            className="rounded border px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-            disabled={submitting}
-          >
-            Limpar
-          </button>
-          <button
-            type="submit"
-            className="rounded bg-black px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
-            disabled={submitting}
-          >
-            {submitting ? "Salvando..." : "Criar serviço"}
-          </button>
-        </div>
-      </form>
-
-      {result && (
-        <div className="rounded-lg border bg-emerald-50 p-4 text-sm text-emerald-700">
-          <p className="font-semibold">Serviço criado com sucesso!</p>
-          <p className="mt-1">ID: {result.serviceId}</p>
-          {result.token && <p className="mt-1">Token: {result.token}</p>}
-          {result.link && (
-            <p className="mt-1 truncate">
-              Link: <a className="underline" href={result.link} target="_blank" rel="noreferrer">{result.link}</a>
-            </p>
-          )}
-        </div>
-      )}
     </div>
   );
 }

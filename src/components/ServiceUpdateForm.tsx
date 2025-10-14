@@ -2,6 +2,7 @@
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { toast } from "sonner";
 
 const schema = z.object({
   progress: z.number().min(0).max(100),
@@ -21,21 +22,48 @@ export default function ServiceUpdateForm({ lastProgress = 0, onSubmit }:{
 
   async function submit(data: FormData) {
     if (data.progress < lastProgress) {
-      alert(`Novo progresso (${data.progress}%) não pode ser menor que o último (${lastProgress}%).`);
+      toast.error(`Novo progresso (${data.progress}%) não pode ser menor que o último (${lastProgress}%).`);
       return;
     }
     await onSubmit(data);
+    toast.success("Atualização registrada");
     reset({ progress: data.progress, note: "" });
   }
 
   return (
-    <form onSubmit={handleSubmit(submit)} className="space-y-2">
-      <div className="text-sm text-gray-600">Último %: {lastProgress}%</div>
-      <input type="number" className="border rounded p-2 w-40" min={0} max={100} step={1} {...register("progress", { valueAsNumber: true })} />
-      {errors.progress && <div className="text-xs text-red-600">{errors.progress.message as string}</div>}
-      <textarea className="border rounded p-2 w-full max-w-xl" placeholder="Descrição do dia" rows={3} {...register("note")} />
-      <button disabled={isSubmitting} className="px-4 py-2 rounded bg-black text-white">
-        {isSubmitting ? "Salvando..." : "Salvar atualização"}
+    <form onSubmit={handleSubmit(submit)} className="space-y-3">
+      <div className="text-sm text-muted-foreground">Último progresso registrado: {lastProgress}%</div>
+      <div>
+        <label className="label" htmlFor="progress">
+          Novo percentual (%)
+        </label>
+        <input
+          id="progress"
+          type="number"
+          className="input mt-1 w-40"
+          min={0}
+          max={100}
+          step={1}
+          {...register("progress", { valueAsNumber: true })}
+        />
+        {errors.progress ? (
+          <p className="mt-1 text-xs text-destructive">{errors.progress.message as string}</p>
+        ) : null}
+      </div>
+      <div>
+        <label className="label" htmlFor="note">
+          Observações
+        </label>
+        <textarea
+          id="note"
+          className="input mt-1 min-h-[120px] resize-y"
+          placeholder="Descreva a evolução do serviço"
+          rows={3}
+          {...register("note")}
+        />
+      </div>
+      <button disabled={isSubmitting} className="btn-primary">
+        {isSubmitting ? "Salvando…" : "Salvar atualização"}
       </button>
     </form>
   );

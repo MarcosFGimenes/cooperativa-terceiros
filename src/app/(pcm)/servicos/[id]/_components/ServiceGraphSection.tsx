@@ -37,7 +37,7 @@ export default function ServiceGraphSection({ service }: ServiceGraphSectionProp
   }, [service.plannedEnd, service.plannedStart]);
 
   return (
-    <section className="space-y-4 rounded-lg border bg-white p-6 shadow-sm">
+    <section className="card space-y-6 p-6">
       <div className="flex flex-wrap items-center justify-end gap-3">
         <PdfExportBar
           targetRef={printRef}
@@ -50,32 +50,32 @@ export default function ServiceGraphSection({ service }: ServiceGraphSectionProp
 
       <div ref={printRef} className="space-y-6">
         <div className="space-y-1">
-          <h2 className="text-lg font-semibold text-gray-900">Curva S</h2>
-          <p className="text-sm text-gray-500">
+          <h2 className="text-lg font-semibold tracking-tight">Curva S</h2>
+          <p className="text-sm text-muted-foreground">
             Compare a evolução planejada com o progresso real do serviço.
           </p>
         </div>
 
-        <div className="grid gap-4 text-sm text-gray-600 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-4 rounded-lg border border-border/70 bg-muted/40 p-4 text-sm sm:grid-cols-2 lg:grid-cols-4">
           <div>
-            <span className="font-semibold text-gray-800">Serviço:</span>
-            <div>{serviceName}</div>
+            <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Serviço</span>
+            <p className="mt-1 font-medium text-foreground">{serviceName}</p>
           </div>
           <div>
-            <span className="font-semibold text-gray-800">OS:</span>
-            <div>{service.os || "—"}</div>
+            <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">OS</span>
+            <p className="mt-1 font-medium text-foreground">{service.os || "—"}</p>
           </div>
           <div>
-            <span className="font-semibold text-gray-800">Empresa:</span>
-            <div>{service.company || "—"}</div>
+            <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Empresa</span>
+            <p className="mt-1 font-medium text-foreground">{service.company || "—"}</p>
           </div>
           <div>
-            <span className="font-semibold text-gray-800">Período planejado:</span>
-            <div>{plannedPeriod || "—"}</div>
+            <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Período planejado</span>
+            <p className="mt-1 font-medium text-foreground">{plannedPeriod || "—"}</p>
           </div>
         </div>
 
-        <div className="rounded-lg border bg-white p-4">
+        <div className="rounded-lg border border-border bg-background p-4">
           <SCurveChart serviceId={service.id} />
         </div>
       </div>
