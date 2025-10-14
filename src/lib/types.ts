@@ -1,36 +1,59 @@
-export type ServiceStatus = "aberto" | "encerrado";
+export type ServiceStatus = "aberto" | "concluido" | "encerrado";
 
-export interface ServiceDoc {
-  id?: string;
-  title: string;
-  description?: string;
-  companyId: string;
-  packageId?: string | null;
+export interface Service {
+  id: string;
+  os: string; // Ordem de Serviço
+  oc?: string; // Ordem de Compra
+  tag: string; // Tag do equipamento
+  equipmentName: string;
+  sector: string;
+  plannedStart: string; // ISO date
+  plannedEnd: string; // ISO date
+  totalHours: number;
   status: ServiceStatus;
-  totalHoursPlanned: number;
-  startedAt?: Date;
-  expectedEndAt?: Date | null;
-  closedAt?: Date | null;
-  createdAt?: Date;
-  updatedAt?: Date;
+  company?: string; // empresa executora
+  createdAt?: number;
+  updatedAt?: number;
+  hasChecklist?: boolean;
+  realPercent?: number; // calculado no servidor
+  packageId?: string; // se pertencer a um pacote
+}
+
+export interface ChecklistItem {
+  id: string;
+  serviceId: string;
+  description: string;
+  weight: number; // 0..100 (soma = 100)
+  progress: number; // 0..100
+  status: "nao_iniciado" | "andamento" | "concluido";
+  updatedAt?: number;
 }
 
 export interface ServiceUpdate {
-  id?: string;
-  createdAt: Date;
-  createdBy?: string; // uid ou "token"
-  progress: number;   // cumulativo 0..100
+  id: string;
+  serviceId: string;
+  token?: string; // para trilha de auditoria (terceiros)
   note?: string;
-  hoursSpent?: number;
+  manualPercent?: number; // usado só quando não há checklist
+  realPercentSnapshot: number; // percent calculado no momento
+  createdAt: number;
 }
 
-export interface PackageDoc {
-  id?: string;
+export interface Package {
+  id: string;
   name: string;
-  description?: string;
-  status: ServiceStatus; // pode espelhar "aberto"/"encerrado"
-  serviceIds?: string[]; // opcional (a gente busca por where(packageId))
-  companyIds?: string[];
-  createdAt?: Date;
-  updatedAt?: Date;
+  status: ServiceStatus;
+  serviceIds: string[]; // serviços do pacote
+  createdAt?: number;
+}
+
+export type AccessTokenTarget =
+  | { targetType: "service"; targetId: string; company?: string }
+  | { targetType: "package"; targetId: string; company?: string };
+
+export interface AccessToken extends AccessTokenTarget {
+  id: string; // o próprio código do token (docId)
+  active: boolean;
+  expiresAt?: number | null;
+  createdAt?: number;
 }
