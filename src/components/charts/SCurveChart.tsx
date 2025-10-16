@@ -12,7 +12,7 @@ import {
   YAxis,
 } from "recharts";
 
-const baseClass = "w-full rounded-lg border bg-white p-4 shadow-sm";
+const baseClass = "w-full rounded-lg border bg-background p-4 shadow-sm";
 
 export type SCurveChartProps = {
   serviceId: string;

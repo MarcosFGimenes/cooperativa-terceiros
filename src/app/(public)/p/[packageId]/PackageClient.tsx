@@ -81,8 +81,8 @@ export default function PackageClient({ packageId, token }: Props) {
   if (!token) {
     return (
       <main className="mx-auto flex w-full max-w-xl flex-col gap-4 p-4 sm:p-6">
-        <section className="rounded-lg border bg-white p-6 shadow-sm">
-          <h1 className="text-xl font-semibold text-gray-900">Pacote de serviços</h1>
+        <section className="rounded-lg border bg-background p-6 shadow-sm">
+          <h1 className="text-xl font-semibold text-foreground">Pacote de serviços</h1>
           <p className="mt-2 text-sm text-gray-600">Informe um token válido para visualizar os serviços vinculados.</p>
         </section>
       </main>
@@ -91,21 +91,21 @@ export default function PackageClient({ packageId, token }: Props) {
 
   return (
     <main className="mx-auto flex w-full max-w-xl flex-col gap-4 p-4 sm:p-6">
-      <section className="rounded-lg border bg-white p-6 shadow-sm">
+      <section className="rounded-lg border bg-background p-6 shadow-sm">
         <div className="space-y-1">
-          <h1 className="text-2xl font-semibold text-gray-900">Pacote {packageId}</h1>
+          <h1 className="text-2xl font-semibold text-foreground">Pacote {packageId}</h1>
           <p className="text-sm text-gray-600">Acompanhe o progresso dos serviços utilizando o token fornecido.</p>
         </div>
       </section>
 
       {loading && (
-        <section className="rounded-lg border bg-white p-6 shadow-sm" role="status" aria-live="polite">
+        <section className="rounded-lg border bg-background p-6 shadow-sm" role="status" aria-live="polite">
           <p className="text-sm text-gray-600">Carregando serviços do pacote...</p>
         </section>
       )}
 
       {error && (
-        <section className="rounded-lg border bg-white p-6 shadow-sm">
+        <section className="rounded-lg border bg-background p-6 shadow-sm">
           <h2 className="text-lg font-semibold text-red-600">Não foi possível carregar</h2>
           <p className="mt-2 text-sm text-gray-600">{error}</p>
           <button
@@ -120,23 +120,23 @@ export default function PackageClient({ packageId, token }: Props) {
 
       {data && !error && (
         <>
-          <section className="space-y-2 rounded-lg border bg-white p-6 shadow-sm">
-            <h2 className="text-lg font-semibold text-gray-900">{data.package.name || "Pacote sem nome"}</h2>
+          <section className="space-y-2 rounded-lg border bg-background p-6 shadow-sm">
+            <h2 className="text-lg font-semibold text-foreground">{data.package.name || "Pacote sem nome"}</h2>
             <p className="text-sm text-gray-600">
               Serviços autorizados para visualização com este token.
             </p>
           </section>
 
           {data.services.length === 0 ? (
-            <section className="rounded-lg border bg-white p-6 shadow-sm">
+            <section className="rounded-lg border bg-background p-6 shadow-sm">
               <p className="text-sm text-gray-600">Nenhum serviço disponível neste pacote para este token.</p>
             </section>
           ) : (
             <div className="grid grid-cols-1 gap-4">
               {data.services.map((service) => (
-                <div key={service.id} className="space-y-3 rounded-lg border bg-white p-5 shadow-sm">
+                <div key={service.id} className="space-y-3 rounded-lg border bg-background p-5 shadow-sm">
                   <div className="space-y-1">
-                    <h3 className="text-lg font-semibold text-gray-900">
+                    <h3 className="text-lg font-semibold text-foreground">
                       {service.equipmentName || `Serviço ${service.os || service.id}`}
                     </h3>
                     <p className="text-sm text-gray-600">Tag: {service.tag || "—"}</p>
@@ -144,7 +144,7 @@ export default function PackageClient({ packageId, token }: Props) {
                   </div>
                   <div className="flex items-center justify-between rounded-lg bg-gray-50 px-4 py-3 text-sm text-gray-700">
                     <span>Status: {service.status ? service.status.toUpperCase() : "—"}</span>
-                    <span className="font-semibold text-gray-900">{formatPercent(service.realPercent)}</span>
+                    <span className="font-semibold text-foreground">{formatPercent(service.realPercent)}</span>
                   </div>
                   <Link
                     href={`/s/${service.id}?token=${encodeURIComponent(token)}`}

@@ -20,14 +20,18 @@ export default function ThemeToggle() {
     localStorage.setItem("theme", theme);
   }, [theme]);
 
+  const isDark = theme === "dark";
+
   return (
     <button
       type="button"
-      aria-label="Alternar tema"
-      className="btn-ghost h-9 w-9 rounded-full"
+      aria-label={isDark ? "Mudar para tema claro" : "Mudar para tema escuro"}
+      aria-pressed={isDark}
       onClick={() => setTheme(prev => prev === "dark" ? "light" : "dark")}
+      className="btn-ghost h-9 w-9 rounded-full ring-offset-background hover:ring-2 hover:ring-ring"
     >
-      {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+      <span className="sr-only">Alternar tema</span>
+      {isDark ? <Sun className="h-4 w-4 text-foreground" /> : <Moon className="h-4 w-4 text-foreground" />}
     </button>
   );
 }

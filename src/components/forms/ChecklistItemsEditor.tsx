@@ -50,7 +50,7 @@ export default function ChecklistItemsEditor({ items, onChange, disabled }: Chec
   const hasExactHundred = Math.round(percent) === 100;
 
   return (
-    <div className="space-y-4 rounded-lg border border-border/60 bg-white p-4 shadow-soft">
+    <div className="space-y-4 rounded-lg border border-border/60 bg-background p-4 shadow-soft">
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-semibold tracking-tight">Itens do checklist</h3>
         <button type="button" onClick={addItem} disabled={disabled} className="btn-secondary text-xs">

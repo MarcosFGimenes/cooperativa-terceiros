@@ -13,7 +13,7 @@ export function DialogContent({ className, ...props }: React.ComponentPropsWitho
     <DialogPortal>
       <DialogPrimitive.Overlay className="fixed inset-0 bg-black/40" />
       <DialogPrimitive.Content
-        className={cn("fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-white rounded-xl p-4 w-[90vw] max-w-md shadow-lg", className)}
+        className={cn("fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-background rounded-xl p-4 w-[90vw] max-w-md shadow-lg", className)}
         {...props}
       />
     </DialogPortal>

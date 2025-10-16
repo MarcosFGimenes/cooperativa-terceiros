@@ -224,8 +224,8 @@ export default function ServiceClient({ serviceId, token }: Props) {
   if (!token) {
     return (
       <main className="mx-auto flex w-full max-w-xl flex-col gap-4 p-4 sm:p-6">
-        <section className="rounded-lg border bg-white p-6 shadow-sm">
-          <h1 className="text-xl font-semibold text-gray-900">Acesso público</h1>
+        <section className="rounded-lg border bg-background p-6 shadow-sm">
+          <h1 className="text-xl font-semibold text-foreground">Acesso público</h1>
           <p className="mt-2 text-sm text-gray-600">Informe um token de acesso válido na URL para visualizar o serviço.</p>
         </section>
       </main>
@@ -250,21 +250,21 @@ export default function ServiceClient({ serviceId, token }: Props) {
         )}
       </div>
 
-      <section className="rounded-lg border bg-white p-6 shadow-sm">
+      <section className="rounded-lg border bg-background p-6 shadow-sm">
         <div className="space-y-1">
-          <h1 className="text-2xl font-semibold text-gray-900">Serviço {serviceId}</h1>
+          <h1 className="text-2xl font-semibold text-foreground">Serviço {serviceId}</h1>
           <p className="text-sm text-gray-600">Acompanhe e registre o avanço das atividades utilizando o token fornecido.</p>
         </div>
       </section>
 
       {loading && (
-        <section className="rounded-lg border bg-white p-6 shadow-sm" role="status" aria-live="polite">
+        <section className="rounded-lg border bg-background p-6 shadow-sm" role="status" aria-live="polite">
           <p className="text-sm text-gray-600">Carregando dados do serviço...</p>
         </section>
       )}
 
       {error && (
-        <section className="rounded-lg border bg-white p-6 shadow-sm">
+        <section className="rounded-lg border bg-background p-6 shadow-sm">
           <h2 className="text-lg font-semibold text-red-600">Não foi possível carregar</h2>
           <p className="mt-2 text-sm text-gray-600">{error}</p>
           <button
@@ -279,9 +279,9 @@ export default function ServiceClient({ serviceId, token }: Props) {
 
       {data && !error && (
         <>
-          <section className="space-y-4 rounded-lg border bg-white p-6 shadow-sm">
+          <section className="space-y-4 rounded-lg border bg-background p-6 shadow-sm">
             <div>
-              <h2 className="text-lg font-semibold text-gray-900">Informações gerais</h2>
+              <h2 className="text-lg font-semibold text-foreground">Informações gerais</h2>
               <p className="mt-1 text-sm text-gray-600">
                 {data.service.equipmentName || "Equipamento não informado"}
               </p>
@@ -300,7 +300,7 @@ export default function ServiceClient({ serviceId, token }: Props) {
             <div className="space-y-2">
               <div className="flex items-center justify-between text-sm text-gray-600">
                 <span>Percentual concluído</span>
-                <span className="text-base font-semibold text-gray-900">
+                <span className="text-base font-semibold text-foreground">
                   {formatPercent(data.service.realPercent)}
                 </span>
               </div>
@@ -314,9 +314,9 @@ export default function ServiceClient({ serviceId, token }: Props) {
           </section>
 
           {data.service.hasChecklist ? (
-            <section className="space-y-4 rounded-lg border bg-white p-6 shadow-sm">
+            <section className="space-y-4 rounded-lg border bg-background p-6 shadow-sm">
               <div className="space-y-1">
-                <h2 className="text-lg font-semibold text-gray-900">Atualizar checklist</h2>
+                <h2 className="text-lg font-semibold text-foreground">Atualizar checklist</h2>
                 <p className="text-sm text-gray-600">Informe o avanço de cada item utilizando os controles abaixo.</p>
               </div>
               <form onSubmit={submitChecklistUpdate} className="space-y-4">
@@ -327,7 +327,7 @@ export default function ServiceClient({ serviceId, token }: Props) {
                   {checklistDraft.map((item) => (
                     <div key={item.id} className="space-y-3 rounded-lg border p-4">
                       <div className="flex flex-col gap-1 text-sm text-gray-700">
-                        <span className="font-medium text-gray-900">{item.description || "Item sem descrição"}</span>
+                        <span className="font-medium text-foreground">{item.description || "Item sem descrição"}</span>
                         <span className="text-xs text-gray-500">Peso: {Number(item.weight ?? 0).toFixed(1)}%</span>
                       </div>
                       <div className="space-y-2">
@@ -347,7 +347,7 @@ export default function ServiceClient({ serviceId, token }: Props) {
                           <span>0%</span>
                           <span>100%</span>
                         </div>
-                        <div className="text-sm font-semibold text-gray-900">
+                        <div className="text-sm font-semibold text-foreground">
                           Progresso: {Number(item.progress ?? 0).toFixed(0)}%
                         </div>
                       </div>
@@ -410,9 +410,9 @@ export default function ServiceClient({ serviceId, token }: Props) {
               </form>
             </section>
           ) : (
-            <section className="space-y-4 rounded-lg border bg-white p-6 shadow-sm">
+            <section className="space-y-4 rounded-lg border bg-background p-6 shadow-sm">
               <div className="space-y-1">
-                <h2 className="text-lg font-semibold text-gray-900">Atualizar progresso manual</h2>
+                <h2 className="text-lg font-semibold text-foreground">Atualizar progresso manual</h2>
                 <p className="text-sm text-gray-600">Informe o percentual total concluído e uma nota opcional.</p>
               </div>
               <form onSubmit={submitManualUpdate} className="space-y-4">
@@ -461,9 +461,9 @@ export default function ServiceClient({ serviceId, token }: Props) {
             </section>
           )}
 
-          <section className="space-y-3 rounded-lg border bg-white p-6 shadow-sm">
+          <section className="space-y-3 rounded-lg border bg-background p-6 shadow-sm">
             <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-gray-900">Histórico recente</h2>
+              <h2 className="text-lg font-semibold text-foreground">Histórico recente</h2>
               <span className="text-xs font-medium text-gray-500">Últimas {data.updates.length} entradas</span>
             </div>
             {data.updates.length === 0 ? (
@@ -476,7 +476,7 @@ export default function ServiceClient({ serviceId, token }: Props) {
                     <li key={update.id} className="rounded-lg border px-4 py-3 text-sm">
                       <div className="flex flex-col gap-1">
                         <div className="flex flex-wrap items-center justify-between gap-2">
-                          <span className="font-semibold text-gray-900">{formatPercent(percent)}</span>
+                          <span className="font-semibold text-foreground">{formatPercent(percent)}</span>
                           <span className="text-xs text-gray-500">{formatUpdateTimestamp(update.createdAt)}</span>
                         </div>
                         {update.note && (
