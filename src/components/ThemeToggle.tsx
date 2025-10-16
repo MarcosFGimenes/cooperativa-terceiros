@@ -2,36 +2,35 @@
 import { Moon, Sun } from "lucide-react";
 import { useEffect, useState } from "react";
 
-function getInitial(): "light"|"dark" {
+type Mode = "light" | "dark";
+function getInitial(): Mode {
   if (typeof window === "undefined") return "light";
   const saved = localStorage.getItem("theme");
   if (saved === "light" || saved === "dark") return saved;
-  const prefersDark = window.matchMedia?.("(prefers-color-scheme: dark)")?.matches;
-  return prefersDark ? "dark" : "light";
+  return window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches
+    ? "dark"
+    : "light";
 }
 
 export default function ThemeToggle() {
-  const [theme, setTheme] = useState<"light"|"dark">(getInitial);
+  const [theme, setTheme] = useState<Mode>(getInitial);
 
   useEffect(() => {
     const root = document.documentElement;
-    if (theme === "dark") root.classList.add("dark");
-    else root.classList.remove("dark");
+    root.classList.toggle("dark", theme === "dark");
     localStorage.setItem("theme", theme);
   }, [theme]);
-
-  const isDark = theme === "dark";
 
   return (
     <button
       type="button"
-      aria-label={isDark ? "Mudar para tema claro" : "Mudar para tema escuro"}
-      aria-pressed={isDark}
-      onClick={() => setTheme(prev => prev === "dark" ? "light" : "dark")}
-      className="btn-ghost h-9 w-9 rounded-full ring-offset-background hover:ring-2 hover:ring-ring"
+      aria-label="Alternar tema"
+      aria-pressed={theme === "dark"}
+      onClick={() => setTheme((t) => (t === "dark" ? "light" : "dark"))}
+      className="inline-flex h-9 w-9 items-center justify-center rounded-full border bg-background text-foreground shadow-sm hover:bg-muted"
     >
-      <span className="sr-only">Alternar tema</span>
-      {isDark ? <Sun className="h-4 w-4 text-foreground" /> : <Moon className="h-4 w-4 text-foreground" />}
+      <Sun className={`h-4 w-4 transition ${theme === "dark" ? "scale-0 opacity-0" : "scale-100 opacity-100"}`} />
+      <Moon className={`absolute h-4 w-4 transition ${theme === "dark" ? "scale-100 opacity-100" : "scale-0 opacity-0"}`} />
     </button>
   );
 }

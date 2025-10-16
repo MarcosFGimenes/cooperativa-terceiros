@@ -2,23 +2,23 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { signInWithEmailAndPassword } from "firebase/auth";
 import { toast } from "sonner";
+
 import BackButton from "@/components/BackButton";
+import { getFirebaseAuth } from "@/lib/firebaseClient";
 
 export default function LoginPage() {
-  const [email, setEmail] = useState("pcm@gmail.com");
-  const [password, setPassword] = useState("pcm123");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
     try {
-      // mantém a chamada existente de auth do projeto (window/firebase client)
-      // @ts-expect-error global auth
-      const { signInWithEmailAndPassword, auth } = window.__appAuth || {};
-      if (!signInWithEmailAndPassword || !auth) throw new Error("Auth não inicializado");
-      await signInWithEmailAndPassword(auth, email, password);
+      const auth = getFirebaseAuth();
+      await signInWithEmailAndPassword(auth, email.trim(), password);
       toast.success("Login efetuado!");
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : "Falha ao autenticar";
@@ -29,24 +29,59 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="mx-auto grid min-h-[60dvh] max-w-md place-content-center gap-4">
-      <BackButton className="justify-self-start -mt-8" />
-      <div className="card p-6">
-        <h1 className="mb-1 text-xl font-semibold tracking-tight">Login (PCM/Terceiros)</h1>
-        <p className="mb-4 text-sm text-muted-foreground">
-          Acesse com suas credenciais. Se você recebeu um código, use <Link className="link" href="/acesso">Acesso por token</Link>.
+    <div className="container mx-auto flex min-h-[80dvh] flex-col justify-center px-4">
+      <BackButton className="mb-6 w-max" />
+      <div className="mx-auto w-full max-w-md rounded-2xl border bg-card p-6 shadow-sm">
+        <h1 className="text-2xl font-semibold tracking-tight">Login (PCM/Terceiros)</h1>
+        <p className="mt-2 text-sm text-muted-foreground">
+          Acesse com suas credenciais. Se você recebeu um código, use {" "}
+          <Link className="link" href="/acesso">
+            Acesso por token
+          </Link>
+          .
         </p>
-        <form className="grid gap-3" onSubmit={onSubmit}>
-          <label className="label" htmlFor="email">E-mail</label>
-          <input id="email" className="input" value={email} onChange={(e)=>setEmail(e.target.value)} type="email" autoComplete="username" />
-          <label className="label mt-2" htmlFor="password">Senha</label>
-          <input id="password" className="input" value={password} onChange={(e)=>setPassword(e.target.value)} type="password" autoComplete="current-password" />
-          <button className="btn-primary mt-3" disabled={loading} type="submit" aria-busy={loading}>
+        <form onSubmit={onSubmit} className="mt-6 grid gap-4">
+          <label className="grid gap-1">
+            <span className="text-sm font-medium">E-mail</span>
+            <input
+              type="email"
+              inputMode="email"
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
+              autoComplete="off"
+              placeholder="seu@email.com"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              className="h-11 w-full rounded-lg border bg-background px-4 text-base text-foreground placeholder:text-muted-foreground"
+            />
+          </label>
+
+          <label className="grid gap-1">
+            <span className="text-sm font-medium">Senha</span>
+            <input
+              type="password"
+              autoComplete="new-password"
+              placeholder="••••••••"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              className="h-11 w-full rounded-lg border bg-background px-4 text-base text-foreground placeholder:text-muted-foreground"
+            />
+          </label>
+
+          <button
+            type="submit"
+            aria-busy={loading}
+            className="h-11 w-full rounded-lg bg-primary text-base text-primary-foreground transition hover:opacity-90 disabled:opacity-50"
+            disabled={loading}
+          >
             {loading ? "Entrando…" : "Entrar"}
           </button>
         </form>
-        <div className="mt-4 text-right">
-          <Link className="link text-sm" href="/acesso">Acesso por token</Link>
+        <div className="mt-4 text-right text-sm">
+          <Link className="link" href="/acesso">
+            Acesso por token
+          </Link>
         </div>
       </div>
     </div>

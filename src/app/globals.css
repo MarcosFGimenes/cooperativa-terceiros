@@ -100,3 +100,34 @@ h3 { @apply text-lg sm:text-xl font-medium; }
 @media (prefers-reduced-motion: reduce) {
   * { animation: none !important; transition: none !important; }
 }
+
+/* Improve dark contrast */
+:root.dark {
+  --background: 222 47% 8%;
+  --foreground: 210 40% 96%;
+  --card: 222 47% 11%;
+  --card-foreground: 210 40% 96%;
+  --muted: 215 27% 16%;
+  --muted-foreground: 215 18% 72%;
+  --border: 215 25% 22%;
+  --input: 215 25% 22%;
+}
+
+/* Inputs default look */
+input, textarea, select {
+  background-color: hsl(var(--background));
+  color: hsl(var(--foreground));
+}
+
+/* Chrome/Safari autofill on dark: keep readable */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus {
+  -webkit-text-fill-color: hsl(var(--foreground));
+  transition: background-color 9999s ease-out;
+  caret-color: hsl(var(--foreground));
+  box-shadow: 0 0 0px 1000px hsl(var(--background)) inset;
+}
+
+/* Buttons/links helpers (if not present) */
+.link { @apply text-primary hover:underline; }
