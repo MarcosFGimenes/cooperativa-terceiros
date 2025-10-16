@@ -1,9 +1,11 @@
 "use client";
 import { initializeApp, getApps, getApp, type FirebaseApp } from "firebase/app";
 import { getAuth, type Auth } from "firebase/auth";
+import { getFirestore, type Firestore } from "firebase/firestore";
 
 let app: FirebaseApp | undefined;
 let auth: Auth | undefined;
+let firestore: Firestore | undefined;
 
 export function getFirebaseApp(): FirebaseApp {
   if (!app) {
@@ -26,4 +28,9 @@ export function getFirebaseApp(): FirebaseApp {
 export function getFirebaseAuth(): Auth {
   if (!auth) auth = getAuth(getFirebaseApp());
   return auth!;
+}
+
+export function getFirebaseFirestore(): Firestore {
+  if (!firestore) firestore = getFirestore(getFirebaseApp());
+  return firestore!;
 }
