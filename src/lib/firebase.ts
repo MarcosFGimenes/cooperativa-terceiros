@@ -1,4 +1,14 @@
 "use client";
+
+import type { FirebaseApp } from "firebase/app";
+
 import { getFirebaseApp } from "./firebaseClient";
 
-export const app = getFirebaseApp();
+let firebaseApp: FirebaseApp | undefined;
+
+export function getClientFirebaseApp(): FirebaseApp {
+  if (!firebaseApp) {
+    firebaseApp = getFirebaseApp();
+  }
+  return firebaseApp;
+}

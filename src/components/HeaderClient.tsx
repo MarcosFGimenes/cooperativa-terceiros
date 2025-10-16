@@ -2,14 +2,14 @@
 import Link from "next/link";
 import { useAuth } from "@/lib/auth/useAuth";
 import { getAuth, signOut } from "firebase/auth";
-import { app } from "@/lib/firebase";
+import { getClientFirebaseApp } from "@/lib/firebase";
 import ThemeToggle from "@/components/ThemeToggle";
 
 export default function HeaderClient() {
   const { user } = useAuth();
 
   async function doLogout() {
-    const auth = getAuth(app);
+    const auth = getAuth(getClientFirebaseApp());
     await signOut(auth);
     window.location.href = "/login";
   }

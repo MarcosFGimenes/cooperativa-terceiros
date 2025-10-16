@@ -5,9 +5,7 @@ import { Toaster } from "sonner";
 import SkipToContent from "@/components/SkipToContent";
 import Footer from "@/components/Footer";
 import ThemeScript from "@/components/ThemeScript";
-import dynamic from "next/dynamic";
-
-const HeaderClient = dynamic(() => import("@/components/HeaderClient"), { ssr: false });
+import HeaderClient from "@/components/HeaderClientBoundary";
 
 export const metadata = {
   title: "PCM • Terceiros",

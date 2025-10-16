@@ -3,7 +3,7 @@ import { useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { getAuth, signInWithEmailAndPassword } from "firebase/auth";
-import { app } from "@/lib/firebase";
+import { getClientFirebaseApp } from "@/lib/firebase";
 
 const AFTER_LOGIN = "/servicos";
 
@@ -19,7 +19,7 @@ export default function LoginPage() {
     setErrorMsg("");
     setLoading(true);
     try {
-      const auth = getAuth(app);
+      const auth = getAuth(getClientFirebaseApp());
       await signInWithEmailAndPassword(auth, email, password);
       router.push(AFTER_LOGIN);
     } catch (error: unknown) {

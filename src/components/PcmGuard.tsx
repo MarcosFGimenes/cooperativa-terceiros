@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { onAuthStateChanged } from "firebase/auth";
 
-import { auth } from "@/lib/firebaseClient";
+import { getFirebaseAuth } from "@/lib/firebaseClient";
 
 type PcmGuardProps = {
   allowlist?: string;
@@ -26,7 +26,7 @@ export default function PcmGuard({ children, allowlist }: PcmGuardProps) {
   const [state, setState] = useState<GuardState>("loading");
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    const unsubscribe = onAuthStateChanged(getFirebaseAuth(), (user) => {
       if (!user) {
         setState("unauthenticated");
         return;
