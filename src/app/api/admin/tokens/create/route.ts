@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { Timestamp } from "firebase-admin/firestore";
 import { customAlphabet } from "nanoid";
 
-import { adminDb } from "@/lib/firebaseAdmin";
+import { getAdmin } from "@/lib/firebaseAdmin";
 import { HttpError, requirePcmUser } from "../_lib/auth";
 
 const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -63,6 +63,7 @@ function parseBody(body: CreateTokenBody): {
 }
 
 async function persistToken(
+  db: FirebaseFirestore.Firestore,
   data: { targetType: "service" | "package"; targetId: string; company?: string; expiresAt?: Timestamp },
 ): Promise<string> {
   const basePayload: Record<string, unknown> = {
@@ -74,7 +75,7 @@ async function persistToken(
   if (data.company) basePayload.company = data.company;
   if (data.expiresAt) basePayload.expiresAt = data.expiresAt;
 
-  const col = adminDb.collection("accessTokens");
+  const col = db.collection("accessTokens");
 
   for (let attempt = 0; attempt < 5; attempt++) {
     const token = randomLengthToken();
@@ -110,11 +111,16 @@ export async function POST(req: Request) {
     const body = (await req.json().catch(() => ({}))) as CreateTokenBody;
     const parsed = parseBody(body);
 
-    const token = await persistToken(parsed);
+    const { db } = getAdmin();
+    const token = await persistToken(db, parsed);
     const link = `/acesso?token=${token}`;
 
     return NextResponse.json({ token, link });
   } catch (err: unknown) {
+    if ((err as Error)?.message === "ADMIN_ENVS_MISSING") {
+      return NextResponse.json({ error: "Configuração do Firebase Admin ausente" }, { status: 503 });
+    }
+
     if (err instanceof HttpError) {
       return NextResponse.json({ error: err.message }, { status: err.status });
     }

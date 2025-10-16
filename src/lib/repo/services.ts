@@ -1,4 +1,4 @@
-import { adminDb } from "@/lib/firebaseAdmin";
+import { getAdmin } from "@/lib/firebaseAdmin";
 import type {
   ChecklistItem,
   Service,
@@ -7,7 +7,8 @@ import type {
 } from "@/lib/types";
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
 
-const servicesCollection = () => adminDb.collection("services");
+const getDb = () => getAdmin().db;
+const servicesCollection = () => getDb().collection("services");
 
 function toMillis(value: unknown | Timestamp | number | null | undefined) {
   if (typeof value === "number") return value;
@@ -105,7 +106,8 @@ export async function setChecklistItems(
     throw new Error("A soma dos pesos do checklist deve ser igual a 100.");
   }
 
-  await adminDb.runTransaction(async (tx) => {
+  const { db } = getAdmin();
+  await db.runTransaction(async (tx) => {
     const serviceRef = servicesCollection().doc(serviceId);
     const checklistCol = serviceRef.collection("checklist");
 
@@ -151,7 +153,8 @@ export async function updateChecklistProgress(
     return computeRealPercentFromChecklist(serviceId);
   }
 
-  const newPercent = await adminDb.runTransaction(async (tx) => {
+  const { db } = getAdmin();
+  const newPercent = await db.runTransaction(async (tx) => {
     const serviceRef = servicesCollection().doc(serviceId);
     const checklistCol = serviceRef.collection("checklist");
 
@@ -249,7 +252,8 @@ export async function addManualUpdate(
   token?: string,
 ): Promise<string> {
   const percent = sanitisePercent(manualPercent);
-  const updateId = await adminDb.runTransaction(async (tx) => {
+  const { db } = getAdmin();
+  const updateId = await db.runTransaction(async (tx) => {
     const serviceRef = servicesCollection().doc(serviceId);
     const updatesCol = serviceRef.collection("updates");
 
@@ -288,7 +292,8 @@ export async function addComputedUpdate(
   token?: string,
 ): Promise<string> {
   const percent = sanitisePercent(realPercent);
-  const updateId = await adminDb.runTransaction(async (tx) => {
+  const { db } = getAdmin();
+  const updateId = await db.runTransaction(async (tx) => {
     const serviceRef = servicesCollection().doc(serviceId);
     const updatesCol = serviceRef.collection("updates");
 

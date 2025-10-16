@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { adminDb } from "@/lib/firebaseAdmin";
+import { getAdmin } from "@/lib/firebaseAdmin";
 import { HttpError, requirePcmUser } from "../_lib/auth";
 
 type DeactivateBody = {
@@ -21,7 +21,8 @@ export async function POST(req: Request) {
     const body = (await req.json().catch(() => ({}))) as DeactivateBody;
     const token = parseBody(body);
 
-    const ref = adminDb.collection("accessTokens").doc(token);
+    const { db } = getAdmin();
+    const ref = db.collection("accessTokens").doc(token);
     const snap = await ref.get();
     if (!snap.exists) {
       throw new HttpError(404, "Token não encontrado");
@@ -31,6 +32,10 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ ok: true });
   } catch (err: unknown) {
+    if ((err as Error)?.message === "ADMIN_ENVS_MISSING") {
+      return NextResponse.json({ error: "Configuração do Firebase Admin ausente" }, { status: 503 });
+    }
+
     if (err instanceof HttpError) {
       return NextResponse.json({ error: err.message }, { status: err.status });
     }

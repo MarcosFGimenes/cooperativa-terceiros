@@ -1,4 +1,4 @@
-import { adminDb } from "@/lib/firebaseAdmin";
+import { getAdmin } from "@/lib/firebaseAdmin";
 import type { Service } from "@/lib/types";
 import type { Timestamp } from "firebase-admin/firestore";
 
@@ -14,7 +14,7 @@ const roundTwoDecimals = (value: number) => Math.round(value * 100) / 100;
 
 const toISODate = (date: Date) => date.toISOString().slice(0, 10);
 
-const servicesCollection = () => adminDb.collection("services");
+const servicesCollection = () => getAdmin().db.collection("services");
 
 const parseISODate = (value: string): Date | null => {
   if (!value) return null;

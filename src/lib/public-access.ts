@@ -1,9 +1,9 @@
 import type { ChecklistItem, Package, Service, ServiceStatus } from "@/lib/types";
-import { adminDb } from "@/lib/firebaseAdmin";
+import { getAdmin } from "@/lib/firebaseAdmin";
 
-const accessTokensCollection = () => adminDb.collection("accessTokens");
-const servicesCollection = () => adminDb.collection("services");
-const packagesCollection = () => adminDb.collection("packages");
+const accessTokensCollection = () => getAdmin().db.collection("accessTokens");
+const servicesCollection = () => getAdmin().db.collection("services");
+const packagesCollection = () => getAdmin().db.collection("packages");
 
 export class PublicAccessError extends Error {
   status: number;
