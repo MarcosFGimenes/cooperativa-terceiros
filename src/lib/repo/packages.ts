@@ -1,9 +1,10 @@
-import { adminDb } from "@/lib/firebaseAdmin";
+import { getAdmin } from "@/lib/firebaseAdmin";
 import type { Package, Service } from "@/lib/types";
 import { FieldValue } from "firebase-admin/firestore";
 
-const packagesCollection = () => adminDb.collection("packages");
-const servicesCollection = () => adminDb.collection("services");
+const getDb = () => getAdmin().db;
+const packagesCollection = () => getDb().collection("packages");
+const servicesCollection = () => getDb().collection("services");
 
 function toMillis(value: unknown): number | undefined {
   if (typeof value === "number") return value;
@@ -66,7 +67,8 @@ export async function createPackage(
 ): Promise<string> {
   const uniqueServiceIds = Array.from(new Set(serviceIds));
 
-  const packageId = await adminDb.runTransaction(async (tx) => {
+  const { db } = getAdmin();
+  const packageId = await db.runTransaction(async (tx) => {
     const packageRef = packagesCollection().doc();
     tx.set(packageRef, {
       name,

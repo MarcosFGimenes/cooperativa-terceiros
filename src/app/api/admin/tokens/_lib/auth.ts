@@ -1,4 +1,4 @@
-import { adminAuth } from "@/lib/firebaseAdmin";
+import { getAdmin } from "@/lib/firebaseAdmin";
 import { isPCMUser } from "@/lib/pcmAuth";
 import type { DecodedIdToken } from "firebase-admin/auth";
 
@@ -28,7 +28,8 @@ export async function requirePcmUser(req: Request): Promise<AuthenticatedUser> {
 
   let decoded: DecodedIdToken;
   try {
-    decoded = await adminAuth.verifyIdToken(match[1]);
+    const { auth } = getAdmin();
+    decoded = await auth.verifyIdToken(match[1]);
   } catch (err: unknown) {
     console.error("[requirePcmUser] Falha ao verificar token", err);
     throw new HttpError(401, "Token inválido");
