@@ -25,7 +25,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
             <Link href="/" className="font-semibold tracking-tight">
               PCM <span className="text-primary">Terceiros</span>
             </Link>
-            <nav className="flex items-center gap-3 text-sm">
+            <nav className="flex items-center gap-3 sm:gap-4 text-sm">
               <Link className="link" href="/login">Login</Link>
               <Link className="link" href="/acesso">Acesso por token</Link>
               <ThemeToggle />

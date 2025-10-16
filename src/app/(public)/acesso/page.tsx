@@ -53,14 +53,20 @@ export default function AcessoPage() {
             <label className="label" htmlFor="token">Código do token</label>
             <input
               id="token"
-              className="input"
+              className="h-11 w-full rounded-lg border bg-background px-4 text-base text-foreground placeholder:text-muted-foreground"
               placeholder="EX: RFHX9T86"
               value={token}
               onChange={(e)=>setToken(e.target.value.trim())}
               aria-label="Código do token"
             />
           </div>
-          <button type="button" onClick={validar} disabled={loading || !token} className="btn-primary" aria-busy={loading}>
+          <button
+            type="button"
+            onClick={validar}
+            disabled={loading || !token}
+            className="btn-primary h-11 text-base"
+            aria-busy={loading}
+          >
             {loading ? "Validando…" : "Validar token"}
           </button>
         </div>
