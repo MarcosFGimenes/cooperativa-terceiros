@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import BackButton from "@/components/BackButton";
 import { toast } from "sonner";
 
 type ApiResponse =
@@ -43,37 +42,52 @@ export default function AcessoPage() {
   }
 
   return (
-    <div className="mx-auto max-w-xl">
-      <BackButton />
-      <div className="card p-6 mt-3">
-        <h1 className="text-xl font-semibold">Acesso por Token</h1>
-        <p className="text-sm text-muted-foreground mb-4">Informe o código recebido para acessar seu serviço ou pacote.</p>
-        <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
-          <div className="flex flex-col gap-1">
-            <label className="label" htmlFor="token">Código do token</label>
-            <input
-              id="token"
-              className="h-11 w-full rounded-lg border bg-background px-4 text-base text-foreground placeholder:text-muted-foreground"
-              placeholder="EX: RFHX9T86"
-              value={token}
-              onChange={(e)=>setToken(e.target.value.trim())}
-              aria-label="Código do token"
-            />
-          </div>
-          <button
-            type="button"
-            onClick={validar}
-            disabled={loading || !token}
-            className="btn-primary h-11 text-base"
-            aria-busy={loading}
-          >
-            {loading ? "Validando…" : "Validar token"}
-          </button>
-        </div>
-        {result ? (
-          <pre className="mt-4 overflow-auto rounded-md bg-secondary p-3 text-xs">{JSON.stringify(result, null, 2)}</pre>
-        ) : null}
+    <>
+      <div className="container mx-auto px-4 pt-4">
+        <a
+          href="/login"
+          className="inline-flex items-center gap-2 rounded-md border bg-background px-3 py-2 text-sm hover:bg-muted"
+        >
+          ← Voltar
+        </a>
       </div>
-    </div>
+      <div className="mx-auto max-w-xl">
+        <div className="card mt-3 p-6">
+          <h1 className="text-xl font-semibold">Acesso por Token</h1>
+          <p className="mb-4 text-sm text-muted-foreground">
+            Informe o código recebido para acessar seu serviço ou pacote.
+          </p>
+          <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
+            <div className="flex flex-col gap-1">
+              <label className="label" htmlFor="token">
+                Código do token
+              </label>
+              <input
+                id="token"
+                className="h-11 w-full rounded-lg border bg-background px-4 text-base text-foreground placeholder:text-muted-foreground"
+                placeholder="EX: RFHX9T86"
+                value={token}
+                onChange={(e) => setToken(e.target.value.trim())}
+                aria-label="Código do token"
+              />
+            </div>
+            <button
+              type="button"
+              onClick={validar}
+              disabled={loading || !token}
+              className="btn-primary h-11 text-base"
+              aria-busy={loading}
+            >
+              {loading ? "Validando…" : "Validar token"}
+            </button>
+          </div>
+          {result ? (
+            <pre className="mt-4 overflow-auto rounded-md bg-secondary p-3 text-xs">
+              {JSON.stringify(result, null, 2)}
+            </pre>
+          ) : null}
+        </div>
+      </div>
+    </>
   );
 }
