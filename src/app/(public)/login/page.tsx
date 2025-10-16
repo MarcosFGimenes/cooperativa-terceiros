@@ -1,96 +1,85 @@
 "use client";
-
-import { useEffect, useState } from "react";
+import { useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { signInWithEmailAndPassword, onAuthStateChanged } from "firebase/auth";
-import { toast } from "sonner";
+import { getAuth, signInWithEmailAndPassword } from "firebase/auth";
+import { app } from "@/lib/firebase";
 
-import { getFirebaseAuth } from "@/lib/firebaseClient";
+const AFTER_LOGIN = "/servicos";
 
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState("");
 
-  useEffect(() => {
-    const auth = getFirebaseAuth();
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      if (user) {
-        router.replace("/dashboard");
-      }
-    });
-
-    return () => unsubscribe();
-  }, [router]);
-
-  async function onSubmit(e: React.FormEvent) {
+  async function onSubmit(e: FormEvent) {
     e.preventDefault();
+    setErrorMsg("");
     setLoading(true);
     try {
-      const auth = getFirebaseAuth();
-      await signInWithEmailAndPassword(auth, email.trim(), password);
-      toast.success("Login efetuado!");
-      router.replace("/dashboard");
+      const auth = getAuth(app);
+      await signInWithEmailAndPassword(auth, email, password);
+      router.push(AFTER_LOGIN);
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : "Falha ao autenticar";
-      toast.error(message);
+      if (error instanceof Error) {
+        setErrorMsg(error.message);
+      } else {
+        setErrorMsg("Falha ao entrar");
+      }
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <div className="container mx-auto flex min-h-[80dvh] flex-col justify-center px-4">
-      <div className="mx-auto w-full max-w-md rounded-2xl border bg-card p-6 shadow-sm">
-        <h1 className="text-2xl font-semibold tracking-tight">Login (PCM/Terceiros)</h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Acesse com suas credenciais. Se você recebeu um código, use {" "}
-          <Link className="link" href="/acesso">
-            Acesso por token
-          </Link>
-          .
+    <div className="container mx-auto max-w-lg px-4">
+      <div className="mt-10 rounded-2xl border bg-card/60 p-6 backdrop-blur">
+        <h1 className="mb-1">Login (PCM/Terceiros)</h1>
+        <p className="mb-4 text-sm text-muted-foreground">
+          Acesse com suas credenciais. Se você recebeu um código, use Acesso por token.
         </p>
-        <form onSubmit={onSubmit} className="mt-6 grid gap-4">
-          <label className="grid gap-1">
-            <span className="text-sm font-medium">E-mail</span>
+        <form onSubmit={onSubmit} className="grid gap-3">
+          <div className="grid gap-2">
+            <label htmlFor="email" className="text-sm font-medium">
+              E-mail
+            </label>
             <input
+              id="email"
               type="email"
-              inputMode="email"
-              autoCapitalize="none"
-              autoCorrect="off"
-              spellCheck={false}
-              autoComplete="off"
-              placeholder="seu@email.com"
+              autoComplete="email"
+              required
               value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              className="h-11 w-full rounded-lg border bg-background px-4 text-base text-foreground placeholder:text-muted-foreground"
+              onChange={(e) => setEmail(e.target.value)}
+              className="h-11 rounded-md border bg-background px-3"
             />
-          </label>
-
-          <label className="grid gap-1">
-            <span className="text-sm font-medium">Senha</span>
+          </div>
+          <div className="grid gap-2">
+            <label htmlFor="password" className="text-sm font-medium">
+              Senha
+            </label>
             <input
+              id="password"
               type="password"
-              autoComplete="new-password"
-              placeholder="••••••••"
+              autoComplete="current-password"
+              required
               value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              className="h-11 w-full rounded-lg border bg-background px-4 text-base text-foreground placeholder:text-muted-foreground"
+              onChange={(e) => setPassword(e.target.value)}
+              className="h-11 rounded-md border bg-background px-3"
             />
-          </label>
-
+          </div>
+          {errorMsg && <p className="text-sm text-destructive">{errorMsg}</p>}
           <button
             type="submit"
             aria-busy={loading}
-            className="h-11 w-full rounded-lg bg-primary text-base text-primary-foreground transition hover:opacity-90 disabled:opacity-50"
             disabled={loading}
+            className="mt-2 h-11 rounded-md bg-primary px-4 text-primary-foreground shadow-sm transition hover:opacity-90 disabled:opacity-50"
           >
-            {loading ? "Entrando…" : "Entrar"}
+            {loading ? "Entrando..." : "Entrar"}
           </button>
         </form>
-        <div className="mt-4 text-right text-sm">
+        <div className="mt-3 text-right">
           <Link className="link" href="/acesso">
             Acesso por token
           </Link>
