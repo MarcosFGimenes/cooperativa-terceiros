@@ -1,10 +1,11 @@
 import "./globals.css";
 import Link from "next/link";
-import { Toaster } from "sonner";
 import type { ReactNode } from "react";
+import { Toaster } from "sonner";
 import ThemeToggle from "@/components/ThemeToggle";
 import SkipToContent from "@/components/SkipToContent";
 import Footer from "@/components/Footer";
+import ThemeScript from "@/components/ThemeScript";
 
 export const metadata = {
   title: "PCM • Terceiros",
@@ -14,9 +15,12 @@ export const metadata = {
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="pt-BR" suppressHydrationWarning>
-      <body>
+      <head>
+        <ThemeScript />
+      </head>
+      <body className="min-h-dvh bg-background text-foreground">
         <SkipToContent />
-        <header className="border-b bg-white/70 backdrop-blur dark:bg-[#0b1220]/70">
+        <header className="border-b bg-background/70 backdrop-blur dark:bg-[#0b1220]/70">
           <div className="container mx-auto flex h-14 items-center justify-between px-4">
             <Link href="/" className="font-semibold tracking-tight">
               PCM <span className="text-primary">Terceiros</span>
