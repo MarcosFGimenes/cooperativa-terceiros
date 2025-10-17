@@ -10,6 +10,7 @@ export interface Service {
   plannedStart: string; // ISO date
   plannedEnd: string; // ISO date
   totalHours: number;
+  plannedDaily?: number[];
   status: ServiceStatus;
   company?: string; // empresa executora
   createdAt?: number;

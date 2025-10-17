@@ -41,6 +41,12 @@ function mapServiceDoc(doc: FirebaseFirestore.DocumentSnapshot): Service {
     plannedStart: data.plannedStart ?? "",
     plannedEnd: data.plannedEnd ?? "",
     totalHours: data.totalHours ?? 0,
+    plannedDaily: Array.isArray(data.plannedDaily)
+      ? data.plannedDaily.map((value: unknown) => {
+          const numeric = typeof value === "number" ? value : Number(value);
+          return Number.isFinite(numeric) ? numeric : 0;
+        })
+      : undefined,
     status: (data.status ?? "aberto") as ServiceStatus,
     company: data.company ?? undefined,
     createdAt: toMillis(data.createdAt),
