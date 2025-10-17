@@ -1,3 +1,6 @@
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 import { tryGetAdminDb, getServerWebDb } from "@/lib/serverDb";
 import { getTokenCookie } from "@/lib/tokenSession";
 import { getServicesForToken } from "@/lib/terceiroService";
