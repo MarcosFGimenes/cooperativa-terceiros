@@ -6,7 +6,8 @@ import {
   toCsv,
 } from "./curvaSShared";
 
-export { IsoDate, computePlannedUniformPercent, dateRangeInclusive, mapSeriesToDates, toCsv } from "./curvaSShared";
+export type { IsoDate } from "./curvaSShared";
+export { computePlannedUniformPercent, dateRangeInclusive, mapSeriesToDates, toCsv } from "./curvaSShared";
 
 type CurvePoint = { d: IsoDate; pct: number };
 
