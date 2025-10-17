@@ -4,6 +4,8 @@ import { useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
 
+import { createAccessToken } from "@/lib/accessTokens";
+
 type Props = {
   service: {
     id: string;
@@ -28,31 +30,11 @@ export default function ServiceRowActions({ service }: Props) {
       setError(null);
       setToken(null);
 
-      const response = await fetch("/api/admin/tokens/create", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          targetType: "service",
-          targetId: service.id,
-          company: service.company,
-        }),
-      });
-
-      const payload = (await response.json().catch(() => ({}))) as Partial<TokenResponse & { error?: string }>;
-      if (!response.ok) {
-        throw new Error(payload.error || "Não foi possível gerar o token");
-      }
-
-      if (!payload.token || !payload.link) {
-        throw new Error("Resposta inesperada da API");
-      }
-
-      const link = payload.link.startsWith("http")
-        ? payload.link
-        : `${window.location.origin}${payload.link}`;
-
-      setToken({ token: payload.token, link });
-      toast.success("Token gerado com sucesso");
+      const code = await createAccessToken({ serviceId: service.id, empresa: service.company });
+      const origin = typeof window !== "undefined" ? window.location.origin : "";
+      const link = `${origin}/acesso?token=${code}`;
+      setToken({ token: code, link });
+      toast.success(`Token gerado: ${code}`);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Erro inesperado";
       setError(message);

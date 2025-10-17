@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import { addDoc, collection, serverTimestamp } from "firebase/firestore";
 
 import { Field } from "@/components/ui/form-controls";
-import { getFirebaseFirestore } from "@/lib/firebaseClient";
+import { db } from "@/lib/firebase";
 
 export default function NovoPacotePage() {
   const router = useRouter();
@@ -36,7 +36,6 @@ export default function NovoPacotePage() {
         status: "Aberto",
         createdAt: serverTimestamp(),
       };
-      const db = getFirebaseFirestore();
       const ref = await addDoc(collection(db, "packages"), payload);
       toast.success("Pacote criado com sucesso.");
       router.push(`/pacotes/${ref.id}`);

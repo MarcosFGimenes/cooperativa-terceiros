@@ -7,7 +7,8 @@ import { Timestamp, addDoc, collection, getDocs, orderBy, query, serverTimestamp
 
 import { Dialog, DialogClose, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Field, FormRow } from "@/components/ui/form-controls";
-import { getFirebaseFirestore } from "@/lib/firebaseClient";
+import { db } from "@/lib/firebase";
+import { createAccessToken } from "@/lib/accessTokens";
 
 type ChecklistDraft = Array<{ id: string; descricao: string; peso: number }>;
 
@@ -62,8 +63,7 @@ export default function NovoServico() {
 
   useEffect(() => {
     setLoadingPackages(true);
-    const firestore = getFirebaseFirestore();
-    getDocs(query(collection(firestore, "packages"), orderBy("nome", "asc")))
+    getDocs(query(collection(db, "packages"), orderBy("nome", "asc")))
       .then((snapshot) => {
         const result: PackageOption[] = snapshot.docs.map((doc) => {
           const data = doc.data() ?? {};
@@ -155,8 +155,7 @@ export default function NovoServico() {
         createdBy: "pcm",
       };
 
-      const firestore = getFirebaseFirestore();
-      const servicesCollection = collection(firestore, "services");
+      const servicesCollection = collection(db, "services");
       const docRef = await addDoc(servicesCollection, payload);
       setCreatedServiceId(docRef.id);
       toast.success("Serviço criado com sucesso.");
@@ -172,19 +171,13 @@ export default function NovoServico() {
     if (!createdServiceId) return;
     setIssuingToken(true);
     try {
-      const response = await fetch("/api/tokens/issue", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ scope: { type: "service", serviceId: createdServiceId } }),
+      const code = await createAccessToken({
+        serviceId: createdServiceId,
+        empresa: form.empresaId.trim() || undefined,
       });
-      const json = await response.json();
-      if (!response.ok || !json?.ok) {
-        const message = json?.error ? String(json.error) : "Falha ao gerar token.";
-        toast.error(message);
-        return;
-      }
-      setIssuedToken(json.token);
+      setIssuedToken(code);
       setTokenDialogOpen(true);
+      toast.success(`Token gerado: ${code}`);
     } catch (error) {
       console.error("[servicos/novo] Falha ao gerar token", error);
       toast.error("Não foi possível gerar o token.");

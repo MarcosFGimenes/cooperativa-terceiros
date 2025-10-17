@@ -1,21 +1,49 @@
-import * as admin from "firebase-admin";
+// server-only
+import "server-only";
+import type { App } from "firebase-admin/app";
 
-function getApp() {
-  if (admin.apps.length) return admin.app();
-  const projectId = process.env.FIREBASE_PROJECT_ID;
-  const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
-  let privateKey = process.env.FIREBASE_PRIVATE_KEY;
-  if (!projectId || !clientEmail || !privateKey) throw new Error("ADMIN_ENVS_MISSING");
-  // Vercel: replace \n
-  privateKey = privateKey.replace(/\\n/g, "\n");
-  return admin.initializeApp({
-    credential: admin.credential.cert({ projectId, clientEmail, privateKey }),
-  });
+let adminApp: App | null = null;
+
+export function getAdminApp() {
+  // Só inicializa se todas as envs existirem
+  const pid = process.env.FIREBASE_PROJECT_ID;
+  const email = process.env.FIREBASE_CLIENT_EMAIL;
+  let key = process.env.FIREBASE_PRIVATE_KEY;
+
+  if (!pid || !email || !key) return null;
+
+  // Corrige quebras de linha escapadas
+  if (key?.includes("\\n")) key = key.replace(/\\n/g, "\n");
+
+  if (!adminApp) {
+    const admin = require("firebase-admin");
+    if (admin.apps?.length) {
+      adminApp = admin.apps[0];
+    } else {
+      adminApp = admin.initializeApp({
+        credential: admin.credential.cert({
+          projectId: pid,
+          clientEmail: email,
+          privateKey: key!,
+        }),
+        projectId: pid,
+      });
+    }
+  }
+  return adminApp;
 }
 
 export function getAdmin() {
-  const app = getApp();
-  const db = admin.firestore(app);
-  const auth = admin.auth(app);
-  return { app, db, auth, admin };
+  const app = getAdminApp();
+  if (!app) {
+    throw new Error("FIREBASE_ADMIN_NOT_CONFIGURED");
+  }
+  const admin = require("firebase-admin");
+  const { getFirestore } = require("firebase-admin/firestore") as typeof import("firebase-admin/firestore");
+  return {
+    app,
+    admin,
+    db: getFirestore(app),
+    auth: admin.auth(app),
+  };
 }

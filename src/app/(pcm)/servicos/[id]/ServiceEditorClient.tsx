@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import {
   Timestamp,
@@ -16,7 +16,7 @@ import {
 } from "firebase/firestore";
 
 import { Field, FormRow } from "@/components/ui/form-controls";
-import { getFirebaseFirestore } from "@/lib/firebaseClient";
+import { db } from "@/lib/firebase";
 
 type ChecklistDraft = Array<{ id: string; descricao: string; peso: number }>;
 
@@ -62,7 +62,6 @@ type ServiceEditorClientProps = {
 };
 
 export default function ServiceEditorClient({ serviceId }: ServiceEditorClientProps) {
-  const db = useMemo(() => getFirebaseFirestore(), []);
   const [loading, setLoading] = useState(true);
   const [form, setForm] = useState({
     os: "",
@@ -106,7 +105,7 @@ export default function ServiceEditorClient({ serviceId }: ServiceEditorClientPr
         toast.error("Não foi possível carregar os pacotes disponíveis.");
       })
       .finally(() => setLoadingPackages(false));
-  }, [db]);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -190,7 +189,7 @@ export default function ServiceEditorClient({ serviceId }: ServiceEditorClientPr
     return () => {
       cancelled = true;
     };
-  }, [db, serviceId]);
+  }, [serviceId]);
 
   function updateForm<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));

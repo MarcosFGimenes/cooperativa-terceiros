@@ -1,40 +1,27 @@
-"use client";
+import { initializeApp, getApps, type FirebaseApp } from "firebase/app";
+import { getAuth } from "firebase/auth";
+import { getFirestore } from "firebase/firestore";
 
-import type { FirebaseApp } from "firebase/app";
-import type { Auth } from "firebase/auth";
-import type { Firestore } from "firebase/firestore";
-
-import { getFirebaseApp, getFirebaseAuth, getFirebaseFirestore } from "./firebaseClient";
-
-let firebaseApp: FirebaseApp | undefined;
-let firebaseAuth: Auth | undefined;
-let firestoreDb: Firestore | undefined;
-
-export function getClientFirebaseApp(): FirebaseApp {
-  if (!firebaseApp) {
-    firebaseApp = getFirebaseApp();
+let clientApp: FirebaseApp | undefined;
+export function getClientApp() {
+  if (!getApps().length) {
+    clientApp = initializeApp({
+      apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY!,
+      authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN!,
+      projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID!,
+      storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET!,
+      messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID!,
+      appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID!,
+    });
+  } else if (!clientApp) {
+    clientApp = getApps()[0]!;
   }
-  return firebaseApp;
+  return clientApp!;
 }
 
-export function getClientFirebaseAuth(): Auth {
-  if (!firebaseAuth) {
-    firebaseAuth = getFirebaseAuth();
-  }
-  return firebaseAuth;
-}
+export const getClientFirebaseApp = getClientApp;
 
-export function getClientFirebaseFirestore(): Firestore {
-  if (!firestoreDb) {
-    firestoreDb = getFirebaseFirestore();
-  }
-  return firestoreDb;
-}
-
-export const auth: Auth = typeof window !== "undefined"
-  ? getClientFirebaseAuth()
-  : (undefined as unknown as Auth);
-
-export const db: Firestore = typeof window !== "undefined"
-  ? getClientFirebaseFirestore()
-  : (undefined as unknown as Firestore);
+const sharedApp = getClientApp();
+export const app = sharedApp;
+export const auth = getAuth(sharedApp);
+export const db = getFirestore(sharedApp);
