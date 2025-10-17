@@ -1,100 +1,81 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, type Auth } from "firebase/auth";
-import { toast } from "sonner";
-import { getClientFirebaseApp } from "@/lib/firebase";
+import Link from "next/link";
+import { signInWithEmailAndPassword } from "firebase/auth";
+import { auth } from "@/lib/firebase";
+
+export const dynamic = "force-dynamic";
 
 export default function LoginPage() {
+  const router = useRouter();
   const [email, setEmail] = useState("");
   const [pass, setPass] = useState("");
-  const [checking, setChecking] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
-  const [auth, setAuth] = useState<Auth | null>(null);
-  const router = useRouter();
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const firebaseAuth = getAuth(getClientFirebaseApp());
-    setAuth(firebaseAuth);
-    const off = onAuthStateChanged(firebaseAuth, (u) => {
-      setChecking(false);
-      if (u) router.replace("/(pcm)/dashboard"); // only redirect if already authenticated
-    });
-    return () => off();
-  }, [router]);
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!auth) {
-      toast.error("Serviço de autenticação indisponível. Tente novamente.");
-      return;
-    }
-    setSubmitting(true);
+    setErr(null);
+    setLoading(true);
     try {
       await signInWithEmailAndPassword(auth, email.trim(), pass);
-      toast.success("Login efetuado");
-      router.replace("/(pcm)/dashboard");
-    } catch (err) {
-      const error = err as { code?: string } | null;
-      const msg = error?.code === "auth/invalid-credential"
-        ? "Credenciais inválidas."
-        : "Não foi possível entrar. Tente novamente.";
-      toast.error(msg);
+      router.replace("/dashboard");
+    } catch (error: any) {
+      setErr(error?.message ?? "Falha no login");
     } finally {
-      setSubmitting(false);
+      setLoading(false);
     }
-  }
-
-  if (checking) {
-    return (
-      <div className="container-page grid place-items-center">
-        <div className="card p-6 text-sm text-muted-foreground">
-          <span className="spinner mr-2" /> Verificando sessão…
-        </div>
-      </div>
-    );
   }
 
   return (
-    <div className="container-page max-w-md mx-auto">
-      <div className="card p-6">
-        <h1 className="mb-2">Entrar</h1>
-        <p className="text-sm text-muted-foreground mb-4">
-          Acesse com suas credenciais. Se você recebeu um código, use <a className="link" href="/acesso">Acesso por token</a>.
+    <div className="container mx-auto px-4 py-8">
+      <div className="mx-auto max-w-lg rounded-2xl border bg-card p-6">
+        <h1>Login (PCM/Terceiros)</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Acesse com suas credenciais. Se você recebeu um código, use <Link href="/acesso" className="link">Acesso por token</Link>.
         </p>
-        <form onSubmit={onSubmit} className="grid gap-3">
-          <div className="grid gap-1.5">
-            <label htmlFor="email">E-mail</label>
+
+        <form onSubmit={onSubmit} className="mt-6 grid gap-3">
+          <label className="grid gap-1">
+            <span className="text-sm">E-mail</span>
             <input
-              id="email"
-              className="input"
               type="email"
               autoComplete="email"
+              required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="seu@email.com"
-              required
-            />
-          </div>
-          <div className="grid gap-1.5">
-            <label htmlFor="senha">Senha</label>
-            <input
-              id="senha"
               className="input"
+              placeholder="seu@email.com"
+            />
+          </label>
+
+          <label className="grid gap-1">
+            <span className="text-sm">Senha</span>
+            <input
               type="password"
               autoComplete="current-password"
+              required
               value={pass}
               onChange={(e) => setPass(e.target.value)}
-              placeholder="Sua senha"
-              required
+              className="input"
+              placeholder="••••••••"
             />
-          </div>
-          <div className="mt-2 flex items-center justify-between">
-            <button className="btn-primary" type="submit" disabled={submitting} aria-busy={submitting}>
-              {submitting ? "Entrando…" : "Entrar"}
-            </button>
-            <a className="link-btn" href="/acesso">Acesso por token</a>
+          </label>
+
+          {err && <div className="text-sm text-red-500">{err}</div>}
+
+          <button
+            type="submit"
+            className="btn-primary h-11 px-5"
+            disabled={loading}
+            aria-busy={loading}
+          >
+            {loading ? "Entrando..." : "Entrar"}
+          </button>
+
+          <div className="mt-2 text-right">
+            <Link href="/acesso" className="link">Acesso por token</Link>
           </div>
         </form>
       </div>
