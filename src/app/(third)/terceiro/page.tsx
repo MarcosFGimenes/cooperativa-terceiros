@@ -1,11 +1,15 @@
-import { getTokenCookie } from "@/lib/tokenSession";
-import { getServicesForToken, getTokenDoc } from "@/lib/terceiroService";
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 import Link from "next/link";
+import { getTokenCookie } from "@/lib/tokenSession";
+import { getTokenDoc } from "@/lib/terceiroService"; // já existe
+import { listServicesForToken } from "@/lib/data";     // novo helper
 
 export default async function TerceiroHome() {
   const token = getTokenCookie();
   const tokenDoc = token ? await getTokenDoc(token) : null;
-  const services = token ? await getServicesForToken(token) : [];
+  const services = tokenDoc ? await listServicesForToken(tokenDoc) : [];
 
   return (
     <div className="space-y-6">
@@ -13,7 +17,7 @@ export default async function TerceiroHome() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Meus serviços</h1>
           <p className="text-sm text-muted-foreground">
-            Token: <span className="font-mono">{token}</span>{" "}
+            Token: <span className="font-mono">{token ?? "—"}</span>
             {tokenDoc?.empresa ? <span className="ml-2">• Empresa: <strong>{tokenDoc.empresa}</strong></span> : null}
           </p>
         </div>
@@ -21,18 +25,18 @@ export default async function TerceiroHome() {
 
       {services.length === 0 ? (
         <div className="card p-6 text-sm text-muted-foreground">
-          Nenhum serviço disponível com status <strong>Aberto</strong> para este token.
+          Nenhum serviço com status <strong>Aberto</strong> para este token.
         </div>
       ) : (
         <ul className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
           {services.map((s) => (
             <li key={s.id} className="card p-4">
               <div className="flex items-center justify-between">
-                <h3 className="text-base font-medium">{s.os ?? "Sem O.S"}</h3>
-                <span className="rounded-full border px-2 py-0.5 text-xs">{s.status ?? "-"}</span>
+                <h3 className="text-base font-medium">{s.os ?? s.id}</h3>
+                <span className="rounded-full border px-2 py-0.5 text-xs">{s.status}</span>
               </div>
               <p className="mt-1 text-sm text-muted-foreground">
-                {s.equipamento ?? s.tag ?? "—"} {s.setor ? `• ${s.setor}` : ""}
+                {(s.equipamento ?? s.tag ?? "—")}{s.setor ? ` • ${s.setor}` : ""}
               </p>
               <div className="mt-3">
                 <div className="h-2 w-full rounded bg-muted">
