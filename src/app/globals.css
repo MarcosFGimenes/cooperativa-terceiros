@@ -158,12 +158,18 @@ input:-webkit-autofill:focus {
 .select, .textarea { @apply block w-full rounded-lg border border-input bg-background px-4 text-[15px] placeholder:text-muted-foreground focus:ring-2 focus:ring-primary/40 focus:outline-none; }
 .textarea { @apply h-auto py-3; }
 
-.btn-primary { @apply inline-flex items-center justify-center h-11 px-5 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:pointer-events-none; }
-.btn-secondary { @apply inline-flex items-center justify-center h-11 px-5 rounded-md bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors disabled:opacity-50 disabled:pointer-events-none; }
-.btn-outline { @apply inline-flex items-center justify-center h-11 px-5 rounded-md border border-border bg-transparent hover:bg-muted transition-colors disabled:opacity-50 disabled:pointer-events-none; }
+.btn-primary, .btn-secondary, .btn-outline, .btn-ghost {
+  @apply inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors;
+  @apply h-10 px-4;
+  @apply disabled:opacity-50 disabled:pointer-events-none;
+}
+.btn-primary { @apply bg-primary text-primary-foreground hover:opacity-90; }
+.btn-secondary { @apply bg-secondary text-secondary-foreground hover:opacity-90; }
+.btn-outline { @apply border hover:bg-accent hover:text-accent-foreground; }
+.btn-ghost { @apply hover:bg-accent/50; }
 .input { @apply h-11 w-full rounded-md border border-input bg-background px-3 text-sm placeholder:text-muted-foreground/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30; }
-.card { @apply rounded-2xl border bg-card p-6; }
-.link { @apply text-primary hover:underline; }
+.card { @apply rounded-2xl border bg-card text-card-foreground shadow-sm p-6; }
+.link { @apply text-primary underline-offset-4 hover:underline; }
 .container-page { @apply container mx-auto px-4 py-8; }
 .table { @apply w-full text-sm; }
 .table th { @apply text-left font-medium text-muted-foreground border-b py-2; }
