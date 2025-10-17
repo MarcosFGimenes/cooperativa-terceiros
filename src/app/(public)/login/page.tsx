@@ -1,27 +1,35 @@
 "use client";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { getAuth, onAuthStateChanged, signInWithEmailAndPassword } from "firebase/auth";
+import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, type Auth } from "firebase/auth";
 import { toast } from "sonner";
+import { getClientFirebaseApp } from "@/lib/firebase";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [pass, setPass] = useState("");
   const [checking, setChecking] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [auth, setAuth] = useState<Auth | null>(null);
   const router = useRouter();
-  const auth = getAuth();
 
   useEffect(() => {
-    const off = onAuthStateChanged(auth, (u) => {
+    if (typeof window === "undefined") return;
+    const firebaseAuth = getAuth(getClientFirebaseApp());
+    setAuth(firebaseAuth);
+    const off = onAuthStateChanged(firebaseAuth, (u) => {
       setChecking(false);
       if (u) router.replace("/(pcm)/dashboard"); // only redirect if already authenticated
     });
     return () => off();
-  }, [auth, router]);
+  }, [router]);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (!auth) {
+      toast.error("Serviço de autenticação indisponível. Tente novamente.");
+      return;
+    }
     setSubmitting(true);
     try {
       await signInWithEmailAndPassword(auth, email.trim(), pass);
