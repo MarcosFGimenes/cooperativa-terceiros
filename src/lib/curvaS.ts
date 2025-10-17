@@ -1,6 +1,14 @@
-import { tryGetAdminDb, getServerWebDb } from "@/lib/serverDb";
+import type { IsoDate } from "./curvaSShared";
+import {
+  computePlannedUniformPercent,
+  dateRangeInclusive,
+  mapSeriesToDates,
+  toCsv,
+} from "./curvaSShared";
 
-type CurvePoint = { d: string; pct: number };
+export { IsoDate, computePlannedUniformPercent, dateRangeInclusive, mapSeriesToDates, toCsv } from "./curvaSShared";
+
+type CurvePoint = { d: IsoDate; pct: number };
 
 type ChecklistItemLike = {
   id?: string;
@@ -35,12 +43,6 @@ const normaliseDate = (value: Date | null | undefined): Date | null => {
   return new Date(Date.UTC(value.getUTCFullYear(), value.getUTCMonth(), value.getUTCDate()));
 };
 
-const addDays = (date: Date, amount: number) => {
-  const result = new Date(date.getTime());
-  result.setUTCDate(result.getUTCDate() + amount);
-  return result;
-};
-
 const toDate = (input: unknown): Date | null => {
   if (!input) return null;
   if (input instanceof Date) return input;
@@ -69,33 +71,33 @@ export function curvaPlanejada(inicio: Date, fim: Date, horasTotais: number): Cu
   const anchor = start ?? end;
   if (!anchor) return [];
 
-  void horasTotais; // mantido para compatibilidade com futuras ponderações por esforço
-
   const [first, last] = (() => {
     const a = start ?? anchor;
     const b = end ?? anchor;
     return a.getTime() <= b.getTime() ? [a, b] : [b, a];
   })();
 
-  const totalDays = Math.max(
-    1,
-    Math.floor((last.getTime() - first.getTime()) / (24 * 60 * 60 * 1000)) + 1,
-  );
+  const dates = dateRangeInclusive(first, last);
+  if (!dates.length) return [];
 
-  if (totalDays === 1) {
-    return [{ d: toISODate(first), pct: 100 }];
-  }
+  const plannedSeries = computePlannedUniformPercent(first, last, horasTotais);
+  const hasSeries = plannedSeries.length === dates.length;
 
-  const step = 100 / (totalDays - 1);
-  const points: CurvePoint[] = [];
-  for (let i = 0; i < totalDays; i += 1) {
-    const current = addDays(first, i);
-    const pct = i === totalDays - 1 ? 100 : roundTwo(clampPercent(i * step));
-    points.push({ d: toISODate(current), pct });
-  }
-  if (points.length) {
-    points[points.length - 1] = { ...points[points.length - 1], pct: 100 };
-  }
+  let lastPct = 0;
+  const points = dates.map((date, index) => {
+    let pct: number;
+    if (hasSeries) {
+      const value = plannedSeries[index] ?? lastPct;
+      pct = Math.round(clampPercent(value));
+    } else {
+      pct = index === dates.length - 1 ? 100 : lastPct;
+    }
+    if (pct < lastPct) pct = lastPct;
+    if (index === dates.length - 1) pct = 100;
+    lastPct = pct;
+    return { d: date, pct };
+  });
+
   return points;
 }
 
@@ -171,6 +173,7 @@ function buildCurve(serviceData: Record<string, unknown>, updates: ServiceUpdate
 }
 
 export async function curvaRealizada(serviceId: string): Promise<CurvePoint[]> {
+  const { tryGetAdminDb, getServerWebDb } = await import("@/lib/serverDb");
   const adminDb = tryGetAdminDb();
   if (adminDb) {
     const serviceRef = adminDb.collection("services").doc(serviceId);

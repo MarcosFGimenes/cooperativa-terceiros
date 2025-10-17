@@ -1,7 +1,10 @@
-import type { NextConfig } from "next";
 import path from "path";
+import { fileURLToPath } from "url";
 
-const nextConfig: NextConfig = {
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+/** @type {import('next').NextConfig} */
+const nextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
@@ -11,6 +14,7 @@ const nextConfig: NextConfig = {
   webpack: (config) => {
     config.resolve.alias = {
       ...(config.resolve.alias || {}),
+      "@": path.resolve(__dirname, "src"),
       sonner: path.resolve(__dirname, "src/lib/sonner.tsx"),
     };
     return config;
