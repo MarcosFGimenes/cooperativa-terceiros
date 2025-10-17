@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 import { Field, RangeItem } from "@/components/ui/form-controls";
@@ -62,6 +62,7 @@ function formatPercent(value: number | undefined) {
 export default function AcessoPorTokenPage() {
   const qp = useSearchParams();
   const initial = useMemo(() => (qp?.get("token") ?? "").trim().toUpperCase(), [qp]);
+  const router = useRouter();
   const [token, setToken] = useState(initial);
   const [validating, setValidating] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
@@ -161,13 +162,14 @@ export default function AcessoPorTokenPage() {
 
   async function onValidate(e?: FormEvent) {
     e?.preventDefault();
-    if (!token) return;
+    const code = token.trim().toUpperCase();
+    if (!code) return;
     setValidating(true);
     setValidationError(null);
     setServices([]);
     setSelectedServiceId(null);
     try {
-      const response = await fetch(`/api/validate-token?token=${encodeURIComponent(token)}`, { cache: "no-store" });
+      const response = await fetch(`/api/validate-token?token=${encodeURIComponent(code)}`, { cache: "no-store" });
       const json: ValidateSuccess | ValidateError = await response.json();
       if (!response.ok || !json || json.ok === false) {
         setValidatedToken(null);
@@ -176,17 +178,28 @@ export default function AcessoPorTokenPage() {
         return;
       }
 
+      if (json.ok && json.found) {
+        await fetch("/api/token-session", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ token: code }),
+        });
+        toast.success("Token válido! Redirecionando…");
+        router.replace("/terceiro");
+        return;
+      }
+
       if (!json.found || ("serviceIds" in json && json.serviceIds.length === 0)) {
-        setValidatedToken(token);
+        setValidatedToken(code);
         toast.info("Token válido, mas nenhum serviço aberto foi encontrado.");
         setValidationError("Nenhum serviço aberto encontrado para este token.");
         return;
       }
 
-      setValidatedToken(token);
+      setValidatedToken(code);
       toast.success("Token validado. Selecione um serviço para atualizar.");
       const ids = "serviceIds" in json ? json.serviceIds : [];
-      await loadServices(token, ids);
+      await loadServices(code, ids);
     } catch (error) {
       console.error("[acesso] Falha ao validar token", error);
       setValidatedToken(null);
