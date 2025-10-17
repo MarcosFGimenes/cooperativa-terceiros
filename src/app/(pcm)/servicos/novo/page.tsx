@@ -32,7 +32,6 @@ function toTimestamp(value: string) {
 }
 
 export default function NovoServico() {
-  const db = useMemo(() => getFirebaseFirestore(), []);
   const [form, setForm] = useState({
     os: "",
     oc: "",
@@ -63,7 +62,8 @@ export default function NovoServico() {
 
   useEffect(() => {
     setLoadingPackages(true);
-    getDocs(query(collection(db, "packages"), orderBy("nome", "asc")))
+    const firestore = getFirebaseFirestore();
+    getDocs(query(collection(firestore, "packages"), orderBy("nome", "asc")))
       .then((snapshot) => {
         const result: PackageOption[] = snapshot.docs.map((doc) => {
           const data = doc.data() ?? {};
@@ -76,7 +76,7 @@ export default function NovoServico() {
         toast.error("Não foi possível carregar os pacotes disponíveis.");
       })
       .finally(() => setLoadingPackages(false));
-  }, [db]);
+  }, []);
 
   function updateForm<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -155,7 +155,8 @@ export default function NovoServico() {
         createdBy: "pcm",
       };
 
-      const servicesCollection = collection(db, "services");
+      const firestore = getFirebaseFirestore();
+      const servicesCollection = collection(firestore, "services");
       const docRef = await addDoc(servicesCollection, payload);
       setCreatedServiceId(docRef.id);
       toast.success("Serviço criado com sucesso.");

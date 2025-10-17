@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -10,7 +10,6 @@ import { Field } from "@/components/ui/form-controls";
 import { getFirebaseFirestore } from "@/lib/firebaseClient";
 
 export default function NovoPacotePage() {
-  const db = useMemo(() => getFirebaseFirestore(), []);
   const router = useRouter();
   const [form, setForm] = useState({ nome: "", descricao: "" });
   const [saving, setSaving] = useState(false);
@@ -37,6 +36,7 @@ export default function NovoPacotePage() {
         status: "Aberto",
         createdAt: serverTimestamp(),
       };
+      const db = getFirebaseFirestore();
       const ref = await addDoc(collection(db, "packages"), payload);
       toast.success("Pacote criado com sucesso.");
       router.push(`/pacotes/${ref.id}`);
