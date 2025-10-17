@@ -131,3 +131,29 @@ input:-webkit-autofill:focus {
 
 /* Buttons/links helpers (if not present) */
 .link { @apply text-primary hover:underline; }
+
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 12mm;
+  }
+
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+
+  header, footer, nav, .no-print {
+    display: none !important;
+  }
+
+  main, section, article, .card {
+    background: #ffffff !important;
+    box-shadow: none !important;
+  }
+
+  * {
+    box-shadow: none !important;
+    background-image: none !important;
+  }
+}
