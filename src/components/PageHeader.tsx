@@ -1,17 +1,12 @@
-import type { ReactNode } from "react";
-
-export default function PageHeader({
-  title,
-  description,
-  actions,
-}: { title: string; description?: string; actions?: ReactNode }) {
+import { ReactNode } from "react";
+export default function PageHeader({ title, subtitle, actions }: { title: string; subtitle?: string; actions?: ReactNode }) {
   return (
-    <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+    <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
       <div>
-        <h1 className="text-xl font-semibold tracking-tight">{title}</h1>
-        {description ? <p className="text-sm text-muted-foreground">{description}</p> : null}
+        <h1>{title}</h1>
+        {subtitle && <p className="text-muted-foreground">{subtitle}</p>}
       </div>
-      <div className="flex items-center gap-2">{actions}</div>
+      {actions}
     </div>
   );
 }

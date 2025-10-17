@@ -84,14 +84,7 @@ h3 { @apply text-lg sm:text-xl font-medium; }
 :focus-visible { @apply outline-none ring-2 ring-primary/40 ring-offset-2 ring-offset-background; }
 
 /* Utilitários */
-.link { @apply text-primary hover:underline underline-offset-4; }
-.card { @apply rounded-2xl border bg-card text-card-foreground shadow-sm; }
-
-.btn-base { @apply inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors active:scale-[.98] disabled:opacity-50 disabled:pointer-events-none; }
-.btn-primary { @apply btn-base h-11 px-5 bg-primary text-primary-foreground hover:bg-primary/90; }
-.btn-secondary { @apply btn-base h-11 px-5 bg-secondary text-secondary-foreground hover:bg-secondary/80; }
-.btn-outline { @apply btn-base h-11 px-5 border border-border bg-transparent hover:bg-muted; }
-.btn-ghost { @apply btn-base bg-transparent hover:bg-muted; }
+.btn-ghost { @apply inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors active:scale-[.98] disabled:opacity-50 disabled:pointer-events-none bg-transparent hover:bg-muted; }
 
 /* Skeleton & spinner */
 .skeleton { @apply animate-pulse rounded-md bg-muted; }
@@ -162,12 +155,16 @@ input:-webkit-autofill:focus {
 .link-btn { @apply inline-flex items-center gap-2 h-11 px-4 rounded-lg hover:bg-muted; }
 
 /* Inputs e selects maiores */
-.input { @apply block w-full rounded-md border border-input bg-background px-3 h-11 text-[15px] placeholder:text-muted-foreground shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40; }
 .select, .textarea { @apply block w-full rounded-lg border border-input bg-background px-4 text-[15px] placeholder:text-muted-foreground focus:ring-2 focus:ring-primary/40 focus:outline-none; }
 .textarea { @apply h-auto py-3; }
 
-/* Cards básicos */
-.card { @apply rounded-xl border border-border bg-card; }
-
-/* Container padrão de página */
-.container-page { @apply container mx-auto px-4 py-6; }
+.btn-primary { @apply inline-flex items-center justify-center h-11 px-5 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:pointer-events-none; }
+.btn-secondary { @apply inline-flex items-center justify-center h-11 px-5 rounded-md bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors disabled:opacity-50 disabled:pointer-events-none; }
+.btn-outline { @apply inline-flex items-center justify-center h-11 px-5 rounded-md border border-border bg-transparent hover:bg-muted transition-colors disabled:opacity-50 disabled:pointer-events-none; }
+.input { @apply h-11 w-full rounded-md border border-input bg-background px-3 text-sm placeholder:text-muted-foreground/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30; }
+.card { @apply rounded-2xl border bg-card p-6; }
+.link { @apply text-primary hover:underline; }
+.container-page { @apply container mx-auto px-4 py-8; }
+.table { @apply w-full text-sm; }
+.table th { @apply text-left font-medium text-muted-foreground border-b py-2; }
+.table td { @apply border-b py-2; }

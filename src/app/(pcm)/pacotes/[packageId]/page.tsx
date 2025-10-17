@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { collection, doc, getDoc, getDocs, query, where } from "firebase/firestore";
@@ -34,7 +34,6 @@ type Params = { params: { packageId: string } };
 
 export default function PacoteDetalhePage({ params }: Params) {
   const { packageId } = params;
-  const db = useMemo(() => getFirebaseFirestore(), []);
   const [loading, setLoading] = useState(true);
   const [packageData, setPackageData] = useState<PackageData | null>(null);
   const [services, setServices] = useState<ServiceRow[]>([]);
@@ -48,7 +47,8 @@ export default function PacoteDetalhePage({ params }: Params) {
     async function load() {
       setLoading(true);
       try {
-        const pkgRef = doc(db, "packages", packageId);
+        const firestore = getFirebaseFirestore();
+        const pkgRef = doc(firestore, "packages", packageId);
         const snap = await getDoc(pkgRef);
         if (!snap.exists()) {
           toast.error("Pacote não encontrado.");
@@ -64,7 +64,7 @@ export default function PacoteDetalhePage({ params }: Params) {
         };
         setPackageData(pkg);
 
-        const servicesRef = collection(db, "services");
+        const servicesRef = collection(firestore, "services");
         const [byPacote, byPackage] = await Promise.all([
           getDocs(query(servicesRef, where("pacoteId", "==", packageId))),
           getDocs(query(servicesRef, where("packageId", "==", packageId))),
@@ -106,7 +106,7 @@ export default function PacoteDetalhePage({ params }: Params) {
     return () => {
       cancelled = true;
     };
-  }, [db, packageId]);
+  }, [packageId]);
 
   async function issueTokenForCompany(companyId: string) {
     setIssuingCompany(companyId);
