@@ -264,17 +264,15 @@ export default function AcessoPorTokenPage() {
   }
 
   return (
-    <div className="container mx-auto max-w-4xl px-4 pb-16">
-      <div className="pt-4">
-        <a
-          href="/login"
-          className="inline-flex items-center gap-2 rounded-md border bg-background px-3 py-2 text-sm transition hover:bg-muted"
-        >
+    <div className="container-page max-w-4xl pb-16">
+      <div className="pt-2">
+        {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
+        <a className="link-btn" href="/">
           ← Voltar
         </a>
       </div>
 
-      <div className="mt-4 rounded-2xl border bg-card/60 p-6 shadow-sm backdrop-blur">
+      <div className="mt-4 card bg-card/60 p-6 shadow-sm backdrop-blur">
         <h1 className="mb-1">Acesso do Terceiro</h1>
         <p className="mb-4 text-sm text-muted-foreground">
           Informe o código recebido para visualizar seus serviços e registrar o andamento.
@@ -295,12 +293,12 @@ export default function AcessoPorTokenPage() {
               autoCorrect="off"
               spellCheck={false}
               aria-invalid={Boolean(validationError)}
-              className="w-full rounded-md border border-border bg-background px-3 py-2 text-base shadow-sm transition focus-visible:ring-2 focus-visible:ring-primary/40"
+              className="input"
             />
           </div>
           <button
             type="submit"
-            className="h-10 rounded-md bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-sm transition hover:opacity-90 disabled:opacity-50 sm:ml-3"
+            className="btn-primary sm:ml-3"
             aria-busy={validating}
             disabled={validating || !token}
           >
@@ -327,15 +325,15 @@ export default function AcessoPorTokenPage() {
                       key={service.id}
                       type="button"
                       onClick={() => setSelectedServiceId(service.id)}
-                      className={`w-full rounded-lg border px-3 py-3 text-left shadow-sm transition focus-visible:ring-2 ${
-                        isActive ? "border-primary bg-primary/5" : "border-border bg-background hover:bg-muted/60"
+                      className={`btn-outline w-full flex flex-col items-start gap-1 text-left h-auto py-3 ${
+                        isActive ? "border-primary bg-primary/10" : ""
                       }`}
                     >
-                      <div className="flex items-center justify-between text-sm font-semibold">
+                      <div className="flex w-full items-center justify-between text-sm font-semibold">
                         <span>{service.os || "Sem O.S"}</span>
                         <span className="text-xs font-medium text-muted-foreground">{formatPercent(service.andamento)}</span>
                       </div>
-                      <div className="mt-1 text-xs text-muted-foreground">
+                      <div className="text-xs text-muted-foreground">
                         <div>Tag: {service.tag || "—"}</div>
                         <div>Equipamento: {service.equipamento || "—"}</div>
                       </div>
@@ -346,7 +344,7 @@ export default function AcessoPorTokenPage() {
             </div>
           </div>
 
-          <div className="rounded-xl border bg-background/80 p-4 shadow-inner">
+          <div className="card bg-background/80 p-4 shadow-inner">
             {selectedService ? (
               <form onSubmit={submitUpdate} className="space-y-4" aria-live="polite">
                 <div>
@@ -379,6 +377,7 @@ export default function AcessoPorTokenPage() {
                     onChange={(event) => setManualPercent(event.target.value)}
                     required
                     hint="Informe o percentual concluído do serviço (0 a 100%)."
+                    className="input"
                   />
                 )}
 
@@ -391,7 +390,7 @@ export default function AcessoPorTokenPage() {
                     value={note}
                     onChange={(event) => setNote(event.target.value)}
                     rows={4}
-                    className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm shadow-sm focus-visible:ring-2 focus-visible:ring-primary/40"
+                    className="textarea"
                     placeholder="Detalhes relevantes desta atualização"
                   />
                 </div>

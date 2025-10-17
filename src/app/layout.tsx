@@ -22,7 +22,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         <SkipToContent />
         <header className="border-b bg-white/70 backdrop-blur dark:bg-[#0b1220]/70">
           <div className="container mx-auto flex h-14 items-center justify-between px-4">
-            <Link href="/" className="font-semibold tracking-tight">
+            <Link href="/" className="link-btn font-semibold tracking-tight">
               PCM <span className="text-primary">Terceiros</span>
             </Link>
             <HeaderClient />

@@ -25,12 +25,10 @@ export default function ThemeToggle() {
     <button
       type="button"
       aria-label="Alternar tema"
-      aria-pressed={theme === "dark"}
-      onClick={() => setTheme((t) => (t === "dark" ? "light" : "dark"))}
-      className="inline-flex h-9 w-9 items-center justify-center rounded-full border bg-background text-foreground shadow-sm hover:bg-muted"
+      className="btn-ghost h-11 w-11 rounded-full"
+      onClick={() => setTheme((prev) => (prev === "dark" ? "light" : "dark"))}
     >
-      <Sun className={`h-4 w-4 transition ${theme === "dark" ? "scale-0 opacity-0" : "scale-100 opacity-100"}`} />
-      <Moon className={`absolute h-4 w-4 transition ${theme === "dark" ? "scale-100 opacity-100" : "scale-0 opacity-0"}`} />
+      {theme === "dark" ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
     </button>
   );
 }

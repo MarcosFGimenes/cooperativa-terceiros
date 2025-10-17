@@ -1,28 +1,35 @@
-import Link from "next/link";
+"use client";
+import { useEffect, useState } from "react";
+import { getFirestore, collection, query, where, getCountFromServer } from "firebase/firestore";
 
-export const dynamic = "force-dynamic";
+export default function Dashboard() {
+  const [loading, setLoading] = useState(true);
+  const [ativos, setAtivos] = useState<number>(0);
+  const [concluidos, setConcluidos] = useState<number>(0);
 
-export default function DashboardPage() {
+  useEffect(() => {
+    (async () => {
+      const db = getFirestore();
+      const c1 = await getCountFromServer(query(collection(db, "services"), where("status", "==", "Aberto")));
+      const c2 = await getCountFromServer(query(collection(db, "services"), where("status", "==", "Concluído")));
+      setAtivos(c1.data().count);
+      setConcluidos(c2.data().count);
+      setLoading(false);
+    })();
+  }, []);
+
   return (
-    <div className="container mx-auto px-4 py-6">
-      <h1>Dashboard</h1>
-      <p className="mt-2 text-muted-foreground">
-        Bem-vindo! Use o menu para gerenciar serviços e pacotes.
-      </p>
-
-      <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        <Link href="/servicos" className="card block rounded-xl border p-4 hover:bg-muted">
-          <h3 className="font-medium">Serviços</h3>
-          <p className="text-sm text-muted-foreground">Cadastrar e acompanhar serviços</p>
-        </Link>
-        <Link href="/pacotes" className="card block rounded-xl border p-4 hover:bg-muted">
-          <h3 className="font-medium">Pacotes</h3>
-          <p className="text-sm text-muted-foreground">Agrupar e consolidar andamento</p>
-        </Link>
-        <Link href="/relatorios" className="card block rounded-xl border p-4 hover:bg-muted">
-          <h3 className="font-medium">Relatórios</h3>
-          <p className="text-sm text-muted-foreground">Exportar PDF / impressão</p>
-        </Link>
+    <div className="container-page">
+      <h1 className="mb-4">Dashboard</h1>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="card p-5">
+          <h3 className="text-sm text-muted-foreground">Serviços em andamento</h3>
+          <div className="text-3xl font-semibold mt-1">{loading ? "…" : ativos}</div>
+        </div>
+        <div className="card p-5">
+          <h3 className="text-sm text-muted-foreground">Serviços concluídos</h3>
+          <div className="text-3xl font-semibold mt-1">{loading ? "…" : concluidos}</div>
+        </div>
       </div>
     </div>
   );

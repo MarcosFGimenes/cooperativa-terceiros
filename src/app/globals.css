@@ -157,3 +157,23 @@ input:-webkit-autofill:focus {
     background-image: none !important;
   }
 }
+
+/* ---------- Controls: buttons/inputs (comfort sizing) ---------- */
+.btn { @apply inline-flex items-center justify-center gap-2 rounded-lg h-11 px-4 text-[15px] font-medium transition active:translate-y-[0.5px] disabled:opacity-60 disabled:cursor-not-allowed; }
+.btn-primary { @apply btn bg-primary text-primary-foreground hover:bg-primary/90; }
+.btn-secondary { @apply btn bg-secondary text-secondary-foreground hover:bg-secondary/90; }
+.btn-ghost { @apply btn bg-transparent hover:bg-muted; }
+.btn-outline { @apply btn border border-border hover:bg-muted; }
+
+/* Links que se comportam como botões */
+.link-btn { @apply inline-flex items-center gap-2 h-11 px-4 rounded-lg hover:bg-muted; }
+
+/* Inputs e selects maiores */
+.input, .select, .textarea { @apply block w-full rounded-lg border border-input bg-background px-4 text-[15px] h-11 placeholder:text-muted-foreground focus:ring-2 focus:ring-primary/40 focus:outline-none; }
+.textarea { @apply h-auto py-3; }
+
+/* Cards básicos */
+.card { @apply rounded-xl border border-border bg-card; }
+
+/* Container padrão de página */
+.container-page { @apply container mx-auto px-4 py-6; }
