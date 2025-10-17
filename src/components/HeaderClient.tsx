@@ -15,22 +15,22 @@ export default function HeaderClient() {
   }
 
   return (
-    <nav className="flex items-center gap-3 text-sm">
-      <Link className="link" href="/login">
+    <nav className="flex items-center gap-2">
+      <Link className="link-btn" href="/login">
         Login
       </Link>
-      <Link className="link" href="/acesso">
+      <Link className="link-btn" href="/acesso">
         Acesso por token
       </Link>
       {user ? (
         <>
-          <Link className="link" href="/servicos">
+          <Link className="link-btn" href="/(pcm)/dashboard">
             Dashboard
           </Link>
           <button
             type="button"
             onClick={doLogout}
-            className="btn-ghost h-9 rounded-md px-3"
+            className="btn-ghost"
           >
             Sair
           </button>

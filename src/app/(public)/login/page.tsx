@@ -1,89 +1,94 @@
 "use client";
-import { useState, type FormEvent } from "react";
-import Link from "next/link";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { getAuth, signInWithEmailAndPassword } from "firebase/auth";
-import { getClientFirebaseApp } from "@/lib/firebase";
-
-const AFTER_LOGIN = "/servicos";
+import { getAuth, onAuthStateChanged, signInWithEmailAndPassword } from "firebase/auth";
+import { toast } from "sonner";
 
 export default function LoginPage() {
-  const router = useRouter();
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [errorMsg, setErrorMsg] = useState("");
+  const [pass, setPass] = useState("");
+  const [checking, setChecking] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const router = useRouter();
+  const auth = getAuth();
 
-  async function onSubmit(e: FormEvent) {
+  useEffect(() => {
+    const off = onAuthStateChanged(auth, (u) => {
+      setChecking(false);
+      if (u) router.replace("/(pcm)/dashboard"); // only redirect if already authenticated
+    });
+    return () => off();
+  }, [auth, router]);
+
+  async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setErrorMsg("");
-    setLoading(true);
+    setSubmitting(true);
     try {
-      const auth = getAuth(getClientFirebaseApp());
-      await signInWithEmailAndPassword(auth, email, password);
-      router.push(AFTER_LOGIN);
-    } catch (error: unknown) {
-      if (error instanceof Error) {
-        setErrorMsg(error.message);
-      } else {
-        setErrorMsg("Falha ao entrar");
-      }
+      await signInWithEmailAndPassword(auth, email.trim(), pass);
+      toast.success("Login efetuado");
+      router.replace("/(pcm)/dashboard");
+    } catch (err) {
+      const error = err as { code?: string } | null;
+      const msg = error?.code === "auth/invalid-credential"
+        ? "Credenciais inválidas."
+        : "Não foi possível entrar. Tente novamente.";
+      toast.error(msg);
     } finally {
-      setLoading(false);
+      setSubmitting(false);
     }
   }
 
+  if (checking) {
+    return (
+      <div className="container-page grid place-items-center">
+        <div className="card p-6 text-sm text-muted-foreground">
+          <span className="spinner mr-2" /> Verificando sessão…
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="container mx-auto max-w-lg px-4">
-      <div className="mt-10 rounded-2xl border bg-card/60 p-6 backdrop-blur">
-        <h1 className="mb-1">Login (PCM/Terceiros)</h1>
-        <p className="mb-4 text-sm text-muted-foreground">
-          Acesse com suas credenciais. Se você recebeu um código, use Acesso por token.
+    <div className="container-page max-w-md mx-auto">
+      <div className="card p-6">
+        <h1 className="mb-2">Entrar</h1>
+        <p className="text-sm text-muted-foreground mb-4">
+          Acesse com suas credenciais. Se você recebeu um código, use <a className="link" href="/acesso">Acesso por token</a>.
         </p>
         <form onSubmit={onSubmit} className="grid gap-3">
-          <div className="grid gap-2">
-            <label htmlFor="email" className="text-sm font-medium">
-              E-mail
-            </label>
+          <div className="grid gap-1.5">
+            <label htmlFor="email">E-mail</label>
             <input
               id="email"
+              className="input"
               type="email"
               autoComplete="email"
-              required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="h-11 rounded-md border bg-background px-3"
+              placeholder="seu@email.com"
+              required
             />
           </div>
-          <div className="grid gap-2">
-            <label htmlFor="password" className="text-sm font-medium">
-              Senha
-            </label>
+          <div className="grid gap-1.5">
+            <label htmlFor="senha">Senha</label>
             <input
-              id="password"
+              id="senha"
+              className="input"
               type="password"
               autoComplete="current-password"
+              value={pass}
+              onChange={(e) => setPass(e.target.value)}
+              placeholder="Sua senha"
               required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="h-11 rounded-md border bg-background px-3"
             />
           </div>
-          {errorMsg && <p className="text-sm text-destructive">{errorMsg}</p>}
-          <button
-            type="submit"
-            aria-busy={loading}
-            disabled={loading}
-            className="mt-2 h-11 rounded-md bg-primary px-4 text-primary-foreground shadow-sm transition hover:opacity-90 disabled:opacity-50"
-          >
-            {loading ? "Entrando..." : "Entrar"}
-          </button>
+          <div className="mt-2 flex items-center justify-between">
+            <button className="btn-primary" type="submit" disabled={submitting} aria-busy={submitting}>
+              {submitting ? "Entrando…" : "Entrar"}
+            </button>
+            <a className="link-btn" href="/acesso">Acesso por token</a>
+          </div>
         </form>
-        <div className="mt-3 text-right">
-          <Link className="link" href="/acesso">
-            Acesso por token
-          </Link>
-        </div>
       </div>
     </div>
   );
