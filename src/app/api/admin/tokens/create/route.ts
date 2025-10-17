@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { Timestamp } from "firebase-admin/firestore";
 import { customAlphabet } from "nanoid";
 
-import { getAdmin } from "@/lib/firebaseAdmin";
+import { getAdminApp } from "@/lib/firebaseAdmin";
 import { HttpError, requirePcmUser } from "../_lib/auth";
 
 const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -111,16 +111,19 @@ export async function POST(req: Request) {
     const body = (await req.json().catch(() => ({}))) as CreateTokenBody;
     const parsed = parseBody(body);
 
-    const { db } = getAdmin();
+    const app = getAdminApp();
+    if (!app) {
+      return NextResponse.json({ error: "Firebase Admin indisponível" }, { status: 503 });
+    }
+
+    const { getFirestore } = require("firebase-admin/firestore") as typeof import("firebase-admin/firestore");
+    const db = getFirestore(app);
+
     const token = await persistToken(db, parsed);
     const link = `/acesso?token=${token}`;
 
     return NextResponse.json({ token, link });
   } catch (err: unknown) {
-    if ((err as Error)?.message === "ADMIN_ENVS_MISSING") {
-      return NextResponse.json({ error: "Configuração do Firebase Admin ausente" }, { status: 503 });
-    }
-
     if (err instanceof HttpError) {
       return NextResponse.json({ error: err.message }, { status: err.status });
     }

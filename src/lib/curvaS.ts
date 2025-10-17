@@ -1,4 +1,4 @@
-import { getAdmin } from "@/lib/firebaseAdmin";
+import { tryGetAdminDb, getServerWebDb } from "@/lib/serverDb";
 
 type CurvePoint = { d: string; pct: number };
 
@@ -99,17 +99,7 @@ export function curvaPlanejada(inicio: Date, fim: Date, horasTotais: number): Cu
   return points;
 }
 
-export async function curvaRealizada(serviceId: string): Promise<CurvePoint[]> {
-  const { db } = getAdmin();
-  const serviceRef = db.collection("services").doc(serviceId);
-  const [serviceSnap, updatesSnap] = await Promise.all([
-    serviceRef.get(),
-    serviceRef.collection("serviceUpdates").orderBy("date", "asc").get(),
-  ]);
-
-  if (!serviceSnap.exists) return [];
-  const serviceData = serviceSnap.data() ?? {};
-
+function buildCurve(serviceData: Record<string, unknown>, updates: ServiceUpdateLike[]): CurvePoint[] {
   const checklistRaw = Array.isArray(serviceData.checklist) ? serviceData.checklist : [];
   const hasChecklist = checklistRaw.length > 0;
 
@@ -134,8 +124,7 @@ export async function curvaRealizada(serviceId: string): Promise<CurvePoint[]> {
   const latestPerItem = new Map<string, number>();
   const byDay = new Map<string, number>();
 
-  updatesSnap.forEach((docSnap) => {
-    const update = (docSnap.data() ?? {}) as ServiceUpdateLike;
+  updates.forEach((update) => {
     const date = toDate(update.date ?? update.createdAt);
     if (!date) return;
     const dateKey = toISODate(normaliseDate(date) ?? date);
@@ -179,4 +168,31 @@ export async function curvaRealizada(serviceId: string): Promise<CurvePoint[]> {
   return Array.from(byDay.entries())
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([d, pct]) => ({ d, pct }));
+}
+
+export async function curvaRealizada(serviceId: string): Promise<CurvePoint[]> {
+  const adminDb = tryGetAdminDb();
+  if (adminDb) {
+    const serviceRef = adminDb.collection("services").doc(serviceId);
+    const [serviceSnap, updatesSnap] = await Promise.all([
+      serviceRef.get(),
+      serviceRef.collection("serviceUpdates").orderBy("date", "asc").get(),
+    ]);
+
+    if (!serviceSnap.exists) return [];
+    const serviceData = serviceSnap.data() ?? {};
+    const updates = updatesSnap.docs.map((docSnap) => docSnap.data() ?? {}) as ServiceUpdateLike[];
+    return buildCurve(serviceData, updates);
+  }
+
+  const db = await getServerWebDb();
+  const { doc, getDoc, collection, query, orderBy, getDocs } = await import("firebase/firestore");
+
+  const serviceRef = doc(db, "services", serviceId);
+  const serviceSnap = await getDoc(serviceRef);
+  if (!serviceSnap.exists()) return [];
+
+  const updatesSnap = await getDocs(query(collection(serviceRef, "serviceUpdates"), orderBy("date", "asc")));
+  const updates = updatesSnap.docs.map((docSnap) => docSnap.data() ?? {}) as ServiceUpdateLike[];
+  return buildCurve(serviceSnap.data() ?? {}, updates);
 }

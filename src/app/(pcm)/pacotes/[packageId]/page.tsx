@@ -6,7 +6,8 @@ import { toast } from "sonner";
 import { collection, doc, getDoc, getDocs, query, where } from "firebase/firestore";
 
 import { Dialog, DialogClose, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { getFirebaseFirestore } from "@/lib/firebaseClient";
+import { db } from "@/lib/firebase";
+import { createAccessToken } from "@/lib/accessTokens";
 
 type ServiceRow = {
   id: string;
@@ -47,8 +48,7 @@ export default function PacoteDetalhePage({ params }: Params) {
     async function load() {
       setLoading(true);
       try {
-        const firestore = getFirebaseFirestore();
-        const pkgRef = doc(firestore, "packages", packageId);
+        const pkgRef = doc(db, "packages", packageId);
         const snap = await getDoc(pkgRef);
         if (!snap.exists()) {
           toast.error("Pacote não encontrado.");
@@ -64,7 +64,7 @@ export default function PacoteDetalhePage({ params }: Params) {
         };
         setPackageData(pkg);
 
-        const servicesRef = collection(firestore, "services");
+        const servicesRef = collection(db, "services");
         const [byPacote, byPackage] = await Promise.all([
           getDocs(query(servicesRef, where("pacoteId", "==", packageId))),
           getDocs(query(servicesRef, where("packageId", "==", packageId))),
@@ -111,20 +111,10 @@ export default function PacoteDetalhePage({ params }: Params) {
   async function issueTokenForCompany(companyId: string) {
     setIssuingCompany(companyId);
     try {
-      const response = await fetch("/api/tokens/issue", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ scope: { type: "packageCompany", pacoteId: packageId, empresaId: companyId } }),
-      });
-      const json = await response.json();
-      if (!response.ok || !json?.ok) {
-        const message = json?.error ? String(json.error) : "Falha ao gerar token.";
-        toast.error(message);
-        return;
-      }
-      setIssuedToken(json.token);
+      const token = await createAccessToken({ packageId, empresa: companyId });
+      setIssuedToken(token);
       setTokenDialogOpen(true);
-      toast.success("Token gerado com sucesso.");
+      toast.success(`Token gerado: ${token}`);
     } catch (error) {
       console.error("[pacotes/:id] Falha ao gerar token", error);
       toast.error("Não foi possível gerar o token para a empresa.");

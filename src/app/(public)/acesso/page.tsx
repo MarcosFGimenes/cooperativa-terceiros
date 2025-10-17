@@ -167,7 +167,7 @@ export default function AcessoPorTokenPage() {
     setServices([]);
     setSelectedServiceId(null);
     try {
-      const response = await fetch(`/api/tokens/validate?token=${encodeURIComponent(token)}`, { cache: "no-store" });
+      const response = await fetch(`/api/validate-token?token=${encodeURIComponent(token)}`, { cache: "no-store" });
       const json: ValidateSuccess | ValidateError = await response.json();
       if (!response.ok || !json || json.ok === false) {
         setValidatedToken(null);
