@@ -88,8 +88,9 @@ h3 { @apply text-lg sm:text-xl font-medium; }
 .card { @apply rounded-2xl border bg-card text-card-foreground shadow-sm; }
 
 .btn-base { @apply inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors active:scale-[.98] disabled:opacity-50 disabled:pointer-events-none; }
-.btn-primary { @apply btn-base bg-primary text-primary-foreground hover:bg-primary/90; }
-.btn-secondary { @apply btn-base bg-secondary text-secondary-foreground hover:bg-secondary/80; }
+.btn-primary { @apply btn-base h-11 px-5 bg-primary text-primary-foreground hover:bg-primary/90; }
+.btn-secondary { @apply btn-base h-11 px-5 bg-secondary text-secondary-foreground hover:bg-secondary/80; }
+.btn-outline { @apply btn-base h-11 px-5 border border-border bg-transparent hover:bg-muted; }
 .btn-ghost { @apply btn-base bg-transparent hover:bg-muted; }
 
 /* Skeleton & spinner */
@@ -129,9 +130,6 @@ input:-webkit-autofill:focus {
   box-shadow: 0 0 0px 1000px hsl(var(--background)) inset;
 }
 
-/* Buttons/links helpers (if not present) */
-.link { @apply text-primary hover:underline; }
-
 @media print {
   @page {
     size: A4 portrait;
@@ -159,17 +157,13 @@ input:-webkit-autofill:focus {
 }
 
 /* ---------- Controls: buttons/inputs (comfort sizing) ---------- */
-.btn { @apply inline-flex items-center justify-center gap-2 rounded-lg h-11 px-4 text-[15px] font-medium transition active:translate-y-[0.5px] disabled:opacity-60 disabled:cursor-not-allowed; }
-.btn-primary { @apply btn bg-primary text-primary-foreground hover:bg-primary/90; }
-.btn-secondary { @apply btn bg-secondary text-secondary-foreground hover:bg-secondary/90; }
-.btn-ghost { @apply btn bg-transparent hover:bg-muted; }
-.btn-outline { @apply btn border border-border hover:bg-muted; }
 
 /* Links que se comportam como botões */
 .link-btn { @apply inline-flex items-center gap-2 h-11 px-4 rounded-lg hover:bg-muted; }
 
 /* Inputs e selects maiores */
-.input, .select, .textarea { @apply block w-full rounded-lg border border-input bg-background px-4 text-[15px] h-11 placeholder:text-muted-foreground focus:ring-2 focus:ring-primary/40 focus:outline-none; }
+.input { @apply block w-full rounded-md border border-input bg-background px-3 h-11 text-[15px] placeholder:text-muted-foreground shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40; }
+.select, .textarea { @apply block w-full rounded-lg border border-input bg-background px-4 text-[15px] placeholder:text-muted-foreground focus:ring-2 focus:ring-primary/40 focus:outline-none; }
 .textarea { @apply h-auto py-3; }
 
 /* Cards básicos */

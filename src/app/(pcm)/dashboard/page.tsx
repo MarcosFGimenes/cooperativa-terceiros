@@ -1,36 +1,36 @@
 "use client";
 import { useEffect, useState } from "react";
-import { getFirestore, collection, query, where, getCountFromServer } from "firebase/firestore";
+import { useRouter } from "next/navigation";
+import { onAuthStateChanged, type User } from "firebase/auth";
+import { auth } from "@/lib/firebase";
 
-export default function Dashboard() {
-  const [loading, setLoading] = useState(true);
-  const [ativos, setAtivos] = useState<number>(0);
-  const [concluidos, setConcluidos] = useState<number>(0);
+export const dynamic = "force-dynamic";
+
+export default function DashboardPage() {
+  const router = useRouter();
+  const [user, setUser] = useState<User | null | undefined>(undefined);
 
   useEffect(() => {
-    (async () => {
-      const db = getFirestore();
-      const c1 = await getCountFromServer(query(collection(db, "services"), where("status", "==", "Aberto")));
-      const c2 = await getCountFromServer(query(collection(db, "services"), where("status", "==", "Concluído")));
-      setAtivos(c1.data().count);
-      setConcluidos(c2.data().count);
-      setLoading(false);
-    })();
+    const unsub = onAuthStateChanged(auth, (u) => setUser(u ?? null));
+    return () => unsub();
   }, []);
 
-  return (
-    <div className="container-page">
-      <h1 className="mb-4">Dashboard</h1>
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div className="card p-5">
-          <h3 className="text-sm text-muted-foreground">Serviços em andamento</h3>
-          <div className="text-3xl font-semibold mt-1">{loading ? "…" : ativos}</div>
-        </div>
-        <div className="card p-5">
-          <h3 className="text-sm text-muted-foreground">Serviços concluídos</h3>
-          <div className="text-3xl font-semibold mt-1">{loading ? "…" : concluidos}</div>
-        </div>
+  useEffect(() => {
+    if (user === null) router.replace("/login");
+  }, [user, router]);
+
+  if (user === undefined) {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <div className="card p-6 text-sm text-muted-foreground">Carregando…</div>
       </div>
+    );
+  }
+
+  return (
+    <div className="container mx-auto px-4 py-8">
+      <h1>Dashboard</h1>
+      <p className="text-muted-foreground">Bem-vindo! (substitua com cards, listagens, etc.)</p>
     </div>
   );
 }

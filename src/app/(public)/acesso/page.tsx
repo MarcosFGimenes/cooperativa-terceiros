@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 
@@ -265,12 +266,9 @@ export default function AcessoPorTokenPage() {
 
   return (
     <div className="container-page max-w-4xl pb-16">
-      <div className="pt-2">
-        {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
-        <a className="link-btn" href="/">
-          ← Voltar
-        </a>
-      </div>
+      <Link href="/" className="link inline-flex items-center gap-1 mb-4">
+        ← Voltar
+      </Link>
 
       <div className="mt-4 card bg-card/60 p-6 shadow-sm backdrop-blur">
         <h1 className="mb-1">Acesso do Terceiro</h1>
@@ -298,7 +296,7 @@ export default function AcessoPorTokenPage() {
           </div>
           <button
             type="submit"
-            className="btn-primary sm:ml-3"
+            className="btn-primary h-11 px-5 sm:ml-3"
             aria-busy={validating}
             disabled={validating || !token}
           >
@@ -325,7 +323,7 @@ export default function AcessoPorTokenPage() {
                       key={service.id}
                       type="button"
                       onClick={() => setSelectedServiceId(service.id)}
-                      className={`btn-outline w-full flex flex-col items-start gap-1 text-left h-auto py-3 ${
+                      className={`btn-outline min-h-[44px] w-full flex flex-col items-start gap-1 text-left py-3 ${
                         isActive ? "border-primary bg-primary/10" : ""
                       }`}
                     >
@@ -397,7 +395,7 @@ export default function AcessoPorTokenPage() {
 
                 <button
                   type="submit"
-                  className="btn-primary w-full sm:w-auto"
+                  className="btn-primary h-11 px-5 w-full sm:w-auto"
                   aria-busy={savingUpdate}
                   disabled={savingUpdate}
                 >
