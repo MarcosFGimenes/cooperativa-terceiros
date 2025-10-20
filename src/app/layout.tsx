@@ -5,6 +5,8 @@ import { Toaster } from "sonner";
 import ThemeToggle from "@/components/ThemeToggle";
 import SkipToContent from "@/components/SkipToContent";
 import Footer from "@/components/Footer";
+import PreloadAsFix from "@/components/PreloadAsFix";
+import ThemeScript from "@/components/ThemeScript";
 
 export const metadata = {
   title: "PCM • Terceiros",
@@ -14,6 +16,10 @@ export const metadata = {
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="pt-BR" suppressHydrationWarning>
+      <head>
+        <ThemeScript />
+        <PreloadAsFix />
+      </head>
       <body>
         <SkipToContent />
         <header className="border-b bg-white/70 backdrop-blur dark:bg-[#0b1220]/70">
