@@ -10,6 +10,8 @@ import { getPackageById, listPackageServices } from "@/lib/repo/packages";
 import { getServiceById } from "@/lib/repo/services";
 import type { Package, Service } from "@/types";
 
+import PackageTokenManager from "./PackageTokenManager";
+
 function normaliseStatus(status: Package["status"] | Service["status"]): string {
   const raw = String(status ?? "").toLowerCase();
   if (raw === "concluido" || raw === "concluído") return "Concluído";
@@ -150,6 +152,8 @@ export default async function PackageDetailPage({ params }: { params: { id: stri
           <SCurve planned={planned} realized={realized ?? 0} />
         )}
       </div>
+
+      <PackageTokenManager packageId={pkg.id} companies={assignedCompanies} />
 
       <div className="card p-4">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
