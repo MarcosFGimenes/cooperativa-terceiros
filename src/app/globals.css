@@ -159,7 +159,7 @@ input:-webkit-autofill:focus {
 .textarea { @apply h-auto py-3; }
 
 .btn-primary, .btn-secondary, .btn-outline, .btn-ghost {
-  @apply inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors h-10 px-4;
+  @apply inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors h-10 px-4 sm:h-11 sm:px-5;
 }
 .btn-primary   { @apply bg-primary text-primary-foreground hover:opacity-90; }
 .btn-secondary { @apply bg-secondary text-secondary-foreground hover:opacity-90; }
