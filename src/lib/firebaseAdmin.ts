@@ -1,6 +1,9 @@
 // server-only
 import "server-only";
+import { cert, getApps, initializeApp } from "firebase-admin/app";
 import type { App } from "firebase-admin/app";
+import { getAuth } from "firebase-admin/auth";
+import { getFirestore } from "firebase-admin/firestore";
 
 type ServiceAccountConfig = {
   projectId?: string;
@@ -77,12 +80,12 @@ export function getAdminApp() {
   if (!projectId || !clientEmail || !privateKey) return null;
 
   if (!adminApp) {
-    const admin = require("firebase-admin");
-    if (admin.apps?.length) {
-      adminApp = admin.apps[0];
+    const existingApp = getApps()[0];
+    if (existingApp) {
+      adminApp = existingApp;
     } else {
-      adminApp = admin.initializeApp({
-        credential: admin.credential.cert({
+      adminApp = initializeApp({
+        credential: cert({
           projectId,
           clientEmail,
           privateKey,
@@ -99,12 +102,9 @@ export function getAdmin() {
   if (!app) {
     throw new Error("FIREBASE_ADMIN_NOT_CONFIGURED");
   }
-  const admin = require("firebase-admin");
-  const { getFirestore } = require("firebase-admin/firestore") as typeof import("firebase-admin/firestore");
   return {
     app,
-    admin,
     db: getFirestore(app),
-    auth: admin.auth(app),
+    auth: getAuth(app),
   };
 }

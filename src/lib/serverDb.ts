@@ -1,12 +1,13 @@
 // server-only
 import "server-only";
+import { getFirestore } from "firebase-admin/firestore";
+
 import { getAdminApp } from "./firebaseAdmin";
 
 // Admin (preferido)
 export function tryGetAdminDb() {
   const app = getAdminApp();
   if (!app) return null;
-  const { getFirestore } = require("firebase-admin/firestore");
   return getFirestore(app);
 }
 

@@ -1,6 +1,7 @@
+import { getAuth, type DecodedIdToken } from "firebase-admin/auth";
+
 import { getAdminApp } from "@/lib/firebaseAdmin";
 import { isPCMUser } from "@/lib/pcmAuth";
-import type { DecodedIdToken } from "firebase-admin/auth";
 
 export class HttpError extends Error {
   constructor(public status: number, message: string) {
@@ -30,8 +31,6 @@ export async function requirePcmUser(req: Request): Promise<AuthenticatedUser> {
   if (!app) {
     throw new HttpError(503, "Firebase Admin não configurado");
   }
-
-  const { getAuth } = require("firebase-admin/auth") as typeof import("firebase-admin/auth");
 
   let decoded: DecodedIdToken;
   try {

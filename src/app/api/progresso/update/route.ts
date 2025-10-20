@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import type { Firestore } from "firebase-admin/firestore";
+import { Timestamp, type Firestore } from "firebase-admin/firestore";
 
 import { tryGetAdminDb, getServerWebDb } from "@/lib/serverDb";
 
@@ -66,7 +66,6 @@ async function handleWithAdmin(
     date?: string;
   },
 ) {
-  const admin = require("firebase-admin");
   const upperToken = payload.token;
   const byCode = await adminDb.collection("accessTokens").where("code", "==", upperToken).limit(1).get();
   let doc = byCode.docs[0];
@@ -122,11 +121,11 @@ async function handleWithAdmin(
   const realIp = req.headers.get("x-real-ip");
   const ip = forwarded?.split(",")[0]?.trim() || realIp?.trim();
 
-  let updateDate = admin.firestore.Timestamp.now();
+  let updateDate = Timestamp.now();
   if (payload.date) {
     const parsed = new Date(payload.date);
     if (!Number.isNaN(parsed.getTime())) {
-      updateDate = admin.firestore.Timestamp.fromDate(parsed);
+      updateDate = Timestamp.fromDate(parsed);
     }
   }
 
@@ -180,7 +179,7 @@ async function handleWithAdmin(
     novo = Math.max(0, Math.min(100, novo));
   }
 
-  await serviceRef.update({ andamento: novo, updatedAt: admin.firestore.Timestamp.now() });
+  await serviceRef.update({ andamento: novo, updatedAt: Timestamp.now() });
 
   return NextResponse.json({ ok: true, andamento: novo });
 }

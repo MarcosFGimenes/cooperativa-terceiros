@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { Timestamp } from "firebase-admin/firestore";
+import { Timestamp, getFirestore } from "firebase-admin/firestore";
 import { customAlphabet } from "nanoid";
 
 import { getAdminApp } from "@/lib/firebaseAdmin";
@@ -116,7 +116,6 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Firebase Admin indisponível" }, { status: 503 });
     }
 
-    const { getFirestore } = require("firebase-admin/firestore") as typeof import("firebase-admin/firestore");
     const db = getFirestore(app);
 
     const token = await persistToken(db, parsed);

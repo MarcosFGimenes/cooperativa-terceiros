@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getFirestore } from "firebase-admin/firestore";
 
 import { getAdminApp } from "@/lib/firebaseAdmin";
 import { HttpError, requirePcmUser } from "../_lib/auth";
@@ -26,7 +27,6 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Firebase Admin indisponível" }, { status: 503 });
     }
 
-    const { getFirestore } = require("firebase-admin/firestore") as typeof import("firebase-admin/firestore");
     const db = getFirestore(app);
     const ref = db.collection("accessTokens").doc(token);
     const snap = await ref.get();

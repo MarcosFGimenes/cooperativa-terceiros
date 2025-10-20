@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { getAuth } from "firebase-admin/auth";
+import { getFirestore } from "firebase-admin/firestore";
 
 import { getAdminApp } from "@/lib/firebaseAdmin";
 
@@ -12,10 +14,8 @@ export async function GET() {
       return NextResponse.json({ ok: false, message: "Firebase Admin não configurado" }, { status: 503 });
     }
 
-    const admin = require("firebase-admin");
-    const { getFirestore } = require("firebase-admin/firestore") as typeof import("firebase-admin/firestore");
     const db = getFirestore(app);
-    const auth = admin.auth(app);
+    const auth = getAuth(app);
     const pid =
       app.options.projectId ||
       process.env.FIREBASE_PROJECT_ID ||
