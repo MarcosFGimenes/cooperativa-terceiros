@@ -1,5 +1,18 @@
+"use server";
+
+import { db } from "@/lib/firebase";
 import { getAdmin } from "@/lib/firebaseAdmin";
 import type { Package, Service } from "@/lib/types";
+import {
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  limit,
+  orderBy,
+  query,
+  type DocumentData,
+} from "firebase/firestore";
 import { FieldValue } from "firebase-admin/firestore";
 
 const getDb = () => getAdmin().db;
@@ -30,6 +43,76 @@ export async function getPackage(packageId: string): Promise<Package | null> {
   const snap = await packagesCollection().doc(packageId).get();
   if (!snap.exists) return null;
   return mapPackageDoc(snap);
+}
+
+function normalisePackageStatus(value: unknown): Package["status"] {
+  const raw = String(value ?? "").trim().toLowerCase();
+  if (raw === "concluido" || raw === "concluído") return "Concluído";
+  if (raw === "encerrado") return "Encerrado";
+  return "Aberto";
+}
+
+function toNumber(value: unknown): number | undefined {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string") {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  if (typeof value === "object" && value && "toMillis" in value) {
+    const possible = (value as { toMillis?: () => number }).toMillis?.();
+    if (typeof possible === "number" && Number.isFinite(possible)) return possible;
+  }
+  return undefined;
+}
+
+function mapPackageData(id: string, data: Record<string, unknown>): Package {
+  const plannedStart = String(
+    data.plannedStart ?? data.dataInicio ?? data.inicioPlanejado ?? data.startDate ?? "",
+  );
+  const plannedEnd = String(
+    data.plannedEnd ?? data.dataFim ?? data.fimPlanejado ?? data.endDate ?? "",
+  );
+  const totalHours = toNumber(data.totalHours ?? data.horasTotais ?? data.totalHoras) ?? 0;
+  const createdAt =
+    toNumber(data.createdAt ?? data.created_at ?? data.criadoEm ?? data.createdAtMs) ?? Date.now();
+
+  const assignedCompanies = Array.isArray(data.assignedCompanies)
+    ? (data.assignedCompanies as Record<string, unknown>[]).map((entry) => ({
+        companyId: String(entry.companyId ?? entry.id ?? ""),
+        companyName: entry.companyName ? String(entry.companyName) : undefined,
+      }))
+    : undefined;
+
+  const services = Array.isArray(data.services)
+    ? (data.services as unknown[])
+        .map((value) => String(value ?? ""))
+        .filter((value) => value.length > 0)
+    : undefined;
+
+  return {
+    id,
+    name: String(data.name ?? data.nome ?? `Pacote ${id}`),
+    status: normalisePackageStatus(data.status),
+    plannedStart,
+    plannedEnd,
+    totalHours,
+    code: data.code ? String(data.code) : data.codigo ? String(data.codigo) : undefined,
+    services,
+    createdAt,
+    assignedCompanies,
+  };
+}
+
+export async function getPackageById(id: string): Promise<Package | null> {
+  const snap = await getDoc(doc(db, "packages", id));
+  if (!snap.exists()) return null;
+  return mapPackageData(snap.id, snap.data() as DocumentData);
+}
+
+export async function listRecentPackages(): Promise<Package[]> {
+  const q = query(collection(db, "packages"), orderBy("createdAt", "desc"), limit(20));
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => mapPackageData(d.id, d.data()));
 }
 
 export async function listPackageServices(

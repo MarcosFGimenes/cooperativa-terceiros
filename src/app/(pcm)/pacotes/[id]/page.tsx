@@ -1,289 +1,194 @@
-"use client";
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
-import { useEffect, useState } from "react";
 import Link from "next/link";
-import { toast } from "sonner";
-import { collection, doc, getDoc, getDocs, query, where } from "firebase/firestore";
+import { notFound } from "next/navigation";
 
-import RequireAuth from "@/components/RequireAuth";
-import { Dialog, DialogClose, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { db } from "@/lib/firebase";
-import { createAccessToken } from "@/lib/accessTokens";
+import SCurve from "@/components/SCurve";
+import { plannedCurve } from "@/lib/curve";
+import { getPackageById, listPackageServices } from "@/lib/repo/packages";
+import { getServiceById } from "@/lib/repo/services";
+import type { Package, Service } from "@/types";
 
-type ServiceRow = {
-  id: string;
-  os: string;
-  tag: string;
-  equipamento: string;
-  status: string;
-  empresaId: string;
-  andamento: number;
-};
+function normaliseStatus(status: Package["status"] | Service["status"]): string {
+  const raw = String(status ?? "").toLowerCase();
+  if (raw === "concluido" || raw === "concluído") return "Concluído";
+  if (raw === "encerrado") return "Encerrado";
+  return "Aberto";
+}
 
-type CompanyRow = {
-  id: string;
-  count: number;
-};
+function normaliseProgress(value?: number | null) {
+  if (!Number.isFinite(value ?? NaN)) return 0;
+  return Math.max(0, Math.min(100, Math.round(Number(value ?? 0))));
+}
 
-type PackageData = {
-  id: string;
-  nome: string;
-  descricao: string;
-  status: string;
-};
+function parseISO(value?: string | null) {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return date;
+}
 
-type Params = { params: { id: string } };
+function formatDate(value?: string | null) {
+  const date = parseISO(value ?? undefined);
+  if (!date) return "-";
+  return new Intl.DateTimeFormat("pt-BR").format(date);
+}
 
-export default function PacoteDetalhePage({ params }: Params) {
-  const { id: packageId } = params;
-  const [loading, setLoading] = useState(true);
-  const [packageData, setPackageData] = useState<PackageData | null>(null);
-  const [services, setServices] = useState<ServiceRow[]>([]);
-  const [companies, setCompanies] = useState<CompanyRow[]>([]);
-  const [issuingCompany, setIssuingCompany] = useState<string | null>(null);
-  const [tokenDialogOpen, setTokenDialogOpen] = useState(false);
-  const [issuedToken, setIssuedToken] = useState<string | null>(null);
+function computeServiceRealized(service: Service) {
+  return normaliseProgress(service.progress ?? service.realPercent ?? service.andamento);
+}
 
-  useEffect(() => {
-    let cancelled = false;
-    async function load() {
-      setLoading(true);
-      try {
-        const pkgRef = doc(db, "packages", packageId);
-        const snap = await getDoc(pkgRef);
-        if (!snap.exists()) {
-          toast.error("Pacote não encontrado.");
-          return;
-        }
-        const data = snap.data() ?? {};
-        if (cancelled) return;
-        const pkg: PackageData = {
-          id: snap.id,
-          nome: String(data.nome ?? data.name ?? `Pacote ${snap.id}`),
-          descricao: String(data.descricao ?? data.description ?? ""),
-          status: String(data.status ?? "Aberto"),
-        };
-        setPackageData(pkg);
+function choosePlanBounds(pkg: Package, services: Service[]) {
+  const startCandidates = [pkg.plannedStart, ...services.map((service) => service.plannedStart)].map(parseISO).filter(Boolean) as Date[];
+  const endCandidates = [pkg.plannedEnd, ...services.map((service) => service.plannedEnd)].map(parseISO).filter(Boolean) as Date[];
+  const start = startCandidates.length ? new Date(Math.min(...startCandidates.map((date) => date.getTime()))) : new Date();
+  const end = endCandidates.length ? new Date(Math.max(...endCandidates.map((date) => date.getTime()))) : start;
+  return {
+    start: start.toISOString(),
+    end: end.toISOString(),
+  };
+}
 
-        const servicesRef = collection(db, "services");
-        const [byPacote, byPackage] = await Promise.all([
-          getDocs(query(servicesRef, where("pacoteId", "==", packageId))),
-          getDocs(query(servicesRef, where("packageId", "==", packageId))),
-        ]);
-        const merged = new Map<string, ServiceRow>();
-        [...byPacote.docs, ...byPackage.docs].forEach((docSnap) => {
-          const serviceData = docSnap.data() ?? {};
-          const row: ServiceRow = {
-            id: docSnap.id,
-            os: String(serviceData.os ?? ""),
-            tag: String(serviceData.tag ?? ""),
-            equipamento: String(serviceData.equipamento ?? serviceData.equipmentName ?? ""),
-            status: String(serviceData.status ?? "Aberto"),
-            empresaId: String(serviceData.empresaId ?? serviceData.company ?? ""),
-            andamento: Number(serviceData.andamento ?? serviceData.realPercent ?? 0),
-          };
-          merged.set(docSnap.id, row);
-        });
-        const rows = Array.from(merged.values()).sort((a, b) => a.os.localeCompare(b.os));
-        if (!cancelled) {
-          setServices(rows);
-          const grouped = new Map<string, number>();
-          rows.forEach((row) => {
-            const key = row.empresaId.trim();
-            if (!key) return;
-            grouped.set(key, (grouped.get(key) ?? 0) + 1);
-          });
-          setCompanies(Array.from(grouped.entries()).map(([companyId, count]) => ({ id: companyId, count })));
-        }
-      } catch (error) {
-        console.error("[pacotes/:id] Falha ao carregar pacote", error);
-        toast.error("Não foi possível carregar os dados do pacote.");
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    }
+export default async function PackageDetailPage({ params }: { params: { id: string } }) {
+  const pkg = await getPackageById(params.id);
+  if (!pkg) return notFound();
 
-    void load();
-    return () => {
-      cancelled = true;
-    };
-  }, [packageId]);
+  let services: Service[] = [];
 
-  async function issueTokenForCompany(companyId: string) {
-    setIssuingCompany(companyId);
-    try {
-      const token = await createAccessToken({ packageId, empresa: companyId });
-      setIssuedToken(token);
-      setTokenDialogOpen(true);
-      toast.success(`Token gerado: ${token}`);
-    } catch (error) {
-      console.error("[pacotes/:id] Falha ao gerar token", error);
-      toast.error("Não foi possível gerar o token para a empresa.");
-    } finally {
-      setIssuingCompany(null);
+  if (pkg.services?.length) {
+    const fetched = await Promise.all(pkg.services.map((id) => getServiceById(id)));
+    services = fetched.filter(Boolean) as Service[];
+  }
+
+  if (!services.length) {
+    const fallback = await listPackageServices(params.id).catch(() => []);
+    if (fallback.length) {
+      const enriched = await Promise.all(
+        fallback.map(async (service) => (await getServiceById(service.id)) ?? service),
+      );
+      services = enriched.filter(Boolean) as Service[];
     }
   }
 
-  async function copyTokenLink() {
-    if (!issuedToken) return;
-    const origin = typeof window !== "undefined" ? window.location.origin : "";
-    const url = `${origin}/acesso?token=${issuedToken}`;
-    try {
-      await navigator.clipboard.writeText(url);
-      toast.success("Link copiado para a área de transferência.");
-    } catch {
-      toast.error("Não foi possível copiar o link automaticamente.");
-    }
-  }
+  const hoursFromServices = services.reduce((acc, service) => {
+    const hours = Number(service.totalHours ?? 0);
+    return acc + (Number.isFinite(hours) ? hours : 0);
+  }, 0);
+
+  const { start, end } = choosePlanBounds(pkg, services);
+  const planned = plannedCurve(start, end, hoursFromServices > 0 ? hoursFromServices : pkg.totalHours || 1);
+
+  const contributions = services.map((service) => ({
+    hours: Number(service.totalHours ?? 0) || 0,
+    progress: computeServiceRealized(service),
+  }));
+
+  const totalWeight = contributions.reduce((acc, { hours }) => acc + (hours > 0 ? hours : 0), 0);
+  const realized = contributions.length
+    ? totalWeight > 0
+      ? Math.round(
+          contributions.reduce((acc, { hours, progress }) => acc + progress * (hours > 0 ? hours : 0), 0) /
+            totalWeight,
+        )
+      : Math.round(contributions.reduce((acc, entry) => acc + entry.progress, 0) / contributions.length)
+    : null;
+
+  const assignedCompanies = pkg.assignedCompanies?.filter((item) => item.companyId);
 
   return (
-    <RequireAuth>
-      <div className="container mx-auto max-w-5xl px-4 py-6">
-        <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h1 className="text-2xl font-semibold">Pacote #{packageId}</h1>
-            <p className="text-sm text-muted-foreground">
-              Gerencie o pacote, seus serviços e tokens de acesso por empresa.
-            </p>
-          </div>
-          <Link className="btn-secondary" href="/pacotes">
-            Voltar
-          </Link>
+    <div className="container mx-auto space-y-6 p-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Pacote {pkg.name || pkg.code || pkg.id}</h1>
+          <p className="text-sm text-muted-foreground">Resumo do pacote, serviços vinculados e curva S consolidada.</p>
         </div>
+        <Link className="btn-secondary" href="/pacotes">
+          Voltar
+        </Link>
+      </div>
 
-        {loading ? (
-          <div className="rounded-2xl border bg-card/80 p-6 shadow-sm">
-            <div className="h-6 w-2/3 animate-pulse rounded bg-muted/40" />
-            <div className="mt-4 h-4 w-full animate-pulse rounded bg-muted/30" />
-          </div>
-        ) : packageData ? (
-          <div className="space-y-6">
-            <div className="rounded-2xl border bg-card/80 p-6 shadow-sm">
-              <h2 className="text-xl font-semibold">Informações do pacote</h2>
-              <div className="mt-2 text-sm font-medium text-foreground">Nome: {packageData.nome}</div>
-              <div className="mt-3 text-sm text-muted-foreground">Status atual: {packageData.status}</div>
-              {packageData.descricao ? (
-                <p className="mt-4 text-sm leading-relaxed text-muted-foreground">{packageData.descricao}</p>
-              ) : null}
+      <div className="grid gap-4 lg:grid-cols-[1fr_minmax(320px,380px)]">
+        <div className="card p-4">
+          <h2 className="mb-4 text-lg font-semibold">Informações do pacote</h2>
+          <dl className="grid grid-cols-1 gap-4 text-sm sm:grid-cols-2">
+            <div>
+              <dt className="text-muted-foreground">Status</dt>
+              <dd className="font-medium">{normaliseStatus(pkg.status)}</dd>
             </div>
-
-            <div className="rounded-2xl border bg-card/80 p-6 shadow-sm">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <h2 className="text-xl font-semibold">Serviços do pacote</h2>
-                  <p className="text-sm text-muted-foreground">
-                    {services.length} serviços vinculados a este pacote.
-                  </p>
-                </div>
-                <Link className="btn-primary" href={`/pacotes/${packageId}/curva-s`}>
-                  Ver Curva S consolidada
-                </Link>
-              </div>
-
-              <div className="mt-4 overflow-hidden rounded-xl border">
-                <table className="min-w-full divide-y divide-border text-left text-sm">
-                  <thead className="bg-muted/50">
-                    <tr>
-                      <th className="px-4 py-3 font-medium uppercase tracking-wide text-muted-foreground">OS</th>
-                      <th className="px-4 py-3 font-medium uppercase tracking-wide text-muted-foreground">Tag</th>
-                      <th className="px-4 py-3 font-medium uppercase tracking-wide text-muted-foreground">Equipamento</th>
-                      <th className="px-4 py-3 font-medium uppercase tracking-wide text-muted-foreground">Status</th>
-                      <th className="px-4 py-3 font-medium uppercase tracking-wide text-muted-foreground">Andamento</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border">
-                    {services.map((service) => (
-                      <tr key={service.id}>
-                        <td className="px-4 py-3 font-medium text-foreground">{service.os || "–"}</td>
-                        <td className="px-4 py-3 text-muted-foreground">{service.tag || "–"}</td>
-                        <td className="px-4 py-3 text-muted-foreground">{service.equipamento || "–"}</td>
-                        <td className="px-4 py-3 text-muted-foreground">{service.status}</td>
-                        <td className="px-4 py-3 text-muted-foreground">{service.andamento}%</td>
-                      </tr>
-                    ))}
-                    {!services.length ? (
-                      <tr>
-                        <td className="px-4 py-8 text-center text-muted-foreground" colSpan={5}>
-                          Nenhum serviço encontrado para este pacote.
-                        </td>
-                      </tr>
-                    ) : null}
-                  </tbody>
-                </table>
-              </div>
+            <div>
+              <dt className="text-muted-foreground">Código</dt>
+              <dd className="font-medium">{pkg.code || "-"}</dd>
             </div>
-
-            <div className="rounded-2xl border bg-card/80 p-6 shadow-sm">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <h2 className="text-xl font-semibold">Tokens de acesso por empresa</h2>
-                  <p className="text-sm text-muted-foreground">
-                    Gere ou copie tokens para que as empresas consultem o progresso dos serviços vinculados.
-                  </p>
-                </div>
-              </div>
-
-              <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                {companies.map((company) => (
-                  <div key={company.id} className="rounded-xl border bg-background/60 p-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <div className="text-sm font-semibold">Empresa {company.id}</div>
-                        <div className="text-xs text-muted-foreground">
-                          {company.count} serviço(s) vinculado(s)
-                        </div>
-                      </div>
-                      <button
-                        type="button"
-                        className="btn-primary"
-                        disabled={issuingCompany === company.id}
-                        onClick={() => issueTokenForCompany(company.id)}
-                      >
-                        {issuingCompany === company.id ? "Gerando..." : "Gerar token"}
-                      </button>
-                    </div>
-                  </div>
-                ))}
-                {!companies.length ? (
-                  <div className="rounded-xl border border-dashed bg-background/60 p-4 text-sm text-muted-foreground">
-                    Nenhuma empresa vinculada aos serviços deste pacote.
-                  </div>
-                ) : null}
-              </div>
+            <div>
+              <dt className="text-muted-foreground">Início planejado</dt>
+              <dd className="font-medium">{formatDate(pkg.plannedStart)}</dd>
             </div>
+            <div>
+              <dt className="text-muted-foreground">Fim planejado</dt>
+              <dd className="font-medium">{formatDate(pkg.plannedEnd)}</dd>
+            </div>
+            <div>
+              <dt className="text-muted-foreground">Horas totais (serviços)</dt>
+              <dd className="font-medium">{hoursFromServices || pkg.totalHours || "-"}</dd>
+            </div>
+            <div>
+              <dt className="text-muted-foreground">Empresas atribuídas</dt>
+              <dd className="font-medium">
+                {assignedCompanies && assignedCompanies.length
+                  ? assignedCompanies.map((item) => item.companyName || item.companyId).join(", ")
+                  : "-"}
+              </dd>
+            </div>
+          </dl>
+        </div>
+        {planned.length === 0 ? (
+          <div className="card flex flex-col justify-center p-4 text-sm text-muted-foreground">
+            Sem dados suficientes para gerar a Curva S.
           </div>
         ) : (
-          <div className="rounded-2xl border bg-card/80 p-6 text-sm text-muted-foreground shadow-sm">
-            Não foi possível encontrar o pacote solicitado.
+          <SCurve planned={planned} realized={realized ?? 0} />
+        )}
+      </div>
+
+      <div className="card p-4">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-semibold">Serviços vinculados</h2>
+            <p className="text-xs text-muted-foreground">{services.length} serviços associados a este pacote.</p>
+          </div>
+        </div>
+        {services.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Nenhum serviço associado ao pacote.</p>
+        ) : (
+          <div className="space-y-2">
+            {services.map((service) => {
+              const progress = computeServiceRealized(service);
+              return (
+                <Link
+                  key={service.id}
+                  className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-3 transition hover:border-primary/40 hover:bg-muted/40"
+                  href={`/servicos/${service.id}`}
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium">{service.os || service.code || service.id}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {normaliseStatus(service.status)}
+                      {service.assignedTo?.companyName || service.assignedTo?.companyId
+                        ? ` • ${service.assignedTo.companyName || service.assignedTo.companyId}`
+                        : ""}
+                    </p>
+                  </div>
+                  <span className="text-sm font-semibold text-primary">{progress}%</span>
+                </Link>
+              );
+            })}
           </div>
         )}
-
-        <Dialog open={tokenDialogOpen} onOpenChange={setTokenDialogOpen}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Token gerado com sucesso</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4 py-4 text-sm">
-              <p className="text-muted-foreground">
-                Compartilhe o token abaixo com a empresa para que ela acompanhe os serviços deste pacote.
-              </p>
-              <div className="rounded-lg border bg-muted/50 p-3 font-mono text-sm">
-                {issuedToken ?? "Nenhum token disponível"}
-              </div>
-              <div className="flex flex-col gap-2 sm:flex-row">
-                <button type="button" className="btn-primary" onClick={copyTokenLink}>
-                  Copiar link de acesso
-                </button>
-                <DialogClose asChild>
-                  <button type="button" className="btn-secondary">
-                    Fechar
-                  </button>
-                </DialogClose>
-              </div>
-            </div>
-          </DialogContent>
-        </Dialog>
+        {realized === null && services.length > 0 ? (
+          <p className="mt-4 text-xs text-muted-foreground">Sem dados suficientes para calcular o realizado consolidado.</p>
+        ) : null}
       </div>
-    </RequireAuth>
+    </div>
   );
 }

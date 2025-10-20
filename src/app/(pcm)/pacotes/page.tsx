@@ -1,37 +1,54 @@
-"use client";
-import RequireAuth from "@/components/RequireAuth";
-import PageHeader from "@/components/PageHeader";
-import Link from "next/link";
-import { listPackages, type Package } from "@/lib/db";
-import { useEffect, useState } from "react";
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
-export default function PackagesListPage() {
-  const [items, setItems] = useState<Package[]>([]);
-  useEffect(() => { (async ()=> setItems(await listPackages()))(); }, []);
+import Link from "next/link";
+
+import { listRecentPackages } from "@/lib/repo/packages";
+import type { Package } from "@/types";
+
+function normaliseStatus(status: Package["status"]): string {
+  const raw = String(status ?? "").toLowerCase();
+  if (raw === "concluido" || raw === "concluído") return "Concluído";
+  if (raw === "encerrado") return "Encerrado";
+  return "Aberto";
+}
+
+export default async function PackagesListPage() {
+  const packages = await listRecentPackages();
+
   return (
-    <RequireAuth>
-      <div className="container-page">
-        <PageHeader
-          title="Pacotes"
-          subtitle="Agrupamento de serviços por empresa"
-          actions={<Link className="btn-primary" href="/pacotes/novo">Novo pacote</Link>}
-        />
-        <div className="card overflow-x-auto">
-          <table className="table">
-            <thead><tr><th>Nome</th><th>Status</th><th></th></tr></thead>
-            <tbody>
-              {items.map(p => (
-                <tr key={p.id}>
-                  <td>{p.nome}</td>
-                  <td>{p.status ?? "-"}</td>
-                  <td><Link className="link" href={`/pacotes/${p.id}`}>Abrir</Link></td>
-                </tr>
-              ))}
-              {items.length === 0 && <tr><td colSpan={3} className="py-6 text-center text-muted-foreground">Nenhum pacote encontrado.</td></tr>}
-            </tbody>
-          </table>
+    <div className="container mx-auto space-y-4 p-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Pacotes</h1>
+          <p className="text-sm text-muted-foreground">Agrupamentos de serviços com acesso rápido aos detalhes.</p>
         </div>
+        <Link className="btn-primary" href="/pacotes/novo">
+          + Novo Pacote
+        </Link>
       </div>
-    </RequireAuth>
+
+      {packages.length === 0 ? (
+        <div className="card p-6 text-sm text-muted-foreground">Nenhum pacote encontrado.</div>
+      ) : (
+        <div className="card divide-y">
+          {packages.map((pkg) => (
+            <Link
+              key={pkg.id}
+              className="flex items-center justify-between gap-3 p-4 transition hover:bg-muted/40"
+              href={`/pacotes/${pkg.id}`}
+            >
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium">{pkg.name || pkg.code || pkg.id}</p>
+                <p className="text-xs text-muted-foreground">{normaliseStatus(pkg.status)}</p>
+              </div>
+              <span className="text-xs text-muted-foreground">
+                {pkg.services?.length ? `${pkg.services.length} serviços` : ""}
+              </span>
+            </Link>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }

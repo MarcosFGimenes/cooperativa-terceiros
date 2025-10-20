@@ -1,3 +1,4 @@
+import { db } from "@/lib/firebase";
 import { getAdmin } from "@/lib/firebaseAdmin";
 import type {
   ChecklistItem,
@@ -5,6 +6,16 @@ import type {
   ServiceStatus,
   ServiceUpdate,
 } from "@/lib/types";
+import {
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  limit,
+  orderBy,
+  query,
+  type DocumentData,
+} from "firebase/firestore";
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
 
 const getDb = () => getAdmin().db;
@@ -55,6 +66,148 @@ function mapServiceDoc(doc: FirebaseFirestore.DocumentSnapshot): Service {
     realPercent: data.realPercent ?? 0,
     packageId: data.packageId ?? undefined,
   };
+}
+
+function normaliseServiceStatus(value: unknown): ServiceStatus {
+  const raw = String(value ?? "").trim().toLowerCase();
+  if (raw === "concluido" || raw === "concluído") return "Concluído";
+  if (raw === "encerrado") return "Encerrado";
+  return "Aberto";
+}
+
+function toNumber(value: unknown): number | undefined {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string") {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  if (typeof value === "object" && value && "toMillis" in value) {
+    const possible = (value as { toMillis?: () => number }).toMillis?.();
+    if (typeof possible === "number" && Number.isFinite(possible)) return possible;
+  }
+  return undefined;
+}
+
+function mapChecklistItemData(data: Record<string, unknown>): ChecklistItem {
+  const rawStatus = String(data.status ?? data.situacao ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/_/g, "-")
+    .replace("em andamento", "em-andamento");
+
+  const status: ChecklistItem["status"] = ((): ChecklistItem["status"] => {
+    if (rawStatus === "em-andamento" || rawStatus === "andamento") return "em-andamento";
+    if (rawStatus === "concluido" || rawStatus === "concluído") return "concluido";
+    return "nao-iniciado";
+  })();
+
+  return {
+    id: String(data.id ?? data.itemId ?? data.checklistId ?? crypto.randomUUID()),
+    description: String(data.description ?? data.descricao ?? ""),
+    weight: toNumber(data.weight ?? data.peso) ?? 0,
+    progress: toNumber(data.progress ?? data.percentual ?? data.pct) ?? 0,
+    status,
+  };
+}
+
+function mapUpdateData(data: Record<string, unknown>): ServiceUpdate {
+  const percent = toNumber(
+    data.percent ?? data.manualPercent ?? data.totalPct ?? data.realPercentSnapshot ?? data.pct,
+  );
+
+  return {
+    id: String(data.id ?? crypto.randomUUID()),
+    createdAt:
+      toNumber(data.createdAt ?? data.date ?? data.created_at ?? data.timestamp) ?? Date.now(),
+    description: String(data.description ?? data.note ?? data.observacao ?? ""),
+    percent: percent ?? undefined,
+  };
+}
+
+function mapServiceData(id: string, data: Record<string, unknown>): Service {
+  const plannedStart = String(
+    data.plannedStart ?? data.inicioPlanejado ?? data.dataInicio ?? data.startDate ?? "",
+  );
+  const plannedEnd = String(
+    data.plannedEnd ?? data.fimPlanejado ?? data.dataFim ?? data.endDate ?? "",
+  );
+  const totalHours =
+    toNumber(data.totalHours ?? data.totalHoras ?? data.horasTotais ?? data.hours) ?? 0;
+  const createdAt =
+    toNumber(data.createdAt ?? data.created_at ?? data.criadoEm ?? data.createdAtMs) ?? Date.now();
+
+  const assignedRaw = data.assignedTo;
+  let assignedTo: Service["assignedTo"] | undefined;
+  if (assignedRaw && typeof assignedRaw === "object") {
+    const companyId = (assignedRaw as Record<string, unknown>).companyId;
+    const companyName = (assignedRaw as Record<string, unknown>).companyName;
+    if (companyId || companyName) {
+      assignedTo = {
+        companyId: companyId ? String(companyId) : undefined,
+        companyName: companyName ? String(companyName) : undefined,
+      };
+    }
+  }
+
+  if (!assignedTo) {
+    const companyId = data.companyId ?? data.empresaId ?? data.company ?? data.empresa;
+    const companyName = data.companyName ?? data.empresaNome ?? data.nomeEmpresa;
+    if (companyId || companyName) {
+      assignedTo = {
+        companyId: companyId ? String(companyId) : undefined,
+        companyName: companyName ? String(companyName) : undefined,
+      };
+    }
+  }
+
+  const checklist = Array.isArray(data.checklist)
+    ? (data.checklist as Record<string, unknown>[]).map((item) => mapChecklistItemData(item))
+    : undefined;
+
+  const updates = Array.isArray(data.updates)
+    ? (data.updates as Record<string, unknown>[]).map((item) => mapUpdateData(item))
+    : undefined;
+
+  const progress = toNumber(
+    data.progress ?? data.realPercent ?? data.andamento ?? data.percentual ?? data.percent,
+  );
+
+  return {
+    id,
+    os: String(data.os ?? data.OS ?? data.ordemServico ?? id ?? ""),
+    oc: data.oc ? String(data.oc) : undefined,
+    tag: data.tag ? String(data.tag) : undefined,
+    equipmentName: String(data.equipmentName ?? data.equipamento ?? data.equipment ?? ""),
+    setor: data.setor ? String(data.setor) : undefined,
+    sector: data.sector ? String(data.sector) : undefined,
+    plannedStart,
+    plannedEnd,
+    totalHours,
+    status: normaliseServiceStatus(data.status),
+    code: data.code ? String(data.code) : data.codigo ? String(data.codigo) : undefined,
+    assignedTo,
+    progress: progress ?? undefined,
+    updates,
+    checklist,
+    createdAt,
+    packageId: data.packageId ? String(data.packageId) : data.pacoteId ? String(data.pacoteId) : undefined,
+    company: data.company ? String(data.company) : data.companyId ? String(data.companyId) : undefined,
+    empresa: data.empresa ? String(data.empresa) : undefined,
+    andamento: progress ?? undefined,
+    realPercent: progress ?? undefined,
+  };
+}
+
+export async function getServiceById(id: string): Promise<Service | null> {
+  const snap = await getDoc(doc(db, "services", id));
+  if (!snap.exists()) return null;
+  return mapServiceData(snap.id, snap.data() as DocumentData);
+}
+
+export async function listRecentServices(): Promise<Service[]> {
+  const q = query(collection(db, "services"), orderBy("createdAt", "desc"), limit(20));
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => mapServiceData(d.id, d.data()));
 }
 
 function mapChecklistDoc(
