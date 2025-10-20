@@ -1,7 +1,12 @@
 import type { FirebaseOptions } from "firebase/app";
 
 type FirebasePublicConfig = FirebaseOptions & {
-  messagingSenderId: string;
+  apiKey: string;
+  appId: string;
+  authDomain: string;
+  projectId: string;
+  storageBucket: string;
+  messagingSenderId?: string;
 };
 
 let cachedConfig: FirebasePublicConfig | null = null;
@@ -12,6 +17,13 @@ function readRequiredEnv(name: string) {
     throw new Error(`Missing environment variable ${name}`);
   }
   return value.trim();
+}
+
+function readOptionalEnv(name: string) {
+  const value = process.env[name];
+  if (!value) return undefined;
+  const trimmed = value.trim();
+  return trimmed.length ? trimmed : undefined;
 }
 
 function sanitizeDomain(domain: string) {
@@ -42,7 +54,7 @@ export function getFirebasePublicConfig(): FirebasePublicConfig {
   const apiKey = readRequiredEnv("NEXT_PUBLIC_FIREBASE_API_KEY");
   const storageBucket = readRequiredEnv("NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET");
   const appId = readRequiredEnv("NEXT_PUBLIC_FIREBASE_APP_ID");
-  const messagingSenderId = readRequiredEnv("NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID");
+  const messagingSenderId = readOptionalEnv("NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID");
   const authDomain = resolveAuthDomain(projectId, process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN);
 
   cachedConfig = {
@@ -51,7 +63,7 @@ export function getFirebasePublicConfig(): FirebasePublicConfig {
     projectId,
     storageBucket,
     appId,
-    messagingSenderId,
+    ...(messagingSenderId ? { messagingSenderId } : {}),
   };
 
   return cachedConfig;
