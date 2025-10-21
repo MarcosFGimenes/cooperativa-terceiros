@@ -3,7 +3,6 @@ export const revalidate = 0;
 
 import Link from "next/link";
 
-import DeleteServiceButton from "@/components/DeleteServiceButton";
 import { listRecentPackages } from "@/lib/repo/packages";
 import { listRecentServices } from "@/lib/repo/services";
 import type { Service } from "@/types";
@@ -120,11 +119,6 @@ export default async function DashboardPCM() {
                       </p>
                     </Link>
                     <span className="text-sm font-semibold text-primary">{progress}%</span>
-                    <DeleteServiceButton
-                      serviceId={service.id}
-                      serviceLabel={service.os || service.code || service.id}
-                      triggerClassName="btn-outline border-destructive text-destructive hover:bg-destructive/10 text-xs"
-                    />
                   </div>
                 );
               })

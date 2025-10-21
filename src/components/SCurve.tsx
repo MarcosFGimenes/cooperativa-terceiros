@@ -35,14 +35,17 @@ type TooltipPayload = TooltipProps<number, string>;
 function toDayIso(value: string) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
-  return date.toISOString().slice(0, 10);
+  const year = date.getUTCFullYear();
+  const month = String(date.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(date.getUTCDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 function formatShortDate(value: string) {
   try {
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) return value;
-    return new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "short" }).format(date);
+    return new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "short", timeZone: "UTC" }).format(date);
   } catch (error) {
     console.error("[SCurve] Failed to format date", error);
     return value;
@@ -57,6 +60,7 @@ function formatFullDate(value: string) {
       day: "2-digit",
       month: "long",
       year: "numeric",
+      timeZone: "UTC",
     }).format(date);
   } catch {
     return value;
