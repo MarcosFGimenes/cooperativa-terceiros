@@ -32,7 +32,9 @@ export default function LoginPage() {
     setLoading(true);
     try {
       const credential = await signInWithEmailAndPassword(authInstance, email.trim(), pass);
-      const idToken = await credential.user.getIdToken();
+      // O cookie de sessão do Firebase exige um ID token emitido recentemente.
+      // Forçar o refresh evita erros "id-token-expired" vindos do backend.
+      const idToken = await credential.user.getIdToken(true);
       let sessionResp: Response;
       try {
         sessionResp = await fetch("/api/pcm/session", {
