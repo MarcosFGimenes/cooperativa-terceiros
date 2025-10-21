@@ -59,6 +59,72 @@ function normaliseStatus(value: unknown) {
   return "Aberto";
 }
 
+function toDayIso(value: unknown) {
+  if (value === null || value === undefined) return null;
+  let date: Date | null = null;
+  if (typeof value === "number") {
+    date = new Date(value);
+  } else if (typeof value === "string") {
+    date = new Date(value);
+  } else if (value instanceof Date) {
+    date = value;
+  }
+  if (!date || Number.isNaN(date.getTime())) return null;
+  return date.toISOString().slice(0, 10);
+}
+
+function buildRealizedSeries(params: {
+  updates: ServiceUpdate[];
+  planned: ReturnType<typeof plannedCurve>;
+  realizedPercent: number;
+  plannedStart?: string;
+  plannedEnd?: string;
+  createdAt?: number;
+}) {
+  const points = new Map<string, number>();
+
+  params.updates.forEach((update) => {
+    const day = toDayIso(update.createdAt);
+    if (!day) return;
+    points.set(day, normaliseProgress(update.percent));
+  });
+
+  if (points.size > 0) {
+    return Array.from(points.entries())
+      .sort((a, b) => {
+        const aTime = new Date(a[0]).getTime();
+        const bTime = new Date(b[0]).getTime();
+        if (Number.isNaN(aTime) || Number.isNaN(bTime)) return a[0].localeCompare(b[0]);
+        return aTime - bTime;
+      })
+      .map(([date, percent]) => ({ date, percent }));
+  }
+
+  const plannedStart = toDayIso(params.plannedStart) ?? params.planned[0]?.date ?? toDayIso(params.createdAt);
+  const plannedEnd =
+    toDayIso(params.plannedEnd) ?? params.planned[params.planned.length - 1]?.date ?? toDayIso(new Date());
+
+  if (!plannedStart && !plannedEnd) {
+    return [];
+  }
+
+  const start = plannedStart ?? plannedEnd!;
+  const end = plannedEnd ?? plannedStart!;
+  const realised = normaliseProgress(params.realizedPercent);
+
+  if (start === end) {
+    return [
+      { date: start, percent: 0 },
+      { date: end, percent: realised },
+    ];
+  }
+
+  return [
+    { date: start, percent: 0 },
+    { date: end, percent: realised },
+  ];
+}
+
 export default async function ServiceDetailPage({ params }: { params: { id: string } }) {
   const [service, legacyService] = await Promise.all([
     getServiceById(params.id),
@@ -90,7 +156,7 @@ export default async function ServiceDetailPage({ params }: { params: { id: stri
     totalHours > 0 ? totalHours : 1,
   );
 
-  const realized = (() => {
+  const realizedPercent = (() => {
     if (checklist.length > 0) {
       return realizedFromChecklist(checklist);
     }
@@ -99,6 +165,15 @@ export default async function ServiceDetailPage({ params }: { params: { id: stri
     }
     return normaliseProgress(baseService.progress ?? baseService.realPercent ?? baseService.andamento);
   })();
+
+  const realizedSeries = buildRealizedSeries({
+    updates,
+    planned,
+    realizedPercent,
+    plannedStart: baseService.plannedStart || legacyService?.plannedStart,
+    plannedEnd: baseService.plannedEnd || legacyService?.plannedEnd,
+    createdAt: baseService.createdAt ?? legacyService?.createdAt,
+  });
 
   return (
     <div className="container mx-auto space-y-6 p-4">
@@ -129,7 +204,7 @@ export default async function ServiceDetailPage({ params }: { params: { id: stri
             </div>
             <div>
               <dt className="text-muted-foreground">Andamento</dt>
-              <dd className="font-medium">{normaliseProgress(baseService.progress ?? baseService.realPercent ?? baseService.andamento ?? realized)}%</dd>
+              <dd className="font-medium">{normaliseProgress(baseService.progress ?? baseService.realPercent ?? baseService.andamento ?? realizedPercent)}%</dd>
             </div>
             <div>
               <dt className="text-muted-foreground">Tag</dt>
@@ -161,7 +236,7 @@ export default async function ServiceDetailPage({ params }: { params: { id: stri
             </div>
           </dl>
         </div>
-        <SCurve planned={planned} realized={realized} />
+        <SCurve planned={planned} realizedSeries={realizedSeries} realizedPercent={realizedPercent} />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">

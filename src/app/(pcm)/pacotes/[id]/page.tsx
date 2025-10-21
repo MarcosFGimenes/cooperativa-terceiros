@@ -52,6 +52,38 @@ function choosePlanBounds(pkg: Package, services: Service[]) {
   };
 }
 
+function buildPackageRealizedSeries(planned: ReturnType<typeof plannedCurve>, realizedPercent: number) {
+  if (!planned.length) {
+    const today = new Date().toISOString().slice(0, 10);
+    return [
+      { date: today, percent: 0 },
+      { date: today, percent: realizedPercent },
+    ];
+  }
+
+  const first = planned[0];
+  const last = planned[planned.length - 1];
+  if (!first || !last) {
+    const day = first?.date ?? new Date().toISOString().slice(0, 10);
+    return [
+      { date: day, percent: 0 },
+      { date: day, percent: realizedPercent },
+    ];
+  }
+
+  if (planned.length === 1 || first.date === last.date) {
+    return [
+      { date: first.date, percent: 0 },
+      { date: last.date, percent: realizedPercent },
+    ];
+  }
+
+  return [
+    { date: first.date, percent: 0 },
+    { date: last.date, percent: realizedPercent },
+  ];
+}
+
 export default async function PackageDetailPage({ params }: { params: { id: string } }) {
   const pkg = await getPackageById(params.id);
   if (!pkg) return notFound();
@@ -144,13 +176,11 @@ export default async function PackageDetailPage({ params }: { params: { id: stri
             </div>
           </dl>
         </div>
-        {planned.length === 0 ? (
-          <div className="card flex flex-col justify-center p-4 text-sm text-muted-foreground">
-            Sem dados suficientes para gerar a Curva S.
-          </div>
-        ) : (
-          <SCurve planned={planned} realized={realized ?? 0} />
-        )}
+        <SCurve
+          planned={planned}
+          realizedSeries={buildPackageRealizedSeries(planned, realized ?? 0)}
+          realizedPercent={realized ?? 0}
+        />
       </div>
 
       <PackageTokenManager packageId={pkg.id} companies={assignedCompanies} />
