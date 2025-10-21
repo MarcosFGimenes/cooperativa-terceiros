@@ -13,6 +13,7 @@ import {
   listUpdates,
 } from "@/lib/repo/services";
 import type { ChecklistItem, ServiceUpdate } from "@/lib/types";
+import DeleteServiceButton from "./_components/DeleteServiceButton";
 
 function toNewChecklist(items: ChecklistItem[]): ChecklistItem[] {
   return items.map((item) => {
@@ -175,22 +176,25 @@ export default async function ServiceDetailPage({ params }: { params: { id: stri
     createdAt: baseService.createdAt ?? legacyService?.createdAt,
   });
 
+  const serviceLabel = baseService.os || baseService.code || baseService.id;
+
   return (
     <div className="container mx-auto space-y-6 p-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Serviço {baseService.os || baseService.code || baseService.id}</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">Serviço {serviceLabel}</h1>
           <p className="text-sm text-muted-foreground">
             Visão geral, andamento e curva S do serviço selecionado.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Link className="btn-secondary" href="/servicos">
+          <Link className="btn-secondary" href="/dashboard">
             Voltar
           </Link>
           <Link className="btn-primary" href={`/servicos/${baseService.id}/editar`}>
             Editar
           </Link>
+          <DeleteServiceButton serviceId={baseService.id} serviceLabel={serviceLabel} />
         </div>
       </div>
 
