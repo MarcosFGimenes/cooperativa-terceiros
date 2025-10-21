@@ -23,7 +23,7 @@ export default function HeaderClient() {
     <nav className="flex items-center gap-2 text-sm text-muted-foreground">
       {user ? (
         <>
-          <Link className="link-btn" href="/(pcm)/dashboard">
+          <Link className="link-btn" href="/dashboard">
             Dashboard
           </Link>
           <button

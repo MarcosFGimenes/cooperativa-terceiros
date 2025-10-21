@@ -228,8 +228,8 @@ export default function NovoServico() {
             Cadastre um novo serviço e, se necessário, já defina o checklist de execução.
           </p>
         </div>
-        <Link className="btn-secondary" href="/servicos">
-          Cancelar
+        <Link className="btn-secondary" href="/dashboard">
+          Voltar para o dashboard
         </Link>
       </div>
 

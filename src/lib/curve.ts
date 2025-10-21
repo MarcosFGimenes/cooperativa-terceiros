@@ -14,11 +14,13 @@ export function plannedCurve(plannedStart: string, plannedEnd: string, totalHour
   const points: { date: string; percent: number; hoursAccum: number }[] = [];
   const safeTotal = totalHours > 0 ? totalHours : days * perDay || 1;
   for (let i = 0; i < days; i++) {
-    const d = new Date(start);
-    d.setDate(start.getDate() + i);
+    const d = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), start.getUTCDate() + i));
     const hoursAccum = perDay * (i + 1);
     const percent = Math.min(100, Math.round((hoursAccum / safeTotal) * 100));
-    points.push({ date: d.toISOString().slice(0, 10), percent, hoursAccum });
+    const year = d.getUTCFullYear();
+    const month = String(d.getUTCMonth() + 1).padStart(2, "0");
+    const day = String(d.getUTCDate()).padStart(2, "0");
+    points.push({ date: `${year}-${month}-${day}`, percent, hoursAccum });
   }
   return points;
 }
