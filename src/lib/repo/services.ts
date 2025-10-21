@@ -30,6 +30,43 @@ function toMillis(value: unknown | Timestamp | number | null | undefined) {
   return undefined;
 }
 
+function toIsoDate(value: unknown): string {
+  if (!value) return "";
+  if (typeof value === "string") return value;
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? "" : value.toISOString();
+  }
+  if (typeof value === "number") {
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? "" : date.toISOString();
+  }
+  const possible = value as { toDate?: () => Date; toMillis?: () => number };
+  if (typeof possible?.toDate === "function") {
+    const date = possible.toDate();
+    return !date || Number.isNaN(date.getTime()) ? "" : date.toISOString();
+  }
+  if (typeof possible?.toMillis === "function") {
+    const millis = possible.toMillis();
+    if (typeof millis === "number" && Number.isFinite(millis)) {
+      const date = new Date(millis);
+      return Number.isNaN(date.getTime()) ? "" : date.toISOString();
+    }
+  }
+  return "";
+}
+
+function pickDateField(
+  data: Record<string, unknown>,
+  candidates: string[],
+): string {
+  for (const key of candidates) {
+    if (!(key in data)) continue;
+    const value = toIsoDate(data[key]);
+    if (value) return value;
+  }
+  return "";
+}
+
 function inferChecklistStatus(progress: number): ChecklistItem["status"] {
   if (progress >= 100) return "concluido";
   if (progress > 0) return "andamento";
@@ -42,17 +79,40 @@ function sanitisePercent(value: number) {
 }
 
 function mapServiceDoc(doc: FirebaseFirestore.DocumentSnapshot): Service {
-  const data = doc.data() ?? {};
+  const data = (doc.data() ?? {}) as Record<string, unknown>;
+  const plannedStart = pickDateField(data, [
+    "plannedStart",
+    "inicioPrevisto",
+    "inicioPlanejado",
+    "dataInicio",
+    "startDate",
+  ]);
+  const plannedEnd = pickDateField(data, [
+    "plannedEnd",
+    "fimPrevisto",
+    "fimPlanejado",
+    "dataFim",
+    "endDate",
+  ]);
+  const totalHours =
+    toNumber(
+      data.totalHours ??
+        data.totalHoras ??
+        data.horasTotais ??
+        data.horasPrevistas ??
+        data.hours,
+    ) ?? 0;
+
   return {
     id: doc.id,
-    os: data.os ?? "",
-    oc: data.oc ?? undefined,
-    tag: data.tag ?? "",
-    equipmentName: data.equipmentName ?? "",
-    sector: data.sector ?? "",
-    plannedStart: data.plannedStart ?? "",
-    plannedEnd: data.plannedEnd ?? "",
-    totalHours: data.totalHours ?? 0,
+    os: String(data.os ?? ""),
+    oc: data.oc ? String(data.oc) : undefined,
+    tag: String(data.tag ?? ""),
+    equipmentName: String(data.equipmentName ?? data.equipamento ?? ""),
+    sector: String(data.sector ?? data.setor ?? ""),
+    plannedStart,
+    plannedEnd,
+    totalHours,
     plannedDaily: Array.isArray(data.plannedDaily)
       ? data.plannedDaily.map((value: unknown) => {
           const numeric = typeof value === "number" ? value : Number(value);
@@ -60,12 +120,22 @@ function mapServiceDoc(doc: FirebaseFirestore.DocumentSnapshot): Service {
         })
       : undefined,
     status: (data.status ?? "aberto") as ServiceStatus,
-    company: data.company ?? undefined,
+    company:
+      data.company !== undefined && data.company !== null
+        ? String(data.company)
+        : data.empresaId !== undefined && data.empresaId !== null
+          ? String(data.empresaId)
+          : undefined,
     createdAt: toMillis(data.createdAt),
     updatedAt: toMillis(data.updatedAt),
-    hasChecklist: data.hasChecklist ?? false,
-    realPercent: data.realPercent ?? 0,
-    packageId: data.packageId ?? undefined,
+    hasChecklist: data.hasChecklist ?? Array.isArray(data.checklist),
+    realPercent: toNumber(data.realPercent ?? data.andamento) ?? 0,
+    packageId:
+      data.packageId !== undefined && data.packageId !== null
+        ? String(data.packageId)
+        : data.pacoteId !== undefined && data.pacoteId !== null
+          ? String(data.pacoteId)
+          : undefined,
   };
 }
 
@@ -126,14 +196,24 @@ function mapUpdateData(data: Record<string, unknown>): ServiceUpdate {
 }
 
 function mapServiceData(id: string, data: Record<string, unknown>): Service {
-  const plannedStart = String(
-    data.plannedStart ?? data.inicioPlanejado ?? data.dataInicio ?? data.startDate ?? "",
-  );
-  const plannedEnd = String(
-    data.plannedEnd ?? data.fimPlanejado ?? data.dataFim ?? data.endDate ?? "",
-  );
+  const plannedStart = pickDateField(data, [
+    "plannedStart",
+    "inicioPrevisto",
+    "inicioPlanejado",
+    "dataInicio",
+    "startDate",
+  ]);
+  const plannedEnd = pickDateField(data, [
+    "plannedEnd",
+    "fimPrevisto",
+    "fimPlanejado",
+    "dataFim",
+    "endDate",
+  ]);
   const totalHours =
-    toNumber(data.totalHours ?? data.totalHoras ?? data.horasTotais ?? data.hours) ?? 0;
+    toNumber(
+      data.totalHours ?? data.totalHoras ?? data.horasTotais ?? data.horasPrevistas ?? data.hours,
+    ) ?? 0;
   const createdAt =
     toNumber(data.createdAt ?? data.created_at ?? data.criadoEm ?? data.createdAtMs) ?? Date.now();
 
@@ -516,4 +596,37 @@ export async function listServices(filter?: {
   query = query.orderBy("createdAt", "desc");
   const snap = await query.get();
   return snap.docs.map((doc) => mapServiceDoc(doc));
+}
+
+async function deleteSubcollection(
+  ref: FirebaseFirestore.DocumentReference,
+  name: string,
+): Promise<void> {
+  const snap = await ref.collection(name).get();
+  if (snap.empty) return;
+  await Promise.all(snap.docs.map((doc) => doc.ref.delete()));
+}
+
+export async function deleteService(serviceId: string): Promise<boolean> {
+  const ref = servicesCollection().doc(serviceId);
+  const snap = await ref.get();
+  if (!snap.exists) {
+    return false;
+  }
+
+  await deleteSubcollection(ref, "checklist").catch((error) => {
+    console.error(`[services] Falha ao excluir checklist do serviço ${serviceId}`, error);
+    throw error;
+  });
+  await deleteSubcollection(ref, "updates").catch((error) => {
+    console.error(`[services] Falha ao excluir updates do serviço ${serviceId}`, error);
+    throw error;
+  });
+  await deleteSubcollection(ref, "serviceUpdates").catch((error) => {
+    console.error(`[services] Falha ao excluir serviceUpdates do serviço ${serviceId}`, error);
+    throw error;
+  });
+
+  await ref.delete();
+  return true;
 }
