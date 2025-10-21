@@ -10,6 +10,12 @@ export default function HeaderClient() {
   const { user } = useAuth();
 
   async function doLogout() {
+    try {
+      await fetch("/api/pcm/session", { method: "DELETE" });
+    } catch (error) {
+      console.error("[header] Falha ao encerrar sessão PCM", error);
+    }
+
     const { auth, error } = tryGetAuth();
     if (!auth) {
       console.error("[header] Autenticação indisponível", error);

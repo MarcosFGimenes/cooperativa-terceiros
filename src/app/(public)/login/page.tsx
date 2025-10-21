@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { signInWithEmailAndPassword } from "firebase/auth";
+import { signInWithEmailAndPassword, signOut } from "firebase/auth";
 import { tryGetAuth } from "@/lib/firebase";
 
 export const dynamic = "force-dynamic";
@@ -31,10 +31,41 @@ export default function LoginPage() {
     setErr(null);
     setLoading(true);
     try {
-      await signInWithEmailAndPassword(authInstance, email.trim(), pass);
+      const credential = await signInWithEmailAndPassword(authInstance, email.trim(), pass);
+      const idToken = await credential.user.getIdToken();
+      let sessionResp: Response;
+      try {
+        sessionResp = await fetch("/api/pcm/session", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ token: idToken }),
+        });
+      } catch (sessionError) {
+        await signOut(authInstance);
+        throw sessionError;
+      }
+
+      if (!sessionResp.ok) {
+        const data = (await sessionResp.json().catch(() => null)) as { error?: string } | null;
+        const code = data?.error;
+        let message = "Não foi possível iniciar a sessão segura.";
+        if (code === "not_allowed") {
+          message = "Seu usuário não tem acesso ao dashboard PCM.";
+        } else if (code === "admin_not_configured") {
+          message = "Configuração de autenticação indisponível. Tente novamente mais tarde.";
+        } else if (code === "invalid_token") {
+          message = "Credenciais inválidas. Faça login novamente.";
+        }
+
+        await signOut(authInstance);
+        setErr(message);
+        return;
+      }
+
       router.replace("/dashboard");
-    } catch (error: any) {
-      setErr(error?.message ?? "Falha no login");
+    } catch (error: unknown) {
+      const message = error instanceof Error && error.message ? error.message : "Falha no login";
+      setErr(message);
     } finally {
       setLoading(false);
     }
