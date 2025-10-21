@@ -3,6 +3,7 @@ export const revalidate = 0;
 
 import Link from "next/link";
 
+import DeleteServiceButton from "@/components/DeleteServiceButton";
 import { listRecentPackages } from "@/lib/repo/packages";
 import { listRecentServices } from "@/lib/repo/services";
 import type { Service } from "@/types";
@@ -100,23 +101,31 @@ export default async function DashboardPCM() {
                 );
                 const createdAt = formatDate(service.createdAt);
                 return (
-                  <Link
+                  <div
                     key={service.id}
-                    className="flex items-center gap-3 rounded-lg border p-3 transition hover:border-primary/40 hover:bg-muted/40"
-                    href={`/servicos/${service.id}`}
+                    className="flex flex-wrap items-center gap-3 rounded-lg border p-3 transition hover:border-primary/40 hover:bg-muted/40"
                   >
-                    <div className="min-w-0 flex-1">
+                    <Link className="min-w-0 flex-1" href={`/servicos/${service.id}`}>
                       <p className="truncate text-sm font-medium">
                         {service.os || service.code || service.id}
-                        {service.equipmentName ? ` — ${service.equipmentName}` : service.tag ? ` — ${service.tag}` : ""}
+                        {service.equipmentName
+                          ? ` — ${service.equipmentName}`
+                          : service.tag
+                            ? ` — ${service.tag}`
+                            : ""}
                       </p>
                       <p className="text-xs text-muted-foreground">
                         {normaliseStatus(service.status)}
                         {createdAt ? ` • ${createdAt}` : ""}
                       </p>
-                    </div>
+                    </Link>
                     <span className="text-sm font-semibold text-primary">{progress}%</span>
-                  </Link>
+                    <DeleteServiceButton
+                      serviceId={service.id}
+                      serviceLabel={service.os || service.code || service.id}
+                      triggerClassName="btn-outline border-destructive text-destructive hover:bg-destructive/10 text-xs"
+                    />
+                  </div>
                 );
               })
             )}

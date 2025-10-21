@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
@@ -14,13 +14,21 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { tryGetAuth } from "@/lib/firebase";
+import { cn } from "@/lib/utils";
 
 type DeleteServiceButtonProps = {
   serviceId: string;
   serviceLabel: string;
+  triggerClassName?: string;
+  children?: ReactNode;
 };
 
-export default function DeleteServiceButton({ serviceId, serviceLabel }: DeleteServiceButtonProps) {
+export default function DeleteServiceButton({
+  serviceId,
+  serviceLabel,
+  triggerClassName,
+  children,
+}: DeleteServiceButtonProps) {
   const [open, setOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const router = useRouter();
@@ -77,9 +85,12 @@ export default function DeleteServiceButton({ serviceId, serviceLabel }: DeleteS
       <DialogTrigger asChild>
         <button
           type="button"
-          className="btn-outline border-destructive text-destructive hover:bg-destructive/10"
+          className={cn(
+            triggerClassName ??
+              "btn-outline border-destructive text-destructive hover:bg-destructive/10",
+          )}
         >
-          Excluir
+          {children ?? "Excluir"}
         </button>
       </DialogTrigger>
       <DialogContent>

@@ -6,6 +6,7 @@ import { notFound } from "next/navigation";
 
 import SCurve from "@/components/SCurve";
 import { plannedCurve, realizedFromChecklist, realizedFromUpdates } from "@/lib/curve";
+import { getLatestServiceToken } from "@/lib/repo/accessTokens";
 import {
   getChecklist,
   getService,
@@ -13,7 +14,7 @@ import {
   listUpdates,
 } from "@/lib/repo/services";
 import type { ChecklistItem, ServiceUpdate } from "@/lib/types";
-import DeleteServiceButton from "./_components/DeleteServiceButton";
+import DeleteServiceButton from "@/components/DeleteServiceButton";
 
 function toNewChecklist(items: ChecklistItem[]): ChecklistItem[] {
   return items.map((item) => {
@@ -135,9 +136,13 @@ export default async function ServiceDetailPage({ params }: { params: { id: stri
   const baseService = service ?? legacyService;
   if (!baseService) return notFound();
 
-  const [rawChecklist, rawUpdates] = await Promise.all([
+  const [rawChecklist, rawUpdates, latestToken] = await Promise.all([
     getChecklist(params.id).catch(() => []),
     listUpdates(params.id, 100).catch(() => []),
+    getLatestServiceToken(baseService.id).catch((error) => {
+      console.error(`[servicos/${baseService.id}] Falha ao carregar token mais recente`, error);
+      return null;
+    }),
   ]);
 
   const checklist = baseService.checklist?.length
@@ -177,6 +182,7 @@ export default async function ServiceDetailPage({ params }: { params: { id: stri
   });
 
   const serviceLabel = baseService.os || baseService.code || baseService.id;
+  const tokenLink = latestToken ? `/acesso?token=${latestToken.code}` : null;
 
   return (
     <div className="container mx-auto space-y-6 p-4">
@@ -237,6 +243,30 @@ export default async function ServiceDetailPage({ params }: { params: { id: stri
             <div>
               <dt className="text-muted-foreground">Empresa atribuída</dt>
               <dd className="font-medium">{baseService.assignedTo?.companyName || baseService.assignedTo?.companyId || baseService.company || baseService.empresa || "-"}</dd>
+            </div>
+            <div className="sm:col-span-2">
+              <dt className="text-muted-foreground">Token de acesso</dt>
+              <dd className="font-medium">
+                {latestToken ? (
+                  <div className="space-y-2">
+                    <div className="inline-flex items-center rounded-md border border-primary/40 bg-primary/10 px-2 py-1 font-mono text-sm text-primary">
+                      {latestToken.code}
+                    </div>
+                    <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                      {latestToken.company ? (
+                        <span>Empresa vinculada: {latestToken.company}</span>
+                      ) : null}
+                      {tokenLink ? (
+                        <Link className="link text-xs" href={tokenLink} target="_blank" rel="noreferrer">
+                          Abrir link público
+                        </Link>
+                      ) : null}
+                    </div>
+                  </div>
+                ) : (
+                  <span className="text-muted-foreground">Nenhum token ativo</span>
+                )}
+              </dd>
             </div>
           </dl>
         </div>

@@ -2,7 +2,7 @@ import "./globals.css";
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { Toaster } from "sonner";
-import ThemeToggle from "@/components/ThemeToggle";
+import HeaderClientBoundary from "@/components/HeaderClientBoundary";
 import SkipToContent from "@/components/SkipToContent";
 import Footer from "@/components/Footer";
 import PreloadAsFix from "@/components/PreloadAsFix";
@@ -34,12 +34,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
             <Link href="/" className="font-semibold tracking-tight">
               PCM <span className="text-primary">Terceiros</span>
             </Link>
-            <nav className="flex items-center gap-3 text-sm text-muted-foreground">
-              <Link className="link" href="/login">Login</Link>
-              <Link className="link" href="/acesso">Acesso por token</Link>
-              <Link className="link" href="/dashboard">Dashboard</Link>
-              <ThemeToggle />
-            </nav>
+            <HeaderClientBoundary />
           </div>
         </header>
         <main id="conteudo" className="relative min-h-[calc(100dvh-56px-48px)] py-6 sm:py-10">

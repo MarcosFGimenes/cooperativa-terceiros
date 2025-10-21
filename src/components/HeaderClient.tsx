@@ -20,13 +20,7 @@ export default function HeaderClient() {
   }
 
   return (
-    <nav className="flex items-center gap-2">
-      <Link className="link-btn" href="/login">
-        Login
-      </Link>
-      <Link className="link-btn" href="/acesso">
-        Acesso por token
-      </Link>
+    <nav className="flex items-center gap-2 text-sm text-muted-foreground">
       {user ? (
         <>
           <Link className="link-btn" href="/(pcm)/dashboard">
@@ -40,7 +34,16 @@ export default function HeaderClient() {
             Sair
           </button>
         </>
-      ) : null}
+      ) : (
+        <>
+          <Link className="link-btn" href="/login">
+            Login
+          </Link>
+          <Link className="link-btn" href="/acesso">
+            Acesso por token
+          </Link>
+        </>
+      )}
       <ThemeToggle />
     </nav>
   );
