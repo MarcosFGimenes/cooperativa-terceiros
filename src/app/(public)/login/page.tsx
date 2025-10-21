@@ -41,8 +41,8 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-10">
-      <div className="card mx-auto max-w-lg space-y-6 p-8 shadow-xl shadow-primary/10">
+    <div className="container mx-auto flex min-h-[calc(100dvh-56px-48px)] items-center justify-center px-4 py-10">
+      <div className="card w-full max-w-lg space-y-6 p-8 shadow-xl shadow-primary/10">
         <div className="flex items-center gap-3 text-sm text-primary">
           <span className="inline-flex h-9 w-9 items-center justify-center rounded-2xl bg-primary/15 text-lg">🔐</span>
           <span className="font-semibold uppercase tracking-[0.2em] text-primary/80">Acesso seguro</span>

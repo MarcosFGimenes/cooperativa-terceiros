@@ -11,19 +11,48 @@ type FirebasePublicConfig = FirebaseOptions & {
 
 let cachedConfig: FirebasePublicConfig | null = null;
 
-function readRequiredEnv(name: string) {
-  const value = process.env[name];
+const fallbackNotices = new Set<string>();
+
+declare global {
+  interface Window {
+    __FIREBASE_PUBLIC_CONFIG?: FirebasePublicConfig;
+  }
+}
+
+function readEnvValue(names: string[]): string | undefined {
+  for (const candidate of names) {
+    const raw = process.env[candidate];
+    if (!raw) continue;
+    const trimmed = raw.trim();
+    if (!trimmed) continue;
+    const [primary] = names;
+    if (
+      candidate !== primary &&
+      process.env.NODE_ENV !== "production" &&
+      !fallbackNotices.has(primary)
+    ) {
+      console.warn(
+        `[firebase] Using ${candidate} as fallback for ${primary}. ` +
+          "Consider defining the public NEXT_PUBLIC_* variables to avoid this warning.",
+      );
+      fallbackNotices.add(primary);
+    }
+    return trimmed;
+  }
+  return undefined;
+}
+
+function readRequiredEnv(name: string, fallbackNames: string[] = []) {
+  const value = readEnvValue([name, ...fallbackNames]);
   if (!value) {
     throw new Error(`Missing environment variable ${name}`);
   }
-  return value.trim();
+  return value;
 }
 
-function readOptionalEnv(name: string) {
-  const value = process.env[name];
-  if (!value) return undefined;
-  const trimmed = value.trim();
-  return trimmed.length ? trimmed : undefined;
+function readOptionalEnv(name: string, fallbackNames: string[] = []) {
+  const value = readEnvValue([name, ...fallbackNames]);
+  return value ?? undefined;
 }
 
 function sanitizeDomain(domain: string) {
@@ -50,12 +79,34 @@ function resolveAuthDomain(projectId: string, explicitDomain?: string | null) {
 export function getFirebasePublicConfig(): FirebasePublicConfig {
   if (cachedConfig) return cachedConfig;
 
-  const projectId = readRequiredEnv("NEXT_PUBLIC_FIREBASE_PROJECT_ID");
-  const apiKey = readRequiredEnv("NEXT_PUBLIC_FIREBASE_API_KEY");
-  const storageBucket = readRequiredEnv("NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET");
-  const appId = readRequiredEnv("NEXT_PUBLIC_FIREBASE_APP_ID");
-  const messagingSenderId = readOptionalEnv("NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID");
-  const authDomain = resolveAuthDomain(projectId, process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN);
+  if (typeof window !== "undefined") {
+    const injected = window.__FIREBASE_PUBLIC_CONFIG;
+    if (injected) {
+      cachedConfig = injected;
+      return injected;
+    }
+  }
+
+  const projectId = readRequiredEnv("NEXT_PUBLIC_FIREBASE_PROJECT_ID", [
+    "FIREBASE_PROJECT_ID",
+    "FIREBASE_ADMIN_PROJECT_ID",
+    "FIREBASE_PROJECT",
+    "GOOGLE_CLOUD_PROJECT",
+    "GCLOUD_PROJECT",
+  ]);
+  const apiKey = readRequiredEnv("NEXT_PUBLIC_FIREBASE_API_KEY", ["FIREBASE_API_KEY"]);
+  const storageBucket = readRequiredEnv("NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET", [
+    "FIREBASE_STORAGE_BUCKET",
+    "FIREBASE_ADMIN_STORAGE_BUCKET",
+  ]);
+  const appId = readRequiredEnv("NEXT_PUBLIC_FIREBASE_APP_ID", [
+    "FIREBASE_APP_ID",
+    "FIREBASE_ADMIN_APP_ID",
+  ]);
+  const messagingSenderId = readOptionalEnv("NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID", [
+    "FIREBASE_MESSAGING_SENDER_ID",
+  ]);
+  const authDomain = resolveAuthDomain(projectId, process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN ?? process.env.FIREBASE_AUTH_DOMAIN);
 
   cachedConfig = {
     apiKey,
@@ -65,6 +116,10 @@ export function getFirebasePublicConfig(): FirebasePublicConfig {
     appId,
     ...(messagingSenderId ? { messagingSenderId } : {}),
   };
+
+  if (typeof window !== "undefined") {
+    window.__FIREBASE_PUBLIC_CONFIG = cachedConfig;
+  }
 
   return cachedConfig;
 }
