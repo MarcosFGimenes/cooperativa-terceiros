@@ -2,7 +2,6 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { toast } from "sonner";
 import { addDoc, collection, serverTimestamp } from "firebase/firestore";
 
@@ -71,11 +70,15 @@ export default function NovoPacotePage() {
 
   return (
     <div className="container mx-auto max-w-3xl px-4 py-6">
-      <div className="mb-6 flex items-center justify-between">
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-semibold">Novo pacote</h1>
-        <Link className="btn-secondary" href="/pacotes">
-          Cancelar
-        </Link>
+        <button
+          type="button"
+          className="btn-secondary"
+          onClick={() => router.push("/dashboard")}
+        >
+          Voltar para o dashboard
+        </button>
       </div>
 
       <form onSubmit={onSubmit} className="space-y-5 rounded-2xl border bg-card/80 p-6 shadow-sm">
