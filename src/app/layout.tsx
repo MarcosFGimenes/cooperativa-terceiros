@@ -7,6 +7,7 @@ import SkipToContent from "@/components/SkipToContent";
 import Footer from "@/components/Footer";
 import PreloadAsFix from "@/components/PreloadAsFix";
 import ThemeScript from "@/components/ThemeScript";
+import FirebaseConfigScript from "@/components/FirebaseConfigScript";
 
 export const metadata = {
   title: "PCM • Terceiros",
@@ -19,6 +20,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       <head>
         <ThemeScript />
         <PreloadAsFix />
+        <FirebaseConfigScript />
       </head>
       <body className="relative bg-background text-foreground">
         <div className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
