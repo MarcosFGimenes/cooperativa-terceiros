@@ -23,9 +23,14 @@ export default async function PackagesListPage() {
           <h1 className="text-2xl font-semibold tracking-tight">Pacotes</h1>
           <p className="text-sm text-muted-foreground">Agrupamentos de serviços com acesso rápido aos detalhes.</p>
         </div>
-        <Link className="btn-primary" href="/pacotes/novo">
-          + Novo Pacote
-        </Link>
+        <div className="flex flex-wrap items-center gap-2">
+          <Link className="btn-secondary" href="/dashboard">
+            Voltar para o dashboard
+          </Link>
+          <Link className="btn-primary" href="/pacotes/novo">
+            + Novo Pacote
+          </Link>
+        </div>
       </div>
 
       {packages.length === 0 ? (

@@ -23,9 +23,14 @@ export default async function ServicesListPage() {
           <h1 className="text-2xl font-semibold tracking-tight">Serviços</h1>
           <p className="text-sm text-muted-foreground">Cadastros recentes com acesso rápido aos detalhes.</p>
         </div>
-        <Link className="btn-primary" href="/servicos/novo">
-          + Novo Serviço
-        </Link>
+        <div className="flex flex-wrap items-center gap-2">
+          <Link className="btn-secondary" href="/dashboard">
+            Voltar para o dashboard
+          </Link>
+          <Link className="btn-primary" href="/servicos/novo">
+            + Novo Serviço
+          </Link>
+        </div>
       </div>
 
       {services.length === 0 ? (

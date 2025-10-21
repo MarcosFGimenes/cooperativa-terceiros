@@ -15,12 +15,15 @@ function normaliseStatus(status: Service["status"]): "Aberto" | "Concluído" | "
 }
 
 function formatDate(value?: number) {
-  if (!value || Number.isNaN(value)) return "";
+  if (value === null || value === undefined) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
   try {
     return new Intl.DateTimeFormat("pt-BR", {
       dateStyle: "short",
       timeStyle: "short",
-    }).format(new Date(value));
+      timeZone: "America/Sao_Paulo",
+    }).format(date);
   } catch (error) {
     return "";
   }
