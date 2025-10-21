@@ -1,18 +1,26 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
 import { addDoc, collection, serverTimestamp } from "firebase/firestore";
 
 import { Field } from "@/components/ui/form-controls";
-import { db } from "@/lib/firebase";
+import { tryGetFirestore } from "@/lib/firebase";
 
 export default function NovoPacotePage() {
   const router = useRouter();
   const [form, setForm] = useState({ nome: "", descricao: "" });
   const [saving, setSaving] = useState(false);
+  const { db: firestore, error: firestoreError } = useMemo(() => tryGetFirestore(), []);
+
+  useEffect(() => {
+    if (firestoreError) {
+      console.error("[pacotes/novo] Firestore indisponível", firestoreError);
+      toast.error("Configuração de banco de dados indisponível.");
+    }
+  }, [firestoreError]);
 
   function updateForm<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -22,6 +30,10 @@ export default function NovoPacotePage() {
     event.preventDefault();
     if (!form.nome.trim()) {
       toast.error("Informe o nome do pacote.");
+      return;
+    }
+    if (!firestore) {
+      toast.error("Banco de dados indisponível.");
       return;
     }
     setSaving(true);
@@ -36,7 +48,7 @@ export default function NovoPacotePage() {
         status: "Aberto",
         createdAt: serverTimestamp(),
       };
-      const ref = await addDoc(collection(db, "packages"), payload);
+      const ref = await addDoc(collection(firestore, "packages"), payload);
       toast.success("Pacote criado com sucesso.");
       router.push(`/pacotes/${ref.id}`);
     } catch (error) {
@@ -45,6 +57,16 @@ export default function NovoPacotePage() {
     } finally {
       setSaving(false);
     }
+  }
+
+  if (!firestore) {
+    return (
+      <div className="container mx-auto max-w-3xl px-4 py-6">
+        <div className="rounded-2xl border bg-card/80 p-6 text-sm text-amber-600 shadow-sm">
+          Não foi possível carregar o banco de dados. Verifique a configuração do Firebase.
+        </div>
+      </div>
+    );
   }
 
   return (

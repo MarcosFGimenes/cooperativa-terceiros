@@ -1,4 +1,4 @@
-import { db } from "@/lib/firebase";
+import { getFirestoreClient } from "@/lib/firebase";
 import { getAdmin } from "@/lib/firebaseAdmin";
 import type {
   ChecklistItem,
@@ -20,6 +20,7 @@ import { FieldValue, Timestamp } from "firebase-admin/firestore";
 
 const getDb = () => getAdmin().db;
 const servicesCollection = () => getDb().collection("services");
+const getClientDb = () => getFirestoreClient();
 
 function toMillis(value: unknown | Timestamp | number | null | undefined) {
   if (typeof value === "number") return value;
@@ -199,13 +200,15 @@ function mapServiceData(id: string, data: Record<string, unknown>): Service {
 }
 
 export async function getServiceById(id: string): Promise<Service | null> {
-  const snap = await getDoc(doc(db, "services", id));
+  const firestore = getClientDb();
+  const snap = await getDoc(doc(firestore, "services", id));
   if (!snap.exists()) return null;
   return mapServiceData(snap.id, snap.data() as DocumentData);
 }
 
 export async function listRecentServices(): Promise<Service[]> {
-  const q = query(collection(db, "services"), orderBy("createdAt", "desc"), limit(20));
+  const firestore = getClientDb();
+  const q = query(collection(firestore, "services"), orderBy("createdAt", "desc"), limit(20));
   const snap = await getDocs(q);
   return snap.docs.map((d) => mapServiceData(d.id, d.data()));
 }

@@ -7,7 +7,7 @@ import { Timestamp, addDoc, collection, getDocs, orderBy, query, serverTimestamp
 
 import { Dialog, DialogClose, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Field, FormRow } from "@/components/ui/form-controls";
-import { db } from "@/lib/firebase";
+import { tryGetFirestore } from "@/lib/firebase";
 import { createAccessToken } from "@/lib/accessTokens";
 
 type ChecklistDraft = Array<{ id: string; descricao: string; peso: number }>;
@@ -55,6 +55,14 @@ export default function NovoServico() {
   const [tokenDialogOpen, setTokenDialogOpen] = useState(false);
   const [issuedToken, setIssuedToken] = useState<string | null>(null);
   const [issuingToken, setIssuingToken] = useState(false);
+  const { db: firestore, error: firestoreError } = useMemo(() => tryGetFirestore(), []);
+
+  useEffect(() => {
+    if (firestoreError) {
+      console.error("[servicos/novo] Firestore indisponível", firestoreError);
+      toast.error("Configuração de banco de dados indisponível.");
+    }
+  }, [firestoreError]);
 
   const totalPeso = useMemo(
     () => checklist.reduce((acc, item) => acc + (Number(item.peso) || 0), 0),
@@ -62,8 +70,9 @@ export default function NovoServico() {
   );
 
   useEffect(() => {
+    if (!firestore) return;
     setLoadingPackages(true);
-    getDocs(query(collection(db, "packages"), orderBy("nome", "asc")))
+    getDocs(query(collection(firestore, "packages"), orderBy("nome", "asc")))
       .then((snapshot) => {
         const result: PackageOption[] = snapshot.docs.map((doc) => {
           const data = doc.data() ?? {};
@@ -76,7 +85,7 @@ export default function NovoServico() {
         toast.error("Não foi possível carregar os pacotes disponíveis.");
       })
       .finally(() => setLoadingPackages(false));
-  }, []);
+  }, [firestore]);
 
   function updateForm<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -125,6 +134,11 @@ export default function NovoServico() {
       return;
     }
 
+    if (!firestore) {
+      toast.error("Banco de dados indisponível.");
+      return;
+    }
+
     setSaving(true);
     try {
       const payload = {
@@ -155,7 +169,7 @@ export default function NovoServico() {
         createdBy: "pcm",
       };
 
-      const servicesCollection = collection(db, "services");
+      const servicesCollection = collection(firestore, "services");
       const docRef = await addDoc(servicesCollection, payload);
       setCreatedServiceId(docRef.id);
       toast.success("Serviço criado com sucesso.");
@@ -199,6 +213,13 @@ export default function NovoServico() {
   }
 
   return (
+    !firestore ? (
+      <div className="container mx-auto max-w-4xl px-4 py-6">
+        <div className="rounded-2xl border bg-card/80 p-6 text-sm text-amber-600 shadow-sm">
+          Não foi possível carregar o banco de dados. Verifique a configuração do Firebase.
+        </div>
+      </div>
+    ) : (
     <div className="container mx-auto max-w-4xl px-4 py-6">
       <div className="mb-6 flex items-center justify-between gap-3">
         <div>
@@ -443,5 +464,6 @@ export default function NovoServico() {
         </DialogContent>
       </Dialog>
     </div>
+    )
   );
 }
