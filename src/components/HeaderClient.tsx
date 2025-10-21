@@ -1,15 +1,20 @@
 "use client";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth/useAuth";
-import { getAuth, signOut } from "firebase/auth";
-import { getClientFirebaseApp } from "@/lib/firebase";
+import { signOut } from "firebase/auth";
+
+import { tryGetAuth } from "@/lib/firebase";
 import ThemeToggle from "@/components/ThemeToggle";
 
 export default function HeaderClient() {
   const { user } = useAuth();
 
   async function doLogout() {
-    const auth = getAuth(getClientFirebaseApp());
+    const { auth, error } = tryGetAuth();
+    if (!auth) {
+      console.error("[header] Autenticação indisponível", error);
+      return;
+    }
     await signOut(auth);
     window.location.href = "/login";
   }

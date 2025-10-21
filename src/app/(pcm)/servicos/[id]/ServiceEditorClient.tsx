@@ -16,7 +16,7 @@ import {
 } from "firebase/firestore";
 
 import { Field, FormRow } from "@/components/ui/form-controls";
-import { db } from "@/lib/firebase";
+import { tryGetFirestore } from "@/lib/firebase";
 
 type ChecklistDraft = Array<{ id: string; descricao: string; peso: number }>;
 
@@ -84,6 +84,24 @@ export default function ServiceEditorClient({ serviceId }: ServiceEditorClientPr
   const [loadingPackages, setLoadingPackages] = useState(false);
   const [updatesLoading, setUpdatesLoading] = useState(false);
   const [updates, setUpdates] = useState<UpdateHistoryItem[]>([]);
+  const { db: firestore, error: firestoreError } = useMemo(() => tryGetFirestore(), []);
+
+  useEffect(() => {
+    if (firestoreError) {
+      console.error("[servicos/:id] Firestore indisponível", firestoreError);
+      toast.error("Configuração de banco de dados indisponível.");
+    }
+  }, [firestoreError]);
+
+  if (!firestore) {
+    return (
+      <div className="grid gap-6">
+        <div className="rounded-2xl border bg-card/80 p-6 text-sm text-amber-600 shadow-sm">
+          Não foi possível carregar o banco de dados. Verifique a configuração do Firebase.
+        </div>
+      </div>
+    );
+  }
 
   const totalPeso = useMemo(
     () => checklist.reduce((acc, item) => acc + (Number(item.peso) || 0), 0),
@@ -91,8 +109,9 @@ export default function ServiceEditorClient({ serviceId }: ServiceEditorClientPr
   );
 
   useEffect(() => {
+    if (!firestore) return;
     setLoadingPackages(true);
-    getDocs(query(collection(db, "packages"), orderBy("nome", "asc")))
+    getDocs(query(collection(firestore, "packages"), orderBy("nome", "asc")))
       .then((snapshot) => {
         const result: PackageOption[] = snapshot.docs.map((docSnap) => {
           const data = docSnap.data() ?? {};
@@ -105,14 +124,16 @@ export default function ServiceEditorClient({ serviceId }: ServiceEditorClientPr
         toast.error("Não foi possível carregar os pacotes disponíveis.");
       })
       .finally(() => setLoadingPackages(false));
-  }, []);
+  }, [firestore]);
 
   useEffect(() => {
     let cancelled = false;
+    if (!firestore) return;
+
     async function loadUpdates() {
       setUpdatesLoading(true);
       try {
-        const ref = doc(db, "services", serviceId);
+        const ref = doc(firestore, "services", serviceId);
         const updatesRef = collection(ref, "serviceUpdates");
         const snap = await getDocs(query(updatesRef, orderBy("date", "desc"), limit(25)));
         const mapped: UpdateHistoryItem[] = snap.docs.map((docSnap) => {
@@ -143,7 +164,7 @@ export default function ServiceEditorClient({ serviceId }: ServiceEditorClientPr
     async function load() {
       setLoading(true);
       try {
-        const ref = doc(db, "services", serviceId);
+        const ref = doc(firestore, "services", serviceId);
         const snap = await getDoc(ref);
         if (!snap.exists()) {
           toast.error("Serviço não encontrado.");
@@ -189,7 +210,7 @@ export default function ServiceEditorClient({ serviceId }: ServiceEditorClientPr
     return () => {
       cancelled = true;
     };
-  }, [serviceId]);
+  }, [firestore, serviceId]);
 
   function updateForm<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -230,9 +251,14 @@ export default function ServiceEditorClient({ serviceId }: ServiceEditorClientPr
       return;
     }
 
+    if (!firestore) {
+      toast.error("Banco de dados indisponível.");
+      return;
+    }
+
     setSaving(true);
     try {
-      const ref = doc(db, "services", serviceId);
+      const ref = doc(firestore, "services", serviceId);
       const payload = {
         os: form.os.trim(),
         oc: form.oc.trim() || null,
@@ -268,9 +294,13 @@ export default function ServiceEditorClient({ serviceId }: ServiceEditorClientPr
   }
 
   async function changeStatus(status: (typeof STATUS_OPTIONS)[number], progresso?: number) {
+    if (!firestore) {
+      toast.error("Banco de dados indisponível.");
+      return;
+    }
     setSaving(true);
     try {
-      const ref = doc(db, "services", serviceId);
+      const ref = doc(firestore, "services", serviceId);
       const payload: Record<string, unknown> = {
         status,
         updatedAt: serverTimestamp(),

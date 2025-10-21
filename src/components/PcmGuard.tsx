@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { onAuthStateChanged } from "firebase/auth";
 
-import { auth } from "@/lib/firebase";
+import { tryGetAuth } from "@/lib/firebase";
 
 type PcmGuardProps = {
   allowlist?: string;
@@ -24,9 +24,19 @@ function parseAllowlist(rawValue: string | undefined): string[] {
 export default function PcmGuard({ children, allowlist }: PcmGuardProps) {
   const normalizedAllowlist = useMemo(() => parseAllowlist(allowlist), [allowlist]);
   const [state, setState] = useState<GuardState>("loading");
+  const { auth: authInstance, error: authError } = useMemo(() => tryGetAuth(), []);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    if (authError) {
+      console.error("[pcm-guard] Falha ao inicializar autenticação do Firebase", authError);
+      setState("unauthenticated");
+    }
+  }, [authError]);
+
+  useEffect(() => {
+    if (!authInstance) return;
+
+    const unsubscribe = onAuthStateChanged(authInstance, (user) => {
       if (!user) {
         setState("unauthenticated");
         return;
@@ -44,7 +54,15 @@ export default function PcmGuard({ children, allowlist }: PcmGuardProps) {
     return () => {
       unsubscribe();
     };
-  }, [normalizedAllowlist]);
+  }, [authInstance, normalizedAllowlist]);
+
+  if (!authInstance) {
+    return (
+      <div className="p-6 text-sm text-amber-600">
+        A autenticação não pôde ser carregada. Entre em contato com o suporte.
+      </div>
+    );
+  }
 
   if (state === "loading") {
     return <div className="p-6 text-sm text-gray-500">Carregando…</div>;

@@ -1,4 +1,4 @@
-import { auth, db } from "./firebase";
+import { tryGetAuth, tryGetFirestore } from "./firebase";
 import { collection, doc, getDoc, serverTimestamp, setDoc } from "firebase/firestore";
 
 export function randomToken(len = 8) {
@@ -37,9 +37,11 @@ function normaliseScope(payload: {
 }
 
 async function createTokenViaAdmin(scope: NormalisedScope): Promise<string> {
-  const user = auth.currentUser;
+  const { auth, error } = tryGetAuth();
+  const user = auth?.currentUser;
   if (!user) {
-    throw Object.assign(new Error("Faça login novamente para gerar tokens."), { status: 401 });
+    const fallbackError = error ?? new Error("Faça login novamente para gerar tokens.");
+    throw Object.assign(fallbackError, { status: 401 });
   }
 
   const idToken = await user.getIdToken();
@@ -81,6 +83,10 @@ async function createTokenViaAdmin(scope: NormalisedScope): Promise<string> {
 }
 
 async function createTokenFallback(scope: NormalisedScope): Promise<string> {
+  const { db, error } = tryGetFirestore();
+  if (!db) {
+    throw error ?? new Error("Firestore não está configurado para gerar tokens.");
+  }
   let code = randomToken(8);
   for (let attempt = 0; attempt < 5; attempt++) {
     const ref = doc(collection(db, "accessTokens"), code);
