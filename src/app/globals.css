@@ -93,7 +93,6 @@ h3 { @apply text-lg sm:text-xl font-medium; }
 :focus-visible { @apply outline-none ring-2 ring-primary/40 ring-offset-2 ring-offset-background; }
 
 /* Utilitários */
-.btn-ghost { @apply inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors active:scale-[.98] disabled:opacity-50 disabled:pointer-events-none bg-transparent hover:bg-muted; }
 
 /* Skeleton & spinner */
 .skeleton { @apply animate-pulse rounded-md bg-muted; }
@@ -174,13 +173,36 @@ input:-webkit-autofill:focus {
 .select, .textarea { @apply block w-full rounded-lg border border-input bg-background px-4 text-[15px] placeholder:text-muted-foreground focus:ring-2 focus:ring-primary/40 focus:outline-none; }
 .textarea { @apply h-auto py-3; }
 
-.btn-primary, .btn-secondary, .btn-outline, .btn-ghost {
-  @apply inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors h-10 px-4 sm:h-11 sm:px-5;
+.btn,
+.btn-primary,
+.btn-secondary,
+.btn-outline,
+.btn-ghost,
+.btn-destructive,
+.btn-link {
+  @apply inline-flex items-center justify-center gap-2 rounded-md text-sm font-medium transition-colors transition-transform;
+  @apply h-10 px-4 sm:h-11 sm:px-5;
+  @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-2 focus-visible:ring-offset-background;
+  @apply disabled:pointer-events-none disabled:opacity-50 active:scale-[.98];
 }
-.btn-primary   { @apply bg-primary text-primary-foreground hover:opacity-90; }
-.btn-secondary { @apply bg-secondary text-secondary-foreground hover:opacity-90; }
-.btn-outline   { @apply border hover:bg-accent hover:text-accent-foreground; }
-.btn-ghost     { @apply hover:bg-accent/50; }
+.btn-primary {
+  @apply bg-primary text-primary-foreground hover:bg-primary/90 active:bg-primary/80;
+}
+.btn-secondary {
+  @apply bg-secondary text-secondary-foreground hover:bg-secondary/90 active:bg-secondary/80;
+}
+.btn-outline {
+  @apply border border-border bg-transparent text-foreground hover:bg-accent hover:text-accent-foreground active:bg-accent/80;
+}
+.btn-ghost {
+  @apply bg-transparent hover:bg-accent/50 text-foreground active:bg-accent/60;
+}
+.btn-destructive {
+  @apply bg-destructive text-destructive-foreground hover:bg-destructive/90 active:bg-destructive/80;
+}
+.btn-link {
+  @apply bg-transparent text-primary underline-offset-4 hover:underline hover:text-primary/80;
+}
 .input { @apply h-11 w-full rounded-md border border-input bg-background px-3 text-sm placeholder:text-muted-foreground/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30; }
 .card { @apply rounded-3xl border border-border/70 bg-card/95 text-card-foreground shadow-lg shadow-primary/5 backdrop-blur-sm dark:border-slate-800/70 dark:bg-card/70; }
 .link { @apply font-medium text-primary underline-offset-4 transition-colors hover:text-primary/80 hover:underline; }

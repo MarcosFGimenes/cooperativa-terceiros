@@ -176,7 +176,7 @@ export default function ServiceMetadataForm({ serviceId, initial }: Props) {
       ) : null}
 
       <div className="flex justify-end">
-        <button type="submit" className="btn-primary" disabled={saving}>
+        <button type="submit" className="btn btn-primary" disabled={saving}>
           {saving ? "Salvando…" : "Salvar alterações"}
         </button>
       </div>

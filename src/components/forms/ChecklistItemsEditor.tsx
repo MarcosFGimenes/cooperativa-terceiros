@@ -53,7 +53,7 @@ export default function ChecklistItemsEditor({ items, onChange, disabled }: Chec
     <div className="space-y-4 rounded-lg border border-border/60 bg-background p-4 shadow-soft">
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-semibold tracking-tight">Itens do checklist</h3>
-        <button type="button" onClick={addItem} disabled={disabled} className="btn-secondary text-xs">
+        <button type="button" onClick={addItem} disabled={disabled} className="btn btn-secondary text-xs">
           Adicionar linha
         </button>
       </div>
@@ -105,7 +105,7 @@ export default function ChecklistItemsEditor({ items, onChange, disabled }: Chec
                     type="button"
                     onClick={() => removeItem(item.id)}
                     disabled={disabled}
-                    className="btn-ghost text-xs text-destructive disabled:opacity-50"
+                    className="btn btn-ghost text-xs text-destructive disabled:opacity-50"
                   >
                     Remover
                   </button>

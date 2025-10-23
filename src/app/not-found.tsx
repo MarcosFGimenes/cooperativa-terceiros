@@ -9,8 +9,8 @@ export default function NotFound() {
           O recurso solicitado não existe ou foi movido.
         </p>
         <div className="mt-4 flex items-center justify-center gap-2">
-          <Link className="btn-secondary" href="/">Ir para a página inicial</Link>
-          <Link className="btn-primary" href="/login">Ir para o login</Link>
+          <Link className="btn btn-secondary" href="/">Ir para a página inicial</Link>
+          <Link className="btn btn-primary" href="/login">Ir para o login</Link>
         </div>
       </div>
     </div>

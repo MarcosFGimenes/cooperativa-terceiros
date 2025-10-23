@@ -71,10 +71,10 @@ export default function ThemeToggle() {
     <button
       type="button"
       aria-label="Alternar tema"
-      className="btn-ghost h-11 w-11 rounded-full"
+      className="btn btn-ghost h-11 w-11 rounded-full"
       data-theme={theme}
       onClick={toggleTheme}
-      >
+    >
       {theme === "dark" ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
     </button>
   );

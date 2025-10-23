@@ -24,10 +24,10 @@ export default async function ServicesListPage() {
           <p className="text-sm text-muted-foreground">Cadastros recentes com acesso rápido aos detalhes.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Link className="btn-secondary" href="/dashboard">
+          <Link className="btn btn-secondary" href="/dashboard">
             Voltar para o dashboard
           </Link>
-          <Link className="btn-primary" href="/servicos/novo">
+          <Link className="btn btn-primary" href="/servicos/novo">
             + Novo Serviço
           </Link>
         </div>

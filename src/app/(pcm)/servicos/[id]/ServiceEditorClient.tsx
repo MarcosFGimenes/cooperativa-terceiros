@@ -443,7 +443,7 @@ export default function ServiceEditorClient({ serviceId }: ServiceEditorClientPr
                 <div className="mt-4 space-y-4">
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-semibold text-muted-foreground">Itens do checklist</span>
-                    <button type="button" onClick={addChecklistItem} className="btn-secondary text-xs">
+                    <button type="button" onClick={addChecklistItem} className="btn btn-secondary text-xs">
                       Adicionar item
                     </button>
                   </div>
@@ -522,7 +522,7 @@ export default function ServiceEditorClient({ serviceId }: ServiceEditorClientPr
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <button
                 type="button"
-                className="btn-secondary"
+                className="btn btn-secondary"
                 onClick={saveChanges}
                 disabled={saving}
                 aria-busy={saving}
@@ -532,7 +532,7 @@ export default function ServiceEditorClient({ serviceId }: ServiceEditorClientPr
               <div className="flex flex-wrap gap-2">
                 <button
                   type="button"
-                  className="btn-primary"
+                  className="btn btn-primary"
                   onClick={() => changeStatus("Concluído", 100)}
                   disabled={saving}
                 >
@@ -540,7 +540,7 @@ export default function ServiceEditorClient({ serviceId }: ServiceEditorClientPr
                 </button>
                 <button
                   type="button"
-                  className="btn-ghost text-destructive"
+                  className="btn btn-ghost text-destructive"
                   onClick={() => changeStatus("Encerrado")}
                   disabled={saving}
                 >

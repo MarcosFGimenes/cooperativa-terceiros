@@ -3,6 +3,7 @@ export const revalidate = 0;
 
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { ArrowLeft, Pencil } from "lucide-react";
 
 import SCurve from "@/components/SCurve";
 import { plannedCurve, realizedFromChecklist, realizedFromUpdates } from "@/lib/curve";
@@ -200,10 +201,12 @@ export default async function ServiceDetailPage({ params }: { params: { id: stri
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Link className="btn-secondary" href="/dashboard">
+          <Link className="btn btn-secondary" href="/dashboard">
+            <ArrowLeft aria-hidden="true" className="h-4 w-4" />
             Voltar
           </Link>
-          <Link className="btn-primary" href={`/servicos/${baseService.id}/editar`}>
+          <Link className="btn btn-primary" href={`/servicos/${baseService.id}/editar`}>
+            <Pencil aria-hidden="true" className="h-4 w-4" />
             Editar
           </Link>
           <DeleteServiceButton serviceId={baseService.id} serviceLabel={serviceLabel} />

@@ -137,7 +137,7 @@ export default async function PackageDetailPage({ params }: { params: { id: stri
           <h1 className="text-2xl font-semibold tracking-tight">Pacote {pkg.name || pkg.code || pkg.id}</h1>
           <p className="text-sm text-muted-foreground">Resumo do pacote, serviços vinculados e curva S consolidada.</p>
         </div>
-        <Link className="btn-secondary" href="/pacotes">
+        <Link className="btn btn-secondary" href="/pacotes">
           Voltar
         </Link>
       </div>

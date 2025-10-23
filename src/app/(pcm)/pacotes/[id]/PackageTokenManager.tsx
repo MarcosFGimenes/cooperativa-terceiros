@@ -102,7 +102,7 @@ export default function PackageTokenManager({ packageId, companies }: Props) {
                   </div>
                   <button
                     type="button"
-                    className="btn-secondary text-xs"
+                    className="btn btn-secondary text-xs"
                     onClick={() => handleGenerate(id, company.companyName || id)}
                     disabled={busy}
                     aria-busy={busy}
@@ -132,7 +132,7 @@ export default function PackageTokenManager({ packageId, companies }: Props) {
           />
           <button
             type="button"
-            className="btn-primary"
+            className="btn btn-primary"
             onClick={() => handleGenerate(customCompany.trim() || undefined, customCompany.trim() || undefined)}
             disabled={isGenerating !== null}
             aria-busy={isGenerating !== null && isGenerating !== "__all"}
@@ -154,7 +154,7 @@ export default function PackageTokenManager({ packageId, companies }: Props) {
             </div>
             <button
               type="button"
-              className="btn-secondary text-xs"
+              className="btn btn-secondary text-xs"
               onClick={() => copyToClipboard(generated.link)}
             >
               Copiar link de acesso

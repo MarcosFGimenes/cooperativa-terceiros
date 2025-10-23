@@ -52,16 +52,16 @@ export default function ServiceRowActions({ service }: Props) {
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap gap-2">
-        <Link href={`/(pcm)/servicos/${service.id}?tab=details`} className="btn-secondary text-xs">
+        <Link href={`/(pcm)/servicos/${service.id}?tab=details`} className="btn btn-secondary text-xs">
           Editar
         </Link>
-        <Link href={`/(pcm)/servicos/${service.id}?tab=updates`} className="btn-secondary text-xs">
+        <Link href={`/(pcm)/servicos/${service.id}?tab=updates`} className="btn btn-secondary text-xs">
           Abrir serviço
         </Link>
-        <button type="button" onClick={generateToken} disabled={isLoading} className="btn-primary text-xs">
+        <button type="button" onClick={generateToken} disabled={isLoading} className="btn btn-primary text-xs">
           {isLoading ? "Gerando…" : "Gerar token"}
         </button>
-        <button type="button" onClick={openPdf} className="btn-secondary text-xs">
+        <button type="button" onClick={openPdf} className="btn btn-secondary text-xs">
           Exportar PDF
         </button>
       </div>

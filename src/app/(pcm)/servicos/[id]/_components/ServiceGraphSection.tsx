@@ -112,12 +112,12 @@ export default function ServiceGraphSection({ service, planned, actual }: Servic
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          <button type="button" className="btn-secondary" onClick={handlePrint}>
+          <button type="button" className="btn btn-secondary" onClick={handlePrint}>
             Imprimir/Salvar PDF
           </button>
           <button
             type="button"
-            className="btn-ghost"
+            className="btn btn-ghost"
             onClick={handleExportCsv}
             disabled={!rows.length}
           >
