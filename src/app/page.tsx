@@ -9,10 +9,10 @@ export default function Home() {
           Acompanhe os serviços de terceiros (PCM).
         </p>
         <div className="mt-6 flex flex-wrap gap-3">
-          <Link className="btn-primary" href="/login">
+          <Link className="btn btn-primary" href="/login">
             Entrar
           </Link>
-          <Link className="btn-secondary" href="/acesso">
+          <Link className="btn btn-secondary" href="/acesso">
             Acesso por token
           </Link>
         </div>

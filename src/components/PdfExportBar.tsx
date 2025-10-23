@@ -103,10 +103,10 @@ export default function PdfExportBar({
 
   return (
     <div className="flex gap-2">
-      <button type="button" onClick={handlePrint} className="btn-secondary">
+      <button type="button" onClick={handlePrint} className="btn btn-secondary">
         Imprimir
       </button>
-      <button type="button" onClick={handleExportPdf} disabled={isExporting} className="btn-primary">
+      <button type="button" onClick={handleExportPdf} disabled={isExporting} className="btn btn-primary">
         {isExporting ? "Exportando…" : "Exportar PDF"}
       </button>
     </div>

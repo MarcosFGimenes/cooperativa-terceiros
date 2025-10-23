@@ -8,7 +8,7 @@ export default function ReportsPage() {
       <div className="container-page">
         <PageHeader title="Relatórios" subtitle="Exportação de PDFs e gráficos" />
         <div className="card">
-          <button type="button" className="btn-primary">Exportar PDF (em breve)</button>
+          <button type="button" className="btn btn-primary">Exportar PDF (em breve)</button>
         </div>
       </div>
     </RequireAuth>

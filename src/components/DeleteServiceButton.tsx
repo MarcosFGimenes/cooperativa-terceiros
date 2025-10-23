@@ -3,6 +3,7 @@
 import { type ReactNode, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { Trash2 } from "lucide-react";
 
 import {
   Dialog,
@@ -86,11 +87,16 @@ export default function DeleteServiceButton({
         <button
           type="button"
           className={cn(
-            triggerClassName ??
-              "btn-outline border-destructive text-destructive hover:bg-destructive/10",
+            "btn btn-destructive",
+            triggerClassName,
           )}
         >
-          {children ?? "Excluir"}
+          {children ?? (
+            <>
+              <Trash2 aria-hidden="true" className="h-4 w-4" />
+              Excluir
+            </>
+          )}
         </button>
       </DialogTrigger>
       <DialogContent>
@@ -103,13 +109,13 @@ export default function DeleteServiceButton({
         </DialogDescription>
         <div className="mt-4 flex justify-end gap-3">
           <DialogClose asChild>
-            <button type="button" className="btn-secondary" disabled={isDeleting}>
+            <button type="button" className="btn btn-secondary" disabled={isDeleting}>
               Cancelar
             </button>
           </DialogClose>
           <button
             type="button"
-            className="btn-primary bg-destructive text-destructive-foreground hover:opacity-90"
+            className="btn btn-destructive"
             onClick={deleteService}
             disabled={isDeleting}
           >

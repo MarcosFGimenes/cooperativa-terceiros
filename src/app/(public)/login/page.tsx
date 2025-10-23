@@ -118,7 +118,7 @@ export default function LoginPage() {
 
           <button
             type="submit"
-            className="btn-primary h-11 px-5 shadow-md shadow-primary/20 transition-transform hover:-translate-y-[1px]"
+            className="btn btn-primary h-11 px-5 shadow-md shadow-primary/20 transition-transform hover:-translate-y-[1px]"
             disabled={loading || !authInstance}
             aria-busy={loading}
           >

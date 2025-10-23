@@ -5,7 +5,15 @@ import Link from "next/link";
 import { toast } from "sonner";
 import { Timestamp, addDoc, collection, getDocs, orderBy, query, serverTimestamp } from "firebase/firestore";
 
-import { Dialog, DialogClose, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogClose,
+  DialogCloseIcon,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Field, FormRow } from "@/components/ui/form-controls";
 import { tryGetFirestore } from "@/lib/firebase";
 import { createAccessToken } from "@/lib/accessTokens";
@@ -54,6 +62,7 @@ export default function NovoServico() {
   const [createdServiceId, setCreatedServiceId] = useState<string | null>(null);
   const [tokenDialogOpen, setTokenDialogOpen] = useState(false);
   const [issuedToken, setIssuedToken] = useState<string | null>(null);
+  const [issuedTokenLink, setIssuedTokenLink] = useState<string | null>(null);
   const [issuingToken, setIssuingToken] = useState(false);
   const { db: firestore, error: firestoreError } = useMemo(() => tryGetFirestore(), []);
 
@@ -181,6 +190,12 @@ export default function NovoServico() {
     }
   }
 
+  function buildTokenLink(code: string | null | undefined) {
+    if (!code) return "";
+    const origin = typeof window !== "undefined" ? window.location.origin : "";
+    return origin ? `${origin}/acesso?token=${code}` : `/acesso?token=${code}`;
+  }
+
   async function issueServiceToken() {
     if (!createdServiceId) return;
     setIssuingToken(true);
@@ -190,6 +205,7 @@ export default function NovoServico() {
         empresa: form.empresaId.trim() || undefined,
       });
       setIssuedToken(code);
+      setIssuedTokenLink(buildTokenLink(code));
       setTokenDialogOpen(true);
       toast.success(`Token gerado: ${code}`);
     } catch (error) {
@@ -202,8 +218,7 @@ export default function NovoServico() {
 
   async function copyTokenLink() {
     if (!issuedToken) return;
-    const origin = typeof window !== "undefined" ? window.location.origin : "";
-    const url = `${origin}/acesso?token=${issuedToken}`;
+    const url = issuedTokenLink ?? buildTokenLink(issuedToken);
     try {
       await navigator.clipboard.writeText(url);
       toast.success("Link copiado para a área de transferência.");
@@ -228,7 +243,7 @@ export default function NovoServico() {
             Cadastre um novo serviço e, se necessário, já defina o checklist de execução.
           </p>
         </div>
-        <Link className="btn-secondary" href="/dashboard">
+        <Link className="btn btn-secondary" href="/dashboard">
           Voltar para o dashboard
         </Link>
       </div>
@@ -337,7 +352,7 @@ export default function NovoServico() {
             <div className="mt-4 space-y-4">
               <div className="flex items-center justify-between">
                 <span className="text-sm font-semibold text-muted-foreground">Itens do checklist</span>
-                <button type="button" onClick={addChecklistItem} className="btn-secondary text-xs">
+                    <button type="button" onClick={addChecklistItem} className="btn btn-secondary text-xs">
                   Adicionar item
                 </button>
               </div>
@@ -417,7 +432,7 @@ export default function NovoServico() {
           <p className="text-sm text-muted-foreground">
             Revise os dados antes de salvar. Você poderá editar o serviço depois.
           </p>
-          <button type="submit" className="btn-primary" aria-busy={saving} disabled={saving}>
+          <button type="submit" className="btn btn-primary" aria-busy={saving} disabled={saving}>
             {saving ? "Salvando..." : "Salvar serviço"}
           </button>
         </div>
@@ -434,7 +449,7 @@ export default function NovoServico() {
             </div>
             <button
               type="button"
-              className="btn-secondary"
+              className="btn btn-secondary"
               onClick={issueServiceToken}
               disabled={issuingToken}
               aria-busy={issuingToken}
@@ -446,20 +461,40 @@ export default function NovoServico() {
       ) : null}
 
       <Dialog open={tokenDialogOpen} onOpenChange={setTokenDialogOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-lg space-y-4">
+          <DialogCloseIcon />
           <DialogHeader>
             <DialogTitle>Token gerado</DialogTitle>
+            <DialogDescription>
+              Compartilhe o token abaixo com o terceiro responsável. Ele poderá acessar a tela pública e informar o progresso
+              do serviço.
+            </DialogDescription>
           </DialogHeader>
-          <p className="text-sm text-muted-foreground">
-            Compartilhe o token abaixo com o terceiro responsável. Ele poderá acessar a tela pública e informar o progresso do
-            serviço.
-          </p>
-          <div className="mt-4 rounded-lg border bg-muted/30 p-3 font-mono text-sm tracking-wide">{issuedToken}</div>
-          <div className="mt-4 flex flex-wrap gap-2">
-            <button type="button" className="btn-primary" onClick={copyTokenLink}>
-              Copiar link
-            </button>
-            <DialogClose className="btn-secondary">Fechar</DialogClose>
+          <div className="space-y-4">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Código do token</p>
+              <div className="mt-1 rounded-lg border bg-muted/30 p-3 font-mono text-sm tracking-wide">{issuedToken}</div>
+            </div>
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Link de acesso</p>
+              <div className="mt-1 flex flex-col gap-2 sm:flex-row">
+                <input
+                  type="text"
+                  readOnly
+                  value={issuedToken ? issuedTokenLink ?? buildTokenLink(issuedToken) : ""}
+                  className="input flex-1"
+                  onFocus={(event) => event.currentTarget.select()}
+                />
+                <button type="button" className="btn btn-primary sm:w-auto" onClick={copyTokenLink}>
+                  Copiar link
+                </button>
+              </div>
+            </div>
+          </div>
+          <div className="flex justify-end">
+            <DialogClose className="btn btn-secondary" type="button">
+              Fechar
+            </DialogClose>
           </div>
         </DialogContent>
       </Dialog>

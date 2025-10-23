@@ -105,7 +105,7 @@ export default function DashboardFilters({ companies, packages, current }: Dashb
         <div className="flex items-end gap-2">
           <button
             type="submit"
-            className="btn-primary flex-1"
+            className="btn btn-primary flex-1"
             disabled={isPending}
           >
             {isPending ? "Aplicando…" : "Aplicar filtros"}
@@ -113,7 +113,7 @@ export default function DashboardFilters({ companies, packages, current }: Dashb
           <button
             type="button"
             onClick={resetFilters}
-            className="btn-secondary"
+            className="btn btn-secondary"
             disabled={isPending}
           >
             {isPending ? "…" : "Limpar"}

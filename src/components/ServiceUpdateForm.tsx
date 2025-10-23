@@ -62,7 +62,7 @@ export default function ServiceUpdateForm({ lastProgress = 0, onSubmit }:{
           {...register("note")}
         />
       </div>
-      <button disabled={isSubmitting} className="btn-primary">
+      <button disabled={isSubmitting} className="btn btn-primary">
         {isSubmitting ? "Salvando…" : "Salvar atualização"}
       </button>
     </form>

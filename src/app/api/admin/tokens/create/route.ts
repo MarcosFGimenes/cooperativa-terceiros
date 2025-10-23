@@ -66,21 +66,38 @@ async function persistToken(
   db: FirebaseFirestore.Firestore,
   data: { targetType: "service" | "package"; targetId: string; company?: string; expiresAt?: Timestamp },
 ): Promise<string> {
-  const basePayload: Record<string, unknown> = {
-    targetType: data.targetType,
-    targetId: data.targetId,
-    active: true,
-    createdAt: Date.now(),
-  };
-  if (data.company) basePayload.company = data.company;
-  if (data.expiresAt) basePayload.expiresAt = data.expiresAt;
-
   const col = db.collection("accessTokens");
 
   for (let attempt = 0; attempt < 5; attempt++) {
     const token = randomLengthToken();
+    const normalizedCompany = data.company?.trim();
+    const payload: Record<string, unknown> = {
+      code: token,
+      token,
+      targetType: data.targetType,
+      targetId: data.targetId,
+      active: true,
+      status: "active",
+      createdAt: Timestamp.now(),
+    };
+
+    if (data.expiresAt) payload.expiresAt = data.expiresAt;
+    if (normalizedCompany) {
+      payload.company = normalizedCompany;
+      payload.companyId = normalizedCompany;
+      payload.empresa = normalizedCompany;
+      payload.empresaId = normalizedCompany;
+    }
+
+    if (data.targetType === "service") {
+      payload.serviceId = data.targetId;
+    } else {
+      payload.packageId = data.targetId;
+      payload.pacoteId = data.targetId;
+    }
+
     try {
-      await col.doc(token).create(basePayload);
+      await col.doc(token).create(payload);
       return token;
     } catch (err: unknown) {
       const error = err as { code?: unknown; details?: unknown; message?: unknown };

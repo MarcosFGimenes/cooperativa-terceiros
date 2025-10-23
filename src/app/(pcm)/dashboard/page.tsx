@@ -52,10 +52,10 @@ export default async function DashboardPCM() {
           <p className="text-sm text-muted-foreground">Acompanhe cadastros recentes de serviços e pacotes.</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Link className="btn-primary" href="/servicos/novo">
+          <Link className="btn btn-primary" href="/servicos/novo">
             + Novo Serviço
           </Link>
-          <Link className="btn-secondary" href="/pacotes/novo">
+          <Link className="btn btn-secondary" href="/pacotes/novo">
             + Novo Pacote
           </Link>
         </div>
@@ -87,7 +87,7 @@ export default async function DashboardPCM() {
               <h2 className="text-lg font-semibold">Serviços recentes</h2>
               <p className="text-xs text-muted-foreground">Últimos cadastros com status e andamento.</p>
             </div>
-            <Link className="btn-ghost" href="/servicos">
+            <Link className="btn btn-ghost" href="/servicos">
               Ver todos
             </Link>
           </div>
@@ -135,7 +135,7 @@ export default async function DashboardPCM() {
               <h2 className="text-lg font-semibold">Pacotes recentes</h2>
               <p className="text-xs text-muted-foreground">Últimos pacotes cadastrados.</p>
             </div>
-            <Link className="btn-ghost" href="/pacotes">
+            <Link className="btn btn-ghost" href="/pacotes">
               Ver todos
             </Link>
           </div>

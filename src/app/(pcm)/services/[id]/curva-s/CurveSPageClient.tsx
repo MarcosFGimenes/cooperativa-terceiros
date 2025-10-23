@@ -45,10 +45,10 @@ export default function CurveSPageClient({ serviceId, serviceName, periodLabel, 
           {periodLabel ? <p className="text-muted-foreground">Período planejado: {periodLabel}</p> : null}
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          <button type="button" className="btn-outline h-11 px-5" onClick={downloadCsv} disabled={!hasData}>
+          <button type="button" className="btn btn-outline h-11 px-5" onClick={downloadCsv} disabled={!hasData}>
             Baixar CSV
           </button>
-          <button type="button" className="btn-secondary h-11 px-5" onClick={() => window.print()}>
+          <button type="button" className="btn btn-secondary h-11 px-5" onClick={() => window.print()}>
             Imprimir / PDF
           </button>
         </div>

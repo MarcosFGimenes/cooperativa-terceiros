@@ -24,10 +24,10 @@ export default async function PackagesListPage() {
           <p className="text-sm text-muted-foreground">Agrupamentos de serviços com acesso rápido aos detalhes.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Link className="btn-secondary" href="/dashboard">
+          <Link className="btn btn-secondary" href="/dashboard">
             Voltar para o dashboard
           </Link>
-          <Link className="btn-primary" href="/pacotes/novo">
+          <Link className="btn btn-primary" href="/pacotes/novo">
             + Novo Pacote
           </Link>
         </div>

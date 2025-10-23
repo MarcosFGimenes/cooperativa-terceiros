@@ -74,7 +74,7 @@ export default function NovoPacotePage() {
         <h1 className="text-2xl font-semibold">Novo pacote</h1>
         <button
           type="button"
-          className="btn-secondary"
+          className="btn btn-secondary"
           onClick={() => router.push("/dashboard")}
         >
           Voltar para o dashboard
@@ -97,7 +97,7 @@ export default function NovoPacotePage() {
           <p className="text-xs text-muted-foreground">Texto livre para contextualizar o pacote.</p>
         </div>
 
-        <button type="submit" className="btn-primary" aria-busy={saving} disabled={saving}>
+        <button type="submit" className="btn btn-primary" aria-busy={saving} disabled={saving}>
           {saving ? "Salvando..." : "Salvar pacote"}
         </button>
       </form>

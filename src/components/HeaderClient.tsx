@@ -35,7 +35,7 @@ export default function HeaderClient() {
           <button
             type="button"
             onClick={doLogout}
-            className="btn-ghost"
+            className="btn btn-ghost"
           >
             Sair
           </button>

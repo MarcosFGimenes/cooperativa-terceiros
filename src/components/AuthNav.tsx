@@ -34,7 +34,7 @@ export default function AuthNav() {
       <Link className="link" href="/servicos">Serviços</Link>
       <Link className="link" href="/pacotes">Pacotes</Link>
       <Link className="link" href="/relatorios">Relatórios</Link>
-      <button type="button" className="btn-outline h-9 px-3" onClick={() => signOut(authInstance)}>Sair</button>
+      <button type="button" className="btn btn-outline h-9 px-3" onClick={() => signOut(authInstance)}>Sair</button>
     </nav>
   );
 }
