@@ -1,6 +1,7 @@
 import { getAuth, type DecodedIdToken } from "firebase-admin/auth";
 
 import { getAdminApp } from "@/lib/firebaseAdmin";
+import { verifyFirebaseIdToken } from "@/lib/firebaseIdentity";
 import { isPCMUser } from "@/lib/pcmAuth";
 
 export class HttpError extends Error {
@@ -13,7 +14,7 @@ export class HttpError extends Error {
 export type AuthenticatedUser = {
   uid: string;
   email: string;
-  token: DecodedIdToken;
+  token?: DecodedIdToken;
 };
 
 export async function requirePcmUser(req: Request): Promise<AuthenticatedUser> {
@@ -32,23 +33,42 @@ export async function requirePcmUser(req: Request): Promise<AuthenticatedUser> {
     throw new HttpError(503, "Firebase Admin não configurado");
   }
 
-  let decoded: DecodedIdToken;
-  try {
-    decoded = await getAuth(app).verifyIdToken(match[1]);
-  } catch (err: unknown) {
-    console.error("[requirePcmUser] Falha ao verificar token", err);
+  const bearerToken = match[1]!.trim();
+  if (!bearerToken) {
     throw new HttpError(401, "Token inválido");
   }
 
-  const email = decoded.email;
+  try {
+    const decoded = await getAuth(app).verifyIdToken(bearerToken);
+    const email = decoded.email;
+    if (!email) {
+      throw new HttpError(401, "Token não possui e-mail associado");
+    }
+
+    if (!isPCMUser(email)) {
+      console.error("[requirePcmUser] Usuário não autorizado", { email });
+      throw new HttpError(401, "Usuário não autorizado");
+    }
+
+    return { uid: decoded.uid, email: email.toLowerCase(), token: decoded };
+  } catch (err: unknown) {
+    console.error("[requirePcmUser] Falha ao verificar token com Firebase Admin", err);
+  }
+
+  const fallback = await verifyFirebaseIdToken(bearerToken);
+  if (!fallback) {
+    throw new HttpError(401, "Token inválido");
+  }
+
+  const email = fallback.email;
   if (!email) {
     throw new HttpError(401, "Token não possui e-mail associado");
   }
 
   if (!isPCMUser(email)) {
-    console.error("[requirePcmUser] Usuário não autorizado", { email });
+    console.error("[requirePcmUser] Usuário não autorizado (fallback)", { email });
     throw new HttpError(401, "Usuário não autorizado");
   }
 
-  return { uid: decoded.uid, email: email.toLowerCase(), token: decoded };
+  return { uid: fallback.uid, email: email.toLowerCase() };
 }
