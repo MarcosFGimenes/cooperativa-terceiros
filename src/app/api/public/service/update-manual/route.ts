@@ -1,3 +1,4 @@
+import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
 import { PublicAccessError, requireServiceAccess } from "@/lib/public-access";
@@ -6,7 +7,9 @@ import { addManualUpdate } from "@/lib/repo/services";
 export async function POST(req: Request) {
   const { searchParams } = new URL(req.url);
   const serviceId = searchParams.get("serviceId") ?? "";
-  const token = searchParams.get("token") ?? "";
+  const queryToken = searchParams.get("token");
+  const cookieToken = cookies().get("access_token")?.value ?? "";
+  const token = queryToken && queryToken.trim() ? queryToken.trim() : cookieToken;
 
   try {
     const { service } = await requireServiceAccess(token, serviceId);
