@@ -1,12 +1,16 @@
-import { getFirestoreClient } from "@/lib/firebase";
+import { tryGetFirestore } from "@/lib/firebase";
 import { collection, orderBy, query, where } from "firebase/firestore";
 
 export function servicesQueryForCompany(companyId: string) {
-  const firestore = getFirestoreClient();
+  const normalizedCompanyId = companyId.trim();
+  const { db, error } = tryGetFirestore();
+  if (!db) {
+    throw error ?? new Error("Firestore client is not available");
+  }
   return query(
-    collection(firestore, "services"),
+    collection(db, "services"),
     where("status", "==", "Aberto"),
-    where("assignedTo.companyId", "==", companyId),
+    where("assignedTo.companyId", "==", normalizedCompanyId),
     orderBy("createdAt", "desc"),
   );
 }
