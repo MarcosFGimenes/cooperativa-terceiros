@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { onSnapshot } from "firebase/firestore";
+import { onSnapshot, type FirestoreError } from "firebase/firestore";
 
 import { servicesQueryForCompany } from "@/lib/repo/services-client";
 
@@ -34,9 +34,39 @@ export default function TerceiroHome() {
   const [items, setItems] = useState<ServiceItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [connectionIssue, setConnectionIssue] = useState<string | null>(null);
+  const [sessionRetryKey, setSessionRetryKey] = useState(0);
+  const [listenerSeed, setListenerSeed] = useState(0);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const stored = window.localStorage.getItem("companyId");
+    if (stored) {
+      setCompanyId((current) => current ?? stored);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const handleOnline = () => {
+      setConnectionIssue(null);
+      setSessionRetryKey((value) => value + 1);
+      setListenerSeed((value) => value + 1);
+    };
+    const handleOffline = () => {
+      setConnectionIssue("Sem conexão com a internet. Exibindo dados disponíveis.");
+    };
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
+    let retryTimeout: ReturnType<typeof setTimeout> | null = null;
 
     async function loadSession() {
       setLoading(true);
@@ -44,11 +74,26 @@ export default function TerceiroHome() {
         const response = await fetch("/api/terceiro/session", { cache: "no-store" });
         if (!response.ok) {
           const payload = await response.json().catch(() => ({}));
-          if (!cancelled) {
-            setError(payload?.error ?? "Não foi possível carregar os dados.");
-            setItems([]);
-            setCompanyId(null);
+          if (cancelled) return;
+
+          if (response.status >= 500) {
+            const message =
+              typeof payload?.error === "string" && payload.error
+                ? payload.error
+                : "Serviço temporariamente indisponível. Tentaremos novamente em instantes.";
+            setConnectionIssue(message);
+            if (typeof window !== "undefined") {
+              retryTimeout = window.setTimeout(() => {
+                setSessionRetryKey((value) => value + 1);
+              }, 5000);
+            }
+            return;
           }
+
+          setError(payload?.error ?? "Não foi possível carregar os dados.");
+          setItems([]);
+          setCompanyId(null);
+          setConnectionIssue(null);
           return;
         }
 
@@ -57,17 +102,26 @@ export default function TerceiroHome() {
         const list = Array.isArray(data?.services) ? (data.services as ServiceItem[]) : [];
         setItems(list);
         setError(null);
+        setConnectionIssue(null);
         const company = typeof data?.companyId === "string" && data.companyId ? data.companyId : null;
         setCompanyId(company);
         if (company && typeof window !== "undefined") {
           localStorage.setItem("companyId", company);
         }
       } catch (err) {
-        console.error("[terceiro] falha ao carregar sessão", err);
+        console.warn("[terceiro] falha ao carregar sessão", err);
         if (!cancelled) {
-          setError("Não foi possível carregar as informações do token.");
-          setItems([]);
-          setCompanyId(null);
+          const isOffline = typeof navigator !== "undefined" && navigator.onLine === false;
+          setConnectionIssue(
+            isOffline
+              ? "Sem conexão com a internet. Tentaremos sincronizar assim que possível."
+              : "Não foi possível atualizar as informações. Tentaremos novamente em instantes.",
+          );
+          if (typeof window !== "undefined") {
+            retryTimeout = window.setTimeout(() => {
+              setSessionRetryKey((value) => value + 1);
+            }, 5000);
+          }
         }
       } finally {
         if (!cancelled) {
@@ -80,17 +134,68 @@ export default function TerceiroHome() {
 
     return () => {
       cancelled = true;
+      if (retryTimeout) {
+        clearTimeout(retryTimeout);
+      }
     };
-  }, []);
+  }, [sessionRetryKey]);
 
   useEffect(() => {
     if (!companyId) return undefined;
-    const query = servicesQueryForCompany(companyId);
-    const unsubscribe = onSnapshot(query, (snapshot) => {
-      setItems(snapshot.docs.map((doc) => ({ id: doc.id, ...(doc.data() as ServiceItem) })));
-    });
-    return () => unsubscribe();
-  }, [companyId]);
+
+    let active = true;
+    let unsubscribe: (() => void) | null = null;
+    let retryTimeout: ReturnType<typeof setTimeout> | null = null;
+
+    const scheduleRetry = () => {
+      if (typeof window === "undefined") return;
+      retryTimeout = window.setTimeout(() => {
+        setListenerSeed((value) => value + 1);
+      }, 5000);
+    };
+
+    const attachListener = () => {
+      try {
+        const query = servicesQueryForCompany(companyId);
+        unsubscribe = onSnapshot(
+          query,
+          (snapshot) => {
+            if (!active) return;
+            setConnectionIssue(null);
+            setItems(snapshot.docs.map((doc) => ({ id: doc.id, ...(doc.data() as ServiceItem) })));
+          },
+          (err) => {
+            if (!active) return;
+            const errorObject = err as FirestoreError | undefined;
+            const message =
+              errorObject?.code === "unavailable"
+                ? "Conexão com o Firestore indisponível. Exibindo dados locais."
+                : "Não foi possível sincronizar com o Firestore. Tentaremos novamente.";
+            console.warn("[terceiro] falha na escuta de serviços", errorObject ?? err);
+            setConnectionIssue(message);
+            scheduleRetry();
+          },
+        );
+      } catch (err) {
+        if (!active) return;
+        console.warn("[terceiro] não foi possível iniciar a sincronização", err);
+        setConnectionIssue("Sincronização temporariamente indisponível. Tentaremos novamente.");
+        scheduleRetry();
+      }
+    };
+
+    attachListener();
+
+    return () => {
+      active = false;
+      if (retryTimeout) {
+        clearTimeout(retryTimeout);
+      }
+      if (unsubscribe) {
+        unsubscribe();
+      }
+    };
+  }, [companyId, listenerSeed]);
 
   return (
     <div className="container mx-auto space-y-4 p-4">
@@ -104,12 +209,20 @@ export default function TerceiroHome() {
         </div>
       </div>
 
+      {connectionIssue && !error ? (
+        <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-700">
+          {connectionIssue}
+        </div>
+      ) : null}
+
       {loading ? (
         <div className="card p-6 text-sm text-muted-foreground">Carregando…</div>
       ) : error ? (
         <div className="card p-6 text-sm text-muted-foreground">{error}</div>
       ) : items.length === 0 ? (
-        <div className="card p-6 text-sm text-muted-foreground">Nenhum serviço atribuído.</div>
+        <div className="card p-6 text-sm text-muted-foreground">
+          {connectionIssue ? "Nenhum dado disponível no momento. Aguarde a reconexão." : "Nenhum serviço atribuído."}
+        </div>
       ) : (
         <div className="card divide-y">
           {items.map((service) => {

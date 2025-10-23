@@ -1,4 +1,3 @@
-import { getFirestoreClient } from "@/lib/firebase";
 import { getAdmin } from "@/lib/firebaseAdmin";
 import type {
   ChecklistItem,
@@ -6,21 +5,10 @@ import type {
   ServiceStatus,
   ServiceUpdate,
 } from "@/lib/types";
-import {
-  collection,
-  doc,
-  getDoc,
-  getDocs,
-  limit,
-  orderBy,
-  query,
-  type DocumentData,
-} from "firebase/firestore";
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
 
 const getDb = () => getAdmin().db;
 const servicesCollection = () => getDb().collection("services");
-const getClientDb = () => getFirestoreClient();
 
 function toMillis(value: unknown | Timestamp | number | null | undefined) {
   if (typeof value === "number") return value;
@@ -280,17 +268,14 @@ function mapServiceData(id: string, data: Record<string, unknown>): Service {
 }
 
 export async function getServiceById(id: string): Promise<Service | null> {
-  const firestore = getClientDb();
-  const snap = await getDoc(doc(firestore, "services", id));
-  if (!snap.exists()) return null;
-  return mapServiceData(snap.id, snap.data() as DocumentData);
+  const snap = await servicesCollection().doc(id).get();
+  if (!snap.exists) return null;
+  return mapServiceData(snap.id, (snap.data() ?? {}) as Record<string, unknown>);
 }
 
 export async function listRecentServices(): Promise<Service[]> {
-  const firestore = getClientDb();
-  const q = query(collection(firestore, "services"), orderBy("createdAt", "desc"), limit(20));
-  const snap = await getDocs(q);
-  return snap.docs.map((d) => mapServiceData(d.id, d.data()));
+  const snap = await servicesCollection().orderBy("createdAt", "desc").limit(20).get();
+  return snap.docs.map((doc) => mapServiceData(doc.id, (doc.data() ?? {}) as Record<string, unknown>));
 }
 
 function mapChecklistDoc(

@@ -10,6 +10,16 @@ let authInstance: Auth | null = null;
 let firestoreInstance: Firestore | null = null;
 
 function ensureClientApp() {
+  if (typeof window === "undefined") {
+    if (!initError) {
+      initError = new Error("Firebase client is only available in the browser context");
+      if (process.env.NODE_ENV !== "production") {
+        console.warn("[firebase] Attempted to initialise Firebase client on the server");
+      }
+    }
+    return;
+  }
+
   if (clientApp || initError) return;
 
   try {
