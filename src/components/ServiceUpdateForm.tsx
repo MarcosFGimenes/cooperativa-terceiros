@@ -154,13 +154,17 @@ export default function ServiceUpdateForm({
   onPersistSubactivity,
   onSubmit,
 }: ServiceUpdateFormProps) {
-  const now = useMemo(() => new Date(), []);
-  const defaultEnd = useMemo(() => now, [now]);
   const defaultStart = useMemo(() => {
-    const start = new Date(now.getTime() - 4 * 60 * 60 * 1000);
-    start.setMinutes(Math.floor(start.getMinutes() / 15) * 15);
+    const start = new Date();
+    start.setHours(8, 0, 0, 0);
     return start;
-  }, [now]);
+  }, []);
+
+  const defaultEnd = useMemo(() => {
+    const end = new Date();
+    end.setHours(17, 30, 0, 0);
+    return end;
+  }, []);
 
   const defaultPercent = useMemo(() => {
     const suggestion = Number.isFinite(suggestedPercent ?? NaN) ? Number(suggestedPercent) : undefined;
@@ -363,49 +367,68 @@ export default function ServiceUpdateForm({
         </div>
       </div>
 
-      <div>
-        <label htmlFor={`${serviceId}-percent`} className="text-sm font-medium text-foreground">
-          Percentual total (0 a 100)
-        </label>
-        <input
-          id={`${serviceId}-percent`}
-          type="number"
-          className="input mt-1 w-32"
-          min={0}
-          max={100}
-          step={0.1}
-          {...register("percent", { valueAsNumber: true })}
-        />
-        {errors.percent ? <p className="mt-1 text-xs text-destructive">{errors.percent.message}</p> : null}
-      </div>
+      <div
+        className={`grid gap-4 ${checklist.length > 0 ? "md:grid-cols-[minmax(0,1fr)_minmax(180px,220px)]" : "md:grid-cols-1"}`}
+      >
+        {checklist.length > 0 ? (
+          <div className="space-y-2">
+            <span className="text-sm font-medium text-foreground">Subatividade / Etapa</span>
+            <div className="space-y-2">
+              {checklist.map((item) => (
+                <label
+                  key={item.id}
+                  className="flex cursor-pointer items-start gap-2 rounded-lg border border-muted bg-muted/40 p-3 text-sm"
+                >
+                  <input
+                    type="radio"
+                    className="mt-1 h-4 w-4"
+                    value={item.id}
+                    {...register("subactivityId")}
+                  />
+                  <span className="font-medium text-foreground">{item.description}</span>
+                </label>
+              ))}
+              <label className="flex cursor-pointer items-start gap-2 rounded-lg border border-dashed border-muted p-3 text-sm">
+                <input
+                  type="radio"
+                  className="mt-1 h-4 w-4"
+                  value="__custom__"
+                  {...register("subactivityId")}
+                />
+                <span className="font-medium text-foreground">Outra / Geral</span>
+              </label>
+              {subactivityId === "__custom__" ? (
+                <input
+                  type="text"
+                  className="input mt-1 w-full"
+                  placeholder="Descreva a subatividade"
+                  {...register("customSubactivity")}
+                />
+              ) : null}
+              {subactivityId === "__custom__" && errors.customSubactivity ? (
+                <p className="text-xs text-destructive">{errors.customSubactivity.message}</p>
+              ) : null}
+            </div>
+          </div>
+        ) : (
+          <input type="hidden" value="__custom__" readOnly {...register("subactivityId")} />
+        )}
 
-      <div className="space-y-2">
-        <label htmlFor={`${serviceId}-subactivity`} className="text-sm font-medium text-foreground">
-          Subatividade / Etapa
-        </label>
-        <select
-          id={`${serviceId}-subactivity`}
-          className="input mt-1 w-full"
-          {...register("subactivityId")}
-        >
-          {checklist.map((item) => (
-            <option key={item.id} value={item.id}>
-              {item.description}
-            </option>
-          ))}
-          <option value="__custom__">Outra / Geral</option>
-        </select>
-        {subactivityId === "__custom__" ? (
+        <div>
+          <label htmlFor={`${serviceId}-percent`} className="text-sm font-medium text-foreground">
+            Percentual total (0 a 100)
+          </label>
           <input
-            type="text"
-            className="input mt-2 w-full"
-            placeholder="Descreva a subatividade"
-            {...register("customSubactivity")}
+            id={`${serviceId}-percent`}
+            type="number"
+            className="input mt-1 w-32"
+            min={0}
+            max={100}
+            step={0.1}
+            {...register("percent", { valueAsNumber: true })}
           />
-        ) : null}
-        {subactivityId === "__custom__" && errors.customSubactivity ? (
-          <p className="text-xs text-destructive">{errors.customSubactivity.message}</p>
-        ) : null}
+          {errors.percent ? <p className="mt-1 text-xs text-destructive">{errors.percent.message}</p> : null}
+        </div>
       </div>
 
       <div>
