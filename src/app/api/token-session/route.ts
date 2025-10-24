@@ -6,11 +6,11 @@ export async function POST(req: Request) {
   if (!token || typeof token !== "string") {
     return NextResponse.json({ ok: false, error: "missing_token" }, { status: 400 });
   }
-  setTokenCookie(token.trim().toUpperCase());
+  await setTokenCookie(token.trim().toUpperCase());
   return NextResponse.json({ ok: true });
 }
 
 export async function DELETE() {
-  clearTokenCookie();
+  await clearTokenCookie();
   return NextResponse.json({ ok: true });
 }

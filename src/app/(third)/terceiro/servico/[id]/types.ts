@@ -23,6 +23,24 @@ export type ThirdServiceUpdate = {
   percent: number;
   description?: string;
   createdAt?: number | null;
+  timeWindow?: {
+    start?: number | null;
+    end?: number | null;
+    hours?: number | null;
+  };
+  subactivity?: {
+    id?: string | null;
+    label?: string | null;
+  };
+  mode?: "simple" | "detailed";
+  impediments?: Array<{ type: string; durationHours?: number | null }>;
+  resources?: Array<{ name: string; quantity?: number | null; unit?: string | null }>;
+  forecastDate?: number | null;
+  criticality?: number | null;
+  evidences?: Array<{ url: string; label?: string | null }>;
+  justification?: string | null;
+  previousPercent?: number | null;
+  declarationAccepted?: boolean;
 };
 
 export type ThirdChecklistItem = {

@@ -39,6 +39,13 @@ function toNewUpdates(updates: ServiceUpdate[]): ServiceUpdate[] {
     .map((update) => ({
       ...update,
       percent: update.percent ?? update.manualPercent ?? update.realPercentSnapshot ?? 0,
+      timeWindow: update.timeWindow,
+      subactivity: update.subactivity,
+      impediments: update.impediments,
+      resources: update.resources,
+      evidences: update.evidences,
+      justification: update.justification,
+      criticality: update.criticality,
     }))
     .sort((a, b) => (a.createdAt ?? 0) - (b.createdAt ?? 0));
 }
@@ -55,11 +62,65 @@ function formatDate(value: string | number | undefined) {
   return new Intl.DateTimeFormat("pt-BR").format(date);
 }
 
+function formatDateTime(value: string | number | undefined) {
+  if (!value) return "-";
+  const date = typeof value === "number" ? new Date(value) : new Date(value);
+  if (Number.isNaN(date.getTime())) return "-";
+  return new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(date);
+}
+
 function normaliseStatus(value: unknown) {
   const raw = String(value ?? "").toLowerCase();
   if (raw === "concluido" || raw === "concluído") return "Concluído";
   if (raw === "encerrado") return "Encerrado";
   return "Aberto";
+}
+
+function formatTimeWindow(update: ServiceUpdate): string | null {
+  const startRaw = update.timeWindow?.start;
+  const endRaw = update.timeWindow?.end;
+  if (startRaw === null || startRaw === undefined || endRaw === null || endRaw === undefined) {
+    return null;
+  }
+  const startDate = new Date(startRaw as string | number);
+  const endDate = new Date(endRaw as string | number);
+  if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) return null;
+  const sameDay = startDate.toDateString() === endDate.toDateString();
+  const formatter = new Intl.DateTimeFormat("pt-BR", {
+    dateStyle: sameDay ? undefined : "short",
+    timeStyle: "short",
+  });
+  const startLabel = formatter.format(startDate);
+  const endLabel = formatter.format(endDate);
+  if (sameDay) {
+    const dateLabel = new Intl.DateTimeFormat("pt-BR", { dateStyle: "short" }).format(startDate);
+    return `${dateLabel}, ${startLabel} - ${endLabel}`;
+  }
+  return `${startLabel} → ${endLabel}`;
+}
+
+function computeTimeWindowHours(update: ServiceUpdate): number | null {
+  const raw = update.timeWindow?.hours;
+  if (typeof raw === "number" && Number.isFinite(raw)) {
+    return Math.round(raw * 100) / 100;
+  }
+  if (typeof raw === "string" && raw.trim()) {
+    const parsed = Number(raw);
+    if (Number.isFinite(parsed)) {
+      return Math.round(parsed * 100) / 100;
+    }
+  }
+  const startRaw = update.timeWindow?.start;
+  const endRaw = update.timeWindow?.end;
+  if (startRaw === null || startRaw === undefined || endRaw === null || endRaw === undefined) {
+    return null;
+  }
+  const startDate = new Date(startRaw as string | number);
+  const endDate = new Date(endRaw as string | number);
+  if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) return null;
+  const diff = (endDate.getTime() - startDate.getTime()) / 3_600_000;
+  if (!Number.isFinite(diff) || diff < 0) return null;
+  return Math.round(diff * 100) / 100;
 }
 
 function toDayIso(value: unknown) {
@@ -169,15 +230,29 @@ export default async function ServiceDetailPage({ params }: { params: { id: stri
     totalHours > 0 ? totalHours : 1,
   );
 
-  const realizedPercent = (() => {
-    if (checklist.length > 0) {
-      return realizedFromChecklist(checklist);
-    }
-    if (updates.length > 0) {
-      return realizedFromUpdates(updates);
-    }
-    return normaliseProgress(baseService.progress ?? baseService.realPercent ?? baseService.andamento);
-  })();
+  const checklistPercent = checklist.length > 0 ? realizedFromChecklist(checklist) : null;
+  const updatesPercent = updates.length > 0 ? realizedFromUpdates(updates) : null;
+  const baselinePercent = [
+    baseService.manualPercent,
+    baseService.progress,
+    baseService.realPercent,
+    baseService.andamento,
+    legacyService?.manualPercent,
+    legacyService?.progress,
+    legacyService?.realPercent,
+    legacyService?.andamento,
+  ].reduce((acc, value) => {
+    const numeric =
+      typeof value === "number"
+        ? value
+        : typeof value === "string"
+          ? Number(value)
+          : null;
+    if (!Number.isFinite(numeric ?? NaN)) return acc;
+    return Math.max(acc, normaliseProgress(numeric ?? 0));
+  }, 0);
+
+  const realizedPercent = Math.max(baselinePercent, checklistPercent ?? 0, updatesPercent ?? 0);
 
   const realizedSeries = buildRealizedSeries({
     updates,
@@ -223,7 +298,7 @@ export default async function ServiceDetailPage({ params }: { params: { id: stri
             </div>
             <div>
               <dt className="text-muted-foreground">Andamento</dt>
-              <dd className="font-medium">{normaliseProgress(baseService.progress ?? baseService.realPercent ?? baseService.andamento ?? realizedPercent)}%</dd>
+              <dd className="font-medium">{Math.round(realizedPercent)}%</dd>
             </div>
             <div>
               <dt className="text-muted-foreground">Tag</dt>
@@ -313,19 +388,85 @@ export default async function ServiceDetailPage({ params }: { params: { id: stri
             <p className="mt-2 text-sm text-muted-foreground">Nenhuma atualização registrada.</p>
           ) : (
             <ul className="mt-3 space-y-2 text-sm">
-              {updates.slice(-6).reverse().map((update) => (
-                <li key={update.id} className="rounded-lg border p-3">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="font-medium">{Math.round(update.percent ?? 0)}%</span>
-                    <span className="text-xs text-muted-foreground">
-                      {formatDate(update.createdAt)}
-                    </span>
-                  </div>
-                  {update.description ? (
-                    <p className="mt-2 text-xs text-muted-foreground">{update.description}</p>
-                  ) : null}
-                </li>
-              ))}
+              {updates.slice(-6).reverse().map((update) => {
+                const timeWindow = formatTimeWindow(update);
+                const hours = computeTimeWindowHours(update);
+                return (
+                  <li key={update.id} className="space-y-2 rounded-lg border p-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-base font-semibold text-foreground">{Math.round(update.percent ?? 0)}%</span>
+                      <span className="text-xs text-muted-foreground">{formatDateTime(update.createdAt)}</span>
+                    </div>
+                    {update.subactivity?.label ? (
+                      <p className="text-xs text-muted-foreground">
+                        Subatividade: <span className="font-medium text-foreground">{update.subactivity.label}</span>
+                      </p>
+                    ) : null}
+                    {timeWindow ? <p className="text-xs text-muted-foreground">Período: {timeWindow}</p> : null}
+                    {hours !== null ? (
+                      <p className="text-xs text-muted-foreground">Horas informadas: {hours.toFixed(2)}</p>
+                    ) : null}
+                    {update.description ? <p className="text-sm text-foreground">{update.description}</p> : null}
+                    {Array.isArray(update.impediments) && update.impediments.length > 0 ? (
+                      <div className="text-xs text-muted-foreground">
+                        <span className="font-semibold text-foreground">Impedimentos:</span>
+                        <ul className="mt-1 space-y-1">
+                          {update.impediments.map((item, index) => (
+                            <li key={index}>
+                              {item.type}
+                              {item.durationHours !== null && item.durationHours !== undefined
+                                ? ` • ${item.durationHours}h`
+                                : ""}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ) : null}
+                    {Array.isArray(update.resources) && update.resources.length > 0 ? (
+                      <div className="text-xs text-muted-foreground">
+                        <span className="font-semibold text-foreground">Recursos:</span>
+                        <ul className="mt-1 space-y-1">
+                          {update.resources.map((item, index) => (
+                            <li key={index}>
+                              {item.name}
+                              {item.quantity !== null && item.quantity !== undefined
+                                ? ` • ${item.quantity}${item.unit ? ` ${item.unit}` : ""}`
+                                : ""}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ) : null}
+                    {Array.isArray(update.evidences) && update.evidences.length > 0 ? (
+                      <div className="text-xs text-muted-foreground">
+                        <span className="font-semibold text-foreground">Evidências:</span>
+                        <ul className="mt-1 space-y-1">
+                          {update.evidences.map((item, index) => (
+                            <li key={index}>
+                              <a
+                                href={item.url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-primary underline"
+                              >
+                                {item.label || item.url}
+                              </a>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ) : null}
+                    {update.justification ? (
+                      <div className="rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800">
+                        Justificativa: {update.justification}
+                      </div>
+                    ) : null}
+                    {typeof update.criticality === "number" ? (
+                      <p className="text-xs text-muted-foreground">Criticidade observada: {update.criticality}/5</p>
+                    ) : null}
+                  </li>
+                );
+              })}
             </ul>
           )}
         </div>

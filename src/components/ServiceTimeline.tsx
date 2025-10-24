@@ -1,5 +1,5 @@
 export default function ServiceTimeline({ items }: {
-  items: { date: string; progress: number; note?: string }[];
+  items: { date: string; progress: number; description?: string }[];
 }) {
   return (
     <ul className="mt-4 space-y-3 max-h-72 overflow-auto pr-1">
@@ -9,7 +9,7 @@ export default function ServiceTimeline({ items }: {
             <span className="font-semibold text-foreground">{it.date}</span>
             <span className="text-xs font-semibold uppercase tracking-wide text-primary">{it.progress}%</span>
           </div>
-          {it.note ? <p className="mt-2 text-sm text-muted-foreground">{it.note}</p> : null}
+          {it.description ? <p className="mt-2 text-sm text-muted-foreground">{it.description}</p> : null}
         </li>
       ))}
     </ul>

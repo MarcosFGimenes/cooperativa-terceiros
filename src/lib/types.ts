@@ -20,6 +20,18 @@ export type ServiceUpdate = BaseServiceUpdate & {
   token?: string;
   manualPercent?: number;
   realPercentSnapshot?: number;
+  timeWindow?: BaseServiceUpdate["timeWindow"];
+  subactivity?: BaseServiceUpdate["subactivity"];
+  mode?: BaseServiceUpdate["mode"];
+  impediments?: BaseServiceUpdate["impediments"];
+  resources?: BaseServiceUpdate["resources"];
+  forecastDate?: number | null;
+  criticality?: number | null;
+  evidences?: BaseServiceUpdate["evidences"];
+  justification?: string | null;
+  previousPercent?: number | null;
+  declarationAccepted?: boolean;
+  audit?: BaseServiceUpdate["audit"];
 };
 
 export type Service = BaseService & {

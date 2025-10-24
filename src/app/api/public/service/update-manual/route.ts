@@ -8,25 +8,155 @@ export async function POST(req: Request) {
   const { searchParams } = new URL(req.url);
   const serviceId = searchParams.get("serviceId") ?? "";
   const queryToken = searchParams.get("token");
-  const cookieToken = cookies().get("access_token")?.value ?? "";
+  const cookieStore = await cookies();
+  const cookieToken = cookieStore.get("access_token")?.value ?? "";
   const token = queryToken && queryToken.trim() ? queryToken.trim() : cookieToken;
 
   try {
     const { service } = await requireServiceAccess(token, serviceId);
-    if (service.hasChecklist) {
-      throw new PublicAccessError(400, "Serviço possui checklist. Use a rota apropriada.");
-    }
 
-    const body = (await req.json().catch(() => ({}))) as { percent?: unknown; note?: unknown };
-    const percent = Number(body.percent);
-    if (!Number.isFinite(percent)) {
+    const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
+
+    const percentRaw = Number(body.percent);
+    if (!Number.isFinite(percentRaw)) {
       throw new PublicAccessError(400, "percent inválido");
     }
 
-    const note = typeof body.note === "string" && body.note.trim() ? body.note.trim() : undefined;
-    const sanitizedPercent = await addManualUpdate(service.id, percent, note, token);
+    const description = typeof body.description === "string" ? body.description.trim() : "";
+    if (!description) {
+      throw new PublicAccessError(400, "description obrigatória");
+    }
 
-    return NextResponse.json({ ok: true, realPercent: sanitizedPercent });
+    const declarationAccepted = body.declarationAccepted === true;
+    if (!declarationAccepted) {
+      throw new PublicAccessError(400, "declaration_required");
+    }
+
+    const timeWindowRaw = (body.timeWindow ?? {}) as Record<string, unknown>;
+    const startRaw = typeof timeWindowRaw.start === "string" ? timeWindowRaw.start : undefined;
+    const endRaw = typeof timeWindowRaw.end === "string" ? timeWindowRaw.end : undefined;
+    const startDate = startRaw ? new Date(startRaw) : null;
+    const endDate = endRaw ? new Date(endRaw) : null;
+    if (!startDate || Number.isNaN(startDate.getTime())) {
+      throw new PublicAccessError(400, "start inválido");
+    }
+    if (!endDate || Number.isNaN(endDate.getTime())) {
+      throw new PublicAccessError(400, "end inválido");
+    }
+    if (endDate.getTime() < startDate.getTime()) {
+      throw new PublicAccessError(400, "período inválido");
+    }
+
+    const hours = Math.max(0, (endDate.getTime() - startDate.getTime()) / 3_600_000);
+
+    const subactivityRaw = (body.subactivity ?? {}) as Record<string, unknown>;
+    const subactivityId = typeof subactivityRaw.id === "string" && subactivityRaw.id.trim() ? subactivityRaw.id.trim() : undefined;
+    const subactivityLabel =
+      typeof subactivityRaw.label === "string" && subactivityRaw.label.trim() ? subactivityRaw.label.trim() : undefined;
+
+    const mode = body.mode === "detailed" ? "detailed" : "simple";
+
+    const impediments = Array.isArray(body.impediments)
+      ? (body.impediments as Array<Record<string, unknown>>)
+          .map((item) => {
+            const type = typeof item.type === "string" ? item.type.trim() : "";
+            if (!type) return null;
+            const duration = Number(item.durationHours);
+            return {
+              type,
+              durationHours: Number.isFinite(duration) && duration >= 0 ? Number(duration) : null,
+            };
+          })
+          .filter(Boolean)
+          .slice(0, 5) as Array<{ type: string; durationHours?: number | null }>
+      : undefined;
+
+    const resources = Array.isArray(body.resources)
+      ? (body.resources as Array<Record<string, unknown>>)
+          .map((item) => {
+            const name = typeof item.name === "string" ? item.name.trim() : "";
+            if (!name) return null;
+            const quantity = Number(item.quantity);
+            const unit = typeof item.unit === "string" && item.unit.trim() ? item.unit.trim() : null;
+            return {
+              name,
+              quantity: Number.isFinite(quantity) && quantity >= 0 ? Number(quantity) : null,
+              unit,
+            };
+          })
+          .filter(Boolean)
+          .slice(0, 8) as Array<{ name: string; quantity?: number | null; unit?: string | null }>
+      : undefined;
+
+    const forecastDateRaw = typeof body.forecastDate === "string" ? body.forecastDate : undefined;
+    const forecastDate = forecastDateRaw ? new Date(forecastDateRaw) : null;
+    const forecastMillis = forecastDate && !Number.isNaN(forecastDate.getTime()) ? forecastDate.getTime() : null;
+
+    const criticalityRaw = Number(body.criticality);
+    const criticality = Number.isFinite(criticalityRaw) ? Math.round(Math.max(1, Math.min(5, criticalityRaw))) : null;
+
+    const evidences = Array.isArray(body.evidences)
+      ? (body.evidences as Array<Record<string, unknown>>)
+          .map((item) => {
+            const url = typeof item.url === "string" ? item.url.trim() : "";
+            if (!url) return null;
+            try {
+              // eslint-disable-next-line no-new
+              new URL(url);
+            } catch (error) {
+              return null;
+            }
+            const label = typeof item.label === "string" && item.label.trim() ? item.label.trim() : undefined;
+            return { url, label };
+          })
+          .filter(Boolean)
+          .slice(0, 5) as Array<{ url: string; label?: string | null }>
+      : undefined;
+
+    const previousPercent = [service.realPercent, service.manualPercent, service.andamento]
+      .map((value) => {
+        if (typeof value === "number" && Number.isFinite(value)) return value;
+        if (typeof value === "string" && value.trim()) {
+          const parsed = Number(value);
+          return Number.isFinite(parsed) ? parsed : null;
+        }
+        return null;
+      })
+      .reduce<number | null>((acc, value) => {
+        if (value === null) return acc;
+        if (acc === null) return value;
+        return Math.max(acc, value);
+      }, null);
+    const justification = typeof body.justification === "string" ? body.justification.trim() : "";
+    if (previousPercent !== null && percentRaw < previousPercent && !justification) {
+      throw new PublicAccessError(400, "justification_required");
+    }
+
+    const ipHeader = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || req.headers.get("x-real-ip")?.trim() || null;
+
+    const { realPercent, update } = await addManualUpdate(service.id, {
+      manualPercent: percentRaw,
+      description,
+      token,
+      mode,
+      declarationAccepted,
+      timeWindow: {
+        start: startDate.getTime(),
+        end: endDate.getTime(),
+        hours,
+      },
+      subactivity: subactivityId || subactivityLabel ? { id: subactivityId, label: subactivityLabel } : undefined,
+      impediments,
+      resources,
+      forecastDate: forecastMillis,
+      criticality: criticality ?? undefined,
+      evidences,
+      justification: justification || undefined,
+      previousPercent,
+      ip: ipHeader,
+    });
+
+    return NextResponse.json({ ok: true, realPercent, update });
   } catch (err: unknown) {
     if (err instanceof PublicAccessError) {
       return NextResponse.json({ ok: false, error: err.message }, { status: err.status });

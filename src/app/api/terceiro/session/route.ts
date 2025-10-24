@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 export async function GET() {
-  const token = getTokenCookie();
+  const token = await getTokenCookie();
   if (!token) {
     return NextResponse.json({ ok: false, error: "missing_token" }, { status: 401 });
   }
