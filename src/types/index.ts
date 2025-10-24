@@ -38,6 +38,23 @@ export type ServiceUpdateResource = {
   unit?: string | null;
 };
 
+export type ServiceUpdateWorkforceEntry = {
+  role: string;
+  quantity: number;
+};
+
+export type ServiceUpdateShift = "manha" | "tarde" | "noite";
+
+export type ServiceUpdateShiftWeather = "claro" | "nublado" | "chuvoso";
+
+export type ServiceUpdateShiftCondition = "praticavel" | "impraticavel";
+
+export type ServiceUpdateShiftInfo = {
+  shift: ServiceUpdateShift;
+  weather: ServiceUpdateShiftWeather;
+  condition: ServiceUpdateShiftCondition;
+};
+
 export type ServiceUpdateEvidence = {
   url: string;
   label?: string | null;
@@ -64,6 +81,8 @@ export type ServiceUpdate = {
   mode?: ServiceUpdateMode;
   impediments?: ServiceUpdateImpediment[];
   resources?: ServiceUpdateResource[];
+  workforce?: ServiceUpdateWorkforceEntry[];
+  shiftConditions?: ServiceUpdateShiftInfo[];
   forecastDate?: number | null;
   criticality?: number | null;
   evidences?: ServiceUpdateEvidence[];

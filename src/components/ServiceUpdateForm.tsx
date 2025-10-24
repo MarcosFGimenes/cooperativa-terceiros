@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo } from "react";
-import { useForm, useFieldArray } from "react-hook-form";
+import { useFieldArray, useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 
@@ -12,12 +12,13 @@ export type ServiceUpdateFormPayload = {
   end: string;
   subactivityId?: string;
   subactivityLabel?: string;
-  mode: "simple" | "detailed";
-  impediments: Array<{ type: string; durationHours?: number | null }>;
-  resources: Array<{ name: string; quantity?: number | null; unit?: string | null }>;
-  forecastDate?: string;
-  criticality?: number | null;
-  evidences: Array<{ url: string; label?: string | null }>;
+  resources: Array<{ name: string }>;
+  workforce: Array<{ role: string; quantity: number }>;
+  shiftConditions: Array<{
+    shift: "manha" | "tarde" | "noite";
+    weather: "claro" | "nublado" | "chuvoso";
+    condition: "praticavel" | "impraticavel";
+  }>;
   justification?: string;
   declarationAccepted: true;
 };
@@ -35,37 +36,69 @@ type ServiceUpdateFormProps = {
   onSubmit: (payload: ServiceUpdateFormPayload) => Promise<void> | void;
 };
 
-const impedimentSchema = z.object({
-  type: z.string().min(1, "Informe o tipo"),
-  durationHours: z
-    .string()
-    .optional()
-    .transform((value) => (value && value.trim() ? Number(value) : null))
-    .refine((value) => value === null || (!Number.isNaN(value) && value >= 0), {
-      message: "Horas inválidas",
-    }),
-});
+const RESOURCE_OPTIONS = [
+  { id: "andaimes", label: "Andaimes" },
+  { id: "parafusadeiras", label: "Parafusadeiras" },
+  { id: "maquina-solda", label: "Máquina de solda" },
+  { id: "lixadeiras", label: "Lixadeiras" },
+  { id: "serra-makita", label: "Serra tipo Makita" },
+  { id: "escada", label: "Escada" },
+  { id: "extensao", label: "Extensão" },
+  { id: "furadeira", label: "Furadeira" },
+  { id: "retifica", label: "Retífica" },
+  { id: "cinto-seguranca", label: "Cinto de segurança" },
+  { id: "plasma", label: "Plasma" },
+];
 
-const resourceSchema = z.object({
-  name: z.string().min(1, "Informe o recurso"),
+const WORKFORCE_ROLES = [
+  "Montador",
+  "Caldeireiro",
+  "Soldador",
+  "Mecânico",
+  "Ajudante",
+  "Auxiliar",
+  "Pedreiro",
+  "Encarregado",
+  "Engenheiro",
+  "Eletricista",
+  "Operador",
+  "Motorista",
+];
+
+const SHIFT_OPTIONS = [
+  { id: "manha" as const, label: "Manhã" },
+  { id: "tarde" as const, label: "Tarde" },
+  { id: "noite" as const, label: "Noite" },
+];
+
+const WEATHER_OPTIONS = [
+  { id: "claro" as const, label: "Claro" },
+  { id: "nublado" as const, label: "Nublado" },
+  { id: "chuvoso" as const, label: "Chuvoso" },
+];
+
+const CONDITION_OPTIONS = [
+  { id: "praticavel" as const, label: "Praticável" },
+  { id: "impraticavel" as const, label: "Impraticável" },
+];
+
+const workforceItemSchema = z.object({
+  role: z.string().min(1, "Selecione a função"),
   quantity: z
-    .string()
-    .optional()
-    .transform((value) => (value && value.trim() ? Number(value) : null))
-    .refine((value) => value === null || (!Number.isNaN(value) && value >= 0), {
-      message: "Quantidade inválida",
-    }),
-  unit: z.string().max(20).optional().transform((value) => (value && value.trim() ? value.trim() : undefined)),
+    .coerce
+    .number({ invalid_type_error: "Informe a quantidade" })
+    .min(1, "Quantidade mínima 1")
+    .max(999, "Quantidade inválida"),
 });
 
-const evidenceSchema = z.object({
-  url: z.string().url("Informe uma URL válida"),
-  label: z.string().max(120).optional().transform((value) => (value && value.trim() ? value.trim() : undefined)),
+const shiftDetailSchema = z.object({
+  shift: z.enum(["manha", "tarde", "noite"]),
+  weather: z.enum(["claro", "nublado", "chuvoso"]),
+  condition: z.enum(["praticavel", "impraticavel"]),
 });
 
 const formSchema = z
   .object({
-    mode: z.enum(["simple", "detailed"]).default("simple"),
     start: z.string().min(1, "Início obrigatório"),
     end: z.string().min(1, "Fim obrigatório"),
     subactivityId: z.string().optional(),
@@ -79,15 +112,12 @@ const formSchema = z
     declarationAccepted: z.literal(true, {
       errorMap: () => ({ message: "É necessário aceitar a declaração" }),
     }),
-    impediments: z.array(impedimentSchema).max(5).default([]),
-    resources: z.array(resourceSchema).max(8).default([]),
-    forecastDate: z.string().optional(),
-    criticality: z
-      .number({ invalid_type_error: "Selecione a criticidade" })
-      .min(1, "Mínimo 1")
-      .max(5, "Máximo 5")
-      .optional(),
-    evidences: z.array(evidenceSchema).max(5).default([]),
+    resources: z.array(z.string()).default([]),
+    workforce: z.array(workforceItemSchema).min(1, "Informe ao menos uma função"),
+    shifts: z
+      .array(shiftDetailSchema)
+      .min(1, "Selecione ao menos um turno")
+      .max(2, "Selecione até dois turnos"),
   })
   .superRefine((values, ctx) => {
     const startDate = new Date(values.start);
@@ -120,6 +150,14 @@ const formSchema = z
         message: "Informe a subatividade",
       });
     }
+    const uniqueShifts = new Set(values.shifts.map((item) => item.shift));
+    if (uniqueShifts.size !== values.shifts.length) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["shifts"],
+        message: "Cada turno deve ser informado apenas uma vez",
+      });
+    }
   });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -144,6 +182,14 @@ function differenceInHours(start: string, end: string): number | null {
   return Math.round(diff * 100) / 100;
 }
 
+function createDefaultRange() {
+  const start = new Date();
+  start.setHours(8, 0, 0, 0);
+  const end = new Date();
+  end.setHours(17, 0, 0, 0);
+  return { start, end };
+}
+
 export default function ServiceUpdateForm({
   serviceId,
   lastProgress,
@@ -154,18 +200,6 @@ export default function ServiceUpdateForm({
   onPersistSubactivity,
   onSubmit,
 }: ServiceUpdateFormProps) {
-  const defaultStart = useMemo(() => {
-    const start = new Date();
-    start.setHours(8, 0, 0, 0);
-    return start;
-  }, []);
-
-  const defaultEnd = useMemo(() => {
-    const end = new Date();
-    end.setHours(17, 30, 0, 0);
-    return end;
-  }, []);
-
   const defaultPercent = useMemo(() => {
     const suggestion = Number.isFinite(suggestedPercent ?? NaN) ? Number(suggestedPercent) : undefined;
     const base = Math.max(lastProgress, suggestion ?? lastProgress);
@@ -188,23 +222,22 @@ export default function ServiceUpdateForm({
     return { id: "__custom__", label: "", isCustom: true };
   }, [checklist, defaultSubactivityId, defaultSubactivityLabel]);
 
+  const defaultRange = useMemo(() => createDefaultRange(), []);
+
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      mode: "simple",
-      start: toDateTimeLocal(defaultStart),
-      end: toDateTimeLocal(defaultEnd),
+      start: toDateTimeLocal(defaultRange.start),
+      end: toDateTimeLocal(defaultRange.end),
       subactivityId: defaultSubactivityChoice.id,
       customSubactivity: defaultSubactivityChoice.isCustom ? defaultSubactivityChoice.label : "",
       description: "",
       percent: defaultPercent,
+      resources: [],
+      workforce: [{ role: "", quantity: 1 }],
+      shifts: [],
       justification: "",
       declarationAccepted: false,
-      impediments: [],
-      resources: [],
-      forecastDate: "",
-      criticality: 3,
-      evidences: [],
     },
   });
 
@@ -214,19 +247,19 @@ export default function ServiceUpdateForm({
     handleSubmit,
     watch,
     setValue,
+    reset,
     formState: { errors, isSubmitting },
   } = form;
 
-  const impedimentsArray = useFieldArray({ control, name: "impediments" });
-  const resourcesArray = useFieldArray({ control, name: "resources" });
-  const evidencesArray = useFieldArray({ control, name: "evidences" });
+  const workforceArray = useFieldArray({ control, name: "workforce" });
+  const shiftArray = useFieldArray({ control, name: "shifts" });
 
-  const mode = watch("mode");
   const startValue = watch("start");
   const endValue = watch("end");
   const percent = watch("percent");
   const justification = watch("justification");
   const subactivityId = watch("subactivityId");
+  const selectedResources = watch("resources");
 
   const requiresJustification = useMemo(() => percent < lastProgress, [percent, lastProgress]);
 
@@ -251,6 +284,30 @@ export default function ServiceUpdateForm({
   }, [form, justification, requiresJustification]);
 
   const hours = useMemo(() => differenceInHours(startValue, endValue), [startValue, endValue]);
+
+  const selectedShifts = useMemo(() => shiftArray.fields.map((item) => item.shift), [shiftArray.fields]);
+
+  function toggleResource(resourceId: string) {
+    const current = new Set(selectedResources ?? []);
+    if (current.has(resourceId)) {
+      current.delete(resourceId);
+    } else {
+      current.add(resourceId);
+    }
+    setValue("resources", Array.from(current), { shouldDirty: true });
+  }
+
+  function toggleShift(shiftId: "manha" | "tarde" | "noite") {
+    const index = shiftArray.fields.findIndex((item) => item.shift === shiftId);
+    if (index >= 0) {
+      shiftArray.remove(index);
+      return;
+    }
+    if (shiftArray.fields.length >= 2) {
+      return;
+    }
+    shiftArray.append({ shift: shiftId, weather: "claro", condition: "praticavel" });
+  }
 
   async function submit(values: FormValues) {
     const startIso = new Date(values.start);
@@ -292,21 +349,39 @@ export default function ServiceUpdateForm({
       end: endIso.toISOString(),
       subactivityId: selectedSubactivity?.id,
       subactivityLabel: selectedSubactivity?.label,
-      mode: values.mode,
-      impediments: values.impediments.map((item) => ({
-        type: item.type.trim(),
-        durationHours: item.durationHours ?? null,
+      resources: (values.resources ?? [])
+        .map((resourceId) => RESOURCE_OPTIONS.find((option) => option.id === resourceId)?.label ?? resourceId)
+        .filter((label) => typeof label === "string" && label.trim().length > 0)
+        .map((label) => ({ name: label })),
+      workforce: values.workforce.map((item) => ({ role: item.role.trim(), quantity: Math.max(1, Math.round(item.quantity)) })),
+      shiftConditions: values.shifts.map((item) => ({
+        shift: item.shift,
+        weather: item.weather,
+        condition: item.condition,
       })),
-      resources: values.resources.map((item) => ({
-        name: item.name.trim(),
-        quantity: item.quantity ?? null,
-        unit: item.unit,
-      })),
-      forecastDate: values.forecastDate?.trim() ? new Date(values.forecastDate).toISOString() : undefined,
-      criticality: typeof values.criticality === "number" ? values.criticality : null,
-      evidences: values.evidences.map((item) => ({ url: item.url.trim(), label: item.label })),
       justification: values.justification?.trim() || undefined,
       declarationAccepted: true,
+    });
+
+    const { start, end } = createDefaultRange();
+    const nextSubactivityId = selectedSubactivity?.id ?? (selectedSubactivity?.label ? "__custom__" : defaultSubactivityChoice.id);
+    const nextCustomSubactivity =
+      nextSubactivityId === "__custom__"
+        ? selectedSubactivity?.label ?? (defaultSubactivityChoice.isCustom ? defaultSubactivityChoice.label : "")
+        : "";
+
+    reset({
+      start: toDateTimeLocal(start),
+      end: toDateTimeLocal(end),
+      subactivityId: nextSubactivityId,
+      customSubactivity: nextCustomSubactivity,
+      description: "",
+      percent: Math.min(100, Math.max(0, Math.round(values.percent * 10) / 10)),
+      resources: [],
+      workforce: [{ role: "", quantity: 1 }],
+      shifts: [],
+      justification: "",
+      declarationAccepted: false,
     });
   }
 
@@ -322,23 +397,8 @@ export default function ServiceUpdateForm({
             ) : null}
           </div>
         </div>
-        <div className="flex items-center gap-2 text-xs">
-          <span>Modo:</span>
-          <label className="inline-flex items-center gap-1 text-xs font-medium">
-            <input
-              type="radio"
-              value="simple"
-              className="h-4 w-4"
-              {...register("mode")}
-              defaultChecked
-            />
-            Simples
-          </label>
-          <label className="inline-flex items-center gap-1 text-xs font-medium">
-            <input type="radio" value="detailed" className="h-4 w-4" {...register("mode")}
-            />
-            Detalhado
-          </label>
+        <div className="flex items-center gap-2 text-sm font-semibold text-primary">
+          {percent.toFixed(1)}%
         </div>
       </div>
 
@@ -347,12 +407,7 @@ export default function ServiceUpdateForm({
           <label htmlFor={`${serviceId}-start`} className="text-sm font-medium text-foreground">
             Início
           </label>
-          <input
-            id={`${serviceId}-start`}
-            type="datetime-local"
-            className="input mt-1 w-full"
-            {...register("start")}
-          />
+          <input id={`${serviceId}-start`} type="datetime-local" className="input mt-1 w-full" {...register("start")} />
           {errors.start ? <p className="mt-1 text-xs text-destructive">{errors.start.message}</p> : null}
         </div>
         <div>
@@ -361,59 +416,39 @@ export default function ServiceUpdateForm({
           </label>
           <input id={`${serviceId}-end`} type="datetime-local" className="input mt-1 w-full" {...register("end")} />
           {errors.end ? <p className="mt-1 text-xs text-destructive">{errors.end.message}</p> : null}
-          {hours !== null ? (
-            <p className="mt-1 text-xs text-muted-foreground">Horas calculadas: {hours.toFixed(2)}</p>
-          ) : null}
+          {hours !== null ? <p className="mt-1 text-xs text-muted-foreground">Horas calculadas: {hours.toFixed(2)}</p> : null}
         </div>
       </div>
 
-      <div
-        className={`grid gap-4 ${checklist.length > 0 ? "md:grid-cols-[minmax(0,1fr)_minmax(180px,220px)]" : "md:grid-cols-1"}`}
-      >
-        {checklist.length > 0 ? (
-          <div className="space-y-2">
-            <span className="text-sm font-medium text-foreground">Subatividade / Etapa</span>
-            <div className="space-y-2">
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div>
+          <label htmlFor={`${serviceId}-subactivity`} className="text-sm font-medium text-foreground">
+            Subatividade / Etapa
+          </label>
+          {checklist.length > 0 ? (
+            <select id={`${serviceId}-subactivity`} className="input mt-1 w-full" {...register("subactivityId")}>
               {checklist.map((item) => (
-                <label
-                  key={item.id}
-                  className="flex cursor-pointer items-start gap-2 rounded-lg border border-muted bg-muted/40 p-3 text-sm"
-                >
-                  <input
-                    type="radio"
-                    className="mt-1 h-4 w-4"
-                    value={item.id}
-                    {...register("subactivityId")}
-                  />
-                  <span className="font-medium text-foreground">{item.description}</span>
-                </label>
+                <option key={item.id} value={item.id}>
+                  {item.description}
+                </option>
               ))}
-              <label className="flex cursor-pointer items-start gap-2 rounded-lg border border-dashed border-muted p-3 text-sm">
-                <input
-                  type="radio"
-                  className="mt-1 h-4 w-4"
-                  value="__custom__"
-                  {...register("subactivityId")}
-                />
-                <span className="font-medium text-foreground">Outra / Geral</span>
-              </label>
-              {subactivityId === "__custom__" ? (
-                <input
-                  type="text"
-                  className="input mt-1 w-full"
-                  placeholder="Descreva a subatividade"
-                  {...register("customSubactivity")}
-                />
-              ) : null}
-              {subactivityId === "__custom__" && errors.customSubactivity ? (
-                <p className="text-xs text-destructive">{errors.customSubactivity.message}</p>
-              ) : null}
-            </div>
-          </div>
-        ) : (
-          <input type="hidden" value="__custom__" readOnly {...register("subactivityId")} />
-        )}
-
+              <option value="__custom__">Outra / Geral</option>
+            </select>
+          ) : (
+            <input type="hidden" value="__custom__" readOnly {...register("subactivityId")} />
+          )}
+          {subactivityId === "__custom__" ? (
+            <input
+              type="text"
+              className="input mt-2 w-full"
+              placeholder="Descreva a subatividade"
+              {...register("customSubactivity")}
+            />
+          ) : null}
+          {subactivityId === "__custom__" && errors.customSubactivity ? (
+            <p className="mt-1 text-xs text-destructive">{errors.customSubactivity.message}</p>
+          ) : null}
+        </div>
         <div>
           <label htmlFor={`${serviceId}-percent`} className="text-sm font-medium text-foreground">
             Percentual total (0 a 100)
@@ -444,201 +479,159 @@ export default function ServiceUpdateForm({
         {errors.description ? <p className="mt-1 text-xs text-destructive">{errors.description.message}</p> : null}
       </div>
 
-      {mode === "detailed" ? (
-        <div className="space-y-6">
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-foreground">Impedimentos / bloqueios</h3>
-              <button
-                type="button"
-                className="btn btn-secondary btn-xs"
-                onClick={() => impedimentsArray.append({ type: "", durationHours: null })}
-                disabled={impedimentsArray.fields.length >= 5}
+      <div className="space-y-3">
+        <h3 className="text-sm font-semibold text-foreground">Recursos utilizados</h3>
+        <div className="grid gap-2 sm:grid-cols-2">
+          {RESOURCE_OPTIONS.map((resource) => {
+            const checked = selectedResources?.includes(resource.id) ?? false;
+            return (
+              <label
+                key={resource.id}
+                className="flex cursor-pointer items-center gap-2 rounded-lg border border-muted bg-muted/40 p-2 text-sm"
               >
-                Adicionar
-              </button>
-            </div>
-            {impedimentsArray.fields.length === 0 ? (
-              <p className="text-xs text-muted-foreground">Sem impedimentos registrados.</p>
-            ) : (
-              <div className="space-y-2">
-                {impedimentsArray.fields.map((field, index) => (
-                  <div key={field.id} className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_140px_auto]">
-                    <input
-                      type="text"
-                      className="input"
-                      placeholder="Descrição do impedimento"
-                      {...register(`impediments.${index}.type` as const)}
-                    />
-                    <input
-                      type="number"
-                      className="input"
-                      placeholder="Horas"
-                      min={0}
-                      step={0.5}
-                      {...register(`impediments.${index}.durationHours` as const)}
-                    />
-                    <button
-                      type="button"
-                      className="btn btn-outline"
-                      onClick={() => impedimentsArray.remove(index)}
-                    >
-                      Remover
-                    </button>
-                    {errors.impediments?.[index]?.type ? (
-                      <p className="text-xs text-destructive sm:col-span-3">
-                        {errors.impediments[index]?.type?.message}
-                      </p>
-                    ) : null}
-                    {errors.impediments?.[index]?.durationHours ? (
-                      <p className="text-xs text-destructive sm:col-span-3">
-                        {errors.impediments[index]?.durationHours?.message}
-                      </p>
-                    ) : null}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-foreground">Recursos utilizados</h3>
-              <button
-                type="button"
-                className="btn btn-secondary btn-xs"
-                onClick={() => resourcesArray.append({ name: "", quantity: null, unit: undefined })}
-                disabled={resourcesArray.fields.length >= 8}
-              >
-                Adicionar
-              </button>
-            </div>
-            {resourcesArray.fields.length === 0 ? (
-              <p className="text-xs text-muted-foreground">Nenhum recurso informado.</p>
-            ) : (
-              <div className="space-y-2">
-                {resourcesArray.fields.map((field, index) => (
-                  <div key={field.id} className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_140px_140px_auto]">
-                    <input
-                      type="text"
-                      className="input"
-                      placeholder="Equipe/equipamento"
-                      {...register(`resources.${index}.name` as const)}
-                    />
-                    <input
-                      type="number"
-                      className="input"
-                      placeholder="Qtd"
-                      min={0}
-                      step={0.5}
-                      {...register(`resources.${index}.quantity` as const)}
-                    />
-                    <input
-                      type="text"
-                      className="input"
-                      placeholder="Unidade"
-                      {...register(`resources.${index}.unit` as const)}
-                    />
-                    <button
-                      type="button"
-                      className="btn btn-outline"
-                      onClick={() => resourcesArray.remove(index)}
-                    >
-                      Remover
-                    </button>
-                    {errors.resources?.[index]?.name ? (
-                      <p className="text-xs text-destructive sm:col-span-4">
-                        {errors.resources[index]?.name?.message}
-                      </p>
-                    ) : null}
-                    {errors.resources?.[index]?.quantity ? (
-                      <p className="text-xs text-destructive sm:col-span-4">
-                        {errors.resources[index]?.quantity?.message}
-                      </p>
-                    ) : null}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div>
-              <label htmlFor={`${serviceId}-forecast`} className="text-sm font-medium text-foreground">
-                Previsão de término
+                <input
+                  type="checkbox"
+                  className="h-4 w-4"
+                  checked={checked}
+                  onChange={() => toggleResource(resource.id)}
+                />
+                <span className="font-medium text-foreground">{resource.label}</span>
               </label>
-              <input id={`${serviceId}-forecast`} type="date" className="input mt-1 w-full" {...register("forecastDate")} />
-              {errors.forecastDate ? (
-                <p className="mt-1 text-xs text-destructive">{errors.forecastDate.message}</p>
-              ) : null}
-            </div>
-            <div>
-              <label htmlFor={`${serviceId}-criticality`} className="text-sm font-medium text-foreground">
-                Criticidade observada (1-5)
-              </label>
-              <input
-                id={`${serviceId}-criticality`}
-                type="number"
-                min={1}
-                max={5}
-                className="input mt-1 w-full"
-                {...register("criticality", { valueAsNumber: true })}
-              />
-              {errors.criticality ? (
-                <p className="mt-1 text-xs text-destructive">{errors.criticality.message}</p>
-              ) : null}
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-foreground">Evidências</h3>
-              <button
-                type="button"
-                className="btn btn-secondary btn-xs"
-                onClick={() => evidencesArray.append({ url: "", label: "" })}
-                disabled={evidencesArray.fields.length >= 5}
-              >
-                Adicionar
-              </button>
-            </div>
-            {evidencesArray.fields.length === 0 ? (
-              <p className="text-xs text-muted-foreground">Adicione links de evidências (ex.: fotos, relatórios).</p>
-            ) : (
-              <div className="space-y-2">
-                {evidencesArray.fields.map((field, index) => (
-                  <div key={field.id} className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
-                    <input
-                      type="url"
-                      className="input"
-                      placeholder="URL da evidência"
-                      {...register(`evidences.${index}.url` as const)}
-                    />
-                    <input
-                      type="text"
-                      className="input"
-                      placeholder="Descrição (opcional)"
-                      {...register(`evidences.${index}.label` as const)}
-                    />
-                    <button
-                      type="button"
-                      className="btn btn-outline"
-                      onClick={() => evidencesArray.remove(index)}
-                    >
-                      Remover
-                    </button>
-                    {errors.evidences?.[index]?.url ? (
-                      <p className="text-xs text-destructive sm:col-span-3">
-                        {errors.evidences[index]?.url?.message}
-                      </p>
-                    ) : null}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+            );
+          })}
         </div>
-      ) : null}
+      </div>
+
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-semibold text-foreground">Mão de obra</h3>
+          <button
+            type="button"
+            className="btn btn-secondary btn-xs"
+            onClick={() => workforceArray.append({ role: "", quantity: 1 })}
+            disabled={workforceArray.fields.length >= 12}
+          >
+            Adicionar função
+          </button>
+        </div>
+        {workforceArray.fields.length === 0 ? (
+          <p className="text-xs text-muted-foreground">Informe as funções e quantidades utilizadas.</p>
+        ) : (
+          <div className="space-y-2">
+            {workforceArray.fields.map((field, index) => (
+              <div key={field.id} className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_140px_auto]">
+                <select className="input" {...register(`workforce.${index}.role` as const)}>
+                  <option value="">Selecione</option>
+                  {WORKFORCE_ROLES.map((role) => (
+                    <option key={role} value={role}>
+                      {role}
+                    </option>
+                  ))}
+                </select>
+                <input
+                  type="number"
+                  className="input"
+                  min={1}
+                  {...register(`workforce.${index}.quantity` as const, { valueAsNumber: true })}
+                />
+                <button
+                  type="button"
+                  className="btn btn-outline"
+                  onClick={() => workforceArray.remove(index)}
+                  disabled={workforceArray.fields.length === 1}
+                >
+                  Remover
+                </button>
+                {errors.workforce?.[index]?.role ? (
+                  <p className="text-xs text-destructive sm:col-span-3">{errors.workforce[index]?.role?.message}</p>
+                ) : null}
+                {errors.workforce?.[index]?.quantity ? (
+                  <p className="text-xs text-destructive sm:col-span-3">{errors.workforce[index]?.quantity?.message}</p>
+                ) : null}
+              </div>
+            ))}
+          </div>
+        )}
+        {typeof errors.workforce?.message === "string" ? (
+          <p className="text-xs text-destructive">{errors.workforce.message}</p>
+        ) : null}
+      </div>
+
+      <div className="space-y-3">
+        <h3 className="text-sm font-semibold text-foreground">Períodos trabalhados</h3>
+        <div className="flex flex-wrap gap-2">
+          {SHIFT_OPTIONS.map((option) => {
+            const checked = selectedShifts.includes(option.id);
+            const disabled = !checked && shiftArray.fields.length >= 2;
+            return (
+              <label
+                key={option.id}
+                className={`flex cursor-pointer items-center gap-2 rounded-full border px-3 py-1 text-sm ${
+                  checked ? "border-primary bg-primary/10 text-primary" : "border-muted bg-muted/40"
+                }`}
+              >
+                <input
+                  type="checkbox"
+                  className="h-4 w-4"
+                  checked={checked}
+                  onChange={() => toggleShift(option.id)}
+                  disabled={disabled}
+                />
+                {option.label}
+              </label>
+            );
+          })}
+        </div>
+        {errors.shifts && !Array.isArray(errors.shifts) && typeof errors.shifts.message === "string" ? (
+          <p className="text-xs text-destructive">{errors.shifts.message}</p>
+        ) : null}
+        {errors.shifts && !Array.isArray(errors.shifts) && typeof (errors.shifts as any)?.root?.message === "string" ? (
+          <p className="text-xs text-destructive">{(errors.shifts as any).root.message}</p>
+        ) : null}
+        {shiftArray.fields.length > 0 ? (
+          <div className="space-y-3">
+            {shiftArray.fields.map((field, index) => (
+              <div key={field.id} className="rounded-lg border border-muted p-3">
+                <input type="hidden" value={field.shift} {...register(`shifts.${index}.shift` as const)} />
+                <div className="text-sm font-semibold text-foreground">
+                  {SHIFT_OPTIONS.find((option) => option.id === field.shift)?.label ?? field.shift}
+                </div>
+                <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                  <div>
+                    <label className="text-xs font-medium text-muted-foreground">Tempo</label>
+                    <select className="input mt-1" {...register(`shifts.${index}.weather` as const)}>
+                      {WEATHER_OPTIONS.map((option) => (
+                        <option key={option.id} value={option.id}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-muted-foreground">Condição de trabalho</label>
+                    <select className="input mt-1" {...register(`shifts.${index}.condition` as const)}>
+                      {CONDITION_OPTIONS.map((option) => (
+                        <option key={option.id} value={option.id}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-xs text-muted-foreground">Selecione até dois turnos trabalhados e informe as condições.</p>
+        )}
+        {Array.isArray(errors.shifts)
+          ? errors.shifts.map((error, index) => (
+              <div key={index} className="text-xs text-destructive">
+                {error?.shift?.message || error?.weather?.message || error?.condition?.message}
+              </div>
+            ))
+          : null}
+      </div>
 
       {requiresJustification ? (
         <div>
@@ -658,8 +651,7 @@ export default function ServiceUpdateForm({
       ) : null}
 
       <label className="flex items-start gap-2 rounded-lg border border-muted bg-muted/40 p-4 text-sm">
-        <input type="checkbox" className="mt-1 h-4 w-4" {...register("declarationAccepted")}
-        />
+        <input type="checkbox" className="mt-1 h-4 w-4" {...register("declarationAccepted")} />
         <span>
           Declaro que as informações fornecidas são verdadeiras e assumo responsabilidade pelas atualizações realizadas neste
           serviço.

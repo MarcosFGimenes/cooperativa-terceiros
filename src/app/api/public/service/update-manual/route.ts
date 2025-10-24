@@ -4,6 +4,10 @@ import { NextResponse } from "next/server";
 import { PublicAccessError, requireServiceAccess } from "@/lib/public-access";
 import { addManualUpdate } from "@/lib/repo/services";
 
+const SHIFT_VALUES = new Set(["manha", "tarde", "noite"]);
+const WEATHER_VALUES = new Set(["claro", "nublado", "chuvoso"]);
+const CONDITION_VALUES = new Set(["praticavel", "impraticavel"]);
+
 export async function POST(req: Request) {
   const { searchParams } = new URL(req.url);
   const serviceId = searchParams.get("serviceId") ?? "";
@@ -88,6 +92,43 @@ export async function POST(req: Request) {
           .slice(0, 8) as Array<{ name: string; quantity?: number | null; unit?: string | null }>
       : undefined;
 
+    const workforce = Array.isArray(body.workforce)
+      ? (body.workforce as Array<Record<string, unknown>>)
+          .map((item) => {
+            const role = typeof item.role === "string" ? item.role.trim() : "";
+            if (!role) return null;
+            const quantityRaw = Number(item.quantity);
+            const quantity = Number.isFinite(quantityRaw) ? Math.max(1, Math.round(quantityRaw)) : null;
+            if (!quantity) return null;
+            return { role, quantity };
+          })
+          .filter(Boolean)
+          .slice(0, 12) as Array<{ role: string; quantity: number }>
+      : undefined;
+
+    const shiftConditions = Array.isArray(body.shiftConditions)
+      ? (body.shiftConditions as Array<Record<string, unknown>>)
+          .map((item) => {
+            const shift = typeof item.shift === "string" ? item.shift.trim().toLowerCase() : "";
+            const weather = typeof item.weather === "string" ? item.weather.trim().toLowerCase() : "";
+            const condition = typeof item.condition === "string" ? item.condition.trim().toLowerCase() : "";
+            if (!SHIFT_VALUES.has(shift) || !WEATHER_VALUES.has(weather) || !CONDITION_VALUES.has(condition)) {
+              return null;
+            }
+            return {
+              shift: shift as "manha" | "tarde" | "noite",
+              weather: weather as "claro" | "nublado" | "chuvoso",
+              condition: condition as "praticavel" | "impraticavel",
+            };
+          })
+          .filter(Boolean)
+          .slice(0, 2) as Array<{
+          shift: "manha" | "tarde" | "noite";
+          weather: "claro" | "nublado" | "chuvoso";
+          condition: "praticavel" | "impraticavel";
+        }>
+      : undefined;
+
     const forecastDateRaw = typeof body.forecastDate === "string" ? body.forecastDate : undefined;
     const forecastDate = forecastDateRaw ? new Date(forecastDateRaw) : null;
     const forecastMillis = forecastDate && !Number.isNaN(forecastDate.getTime()) ? forecastDate.getTime() : null;
@@ -148,6 +189,8 @@ export async function POST(req: Request) {
       subactivity: subactivityId || subactivityLabel ? { id: subactivityId, label: subactivityLabel } : undefined,
       impediments,
       resources,
+      workforce,
+      shiftConditions,
       forecastDate: forecastMillis,
       criticality: criticality ?? undefined,
       evidences,
