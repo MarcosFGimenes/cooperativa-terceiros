@@ -1,6 +1,6 @@
 import { initializeApp, getApps, type FirebaseApp } from "firebase/app";
 import { getAuth, type Auth } from "firebase/auth";
-import { getFirestore, type Firestore } from "firebase/firestore";
+import { getFirestore, initializeFirestore, type Firestore } from "firebase/firestore";
 
 import { getFirebasePublicConfig } from "@/lib/firebaseConfig";
 
@@ -8,6 +8,7 @@ let clientApp: FirebaseApp | null = null;
 let initError: Error | null = null;
 let authInstance: Auth | null = null;
 let firestoreInstance: Firestore | null = null;
+let firestoreConfigured = false;
 
 function ensureClientApp() {
   if (typeof window === "undefined") {
@@ -97,6 +98,23 @@ export function tryGetFirestore(): { db: Firestore | null; error: Error | null }
 
   if (!firestoreInstance) {
     try {
+      if (!firestoreConfigured) {
+        try {
+          initializeFirestore(app, {
+            experimentalAutoDetectLongPolling: true,
+            useFetchStreams: false,
+          });
+        } catch (configError) {
+          const message =
+            configError instanceof Error ? configError.message : String(configError ?? "");
+          if (!message.includes("already been initialized")) {
+            if (process.env.NODE_ENV !== "production") {
+              console.warn("[firebase] Unable to apply Firestore settings", configError);
+            }
+          }
+        }
+        firestoreConfigured = true;
+      }
       firestoreInstance = getFirestore(app);
     } catch (dbError) {
       const errorObject = dbError instanceof Error ? dbError : new Error(String(dbError));
