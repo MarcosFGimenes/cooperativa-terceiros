@@ -118,6 +118,41 @@ function computeTimeWindowHours(update: ThirdServiceUpdate): number | null {
   return Math.round(diff * 100) / 100;
 }
 
+const SHIFT_LABELS = {
+  manha: "Manhã",
+  tarde: "Tarde",
+  noite: "Noite",
+} as const satisfies Record<"manha" | "tarde" | "noite", string>;
+
+const WEATHER_LABELS = {
+  claro: "Claro",
+  nublado: "Nublado",
+  chuvoso: "Chuvoso",
+} as const satisfies Record<"claro" | "nublado" | "chuvoso", string>;
+
+const CONDITION_LABELS = {
+  praticavel: "Praticável",
+  impraticavel: "Impraticável",
+} as const satisfies Record<"praticavel" | "impraticavel", string>;
+
+function getShiftLabel(value?: string | null) {
+  if (!value) return "";
+  const key = value.toLowerCase() as keyof typeof SHIFT_LABELS;
+  return SHIFT_LABELS[key] ?? value;
+}
+
+function getWeatherLabel(value?: string | null) {
+  if (!value) return "";
+  const key = value.toLowerCase() as keyof typeof WEATHER_LABELS;
+  return WEATHER_LABELS[key] ?? value;
+}
+
+function getConditionLabel(value?: string | null) {
+  if (!value) return "";
+  const key = value.toLowerCase() as keyof typeof CONDITION_LABELS;
+  return CONDITION_LABELS[key] ?? value;
+}
+
 function toThirdUpdate(update: any): ThirdServiceUpdate {
   return {
     id: String(update.id ?? crypto.randomUUID()),
@@ -134,6 +169,34 @@ function toThirdUpdate(update: any): ThirdServiceUpdate {
     mode: update.mode,
     impediments: update.impediments,
     resources: update.resources,
+    workforce: Array.isArray(update.workforce)
+      ? (update.workforce as Array<{ role?: string; quantity?: number }>)
+          .map((item) => {
+            const role = typeof item.role === "string" ? item.role.trim() : "";
+            const quantity = Number(item.quantity);
+            if (!role) return null;
+            const normalisedQuantity = Number.isFinite(quantity) ? Math.max(1, Math.round(quantity)) : 1;
+            return { role, quantity: normalisedQuantity };
+          })
+          .filter(Boolean)
+      : undefined,
+    shiftConditions: Array.isArray(update.shiftConditions)
+      ? (update.shiftConditions as Array<{ shift?: string; weather?: string; condition?: string }>)
+          .map((item) => {
+            const shiftRaw = typeof item.shift === "string" ? item.shift.trim().toLowerCase() : "";
+            const weatherRaw = typeof item.weather === "string" ? item.weather.trim().toLowerCase() : "";
+            const conditionRaw = typeof item.condition === "string" ? item.condition.trim().toLowerCase() : "";
+            if (!SHIFT_LABELS[shiftRaw as keyof typeof SHIFT_LABELS]) return null;
+            if (!WEATHER_LABELS[weatherRaw as keyof typeof WEATHER_LABELS]) return null;
+            if (!CONDITION_LABELS[conditionRaw as keyof typeof CONDITION_LABELS]) return null;
+            return {
+              shift: shiftRaw as "manha" | "tarde" | "noite",
+              weather: weatherRaw as "claro" | "nublado" | "chuvoso",
+              condition: conditionRaw as "praticavel" | "impraticavel",
+            };
+          })
+          .filter(Boolean)
+      : undefined,
     forecastDate: update.forecastDate ?? null,
     criticality: update.criticality ?? null,
     evidences: update.evidences,
@@ -156,6 +219,12 @@ export default function ServiceDetailsClient({ service, updates: initialUpdates,
   const serviceLabel = useMemo(() => {
     if (service.os && service.os.trim()) return service.os.trim();
     if (service.code && service.code.trim()) return service.code.trim();
+    return service.id;
+  }, [service]);
+
+  const formIdentifier = useMemo(() => {
+    if (service.code && service.code.trim()) return service.code.trim();
+    if (service.os && service.os.trim()) return service.os.trim();
     return service.id;
   }, [service]);
 
@@ -224,6 +293,12 @@ export default function ServiceDetailsClient({ service, updates: initialUpdates,
         url.searchParams.set("token", token);
       }
 
+      const resourcesPayload = payload.resources.map((item) => ({
+        name: item.name,
+        quantity: null,
+        unit: null,
+      }));
+
       const body: Record<string, unknown> = {
         percent: payload.percent,
         description: payload.description,
@@ -232,12 +307,10 @@ export default function ServiceDetailsClient({ service, updates: initialUpdates,
           payload.subactivityId || payload.subactivityLabel
             ? { id: payload.subactivityId, label: payload.subactivityLabel }
             : undefined,
-        mode: payload.mode,
-        impediments: payload.impediments,
-        resources: payload.resources,
-        forecastDate: payload.forecastDate,
-        criticality: payload.criticality ?? undefined,
-        evidences: payload.evidences,
+        mode: "simple",
+        resources: resourcesPayload,
+        workforce: payload.workforce,
+        shiftConditions: payload.shiftConditions,
         justification: payload.justification,
         declarationAccepted: payload.declarationAccepted,
       };
@@ -290,12 +363,10 @@ export default function ServiceDetailsClient({ service, updates: initialUpdates,
                   payload.subactivityId || payload.subactivityLabel
                     ? { id: payload.subactivityId, label: payload.subactivityLabel }
                     : undefined,
-                mode: payload.mode,
-                impediments: payload.impediments,
-                resources: payload.resources,
-                forecastDate: payload.forecastDate ? new Date(payload.forecastDate).getTime() : null,
-                criticality: payload.criticality ?? null,
-                evidences: payload.evidences,
+                mode: "simple",
+                resources: resourcesPayload,
+                workforce: payload.workforce,
+                shiftConditions: payload.shiftConditions,
                 justification: payload.justification ?? null,
                 previousPercent: progress,
                 declarationAccepted: true,
@@ -319,11 +390,35 @@ export default function ServiceDetailsClient({ service, updates: initialUpdates,
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold">Serviço {serviceLabel}</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Consulte os dados do serviço e registre a atualização diária com o período trabalhado, subatividade e evidências.
-        </p>
+      <div className="card space-y-4 p-4">
+        <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+          <div className="space-y-2">
+            <p className="text-xs font-semibold uppercase tracking-widest text-primary">Portal do Terceiro</p>
+            <h1 className="text-3xl font-semibold text-foreground">FO – {formIdentifier}</h1>
+            <p className="text-sm text-muted-foreground">Formulário Único de Atualização diária.</p>
+            <p className="text-sm text-muted-foreground">
+              Serviço: <span className="font-medium text-foreground">{serviceLabel}</span>
+            </p>
+          </div>
+          <div className="min-w-[240px] overflow-hidden rounded-lg border border-dashed">
+            <table className="w-full text-xs">
+              <thead className="bg-muted/60 text-muted-foreground">
+                <tr>
+                  <th className="px-3 py-2 text-left font-medium uppercase tracking-wide">Emissão</th>
+                  <th className="px-3 py-2 text-left font-medium uppercase tracking-wide">Revisão</th>
+                  <th className="px-3 py-2 text-left font-medium uppercase tracking-wide">Número</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr className="text-foreground">
+                  <td className="px-3 py-3">—</td>
+                  <td className="px-3 py-3">—</td>
+                  <td className="px-3 py-3">—</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-[1fr_minmax(320px,380px)]">
@@ -339,7 +434,15 @@ export default function ServiceDetailsClient({ service, updates: initialUpdates,
           </dl>
         </div>
 
-        <div className="card space-y-4 p-4">
+        <div className="card space-y-5 p-4">
+          <div className="space-y-2">
+            <h2 className="text-lg font-semibold">Atualização diária</h2>
+            <p className="text-sm text-muted-foreground">
+              Preencha o registro do dia com horários, subatividade, recursos utilizados, mão de obra e condições de trabalho
+              por turno.
+            </p>
+          </div>
+
           <div>
             <div className="text-sm text-muted-foreground">Progresso atual</div>
             <div className="mt-2 text-3xl font-semibold">{progress.toFixed(1)}%</div>
@@ -350,10 +453,6 @@ export default function ServiceDetailsClient({ service, updates: initialUpdates,
               />
             </div>
           </div>
-
-          <p className="text-sm text-muted-foreground">
-            Preencha a atualização diária com o período trabalhado, subatividade e progresso total do serviço.
-          </p>
 
           <ServiceUpdateForm
             serviceId={service.id}
@@ -443,6 +542,35 @@ export default function ServiceDetailsClient({ service, updates: initialUpdates,
                               {item.quantity !== null && item.quantity !== undefined
                                 ? ` • ${item.quantity}${item.unit ? ` ${item.unit}` : ""}`
                                 : ""}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ) : null}
+                    {update.workforce && update.workforce.length > 0 ? (
+                      <div className="text-xs text-muted-foreground">
+                        <span className="font-semibold text-foreground">Mão de obra:</span>
+                        <ul className="mt-1 space-y-1">
+                          {update.workforce.map((item, index) => (
+                            <li key={index}>
+                              {item.role}
+                              {item.quantity
+                                ? ` • ${item.quantity} ${item.quantity === 1 ? "profissional" : "profissionais"}`
+                                : ""}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ) : null}
+                    {update.shiftConditions && update.shiftConditions.length > 0 ? (
+                      <div className="text-xs text-muted-foreground">
+                        <span className="font-semibold text-foreground">Condições por turno:</span>
+                        <ul className="mt-1 space-y-1">
+                          {update.shiftConditions.map((item, index) => (
+                            <li key={index}>
+                              {getShiftLabel(item.shift)}
+                              {item.weather ? ` • ${getWeatherLabel(item.weather)}` : ""}
+                              {item.condition ? ` • ${getConditionLabel(item.condition)}` : ""}
                             </li>
                           ))}
                         </ul>

@@ -25,6 +25,8 @@ export type ServiceUpdate = BaseServiceUpdate & {
   mode?: BaseServiceUpdate["mode"];
   impediments?: BaseServiceUpdate["impediments"];
   resources?: BaseServiceUpdate["resources"];
+  workforce?: BaseServiceUpdate["workforce"];
+  shiftConditions?: BaseServiceUpdate["shiftConditions"];
   forecastDate?: number | null;
   criticality?: number | null;
   evidences?: BaseServiceUpdate["evidences"];

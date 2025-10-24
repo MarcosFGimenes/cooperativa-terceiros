@@ -354,6 +354,53 @@ function mapResources(value: unknown) {
   return entries.length ? entries : undefined;
 }
 
+function mapWorkforce(value: unknown) {
+  if (!Array.isArray(value)) return undefined;
+  const entries = value
+    .map((item) => {
+      if (!item || typeof item !== "object") return null;
+      const record = item as Record<string, unknown>;
+      const role = typeof record.role === "string" ? record.role.trim() : "";
+      if (!role) return null;
+      const quantity = toNumber(record.quantity);
+      const normalisedQuantity = Number.isFinite(quantity ?? NaN) ? Math.max(1, Math.round(Number(quantity))) : null;
+      if (!normalisedQuantity) return null;
+      return { role, quantity: normalisedQuantity };
+    })
+    .filter(Boolean) as Array<{ role: string; quantity: number }>;
+  return entries.length ? entries : undefined;
+}
+
+const SHIFT_VALUES = new Set(["manha", "tarde", "noite"]);
+const WEATHER_VALUES = new Set(["claro", "nublado", "chuvoso"]);
+const CONDITION_VALUES = new Set(["praticavel", "impraticavel"]);
+
+function mapShiftConditions(value: unknown) {
+  if (!Array.isArray(value)) return undefined;
+  const entries = value
+    .map((item) => {
+      if (!item || typeof item !== "object") return null;
+      const record = item as Record<string, unknown>;
+      const shiftRaw = typeof record.shift === "string" ? record.shift.trim().toLowerCase() : "";
+      const weatherRaw = typeof record.weather === "string" ? record.weather.trim().toLowerCase() : "";
+      const conditionRaw = typeof record.condition === "string" ? record.condition.trim().toLowerCase() : "";
+      if (!SHIFT_VALUES.has(shiftRaw) || !WEATHER_VALUES.has(weatherRaw) || !CONDITION_VALUES.has(conditionRaw)) {
+        return null;
+      }
+      return {
+        shift: shiftRaw as "manha" | "tarde" | "noite",
+        weather: weatherRaw as "claro" | "nublado" | "chuvoso",
+        condition: conditionRaw as "praticavel" | "impraticavel",
+      };
+    })
+    .filter(Boolean) as Array<{
+      shift: "manha" | "tarde" | "noite";
+      weather: "claro" | "nublado" | "chuvoso";
+      condition: "praticavel" | "impraticavel";
+    }>;
+  return entries.length ? entries : undefined;
+}
+
 function mapEvidences(value: unknown) {
   if (!Array.isArray(value)) return undefined;
   const entries = value
@@ -426,6 +473,8 @@ function mapUpdateDoc(
         : undefined,
     impediments: mapImpediments((data as Record<string, unknown>).impediments),
     resources: mapResources((data as Record<string, unknown>).resources),
+    workforce: mapWorkforce((data as Record<string, unknown>).workforce),
+    shiftConditions: mapShiftConditions((data as Record<string, unknown>).shiftConditions),
     forecastDate: toMillis((data as Record<string, unknown>).forecastDate) ?? null,
     criticality: toNumber((data as Record<string, unknown>).criticality) ?? null,
     evidences: mapEvidences((data as Record<string, unknown>).evidences),
@@ -597,6 +646,12 @@ type ManualUpdateInput = {
   subactivity?: { id?: string | null; label?: string | null };
   impediments?: Array<{ type: string; durationHours?: number | null }>;
   resources?: Array<{ name: string; quantity?: number | null; unit?: string | null }>;
+  workforce?: Array<{ role: string; quantity: number }>;
+  shiftConditions?: Array<{
+    shift: "manha" | "tarde" | "noite";
+    weather: "claro" | "nublado" | "chuvoso";
+    condition: "praticavel" | "impraticavel";
+  }>;
   forecastDate?: number | null;
   criticality?: number | null;
   evidences?: Array<{ url: string; label?: string | null }>;
@@ -673,6 +728,31 @@ function buildUpdatePayload(serviceId: string, params: ManualUpdateInput & { rea
             : null,
         unit: item.unit?.trim() || null,
       }));
+  }
+
+  if (params.workforce?.length) {
+    payload.workforce = params.workforce
+      .map((item) => ({
+        role: item.role.trim(),
+        quantity: Math.max(1, Math.round(Number(item.quantity))),
+      }))
+      .filter((item) => item.role && Number.isFinite(item.quantity))
+      .slice(0, 12);
+  }
+
+  if (params.shiftConditions?.length) {
+    payload.shiftConditions = params.shiftConditions
+      .map((item) => {
+        const shift = item.shift.trim().toLowerCase();
+        const weather = item.weather.trim().toLowerCase();
+        const condition = item.condition.trim().toLowerCase();
+        if (!SHIFT_VALUES.has(shift) || !WEATHER_VALUES.has(weather) || !CONDITION_VALUES.has(condition)) {
+          return null;
+        }
+        return { shift, weather, condition };
+      })
+      .filter(Boolean)
+      .slice(0, 2);
   }
 
   if (params.forecastDate && Number.isFinite(params.forecastDate)) {

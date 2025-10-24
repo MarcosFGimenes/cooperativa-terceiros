@@ -35,6 +35,8 @@ export type ThirdServiceUpdate = {
   mode?: "simple" | "detailed";
   impediments?: Array<{ type: string; durationHours?: number | null }>;
   resources?: Array<{ name: string; quantity?: number | null; unit?: string | null }>;
+  workforce?: Array<{ role: string; quantity: number }>;
+  shiftConditions?: Array<{ shift: "manha" | "tarde" | "noite"; weather: "claro" | "nublado" | "chuvoso"; condition: "praticavel" | "impraticavel" }>;
   forecastDate?: number | null;
   criticality?: number | null;
   evidences?: Array<{ url: string; label?: string | null }>;
