@@ -1,24 +1,12 @@
 "use server";
 
-import { getFirestoreClient } from "@/lib/firebase";
 import { getAdmin } from "@/lib/firebaseAdmin";
 import type { Package, Service } from "@/lib/types";
-import {
-  collection,
-  doc,
-  getDoc,
-  getDocs,
-  limit,
-  orderBy,
-  query,
-  type DocumentData,
-} from "firebase/firestore";
 import { FieldValue } from "firebase-admin/firestore";
 
 const getDb = () => getAdmin().db;
 const packagesCollection = () => getDb().collection("packages");
 const servicesCollection = () => getDb().collection("services");
-const getClientDb = () => getFirestoreClient();
 
 function toMillis(value: unknown): number | undefined {
   if (typeof value === "number") return value;
@@ -105,17 +93,14 @@ function mapPackageData(id: string, data: Record<string, unknown>): Package {
 }
 
 export async function getPackageById(id: string): Promise<Package | null> {
-  const firestore = getClientDb();
-  const snap = await getDoc(doc(firestore, "packages", id));
-  if (!snap.exists()) return null;
-  return mapPackageData(snap.id, snap.data() as DocumentData);
+  const snap = await packagesCollection().doc(id).get();
+  if (!snap.exists) return null;
+  return mapPackageData(snap.id, (snap.data() ?? {}) as Record<string, unknown>);
 }
 
 export async function listRecentPackages(): Promise<Package[]> {
-  const firestore = getClientDb();
-  const q = query(collection(firestore, "packages"), orderBy("createdAt", "desc"), limit(20));
-  const snap = await getDocs(q);
-  return snap.docs.map((d) => mapPackageData(d.id, d.data()));
+  const snap = await packagesCollection().orderBy("createdAt", "desc").limit(20).get();
+  return snap.docs.map((doc) => mapPackageData(doc.id, (doc.data() ?? {}) as Record<string, unknown>));
 }
 
 export async function listPackageServices(

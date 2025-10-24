@@ -1,4 +1,3 @@
-import { getFirestoreClient } from "@/lib/firebase";
 import { getAdmin } from "@/lib/firebaseAdmin";
 import type {
   ChecklistItem,
@@ -6,21 +5,10 @@ import type {
   ServiceStatus,
   ServiceUpdate,
 } from "@/lib/types";
-import {
-  collection,
-  doc,
-  getDoc,
-  getDocs,
-  limit,
-  orderBy,
-  query,
-  type DocumentData,
-} from "firebase/firestore";
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
 
 const getDb = () => getAdmin().db;
 const servicesCollection = () => getDb().collection("services");
-const getClientDb = () => getFirestoreClient();
 
 function toMillis(value: unknown | Timestamp | number | null | undefined) {
   if (typeof value === "number") return value;
@@ -280,17 +268,14 @@ function mapServiceData(id: string, data: Record<string, unknown>): Service {
 }
 
 export async function getServiceById(id: string): Promise<Service | null> {
-  const firestore = getClientDb();
-  const snap = await getDoc(doc(firestore, "services", id));
-  if (!snap.exists()) return null;
-  return mapServiceData(snap.id, snap.data() as DocumentData);
+  const snap = await servicesCollection().doc(id).get();
+  if (!snap.exists) return null;
+  return mapServiceData(snap.id, (snap.data() ?? {}) as Record<string, unknown>);
 }
 
 export async function listRecentServices(): Promise<Service[]> {
-  const firestore = getClientDb();
-  const q = query(collection(firestore, "services"), orderBy("createdAt", "desc"), limit(20));
-  const snap = await getDocs(q);
-  return snap.docs.map((d) => mapServiceData(d.id, d.data()));
+  const snap = await servicesCollection().orderBy("createdAt", "desc").limit(20).get();
+  return snap.docs.map((doc) => mapServiceData(doc.id, (doc.data() ?? {}) as Record<string, unknown>));
 }
 
 function mapChecklistDoc(
@@ -309,19 +294,152 @@ function mapChecklistDoc(
   };
 }
 
+function mapTimeWindow(value: unknown) {
+  if (!value || typeof value !== "object") return undefined;
+  const record = value as Record<string, unknown>;
+  const start = toMillis(record.start);
+  const end = toMillis(record.end);
+  const hours = toNumber(record.hours);
+  return {
+    start: start ?? null,
+    end: end ?? null,
+    hours: Number.isFinite(hours ?? NaN) ? Number(hours) : start && end ? (end - start) / 3_600_000 : null,
+  };
+}
+
+function mapSubactivity(value: unknown) {
+  if (!value || typeof value !== "object") return undefined;
+  const record = value as Record<string, unknown>;
+  const id = typeof record.id === "string" && record.id.trim() ? record.id.trim() : null;
+  const label = typeof record.label === "string" && record.label.trim() ? record.label.trim() : null;
+  if (!id && !label) return undefined;
+  return { id, label };
+}
+
+function mapImpediments(value: unknown) {
+  if (!Array.isArray(value)) return undefined;
+  const entries = value
+    .map((item) => {
+      if (!item || typeof item !== "object") return null;
+      const record = item as Record<string, unknown>;
+      const type = typeof record.type === "string" ? record.type.trim() : "";
+      if (!type) return null;
+      const duration = toNumber(record.durationHours);
+      return {
+        type,
+        durationHours: Number.isFinite(duration ?? NaN) ? Number(duration) : null,
+      };
+    })
+    .filter(Boolean) as Array<{ type: string; durationHours?: number | null }>;
+  return entries.length ? entries : undefined;
+}
+
+function mapResources(value: unknown) {
+  if (!Array.isArray(value)) return undefined;
+  const entries = value
+    .map((item) => {
+      if (!item || typeof item !== "object") return null;
+      const record = item as Record<string, unknown>;
+      const name = typeof record.name === "string" ? record.name.trim() : "";
+      if (!name) return null;
+      const quantity = toNumber(record.quantity);
+      const unit = typeof record.unit === "string" && record.unit.trim() ? record.unit.trim() : null;
+      return {
+        name,
+        quantity: Number.isFinite(quantity ?? NaN) ? Number(quantity) : null,
+        unit,
+      };
+    })
+    .filter(Boolean) as Array<{ name: string; quantity?: number | null; unit?: string | null }>;
+  return entries.length ? entries : undefined;
+}
+
+function mapEvidences(value: unknown) {
+  if (!Array.isArray(value)) return undefined;
+  const entries = value
+    .map((item) => {
+      if (!item || typeof item !== "object") return null;
+      const record = item as Record<string, unknown>;
+      const url = typeof record.url === "string" ? record.url.trim() : "";
+      if (!url) return null;
+      const label = typeof record.label === "string" && record.label.trim() ? record.label.trim() : null;
+      return { url, label };
+    })
+    .filter(Boolean) as Array<{ url: string; label?: string | null }>;
+  return entries.length ? entries : undefined;
+}
+
+function mapAudit(value: unknown) {
+  if (!value || typeof value !== "object") return undefined;
+  const record = value as Record<string, unknown>;
+  const submittedAt = toMillis(record.submittedAt);
+  const previousPercent = toNumber(record.previousPercent);
+  const newPercent = toNumber(record.newPercent);
+  const submittedBy = typeof record.submittedBy === "string" && record.submittedBy.trim() ? record.submittedBy.trim() : null;
+  const token = typeof record.token === "string" && record.token.trim() ? record.token.trim() : null;
+  const ip = typeof record.ip === "string" && record.ip.trim() ? record.ip.trim() : null;
+  const submittedByType = typeof record.submittedByType === "string" ? record.submittedByType : undefined;
+  return {
+    submittedBy,
+    submittedByType: submittedByType === "user" || submittedByType === "token" || submittedByType === "system"
+      ? submittedByType
+      : undefined,
+    submittedAt: submittedAt ?? null,
+    previousPercent: Number.isFinite(previousPercent ?? NaN) ? Number(previousPercent) : null,
+    newPercent: Number.isFinite(newPercent ?? NaN) ? Number(newPercent) : null,
+    token,
+    ip,
+  };
+}
+
 function mapUpdateDoc(
   serviceId: string,
-  doc: FirebaseFirestore.QueryDocumentSnapshot,
+  doc: FirebaseFirestore.QueryDocumentSnapshot | FirebaseFirestore.DocumentSnapshot,
 ): ServiceUpdate {
   const data = doc.data() ?? {};
+  const manualPercent = toNumber((data as Record<string, unknown>).manualPercent) ?? undefined;
+  const realPercent = toNumber((data as Record<string, unknown>).realPercentSnapshot) ?? manualPercent ?? 0;
+  const description = (() => {
+    const raw = (data as Record<string, unknown>).description ?? (data as Record<string, unknown>).note;
+    if (typeof raw === "string") {
+      const trimmed = raw.trim();
+      return trimmed.length ? trimmed : "";
+    }
+    return "";
+  })();
+  const percent = Number.isFinite(realPercent ?? NaN) ? Number(realPercent) : 0;
+
   return {
     id: doc.id,
     serviceId,
-    token: data.token ?? undefined,
-    note: data.note ?? undefined,
-    manualPercent: data.manualPercent ?? undefined,
-    realPercentSnapshot: data.realPercentSnapshot ?? 0,
-    createdAt: toMillis(data.createdAt) ?? 0,
+    token: (data as Record<string, unknown>).token ?? undefined,
+    manualPercent,
+    realPercentSnapshot: percent,
+    percent,
+    description,
+    timeWindow: mapTimeWindow((data as Record<string, unknown>).timeWindow),
+    subactivity: mapSubactivity((data as Record<string, unknown>).subactivity),
+    mode:
+      (typeof (data as Record<string, unknown>).mode === "string" &&
+      ((data as Record<string, unknown>).mode === "detailed" || (data as Record<string, unknown>).mode === "simple"))
+        ? ((data as Record<string, unknown>).mode as "simple" | "detailed")
+        : undefined,
+    impediments: mapImpediments((data as Record<string, unknown>).impediments),
+    resources: mapResources((data as Record<string, unknown>).resources),
+    forecastDate: toMillis((data as Record<string, unknown>).forecastDate) ?? null,
+    criticality: toNumber((data as Record<string, unknown>).criticality) ?? null,
+    evidences: mapEvidences((data as Record<string, unknown>).evidences),
+    justification:
+      typeof (data as Record<string, unknown>).justification === "string"
+        ? (data as Record<string, unknown>).justification.trim() || null
+        : null,
+    previousPercent: toNumber((data as Record<string, unknown>).previousPercent) ?? null,
+    declarationAccepted:
+      typeof (data as Record<string, unknown>).declarationAccepted === "boolean"
+        ? (data as Record<string, unknown>).declarationAccepted
+        : undefined,
+    audit: mapAudit((data as Record<string, unknown>).audit),
+    createdAt: toMillis((data as Record<string, unknown>).createdAt) ?? 0,
   };
 }
 
@@ -469,31 +587,147 @@ export async function computeRealPercentFromChecklist(
   return Math.round(percent * 100) / 100;
 }
 
-function buildUpdatePayload(params: {
-  note?: string;
+type ManualUpdateInput = {
+  manualPercent: number;
+  description: string;
   token?: string;
-  manualPercent?: number;
-  realPercent: number;
-}) {
+  mode: "simple" | "detailed";
+  declarationAccepted: boolean;
+  timeWindow?: { start?: number | null; end?: number | null; hours?: number | null };
+  subactivity?: { id?: string | null; label?: string | null };
+  impediments?: Array<{ type: string; durationHours?: number | null }>;
+  resources?: Array<{ name: string; quantity?: number | null; unit?: string | null }>;
+  forecastDate?: number | null;
+  criticality?: number | null;
+  evidences?: Array<{ url: string; label?: string | null }>;
+  justification?: string | null;
+  previousPercent?: number | null;
+  ip?: string | null;
+};
+
+function buildUpdatePayload(serviceId: string, params: ManualUpdateInput & { realPercent: number }) {
   const payload: Record<string, unknown> = {
     realPercentSnapshot: params.realPercent,
     createdAt: FieldValue.serverTimestamp(),
+    description: params.description,
+    manualPercent: params.manualPercent,
+    percent: params.realPercent,
+    mode: params.mode,
+    declarationAccepted: params.declarationAccepted,
+    serviceId,
   };
-  if (params.note !== undefined) payload.note = params.note;
-  if (params.token !== undefined) payload.token = params.token;
-  if (params.manualPercent !== undefined) {
-    payload.manualPercent = params.manualPercent;
+
+  if (params.token) payload.token = params.token;
+  if (params.previousPercent !== undefined) {
+    payload.previousPercent = Number.isFinite(params.previousPercent ?? NaN)
+      ? Number(params.previousPercent)
+      : null;
   }
+
+  if (params.timeWindow) {
+    const timeWindowPayload: Record<string, unknown> = {};
+    if (typeof params.timeWindow.start === "number" && Number.isFinite(params.timeWindow.start)) {
+      timeWindowPayload.start = Timestamp.fromMillis(params.timeWindow.start);
+    }
+    if (typeof params.timeWindow.end === "number" && Number.isFinite(params.timeWindow.end)) {
+      timeWindowPayload.end = Timestamp.fromMillis(params.timeWindow.end);
+    }
+    if (typeof params.timeWindow.hours === "number" && Number.isFinite(params.timeWindow.hours)) {
+      timeWindowPayload.hours = Number(params.timeWindow.hours);
+    }
+    if (Object.keys(timeWindowPayload).length > 0) {
+      payload.timeWindow = timeWindowPayload;
+    }
+  }
+
+  if (params.subactivity) {
+    const { id, label } = params.subactivity;
+    if ((id && id.trim()) || (label && label.trim())) {
+      payload.subactivity = {
+        id: id?.trim() || undefined,
+        label: label?.trim() || undefined,
+      };
+    }
+  }
+
+  if (params.impediments?.length) {
+    payload.impediments = params.impediments
+      .slice(0, 5)
+      .map((item) => ({
+        type: item.type.trim(),
+        durationHours:
+          typeof item.durationHours === "number" && Number.isFinite(item.durationHours)
+            ? Number(item.durationHours)
+            : null,
+      }));
+  }
+
+  if (params.resources?.length) {
+    payload.resources = params.resources
+      .slice(0, 8)
+      .map((item) => ({
+        name: item.name.trim(),
+        quantity:
+          typeof item.quantity === "number" && Number.isFinite(item.quantity)
+            ? Number(item.quantity)
+            : null,
+        unit: item.unit?.trim() || null,
+      }));
+  }
+
+  if (params.forecastDate && Number.isFinite(params.forecastDate)) {
+    payload.forecastDate = Timestamp.fromMillis(params.forecastDate);
+  }
+
+  if (typeof params.criticality === "number" && Number.isFinite(params.criticality)) {
+    payload.criticality = Math.round(Math.max(1, Math.min(5, params.criticality)));
+  }
+
+  if (params.evidences?.length) {
+    payload.evidences = params.evidences
+      .slice(0, 5)
+      .map((item) => ({
+        url: item.url.trim(),
+        label: item.label?.trim() || null,
+      }));
+  }
+
+  if (typeof params.justification === "string" && params.justification.trim()) {
+    payload.justification = params.justification.trim();
+  }
+
+  const audit: Record<string, unknown> = {
+    submittedAt: FieldValue.serverTimestamp(),
+    newPercent: params.realPercent,
+  };
+  if (params.token) {
+    audit.submittedByType = "token";
+    audit.submittedBy = params.token;
+    audit.token = params.token;
+  } else {
+    audit.submittedByType = "system";
+  }
+  if (params.previousPercent !== undefined) {
+    audit.previousPercent = Number.isFinite(params.previousPercent ?? NaN)
+      ? Number(params.previousPercent)
+      : null;
+  }
+  if (params.ip) {
+    audit.ip = params.ip;
+  }
+  payload.audit = audit;
+
   return payload;
 }
 
 export async function addManualUpdate(
   serviceId: string,
-  manualPercent: number,
-  note?: string,
-  token?: string,
-): Promise<string> {
-  const percent = sanitisePercent(manualPercent);
+  input: ManualUpdateInput,
+): Promise<{ realPercent: number; update: ServiceUpdate }> {
+  const percent = sanitisePercent(input.manualPercent);
+  const description = input.description.trim();
+  const mode = input.mode === "detailed" ? "detailed" : "simple";
+
   const { db } = getAdmin();
   const updateId = await db.runTransaction(async (tx) => {
     const serviceRef = servicesCollection().doc(serviceId);
@@ -507,24 +741,33 @@ export async function addManualUpdate(
     const updateRef = updatesCol.doc();
     tx.set(
       updateRef,
-      buildUpdatePayload({
-        note,
-        token,
+      buildUpdatePayload(serviceId, {
+        ...input,
         manualPercent: percent,
         realPercent: percent,
+        description,
+        mode,
       }),
     );
 
     tx.update(serviceRef, {
       realPercent: percent,
       manualPercent: percent,
+      andamento: percent,
       updatedAt: FieldValue.serverTimestamp(),
     });
 
     return updateRef.id;
   });
 
-  return updateId;
+  const updateSnap = await servicesCollection()
+    .doc(serviceId)
+    .collection("updates")
+    .doc(updateId)
+    .get();
+
+  const mapped = mapUpdateDoc(serviceId, updateSnap);
+  return { realPercent: mapped.realPercentSnapshot ?? percent, update: mapped };
 }
 
 export async function addComputedUpdate(

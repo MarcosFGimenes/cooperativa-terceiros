@@ -13,7 +13,7 @@ import {
 
 const SESSION_MAX_AGE = PCM_SESSION_MAX_AGE_SECONDS * 1000;
 
-function setFallbackSessionCookie(idToken: string, expiresAtSeconds: number) {
+async function setFallbackSessionCookie(idToken: string, expiresAtSeconds: number) {
   const nowSeconds = Math.floor(Date.now() / 1000);
   const remaining = Math.floor(expiresAtSeconds - nowSeconds);
   if (!Number.isFinite(remaining) || remaining <= 0) {
@@ -23,7 +23,7 @@ function setFallbackSessionCookie(idToken: string, expiresAtSeconds: number) {
   if (maxAgeSeconds <= 0) {
     return false;
   }
-  setPcmSessionCookie(idToken, maxAgeSeconds);
+  await setPcmSessionCookie(idToken, maxAgeSeconds);
   return true;
 }
 
@@ -44,7 +44,7 @@ async function handleFallback(idToken: string) {
     return NextResponse.json({ ok: false, error: "not_allowed" }, { status: 403 });
   }
 
-  if (!setFallbackSessionCookie(idToken, verification.expiresAtSeconds)) {
+  if (!(await setFallbackSessionCookie(idToken, verification.expiresAtSeconds))) {
     return NextResponse.json({ ok: false, error: "invalid_token" }, { status: 401 });
   }
 
@@ -78,7 +78,7 @@ export async function POST(req: Request) {
 
     try {
       const sessionCookie = await auth.createSessionCookie(trimmedToken, { expiresIn: SESSION_MAX_AGE });
-      setPcmSessionCookie(sessionCookie, PCM_SESSION_MAX_AGE_SECONDS);
+      await setPcmSessionCookie(sessionCookie, PCM_SESSION_MAX_AGE_SECONDS);
       return NextResponse.json({ ok: true, mode: "session" });
     } catch (cookieError) {
       console.error("[pcm-session] Falha ao criar cookie de sessão. Tentando fallback", cookieError);
@@ -91,7 +91,7 @@ export async function POST(req: Request) {
 }
 
 export async function DELETE() {
-  const sessionCookie = getPcmSessionCookie();
+  const sessionCookie = await getPcmSessionCookie();
   const app = getAdminApp();
 
   if (sessionCookie && app) {
@@ -104,6 +104,6 @@ export async function DELETE() {
     }
   }
 
-  clearPcmSessionCookie();
+  await clearPcmSessionCookie();
   return NextResponse.json({ ok: true });
 }

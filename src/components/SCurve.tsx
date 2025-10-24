@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { TooltipProps } from "recharts";
 import {
   CartesianGrid,
@@ -186,6 +186,11 @@ export default function SCurve({ planned, realizedSeries, realizedPercent }: Pro
   const deltaTone = delta >= -2 && delta <= 2 ? "neutral" : delta > 2 ? "positive" : "warning";
 
   const hasData = chartData.some((entry) => entry.planned !== null || entry.realized !== null);
+  const [isClientReady, setIsClientReady] = useState(false);
+
+  useEffect(() => {
+    setIsClientReady(true);
+  }, []);
 
   return (
     <div className="card space-y-4 p-4">
@@ -208,42 +213,48 @@ export default function SCurve({ planned, realizedSeries, realizedPercent }: Pro
       </div>
 
       {hasData ? (
-        <div className="h-72 w-full">
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={chartData} margin={{ left: 4, right: 16, top: 16, bottom: 8 }}>
-              <CartesianGrid strokeDasharray="4 4" stroke="hsl(var(--border))" />
-              <XAxis dataKey="dateLabel" stroke="hsl(var(--muted-foreground))" tick={{ fontSize: 12 }} />
-              <YAxis
-                stroke="hsl(var(--muted-foreground))"
-                domain={[0, 100]}
-                allowDecimals={false}
-                tickFormatter={(value) => `${value}%`}
-              />
-              <Tooltip content={<ChartTooltip />} />
-              <Legend wrapperStyle={{ fontSize: 12 }} />
-              <Line
-                type="monotone"
-                name="Planejado"
-                dataKey="planned"
-                stroke="hsl(var(--primary))"
-                strokeWidth={2}
-                dot={{ r: 3 }}
-                activeDot={{ r: 5 }}
-                isAnimationActive={false}
-              />
-              <Line
-                type="monotone"
-                name="Realizado"
-                dataKey="realized"
-                stroke="#10b981"
-                strokeWidth={2}
-                dot={{ r: 3 }}
-                activeDot={{ r: 5 }}
-                isAnimationActive={false}
-              />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
+        isClientReady ? (
+          <div className="h-72 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={chartData} margin={{ left: 4, right: 16, top: 16, bottom: 8 }}>
+                <CartesianGrid strokeDasharray="4 4" stroke="hsl(var(--border))" />
+                <XAxis dataKey="dateLabel" stroke="hsl(var(--muted-foreground))" tick={{ fontSize: 12 }} />
+                <YAxis
+                  stroke="hsl(var(--muted-foreground))"
+                  domain={[0, 100]}
+                  allowDecimals={false}
+                  tickFormatter={(value) => `${value}%`}
+                />
+                <Tooltip content={<ChartTooltip />} />
+                <Legend wrapperStyle={{ fontSize: 12 }} />
+                <Line
+                  type="monotone"
+                  name="Planejado"
+                  dataKey="planned"
+                  stroke="hsl(var(--primary))"
+                  strokeWidth={2}
+                  dot={{ r: 3 }}
+                  activeDot={{ r: 5 }}
+                  isAnimationActive={false}
+                />
+                <Line
+                  type="monotone"
+                  name="Realizado"
+                  dataKey="realized"
+                  stroke="#10b981"
+                  strokeWidth={2}
+                  dot={{ r: 3 }}
+                  activeDot={{ r: 5 }}
+                  isAnimationActive={false}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        ) : (
+          <div className="flex h-72 w-full items-center justify-center rounded-xl border border-dashed border-muted-foreground/40 bg-muted/20 text-xs text-muted-foreground">
+            Preparando gráfico…
+          </div>
+        )
       ) : (
         <div className="rounded-xl border border-dashed p-6 text-sm text-muted-foreground">
           Dados insuficientes para montar a curva S.

@@ -2,17 +2,14 @@ import type { ReactNode } from "react";
 import { redirect } from "next/navigation";
 import { getAuth } from "firebase-admin/auth";
 
-import {
-  clearPcmSessionCookie,
-  getPcmSessionCookie,
-} from "@/lib/auth/pcmSession";
+import { getPcmSessionCookie } from "@/lib/auth/pcmSession";
 import PcmSessionSync from "@/components/PcmSessionSync";
 import { getAdminApp } from "@/lib/firebaseAdmin";
 import { verifyFirebaseIdToken } from "@/lib/firebaseIdentity";
 import { isPCMUser } from "@/lib/pcmAuth";
 
 export default async function PcmLayout({ children }: { children: ReactNode }) {
-  const sessionCookie = getPcmSessionCookie();
+  const sessionCookie = await getPcmSessionCookie();
   if (!sessionCookie) {
     redirect("/login");
   }
@@ -23,7 +20,6 @@ export default async function PcmLayout({ children }: { children: ReactNode }) {
       const decoded = await getAuth(app).verifySessionCookie(sessionCookie, true);
       const email = decoded.email ?? "";
       if (!email || !isPCMUser(email)) {
-        clearPcmSessionCookie();
         redirect("/login");
       }
 
@@ -40,19 +36,16 @@ export default async function PcmLayout({ children }: { children: ReactNode }) {
 
   const fallback = await verifyFirebaseIdToken(sessionCookie);
   if (!fallback) {
-    clearPcmSessionCookie();
     redirect("/login");
   }
 
   const fallbackEmail = fallback.email ?? "";
   if (!fallbackEmail || !isPCMUser(fallbackEmail)) {
-    clearPcmSessionCookie();
     redirect("/login");
   }
 
   const nowSeconds = Math.floor(Date.now() / 1000);
   if (!Number.isFinite(fallback.expiresAtSeconds) || fallback.expiresAtSeconds <= nowSeconds) {
-    clearPcmSessionCookie();
     redirect("/login");
   }
 

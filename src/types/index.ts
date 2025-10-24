@@ -14,12 +14,63 @@ export type ServiceUpdateAuthor = {
   companyId?: string;
 };
 
+export type ServiceUpdateMode = "simple" | "detailed";
+
+export type ServiceUpdateTimeWindow = {
+  start?: number | null;
+  end?: number | null;
+  hours?: number | null;
+};
+
+export type ServiceUpdateSubactivity = {
+  id?: string | null;
+  label?: string | null;
+};
+
+export type ServiceUpdateImpediment = {
+  type: string;
+  durationHours?: number | null;
+};
+
+export type ServiceUpdateResource = {
+  name: string;
+  quantity?: number | null;
+  unit?: string | null;
+};
+
+export type ServiceUpdateEvidence = {
+  url: string;
+  label?: string | null;
+};
+
+export type ServiceUpdateAudit = {
+  submittedBy?: string | null;
+  submittedByType?: "token" | "user" | "system";
+  submittedAt?: number | null;
+  previousPercent?: number | null;
+  newPercent?: number | null;
+  token?: string | null;
+  ip?: string | null;
+};
+
 export type ServiceUpdate = {
   id: string;
   createdAt: number; // unix ms
   description: string;
   percent?: number; // 0..100 (usado quando NÃO há checklist)
   by?: ServiceUpdateAuthor;
+  timeWindow?: ServiceUpdateTimeWindow;
+  subactivity?: ServiceUpdateSubactivity;
+  mode?: ServiceUpdateMode;
+  impediments?: ServiceUpdateImpediment[];
+  resources?: ServiceUpdateResource[];
+  forecastDate?: number | null;
+  criticality?: number | null;
+  evidences?: ServiceUpdateEvidence[];
+  justification?: string | null;
+  previousPercent?: number | null;
+  declarationAccepted?: boolean;
+  audit?: ServiceUpdateAudit;
 };
 
 export type ServiceStatus =
