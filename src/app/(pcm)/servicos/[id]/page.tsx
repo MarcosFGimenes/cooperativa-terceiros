@@ -47,7 +47,7 @@ function toNewUpdates(updates: ServiceUpdate[]): ServiceUpdate[] {
       justification: update.justification,
       criticality: update.criticality,
     }))
-    .sort((a, b) => (a.createdAt ?? 0) - (b.createdAt ?? 0));
+    .sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0));
 }
 
 function normaliseProgress(value?: number | null) {
@@ -388,7 +388,7 @@ export default async function ServiceDetailPage({ params }: { params: { id: stri
             <p className="mt-2 text-sm text-muted-foreground">Nenhuma atualização registrada.</p>
           ) : (
             <ul className="mt-3 space-y-2 text-sm">
-              {updates.slice(-6).reverse().map((update) => {
+              {updates.slice(0, 6).map((update) => {
                 const timeWindow = formatTimeWindow(update);
                 const hours = computeTimeWindowHours(update);
                 return (

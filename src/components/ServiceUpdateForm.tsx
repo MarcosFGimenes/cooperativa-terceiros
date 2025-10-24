@@ -106,6 +106,7 @@ const formSchema = z
     description: z.string().min(1, "Descreva o que foi realizado"),
     percent: z
       .number({ invalid_type_error: "Informe um percentual" })
+      .refine((value) => Number.isFinite(value), { message: "Informe um percentual" })
       .min(0, "Mínimo 0%")
       .max(100, "Máximo 100%"),
     justification: z.string().max(1000).optional(),
@@ -200,12 +201,6 @@ export default function ServiceUpdateForm({
   onPersistSubactivity,
   onSubmit,
 }: ServiceUpdateFormProps) {
-  const defaultPercent = useMemo(() => {
-    const suggestion = Number.isFinite(suggestedPercent ?? NaN) ? Number(suggestedPercent) : undefined;
-    const base = Math.max(lastProgress, suggestion ?? lastProgress);
-    return Math.min(100, Math.max(0, Math.round(base * 10) / 10));
-  }, [lastProgress, suggestedPercent]);
-
   const defaultSubactivityChoice = useMemo(() => {
     if (defaultSubactivityId && checklist.some((item) => item.id === defaultSubactivityId)) {
       return { id: defaultSubactivityId, label: defaultSubactivityLabel ?? "", isCustom: false };
@@ -232,7 +227,7 @@ export default function ServiceUpdateForm({
       subactivityId: defaultSubactivityChoice.id,
       customSubactivity: defaultSubactivityChoice.isCustom ? defaultSubactivityChoice.label : "",
       description: "",
-      percent: defaultPercent,
+      percent: undefined,
       resources: [],
       workforce: [{ role: "", quantity: 1 }],
       shifts: [],
@@ -256,12 +251,22 @@ export default function ServiceUpdateForm({
 
   const startValue = watch("start");
   const endValue = watch("end");
-  const percent = watch("percent");
+  const percentValue = watch("percent");
   const justification = watch("justification");
   const subactivityId = watch("subactivityId");
   const selectedResources = watch("resources");
 
-  const requiresJustification = useMemo(() => percent < lastProgress, [percent, lastProgress]);
+  const numericPercent = useMemo(() => {
+    if (typeof percentValue === "number" && Number.isFinite(percentValue)) {
+      return percentValue;
+    }
+    return null;
+  }, [percentValue]);
+
+  const requiresJustification = useMemo(
+    () => numericPercent !== null && numericPercent < lastProgress,
+    [numericPercent, lastProgress],
+  );
 
   useEffect(() => {
     if (!subactivityId) return;
@@ -376,7 +381,7 @@ export default function ServiceUpdateForm({
       subactivityId: nextSubactivityId,
       customSubactivity: nextCustomSubactivity,
       description: "",
-      percent: Math.min(100, Math.max(0, Math.round(values.percent * 10) / 10)),
+      percent: undefined,
       resources: [],
       workforce: [{ role: "", quantity: 1 }],
       shifts: [],
@@ -398,7 +403,11 @@ export default function ServiceUpdateForm({
           </div>
         </div>
         <div className="flex items-center gap-2 text-sm font-semibold text-primary">
-          {percent.toFixed(1)}%
+          {numericPercent !== null ? (
+            <span>{numericPercent.toFixed(1)}%</span>
+          ) : (
+            <span className="text-muted-foreground">—</span>
+          )}
         </div>
       </div>
 
@@ -456,7 +465,7 @@ export default function ServiceUpdateForm({
           <input
             id={`${serviceId}-percent`}
             type="number"
-            className="input mt-1 w-32"
+            className="input mt-1 w-full text-right sm:w-32"
             min={0}
             max={100}
             step={0.1}

@@ -7,7 +7,7 @@ import ThemeToggle from "@/components/ThemeToggle";
 export default function TerceiroLayout({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-[100dvh]">
-      <header className="border-b bg-white/70 backdrop-blur dark:bg-[#0b1220]/70">
+      <header className="sticky top-0 z-40 border-b bg-white/70 backdrop-blur dark:bg-[#0b1220]/70">
         <div className="container mx-auto flex h-14 items-center justify-between px-4">
           <Link href="/terceiro" className="font-semibold tracking-tight">Portal <span className="text-primary">Terceiro</span></Link>
           <nav className="flex items-center gap-2">
