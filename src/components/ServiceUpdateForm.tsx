@@ -263,6 +263,16 @@ export default function ServiceUpdateForm({
     return null;
   }, [percentValue]);
 
+  const sliderValue = useMemo(() => {
+    if (numericPercent !== null) {
+      return numericPercent;
+    }
+    if (Number.isFinite(lastProgress)) {
+      return Math.min(100, Math.max(0, lastProgress));
+    }
+    return 0;
+  }, [lastProgress, numericPercent]);
+
   const requiresJustification = useMemo(
     () => numericPercent !== null && numericPercent < lastProgress,
     [numericPercent, lastProgress],
@@ -458,14 +468,33 @@ export default function ServiceUpdateForm({
             <p className="mt-1 text-xs text-destructive">{errors.customSubactivity.message}</p>
           ) : null}
         </div>
-        <div>
-          <label htmlFor={`${serviceId}-percent`} className="text-sm font-medium text-foreground">
+        <div className="space-y-2">
+          <label
+            id={`${serviceId}-percent-label`}
+            htmlFor={`${serviceId}-percent`}
+            className="text-sm font-medium text-foreground"
+          >
             Percentual total (0 a 100)
           </label>
           <input
+            id={`${serviceId}-percent-slider`}
+            type="range"
+            min={0}
+            max={100}
+            step={0.1}
+            value={sliderValue}
+            onChange={(event) => {
+              const next = Number(event.target.value);
+              setValue("percent", next, { shouldDirty: true, shouldValidate: true });
+            }}
+            aria-labelledby={`${serviceId}-percent-label`}
+            className="block w-full accent-primary"
+          />
+          <input
             id={`${serviceId}-percent`}
             type="number"
-            className="input mt-1 w-full text-right sm:w-32"
+            inputMode="decimal"
+            className="input mt-1 w-full sm:w-32"
             min={0}
             max={100}
             step={0.1}
