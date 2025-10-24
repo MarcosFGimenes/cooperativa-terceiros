@@ -1,8 +1,7 @@
 import "./globals.css";
 import type { ReactNode } from "react";
-import Link from "next/link";
 import { Toaster } from "sonner";
-import HeaderClientBoundary from "@/components/HeaderClientBoundary";
+import RootHeader from "@/components/RootHeader";
 import SkipToContent from "@/components/SkipToContent";
 import Footer from "@/components/Footer";
 import PreloadAsFix from "@/components/PreloadAsFix";
@@ -29,14 +28,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           <div className="absolute inset-x-0 bottom-[-35%] h-[320px] bg-gradient-to-t from-primary/15 via-transparent to-transparent dark:from-primary/25" />
         </div>
         <SkipToContent />
-        <header className="sticky top-0 z-40 border-b border-border/70 bg-white/80 shadow-sm backdrop-blur-md dark:border-slate-800/70 dark:bg-[#0b1220]/80">
-          <div className="container mx-auto flex h-14 items-center justify-between px-4">
-            <Link href="/" className="font-semibold tracking-tight">
-              PCM <span className="text-primary">Terceiros</span>
-            </Link>
-            <HeaderClientBoundary />
-          </div>
-        </header>
+        <RootHeader />
         <main id="conteudo" className="relative min-h-[calc(100dvh-56px-48px)] py-6 sm:py-10">
           <div className="relative z-10">{children}</div>
         </main>
