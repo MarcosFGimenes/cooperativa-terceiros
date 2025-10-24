@@ -394,53 +394,42 @@ export default function ServiceDetailsClient({ service, updates: initialUpdates,
   );
 
   return (
-    <div className="space-y-8">
-      <div className="card space-y-6 p-4 lg:p-6">
+    <div className="space-y-6">
+      <div className="card space-y-4 p-4">
         <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
-          <div className="flex-1 space-y-3">
-            <div className="space-y-1">
-              <p className="text-xs font-semibold uppercase tracking-widest text-primary">Portal do Terceiro</p>
-              <p className="text-sm text-muted-foreground">Formulário Único de Atualização diária.</p>
-            </div>
-            <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-              <span className="rounded-full bg-muted px-3 py-1">
-                Serviço: <span className="font-medium text-foreground">{serviceLabel}</span>
-              </span>
-              {companyLabel ? (
-                <span className="rounded-full bg-muted px-3 py-1">
-                  Empresa: <span className="font-medium text-foreground">{companyLabel}</span>
-                </span>
-              ) : null}
-            </div>
-          </div>
-          <div className="flex min-w-[260px] flex-col items-end gap-3 text-right">
+          <div className="space-y-2">
+            <p className="text-xs font-semibold uppercase tracking-widest text-primary">Portal do Terceiro</p>
             <h1 className="text-3xl font-semibold text-foreground">FO – {formIdentifier}</h1>
-            <div className="w-full overflow-hidden rounded-lg border border-dashed">
-              <table className="w-full text-xs">
-                <thead className="bg-muted/60 text-muted-foreground">
-                  <tr>
-                    <th className="px-3 py-2 text-right font-medium uppercase tracking-wide">Emissão</th>
-                    <th className="px-3 py-2 text-right font-medium uppercase tracking-wide">Revisão</th>
-                    <th className="px-3 py-2 text-right font-medium uppercase tracking-wide">Número</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr className="text-foreground">
-                    <td className="px-3 py-3 text-right">—</td>
-                    <td className="px-3 py-3 text-right">—</td>
-                    <td className="px-3 py-3 text-right">—</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
+            <p className="text-sm text-muted-foreground">Formulário Único de Atualização diária.</p>
+            <p className="text-sm text-muted-foreground">
+              Serviço: <span className="font-medium text-foreground">{serviceLabel}</span>
+            </p>
+          </div>
+          <div className="min-w-[240px] overflow-hidden rounded-lg border border-dashed">
+            <table className="w-full text-xs">
+              <thead className="bg-muted/60 text-muted-foreground">
+                <tr>
+                  <th className="px-3 py-2 text-left font-medium uppercase tracking-wide">Emissão</th>
+                  <th className="px-3 py-2 text-left font-medium uppercase tracking-wide">Revisão</th>
+                  <th className="px-3 py-2 text-left font-medium uppercase tracking-wide">Número</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr className="text-foreground">
+                  <td className="px-3 py-3">—</td>
+                  <td className="px-3 py-3">—</td>
+                  <td className="px-3 py-3">—</td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         </div>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start">
-        <div className="card p-4 lg:p-6">
+      <div className="grid gap-4 lg:grid-cols-[1fr_minmax(320px,380px)]">
+        <div className="card p-4">
           <h2 className="mb-4 text-lg font-semibold">Informações gerais</h2>
-          <dl className="grid grid-cols-1 gap-4 text-sm sm:grid-cols-2 xl:grid-cols-3">
+          <dl className="grid grid-cols-1 gap-4 text-sm sm:grid-cols-2">
             {detailItems.map((item) => (
               <div key={item.label}>
                 <dt className="text-muted-foreground">{item.label}</dt>
@@ -450,7 +439,7 @@ export default function ServiceDetailsClient({ service, updates: initialUpdates,
           </dl>
         </div>
 
-        <div className="card h-full space-y-5 p-4 lg:p-6">
+        <div className="card space-y-5 p-4">
           <div className="space-y-2">
             <h2 className="text-lg font-semibold">Atualização diária</h2>
             <p className="text-sm text-muted-foreground">
@@ -483,8 +472,8 @@ export default function ServiceDetailsClient({ service, updates: initialUpdates,
         </div>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <div className="card p-4 lg:p-6">
+      <div className="grid gap-4 lg:grid-cols-2">
+        <div className="card p-4">
           <h2 className="text-lg font-semibold">Checklist</h2>
           {checklist.length === 0 ? (
             <p className="mt-2 text-sm text-muted-foreground">Nenhum item de checklist disponível.</p>
@@ -508,7 +497,7 @@ export default function ServiceDetailsClient({ service, updates: initialUpdates,
           )}
         </div>
 
-        <div className="card p-4 lg:p-6">
+        <div className="card p-4">
           <h2 className="text-lg font-semibold">Atualizações recentes</h2>
           {updates.length === 0 ? (
             <p className="mt-2 text-sm text-muted-foreground">Nenhuma atualização registrada.</p>
