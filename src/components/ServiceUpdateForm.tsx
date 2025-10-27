@@ -109,7 +109,6 @@ const formSchema = z
     start: z.string().min(1, "Início obrigatório"),
     end: z.string().min(1, "Fim obrigatório"),
     subactivityId: z.string().optional(),
-    customSubactivity: z.string().optional(),
     description: z.string().min(1, "Descreva o que foi realizado"),
     percent: z
       .number({ invalid_type_error: "Informe um percentual" })
@@ -151,13 +150,6 @@ const formSchema = z
         message: "Fim deve ser maior que o início",
       });
     }
-    if (values.subactivityId === "__custom__" && !values.customSubactivity?.trim()) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["customSubactivity"],
-        message: "Informe a subatividade",
-      });
-    }
     const uniqueShifts = new Set(values.shifts.map((item) => item.shift));
     if (uniqueShifts.size !== values.shifts.length) {
       ctx.addIssue({
@@ -170,16 +162,6 @@ const formSchema = z
 
 type FormValues = z.infer<typeof formSchema>;
 
-function toDateTimeLocal(date: Date) {
-  const pad = (value: number) => String(value).padStart(2, "0");
-  const year = date.getFullYear();
-  const month = pad(date.getMonth() + 1);
-  const day = pad(date.getDate());
-  const hours = pad(date.getHours());
-  const minutes = pad(date.getMinutes());
-  return `${year}-${month}-${day}T${hours}:${minutes}`;
-}
-
 function differenceInHours(start: string, end: string): number | null {
   if (!start || !end) return null;
   const startDate = new Date(start);
@@ -188,14 +170,6 @@ function differenceInHours(start: string, end: string): number | null {
   const diff = (endDate.getTime() - startDate.getTime()) / 3_600_000;
   if (!Number.isFinite(diff) || diff < 0) return null;
   return Math.round(diff * 100) / 100;
-}
-
-function createDefaultRange() {
-  const start = new Date();
-  start.setHours(8, 0, 0, 0);
-  const end = new Date();
-  end.setHours(17, 0, 0, 0);
-  return { start, end };
 }
 
 export default function ServiceUpdateForm({
@@ -210,29 +184,29 @@ export default function ServiceUpdateForm({
 }: ServiceUpdateFormProps) {
   const defaultSubactivityChoice = useMemo(() => {
     if (defaultSubactivityId && checklist.some((item) => item.id === defaultSubactivityId)) {
-      return { id: defaultSubactivityId, label: defaultSubactivityLabel ?? "", isCustom: false };
+      return defaultSubactivityId;
     }
 
     if (defaultSubactivityLabel) {
-      return { id: "__custom__", label: defaultSubactivityLabel, isCustom: true };
+      const matchingOption = checklist.find((item) => item.description === defaultSubactivityLabel);
+      if (matchingOption) {
+        return matchingOption.id;
+      }
     }
 
     if (checklist.length > 0) {
-      return { id: checklist[0].id, label: checklist[0].description, isCustom: false };
+      return checklist[0].id;
     }
 
-    return { id: "__custom__", label: "", isCustom: true };
+    return "";
   }, [checklist, defaultSubactivityId, defaultSubactivityLabel]);
-
-  const defaultRange = useMemo(() => createDefaultRange(), []);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      start: toDateTimeLocal(defaultRange.start),
-      end: toDateTimeLocal(defaultRange.end),
-      subactivityId: defaultSubactivityChoice.id,
-      customSubactivity: defaultSubactivityChoice.isCustom ? defaultSubactivityChoice.label : "",
+      start: "",
+      end: "",
+      subactivityId: defaultSubactivityChoice || undefined,
       description: "",
       percent: undefined,
       resources: [],
@@ -249,6 +223,7 @@ export default function ServiceUpdateForm({
     handleSubmit,
     watch,
     setValue,
+    getValues,
     reset,
     formState: { errors, isSubmitting },
   } = form;
@@ -260,7 +235,6 @@ export default function ServiceUpdateForm({
   const endValue = watch("end");
   const percentValue = watch("percent");
   const justification = watch("justification");
-  const subactivityId = watch("subactivityId");
   const selectedResources = watch("resources");
 
   const numericPercent = useMemo(() => {
@@ -270,29 +244,21 @@ export default function ServiceUpdateForm({
     return null;
   }, [percentValue]);
 
-  const sliderValue = useMemo(() => {
-    if (numericPercent !== null) {
-      return numericPercent;
-    }
-    if (Number.isFinite(lastProgress)) {
-      return Math.min(100, Math.max(0, lastProgress));
-    }
-    return 0;
-  }, [lastProgress, numericPercent]);
-
   const requiresJustification = useMemo(
     () => numericPercent !== null && numericPercent < lastProgress,
     [numericPercent, lastProgress],
   );
 
   useEffect(() => {
-    if (!subactivityId) return;
-    if (subactivityId === "__custom__") return;
-    const option = checklist.find((item) => item.id === subactivityId);
-    if (option) {
-      setValue("customSubactivity", option.description, { shouldDirty: false });
+    if (!checklist.length) return;
+    const current = getValues("subactivityId");
+    if (current && checklist.some((item) => item.id === current)) {
+      return;
     }
-  }, [checklist, setValue, subactivityId]);
+    if (defaultSubactivityChoice) {
+      setValue("subactivityId", defaultSubactivityChoice, { shouldDirty: false });
+    }
+  }, [checklist, defaultSubactivityChoice, getValues, setValue]);
 
   useEffect(() => {
     if (requiresJustification && !justification) {
@@ -332,6 +298,11 @@ export default function ServiceUpdateForm({
   }
 
   async function submit(values: FormValues) {
+    if (checklist.length > 0 && !values.subactivityId) {
+      form.setError("subactivityId", { type: "custom", message: "Selecione a subatividade" });
+      return;
+    }
+
     const startIso = new Date(values.start);
     const endIso = new Date(values.end);
     if (endIso < startIso) {
@@ -345,17 +316,9 @@ export default function ServiceUpdateForm({
     }
 
     const selectedSubactivity = (() => {
-      if (values.subactivityId === "__custom__") {
-        const custom = values.customSubactivity?.trim();
-        if (!custom) return undefined;
-        return { label: custom };
-      }
       const option = checklist.find((item) => item.id === values.subactivityId);
       if (option) {
         return { id: option.id, label: option.description };
-      }
-      if (values.customSubactivity?.trim()) {
-        return { label: values.customSubactivity.trim() };
       }
       return undefined;
     })();
@@ -363,6 +326,8 @@ export default function ServiceUpdateForm({
     if (selectedSubactivity) {
       onPersistSubactivity?.({ id: selectedSubactivity.id, label: selectedSubactivity.label });
     }
+
+    form.clearErrors("subactivityId");
 
     await onSubmit({
       percent: values.percent,
@@ -385,18 +350,12 @@ export default function ServiceUpdateForm({
       declarationAccepted: true,
     });
 
-    const { start, end } = createDefaultRange();
-    const nextSubactivityId = selectedSubactivity?.id ?? (selectedSubactivity?.label ? "__custom__" : defaultSubactivityChoice.id);
-    const nextCustomSubactivity =
-      nextSubactivityId === "__custom__"
-        ? selectedSubactivity?.label ?? (defaultSubactivityChoice.isCustom ? defaultSubactivityChoice.label : "")
-        : "";
+    const nextSubactivityId = selectedSubactivity?.id ?? (defaultSubactivityChoice || undefined);
 
     reset({
-      start: toDateTimeLocal(start),
-      end: toDateTimeLocal(end),
+      start: "",
+      end: "",
       subactivityId: nextSubactivityId,
-      customSubactivity: nextCustomSubactivity,
       description: "",
       percent: undefined,
       resources: [],
@@ -453,26 +412,18 @@ export default function ServiceUpdateForm({
           </label>
           {checklist.length > 0 ? (
             <select id={`${serviceId}-subactivity`} className="input mt-1 w-full" {...register("subactivityId")}>
+              <option value="">Selecione uma subatividade</option>
               {checklist.map((item) => (
                 <option key={item.id} value={item.id}>
                   {item.description}
                 </option>
               ))}
-              <option value="__custom__">Outra / Geral</option>
             </select>
           ) : (
-            <input type="hidden" value="__custom__" readOnly {...register("subactivityId")} />
+            <input type="hidden" value="" readOnly {...register("subactivityId")} />
           )}
-          {subactivityId === "__custom__" ? (
-            <input
-              type="text"
-              className="input mt-2 w-full"
-              placeholder="Descreva a subatividade"
-              {...register("customSubactivity")}
-            />
-          ) : null}
-          {subactivityId === "__custom__" && errors.customSubactivity ? (
-            <p className="mt-1 text-xs text-destructive">{errors.customSubactivity.message}</p>
+          {errors.subactivityId ? (
+            <p className="mt-1 text-xs text-destructive">{errors.subactivityId.message}</p>
           ) : null}
         </div>
         <div className="space-y-2">
@@ -483,30 +434,20 @@ export default function ServiceUpdateForm({
           >
             Percentual total (0 a 100)
           </label>
-          <input
-            id={`${serviceId}-percent-slider`}
-            type="range"
-            min={0}
-            max={100}
-            step={0.1}
-            value={sliderValue}
-            onChange={(event) => {
-              const next = Number(event.target.value);
-              setValue("percent", next, { shouldDirty: true, shouldValidate: true });
-            }}
-            aria-labelledby={`${serviceId}-percent-label`}
-            className="block w-full accent-primary"
-          />
-          <input
-            id={`${serviceId}-percent`}
-            type="number"
-            inputMode="decimal"
-            className="input mt-1 w-full sm:w-32"
-            min={0}
-            max={100}
-            step={0.1}
-            {...register("percent", { valueAsNumber: true })}
-          />
+          <div className="mt-1 flex w-full items-center gap-2 sm:w-48">
+            <input
+              id={`${serviceId}-percent`}
+              type="number"
+              inputMode="decimal"
+              className="input flex-1"
+              min={0}
+              max={100}
+              step={0.1}
+              placeholder="0"
+              {...register("percent", { valueAsNumber: true })}
+            />
+            <span className="text-sm font-medium text-muted-foreground">%</span>
+          </div>
           {errors.percent ? <p className="mt-1 text-xs text-destructive">{errors.percent.message}</p> : null}
         </div>
       </div>
