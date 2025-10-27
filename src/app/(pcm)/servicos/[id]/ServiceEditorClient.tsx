@@ -32,6 +32,30 @@ type UpdateHistoryItem = {
 
 const STATUS_OPTIONS = ["Aberto", "Concluído", "Encerrado"] as const;
 
+function createChecklistId(seed: number) {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return `item-${seed}-${Date.now()}`;
+}
+
+function normaliseChecklistEntry(entry: unknown, index: number): ChecklistDraft[number] {
+  const fallbackId = createChecklistId(index);
+  if (!entry || typeof entry !== "object") {
+    return { id: fallbackId, descricao: "", peso: 0 };
+  }
+  const record = entry as Record<string, unknown>;
+  const idSource = record.id ?? record.itemId;
+  const descricaoSource = record.descricao ?? record.description;
+  const pesoSource = record.peso ?? record.weight;
+
+  const id = typeof idSource === "string" && idSource ? idSource : fallbackId;
+  const descricao = typeof descricaoSource === "string" ? descricaoSource : "";
+  const pesoValue = typeof pesoSource === "number" ? pesoSource : Number(pesoSource ?? 0);
+
+  return { id, descricao, peso: Number.isFinite(pesoValue) ? pesoValue : 0 };
+}
+
 function toDateInput(value: unknown): string {
   if (!value) return "";
   if (value instanceof Timestamp) {
@@ -92,16 +116,6 @@ export default function ServiceEditorClient({ serviceId }: ServiceEditorClientPr
       toast.error("Configuração de banco de dados indisponível.");
     }
   }, [firestoreError]);
-
-  if (!firestore) {
-    return (
-      <div className="grid gap-6">
-        <div className="rounded-2xl border bg-card/80 p-6 text-sm text-amber-600 shadow-sm">
-          Não foi possível carregar o banco de dados. Verifique a configuração do Firebase.
-        </div>
-      </div>
-    );
-  }
 
   const totalPeso = useMemo(
     () => checklist.reduce((acc, item) => acc + (Number(item.peso) || 0), 0),
@@ -187,13 +201,7 @@ export default function ServiceEditorClient({ serviceId }: ServiceEditorClientPr
           pacoteId: String(data.pacoteId ?? data.packageId ?? ""),
         });
         const checklistData = Array.isArray(data.checklist) ? data.checklist : [];
-        setChecklist(
-          checklistData.map((item: any) => ({
-            id: String(item.id ?? item.itemId ?? crypto.randomUUID()),
-            descricao: String(item.descricao ?? item.description ?? ""),
-            peso: Number(item.peso ?? item.weight ?? 0),
-          })),
-        );
+        setChecklist(checklistData.map((item, index) => normaliseChecklistEntry(item, index)));
         setWithChecklist(checklistData.length > 0);
         setAndamento(Number(data.andamento ?? data.realPercent ?? 0));
         await loadUpdates();
@@ -318,6 +326,16 @@ export default function ServiceEditorClient({ serviceId }: ServiceEditorClientPr
     } finally {
       setSaving(false);
     }
+  }
+
+  if (!firestore) {
+    return (
+      <div className="grid gap-6">
+        <div className="rounded-2xl border bg-card/80 p-6 text-sm text-amber-600 shadow-sm">
+          Não foi possível carregar o banco de dados. Verifique a configuração do Firebase.
+        </div>
+      </div>
+    );
   }
 
   return (

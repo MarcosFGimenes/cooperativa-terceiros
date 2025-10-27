@@ -82,6 +82,13 @@ const CONDITION_OPTIONS = [
   { id: "impraticavel" as const, label: "Impraticável" },
 ];
 
+function extractFieldErrorMessage(value: unknown): string | null {
+  if (!value || typeof value !== "object") return null;
+  if (!("message" in value)) return null;
+  const record = value as { message?: unknown };
+  return typeof record.message === "string" ? record.message : null;
+}
+
 const workforceItemSchema = z.object({
   role: z.string().min(1, "Selecione a função"),
   quantity: z
@@ -262,6 +269,16 @@ export default function ServiceUpdateForm({
     }
     return null;
   }, [percentValue]);
+
+  const sliderValue = useMemo(() => {
+    if (numericPercent !== null) {
+      return numericPercent;
+    }
+    if (Number.isFinite(lastProgress)) {
+      return Math.min(100, Math.max(0, lastProgress));
+    }
+    return 0;
+  }, [lastProgress, numericPercent]);
 
   const requiresJustification = useMemo(
     () => numericPercent !== null && numericPercent < lastProgress,
@@ -458,14 +475,33 @@ export default function ServiceUpdateForm({
             <p className="mt-1 text-xs text-destructive">{errors.customSubactivity.message}</p>
           ) : null}
         </div>
-        <div>
-          <label htmlFor={`${serviceId}-percent`} className="text-sm font-medium text-foreground">
+        <div className="space-y-2">
+          <label
+            id={`${serviceId}-percent-label`}
+            htmlFor={`${serviceId}-percent`}
+            className="text-sm font-medium text-foreground"
+          >
             Percentual total (0 a 100)
           </label>
           <input
+            id={`${serviceId}-percent-slider`}
+            type="range"
+            min={0}
+            max={100}
+            step={0.1}
+            value={sliderValue}
+            onChange={(event) => {
+              const next = Number(event.target.value);
+              setValue("percent", next, { shouldDirty: true, shouldValidate: true });
+            }}
+            aria-labelledby={`${serviceId}-percent-label`}
+            className="block w-full accent-primary"
+          />
+          <input
             id={`${serviceId}-percent`}
             type="number"
-            className="input mt-1 w-full text-right sm:w-32"
+            inputMode="decimal"
+            className="input mt-1 w-full sm:w-32"
             min={0}
             max={100}
             step={0.1}
@@ -594,9 +630,12 @@ export default function ServiceUpdateForm({
         {errors.shifts && !Array.isArray(errors.shifts) && typeof errors.shifts.message === "string" ? (
           <p className="text-xs text-destructive">{errors.shifts.message}</p>
         ) : null}
-        {errors.shifts && !Array.isArray(errors.shifts) && typeof (errors.shifts as any)?.root?.message === "string" ? (
-          <p className="text-xs text-destructive">{(errors.shifts as any).root.message}</p>
-        ) : null}
+        {errors.shifts && !Array.isArray(errors.shifts)
+          ? (() => {
+              const message = extractFieldErrorMessage(errors.shifts?.root);
+              return message ? <p className="text-xs text-destructive">{message}</p> : null;
+            })()
+          : null}
         {shiftArray.fields.length > 0 ? (
           <div className="space-y-3">
             {shiftArray.fields.map((field, index) => (

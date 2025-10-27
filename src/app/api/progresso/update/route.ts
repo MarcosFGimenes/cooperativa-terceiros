@@ -3,49 +3,55 @@ import { Timestamp, type Firestore } from "firebase-admin/firestore";
 
 import { tryGetAdminDb, getServerWebDb } from "@/lib/serverDb";
 
-function isTokenActive(data: any) {
-  if (typeof data?.active === "boolean") return data.active;
-  const status = typeof data?.status === "string" ? data.status.toLowerCase() : "";
+type TokenScope =
+  | { type: "service"; serviceId: string }
+  | { type: "package"; packageId: string; empresa?: string };
+
+type ChecklistEntry = { id: string; peso: number };
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function getStringField(record: Record<string, unknown>, ...keys: string[]) {
+  for (const key of keys) {
+    const value = record[key];
+    if (typeof value === "string" && value.trim()) {
+      return value;
+    }
+  }
+  return undefined;
+}
+
+function isTokenActive(data: unknown) {
+  if (!isRecord(data)) return true;
+  if (typeof data.active === "boolean") return data.active;
+  const status = typeof data.status === "string" ? data.status.toLowerCase() : "";
   if (!status) return true;
   return status === "active" || status === "ativo" || status === "aberto";
 }
 
-function parseTokenScope(data: any) {
-  if (data?.scope?.type === "service" && typeof data.scope.serviceId === "string") {
-    return { type: "service" as const, serviceId: data.scope.serviceId };
+function parseTokenScope(data: unknown): TokenScope | null {
+  if (!isRecord(data)) return null;
+  const scope = isRecord(data.scope) ? data.scope : undefined;
+  if (scope?.type === "service" && typeof scope.serviceId === "string") {
+    return { type: "service", serviceId: scope.serviceId };
   }
-  if (data?.scope?.type === "packageCompany") {
-    const packageId =
-      typeof data.scope.pacoteId === "string"
-        ? data.scope.pacoteId
-        : typeof data.scope.packageId === "string"
-          ? data.scope.packageId
-          : undefined;
-    const empresa =
-      typeof data.scope.empresaId === "string"
-        ? data.scope.empresaId
-        : typeof data.scope.company === "string"
-          ? data.scope.company
-          : undefined;
-    if (packageId) return { type: "package" as const, packageId, empresa };
+  if (scope?.type === "packageCompany") {
+    const packageId = getStringField(scope, "pacoteId", "packageId");
+    const empresa = getStringField(scope, "empresaId", "company");
+    if (packageId) {
+      return { type: "package", packageId, empresa };
+    }
   }
-  if (typeof data?.serviceId === "string" && data.serviceId) {
-    return { type: "service" as const, serviceId: data.serviceId };
+  const directService = getStringField(data, "serviceId");
+  if (directService) {
+    return { type: "service", serviceId: directService };
   }
-  const packageId =
-    typeof data?.packageId === "string"
-      ? data.packageId
-      : typeof data?.pacoteId === "string"
-        ? data.pacoteId
-        : undefined;
+  const packageId = getStringField(data, "packageId", "pacoteId");
   if (packageId) {
-    const empresa =
-      typeof data?.empresa === "string"
-        ? data.empresa
-        : typeof data?.empresaId === "string"
-          ? data.empresaId
-          : undefined;
-    return { type: "package" as const, packageId, empresa };
+    const empresa = getStringField(data, "empresa", "empresaId", "company");
+    return { type: "package", packageId, empresa };
   }
   return null;
 }
@@ -76,7 +82,7 @@ async function handleWithAdmin(
   if (!doc) {
     return NextResponse.json({ ok: false, error: "invalid_token" }, { status: 403 });
   }
-  const tokenData = doc.data() ?? {};
+  const tokenData = (doc.data() ?? {}) as Record<string, unknown>;
   if (!isTokenActive(tokenData)) {
     return NextResponse.json({ ok: false, error: "invalid_token" }, { status: 403 });
   }
@@ -91,7 +97,7 @@ async function handleWithAdmin(
   if (!serviceSnap.exists) {
     return NextResponse.json({ ok: false, error: "service_not_found" }, { status: 404 });
   }
-  const serviceData = serviceSnap.data() ?? {};
+  const serviceData = (serviceSnap.data() ?? {}) as Record<string, unknown>;
 
   if (scope.type === "service" && scope.serviceId !== payload.serviceId) {
     return NextResponse.json({ ok: false, error: "forbidden_scope" }, { status: 403 });
@@ -99,18 +105,15 @@ async function handleWithAdmin(
 
   if (scope.type === "package") {
     const pkgId = scope.packageId;
-    const empresaToken = normalizeCompany(scope.empresa);
-    const svcPackage =
-      typeof serviceData.packageId === "string"
-        ? serviceData.packageId
-        : typeof serviceData.pacoteId === "string"
-          ? serviceData.pacoteId
-          : "";
+    const empresaToken = normalizeCompany(scope.empresa ?? null);
+    const svcPackage = getStringField(serviceData, "packageId", "pacoteId") ?? "";
     if (pkgId && svcPackage !== pkgId) {
       return NextResponse.json({ ok: false, error: "forbidden_scope" }, { status: 403 });
     }
     if (empresaToken) {
-      const svcCompany = normalizeCompany(serviceData.empresaId ?? serviceData.company ?? "");
+      const svcCompany = normalizeCompany(
+        getStringField(serviceData, "empresaId", "company") ?? null,
+      );
       if (svcCompany && svcCompany !== empresaToken) {
         return NextResponse.json({ ok: false, error: "forbidden_scope" }, { status: 403 });
       }
@@ -129,11 +132,19 @@ async function handleWithAdmin(
     }
   }
 
-  const update: any = {
+  const update: {
+    date: Timestamp;
+    note?: string;
+    by: "token";
+    items?: Array<{ itemId: string; pct: number }>;
+    totalPct?: number;
+    tokenId: string;
+    ip?: string;
+  } = {
     date: updateDate,
     note: typeof payload.note === "string" && payload.note.trim() ? payload.note.trim() : undefined,
     by: "token",
-    items: Array.isArray(payload.items) ? payload.items : undefined,
+    items: payload.items && payload.items.length > 0 ? payload.items : undefined,
     totalPct: typeof payload.totalPct === "number" ? payload.totalPct : undefined,
     tokenId: doc.id,
     ip: ip || undefined,
@@ -142,24 +153,36 @@ async function handleWithAdmin(
   await serviceRef.collection("serviceUpdates").add(update);
 
   let novo = 0;
-  const checklist = Array.isArray(serviceData.checklist) ? serviceData.checklist : [];
+  const checklistRaw = Array.isArray(serviceData.checklist) ? serviceData.checklist : [];
+  const checklist: ChecklistEntry[] = [];
+  checklistRaw.forEach((entry, index) => {
+    if (!isRecord(entry)) return;
+    const idValue = getStringField(entry, "id", "itemId");
+    const pesoValue = entry.peso ?? entry.weight;
+    const pesoNumber = typeof pesoValue === "number" ? pesoValue : Number(pesoValue ?? 0);
+    if (!Number.isFinite(pesoNumber)) return;
+    checklist.push({ id: idValue || `item-${index}`, peso: pesoNumber });
+  });
   if (checklist.length > 0) {
     const pesoById = new Map<string, number>();
     for (const item of checklist) {
-      const id = String(item.id ?? "");
+      const id = item.id;
       if (!id) continue;
-      const peso = Number(item.peso ?? 0);
+      const peso = item.peso;
       pesoById.set(id, peso);
     }
     const all = await serviceRef.collection("serviceUpdates").orderBy("date", "asc").get();
     const latest = new Map<string, number>();
     for (const entry of all.docs) {
-      const data = entry.data() ?? {};
-      const items = Array.isArray(data.items) ? data.items : [];
-      for (const item of items) {
-        const itemId = String(item.itemId ?? "");
-        const pct = Number(item.pct ?? 0);
-        latest.set(itemId, pct);
+      const data = (entry.data() ?? {}) as Record<string, unknown>;
+      const itemsRaw = Array.isArray(data.items) ? data.items : [];
+      for (const item of itemsRaw) {
+        if (!isRecord(item)) continue;
+        const itemId = getStringField(item, "itemId", "id");
+        if (!itemId) continue;
+        const pctValue = typeof item.pct === "number" ? item.pct : Number(item.pct ?? 0);
+        if (!Number.isFinite(pctValue)) continue;
+        latest.set(itemId, pctValue);
       }
     }
     let soma = 0;
@@ -171,7 +194,7 @@ async function handleWithAdmin(
   } else {
     const all = await serviceRef.collection("serviceUpdates").orderBy("date", "asc").get();
     for (const entry of all.docs) {
-      const data = entry.data() ?? {};
+      const data = (entry.data() ?? {}) as Record<string, unknown>;
       if (typeof data.totalPct === "number") {
         novo = Number(data.totalPct);
       }
@@ -196,8 +219,20 @@ async function handleWithWeb(
   },
 ) {
   const db = await getServerWebDb();
-  const { collection, query, where, limit, getDocs, doc, getDoc, updateDoc, addDoc, orderBy, serverTimestamp, Timestamp } =
-    await import("firebase/firestore");
+  const {
+    collection,
+    query,
+    where,
+    limit,
+    getDocs,
+    doc,
+    getDoc,
+    updateDoc,
+    addDoc,
+    orderBy,
+    serverTimestamp,
+    Timestamp: ClientTimestampModule,
+  } = await import("firebase/firestore");
 
   const upperToken = payload.token;
   let q = query(collection(db, "accessTokens"), where("code", "==", upperToken), limit(1));
@@ -211,7 +246,7 @@ async function handleWithWeb(
   }
 
   const tokenDoc = snap.docs[0];
-  const tokenData = tokenDoc.data() ?? {};
+  const tokenData = (tokenDoc.data() ?? {}) as Record<string, unknown>;
   if (!isTokenActive(tokenData)) {
     return NextResponse.json({ ok: false, error: "invalid_token" }, { status: 403 });
   }
@@ -226,7 +261,7 @@ async function handleWithWeb(
   if (!serviceSnap.exists()) {
     return NextResponse.json({ ok: false, error: "service_not_found" }, { status: 404 });
   }
-  const serviceData = serviceSnap.data() ?? {};
+  const serviceData = (serviceSnap.data() ?? {}) as Record<string, unknown>;
 
   if (scope.type === "service" && scope.serviceId !== payload.serviceId) {
     return NextResponse.json({ ok: false, error: "forbidden_scope" }, { status: 403 });
@@ -234,18 +269,15 @@ async function handleWithWeb(
 
   if (scope.type === "package") {
     const pkgId = scope.packageId;
-    const empresaToken = normalizeCompany(scope.empresa);
-    const svcPackage =
-      typeof serviceData.packageId === "string"
-        ? serviceData.packageId
-        : typeof serviceData.pacoteId === "string"
-          ? serviceData.pacoteId
-          : "";
+    const empresaToken = normalizeCompany(scope.empresa ?? null);
+    const svcPackage = getStringField(serviceData, "packageId", "pacoteId") ?? "";
     if (pkgId && svcPackage !== pkgId) {
       return NextResponse.json({ ok: false, error: "forbidden_scope" }, { status: 403 });
     }
     if (empresaToken) {
-      const svcCompany = normalizeCompany((serviceData as any).empresaId ?? (serviceData as any).company ?? "");
+      const svcCompany = normalizeCompany(
+        getStringField(serviceData, "empresaId", "company") ?? null,
+      );
       if (svcCompany && svcCompany !== empresaToken) {
         return NextResponse.json({ ok: false, error: "forbidden_scope" }, { status: 403 });
       }
@@ -256,11 +288,14 @@ async function handleWithWeb(
   const realIp = req.headers.get("x-real-ip");
   const ip = forwarded?.split(",")[0]?.trim() || realIp?.trim();
 
-  let dateValue: any = serverTimestamp();
+  type ClientTimestamp = ReturnType<typeof ClientTimestampModule.fromDate>;
+  type ServerTimestamp = ReturnType<typeof serverTimestamp>;
+
+  let dateValue: ClientTimestamp | ServerTimestamp = serverTimestamp();
   if (payload.date) {
     const parsed = new Date(payload.date);
     if (!Number.isNaN(parsed.getTime())) {
-      dateValue = Timestamp.fromDate(parsed);
+      dateValue = ClientTimestampModule.fromDate(parsed);
     }
   }
 
@@ -269,31 +304,43 @@ async function handleWithWeb(
     date: dateValue,
     note: typeof payload.note === "string" && payload.note.trim() ? payload.note.trim() : undefined,
     by: "token",
-    items: Array.isArray(payload.items) ? payload.items : undefined,
+    items: payload.items && payload.items.length > 0 ? payload.items : undefined,
     totalPct: typeof payload.totalPct === "number" ? payload.totalPct : undefined,
     tokenId: tokenDoc.id,
     ip: ip || undefined,
   });
 
   let novo = 0;
-  const checklist = Array.isArray(serviceData.checklist) ? serviceData.checklist : [];
+  const checklistRaw = Array.isArray(serviceData.checklist) ? serviceData.checklist : [];
+  const checklist: ChecklistEntry[] = [];
+  checklistRaw.forEach((entry, index) => {
+    if (!isRecord(entry)) return;
+    const idValue = getStringField(entry, "id", "itemId");
+    const pesoValue = entry.peso ?? entry.weight;
+    const pesoNumber = typeof pesoValue === "number" ? pesoValue : Number(pesoValue ?? 0);
+    if (!Number.isFinite(pesoNumber)) return;
+    checklist.push({ id: idValue || `item-${index}`, peso: pesoNumber });
+  });
   if (checklist.length > 0) {
     const pesoById = new Map<string, number>();
     for (const item of checklist) {
-      const id = String((item as any).id ?? "");
+      const id = item.id;
       if (!id) continue;
-      const peso = Number((item as any).peso ?? 0);
+      const peso = item.peso;
       pesoById.set(id, peso);
     }
     const all = await getDocs(query(updatesRef, orderBy("date", "asc")));
     const latest = new Map<string, number>();
     all.forEach((docSnap) => {
-      const data = docSnap.data() ?? {};
-      const items = Array.isArray((data as any).items) ? (data as any).items : [];
-      for (const item of items) {
-        const itemId = String(item.itemId ?? "");
-        const pct = Number(item.pct ?? 0);
-        latest.set(itemId, pct);
+      const data = (docSnap.data() ?? {}) as Record<string, unknown>;
+      const itemsRaw = Array.isArray(data.items) ? data.items : [];
+      for (const item of itemsRaw) {
+        if (!isRecord(item)) continue;
+        const itemId = getStringField(item, "itemId", "id");
+        if (!itemId) continue;
+        const pctValue = typeof item.pct === "number" ? item.pct : Number(item.pct ?? 0);
+        if (!Number.isFinite(pctValue)) continue;
+        latest.set(itemId, pctValue);
       }
     });
     let soma = 0;
@@ -305,9 +352,9 @@ async function handleWithWeb(
   } else {
     const all = await getDocs(query(updatesRef, orderBy("date", "asc")));
     all.forEach((docSnap) => {
-      const data = docSnap.data() ?? {};
-      if (typeof (data as any).totalPct === "number") {
-        novo = Number((data as any).totalPct);
+      const data = (docSnap.data() ?? {}) as Record<string, unknown>;
+      if (typeof data.totalPct === "number") {
+        novo = Number(data.totalPct);
       }
     });
     novo = Math.max(0, Math.min(100, novo));

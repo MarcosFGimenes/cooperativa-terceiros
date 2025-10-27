@@ -27,8 +27,8 @@ export async function POST(req: NextRequest) {
 
     const token = await createAccessToken({ serviceId, packageId, empresa });
     return NextResponse.json({ ok: true, token });
-  } catch (e: any) {
-    console.error("[tokens/issue]", e);
+  } catch (error) {
+    console.error("[tokens/issue]", error);
     return NextResponse.json({ ok: false, error: "server_error" }, { status: 500 });
   }
 }

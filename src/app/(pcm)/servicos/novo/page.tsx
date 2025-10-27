@@ -358,7 +358,7 @@ export default function NovoServico() {
               </div>
               {checklist.length === 0 ? (
                 <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
-                  Nenhum item adicionado. Clique em "Adicionar item" para começar.
+                  Nenhum item adicionado. Clique em &ldquo;Adicionar item&rdquo; para começar.
                 </div>
               ) : (
                 <div className="space-y-3">
