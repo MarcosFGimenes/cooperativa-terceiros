@@ -341,82 +341,36 @@ export default function ServiceDetailsClient({ service, updates: initialUpdates,
     return service.id;
   }, [service]);
 
-  const statusLabel = useMemo(() => normaliseStatus(service.status), [service.status]);
-
   const companyLabel = useMemo(() => {
     if (service.company && service.company.trim()) return service.company.trim();
     return null;
   }, [service.company]);
 
-  const codeLabel = useMemo(() => service.code?.trim() || "—", [service.code]);
-  const ocLabel = useMemo(() => service.oc?.trim() || "—", [service.oc]);
-  const tagLabel = useMemo(() => service.tag?.trim() || "—", [service.tag]);
-
   const lastUpdateAt = updates[0]?.createdAt ?? service.updatedAt ?? null;
-  const lastUpdateLabel = useMemo(() => formatDate(lastUpdateAt, true), [lastUpdateAt]);
-  const plannedStartLabel = useMemo(() => formatDate(service.plannedStart), [service.plannedStart]);
-  const plannedEndLabel = useMemo(() => formatDate(service.plannedEnd), [service.plannedEnd]);
-  const totalHoursLabel = useMemo(() => {
-    if (typeof service.totalHours === "number" && Number.isFinite(service.totalHours)) {
-      return `${Math.round(service.totalHours * 10) / 10} h`;
-    }
-    return "—";
-  }, [service.totalHours]);
   const suggestion = useMemo(() => computeChecklistSuggestion(checklist), [checklist]);
-
-  const headerHighlights = useMemo(() => {
-    const items: Array<{ label: string; value: string }> = [
-      { label: "Progresso", value: `${progress.toFixed(1)}%` },
-      { label: "Última atualização", value: lastUpdateLabel },
-    ];
-
-    if (plannedStartLabel !== "-") {
-      items.push({ label: "Início planejado", value: plannedStartLabel });
-    }
-
-    if (plannedEndLabel !== "-") {
-      items.push({ label: "Fim planejado", value: plannedEndLabel });
-    }
-
-    if (totalHoursLabel !== "—") {
-      items.push({ label: "Horas totais", value: totalHoursLabel });
-    }
-
-    if (typeof suggestion === "number") {
-      items.push({ label: "Sugestão checklist", value: `${clampPercent(suggestion).toFixed(1)}%` });
-    }
-
-    return items;
-  }, [progress, lastUpdateLabel, plannedStartLabel, plannedEndLabel, totalHoursLabel, suggestion]);
 
   const detailItems = useMemo(
     () => [
-      { label: "Status", value: statusLabel },
+      { label: "Status", value: normaliseStatus(service.status) },
       { label: "Andamento", value: `${progress.toFixed(1)}%` },
-      { label: "Código", value: codeLabel },
-      { label: "Ordem de compra", value: ocLabel },
-      { label: "Tag", value: tagLabel },
+      { label: "Código", value: service.code?.trim() || "—" },
+      { label: "Ordem de compra", value: service.oc?.trim() || "—" },
+      { label: "Tag", value: service.tag?.trim() || "—" },
       { label: "Equipamento", value: service.equipmentName?.trim() || "—" },
       { label: "Setor", value: service.sector?.trim() || "—" },
-      { label: "Horas totais", value: totalHoursLabel },
-      { label: "Início planejado", value: plannedStartLabel },
-      { label: "Fim planejado", value: plannedEndLabel },
+      {
+        label: "Horas totais",
+        value:
+          typeof service.totalHours === "number" && Number.isFinite(service.totalHours)
+            ? service.totalHours
+            : "—",
+      },
+      { label: "Início planejado", value: formatDate(service.plannedStart) },
+      { label: "Fim planejado", value: formatDate(service.plannedEnd) },
       { label: "Empresa atribuída", value: companyLabel || "—" },
-      { label: "Última atualização", value: lastUpdateLabel },
+      { label: "Última atualização", value: formatDate(lastUpdateAt, true) },
     ],
-    [
-      statusLabel,
-      progress,
-      codeLabel,
-      ocLabel,
-      tagLabel,
-      service,
-      totalHoursLabel,
-      plannedStartLabel,
-      plannedEndLabel,
-      companyLabel,
-      lastUpdateLabel,
-    ],
+    [service, progress, lastUpdateAt, companyLabel],
   );
 
   const subactivityStorageKey = useMemo(
@@ -554,73 +508,35 @@ export default function ServiceDetailsClient({ service, updates: initialUpdates,
 
   return (
     <div className="-mt-6 space-y-6 sm:-mt-10">
-      <section className="relative overflow-hidden rounded-3xl border border-border/70 bg-gradient-to-br from-primary/10 via-background to-background p-6 text-foreground shadow-lg shadow-primary/10 backdrop-blur-sm dark:border-slate-800/70 dark:from-primary/20 dark:via-slate-950 dark:to-slate-900 sm:p-8">
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute -top-24 right-0 h-56 w-56 rounded-full bg-primary/20 blur-3xl"
-        />
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute -bottom-24 left-8 h-64 w-64 rounded-full bg-emerald-200/40 blur-3xl dark:bg-emerald-500/20"
-        />
-
-        <div className="relative flex flex-col gap-8 lg:flex-row lg:items-start lg:justify-between">
-          <div className="space-y-6">
-            <span className="inline-flex w-fit items-center rounded-full bg-white/80 px-3 py-1 text-[0.7rem] font-semibold uppercase tracking-[0.35em] text-primary shadow-sm backdrop-blur dark:bg-slate-900/60">
-              Portal do Terceiro
-            </span>
-
-            <div className="space-y-4">
-              <div className="flex flex-wrap items-center gap-3 text-foreground">
-                <h1 className="text-3xl font-semibold sm:text-4xl">OS {serviceLabel}</h1>
-                <span className="inline-flex items-center rounded-full bg-primary/15 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-primary">
-                  {statusLabel}
-                </span>
-              </div>
-              <p className="max-w-2xl text-sm text-muted-foreground">
-                Formulário Único de Atualização diária com visão completa do andamento do serviço.
-              </p>
-            </div>
-
-            <dl className="flex flex-wrap gap-6 text-sm text-muted-foreground">
-              {[
-                { label: "Empresa", value: companyLabel ?? "—" },
-                { label: "Código", value: codeLabel },
-                { label: "Ordem de compra", value: ocLabel },
-                { label: "Tag", value: tagLabel },
-              ].map((item) => (
-                <div key={item.label} className="space-y-2">
-                  <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground/70">
-                    {item.label}
-                  </dt>
-                  <dd className="inline-flex min-h-[2.25rem] items-center rounded-full bg-white/80 px-3 text-sm font-medium text-foreground shadow-sm backdrop-blur dark:bg-slate-900/60">
-                    {item.value}
-                  </dd>
-                </div>
-              ))}
-            </dl>
+      <div className="card space-y-4 p-4">
+        <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between lg:gap-10">
+          <div className="space-y-2">
+            <p className="text-xs font-semibold uppercase tracking-widest text-primary">Portal do Terceiro</p>
+            <h1 className="text-3xl font-semibold text-foreground">OS: {serviceLabel}</h1>
+            <p className="text-sm text-muted-foreground">Formulário Único de Atualização diária.</p>
           </div>
-
-          <div className="w-full max-w-md space-y-4 rounded-3xl border border-white/40 bg-white/70 p-6 text-sm shadow-xl shadow-primary/10 backdrop-blur dark:border-white/10 dark:bg-slate-900/60">
-            <h2 className="text-xs font-semibold uppercase tracking-[0.4em] text-muted-foreground">
-              Resumo do serviço
-            </h2>
-            <dl className="grid gap-4 text-muted-foreground sm:grid-cols-2">
-              {headerHighlights.map((item) => (
-                <div
-                  key={item.label}
-                  className="rounded-2xl border border-white/40 bg-white/80 p-3 shadow-sm backdrop-blur dark:border-white/10 dark:bg-slate-900/70"
-                >
-                  <dt className="text-[0.65rem] font-medium uppercase tracking-widest text-muted-foreground/70">
-                    {item.label}
-                  </dt>
-                  <dd className="mt-1 text-lg font-semibold text-foreground">{item.value}</dd>
-                </div>
-              ))}
+          <div className="min-w-[260px] rounded-lg border border-dashed p-4">
+            <dl className="grid gap-3 text-xs text-muted-foreground lg:grid-cols-3 lg:gap-4">
+              <div className="flex flex-col gap-1 lg:col-span-3">
+                <dt className="text-[0.7rem] font-medium uppercase tracking-wide">FO</dt>
+                <dd className="text-base font-semibold text-foreground">FO – xxxx xx xxxx</dd>
+              </div>
+              <div className="flex flex-col gap-1">
+                <dt className="text-[0.7rem] font-medium uppercase tracking-wide">Emissão</dt>
+                <dd className="text-sm font-medium text-foreground">—</dd>
+              </div>
+              <div className="flex flex-col gap-1">
+                <dt className="text-[0.7rem] font-medium uppercase tracking-wide">Revisão</dt>
+                <dd className="text-sm font-medium text-foreground">—</dd>
+              </div>
+              <div className="flex flex-col gap-1">
+                <dt className="text-[0.7rem] font-medium uppercase tracking-wide">Número</dt>
+                <dd className="text-sm font-medium text-foreground">—</dd>
+              </div>
             </dl>
           </div>
         </div>
-      </section>
+      </div>
 
       <div className="grid gap-4 lg:grid-cols-[1fr_minmax(320px,380px)]">
         <div className="card p-4">
