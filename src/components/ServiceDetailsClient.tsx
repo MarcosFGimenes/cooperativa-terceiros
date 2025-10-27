@@ -341,12 +341,6 @@ export default function ServiceDetailsClient({ service, updates: initialUpdates,
     return service.id;
   }, [service]);
 
-  const formIdentifier = useMemo(() => {
-    if (service.code && service.code.trim()) return service.code.trim();
-    if (service.os && service.os.trim()) return service.os.trim();
-    return service.id;
-  }, [service]);
-
   const companyLabel = useMemo(() => {
     if (service.company && service.company.trim()) return service.company.trim();
     return null;
@@ -513,22 +507,19 @@ export default function ServiceDetailsClient({ service, updates: initialUpdates,
   );
 
   return (
-    <div className="space-y-6">
+    <div className="-mt-6 space-y-6 sm:-mt-10">
       <div className="card space-y-4 p-4">
         <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between lg:gap-10">
           <div className="space-y-2">
             <p className="text-xs font-semibold uppercase tracking-widest text-primary">Portal do Terceiro</p>
             <h1 className="text-3xl font-semibold text-foreground">OS: {serviceLabel}</h1>
             <p className="text-sm text-muted-foreground">Formulário Único de Atualização diária.</p>
-            <p className="text-sm text-muted-foreground">
-              Serviço: <span className="font-medium text-foreground">{serviceLabel}</span>
-            </p>
           </div>
           <div className="min-w-[260px] rounded-lg border border-dashed p-4">
             <dl className="grid gap-3 text-xs text-muted-foreground lg:grid-cols-3 lg:gap-4">
               <div className="flex flex-col gap-1 lg:col-span-3">
                 <dt className="text-[0.7rem] font-medium uppercase tracking-wide">FO</dt>
-                <dd className="text-base font-semibold text-foreground">FO – {formIdentifier}</dd>
+                <dd className="text-base font-semibold text-foreground">FO – xxxx xx xxxx</dd>
               </div>
               <div className="flex flex-col gap-1">
                 <dt className="text-[0.7rem] font-medium uppercase tracking-wide">Emissão</dt>
