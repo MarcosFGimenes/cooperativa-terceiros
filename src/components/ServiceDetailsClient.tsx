@@ -349,9 +349,16 @@ export default function ServiceDetailsClient({ service, updates: initialUpdates,
   const lastUpdateAt = updates[0]?.createdAt ?? service.updatedAt ?? null;
   const suggestion = useMemo(() => computeChecklistSuggestion(checklist), [checklist]);
 
+  const statusLabel = useMemo(() => normaliseStatus(service.status), [service.status]);
+
+  const isServiceOpen = useMemo(() => {
+    const rawStatus = String(service.status ?? "").toLowerCase();
+    return rawStatus === "aberto";
+  }, [service.status]);
+
   const detailItems = useMemo(
     () => [
-      { label: "Status", value: normaliseStatus(service.status) },
+      { label: "Status", value: statusLabel },
       { label: "Andamento", value: `${progress.toFixed(1)}%` },
       { label: "Código", value: service.code?.trim() || "—" },
       { label: "Ordem de compra", value: service.oc?.trim() || "—" },
@@ -370,7 +377,7 @@ export default function ServiceDetailsClient({ service, updates: initialUpdates,
       { label: "Empresa atribuída", value: companyLabel || "—" },
       { label: "Última atualização", value: formatDate(lastUpdateAt, true) },
     ],
-    [service, progress, lastUpdateAt, companyLabel],
+    [service, progress, lastUpdateAt, companyLabel, statusLabel],
   );
 
   const subactivityStorageKey = useMemo(
@@ -571,16 +578,22 @@ export default function ServiceDetailsClient({ service, updates: initialUpdates,
             </div>
           </div>
 
-          <ServiceUpdateForm
-            serviceId={service.id}
-            lastProgress={progress}
-            suggestedPercent={suggestion}
-            checklist={checklist.map((item) => ({ id: item.id, description: item.description }))}
-            defaultSubactivityId={storedSubactivity?.id}
-            defaultSubactivityLabel={storedSubactivity?.label}
-            onPersistSubactivity={persistSubactivity}
-            onSubmit={handleUpdateSubmit}
-          />
+          {isServiceOpen ? (
+            <ServiceUpdateForm
+              serviceId={service.id}
+              lastProgress={progress}
+              suggestedPercent={suggestion}
+              checklist={checklist.map((item) => ({ id: item.id, description: item.description }))}
+              defaultSubactivityId={storedSubactivity?.id}
+              defaultSubactivityLabel={storedSubactivity?.label}
+              onPersistSubactivity={persistSubactivity}
+              onSubmit={handleUpdateSubmit}
+            />
+          ) : (
+            <div className="rounded-md border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+              Este serviço está {statusLabel.toLowerCase()} e não aceita novas atualizações.
+            </div>
+          )}
         </div>
       </div>
 
