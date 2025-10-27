@@ -515,32 +515,34 @@ export default function ServiceDetailsClient({ service, updates: initialUpdates,
   return (
     <div className="space-y-6">
       <div className="card space-y-4 p-4">
-        <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+        <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between lg:gap-10">
           <div className="space-y-2">
             <p className="text-xs font-semibold uppercase tracking-widest text-primary">Portal do Terceiro</p>
-            <h1 className="text-3xl font-semibold text-foreground">FO – {formIdentifier}</h1>
+            <h1 className="text-3xl font-semibold text-foreground">OS: {serviceLabel}</h1>
             <p className="text-sm text-muted-foreground">Formulário Único de Atualização diária.</p>
             <p className="text-sm text-muted-foreground">
               Serviço: <span className="font-medium text-foreground">{serviceLabel}</span>
             </p>
           </div>
-          <div className="min-w-[240px] overflow-hidden rounded-lg border border-dashed">
-            <table className="w-full text-xs">
-              <thead className="bg-muted/60 text-muted-foreground">
-                <tr>
-                  <th className="px-3 py-2 text-left font-medium uppercase tracking-wide">Emissão</th>
-                  <th className="px-3 py-2 text-left font-medium uppercase tracking-wide">Revisão</th>
-                  <th className="px-3 py-2 text-left font-medium uppercase tracking-wide">Número</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr className="text-foreground">
-                  <td className="px-3 py-3">—</td>
-                  <td className="px-3 py-3">—</td>
-                  <td className="px-3 py-3">—</td>
-                </tr>
-              </tbody>
-            </table>
+          <div className="min-w-[260px] rounded-lg border border-dashed p-4">
+            <dl className="grid gap-3 text-xs text-muted-foreground lg:grid-cols-3 lg:gap-4">
+              <div className="flex flex-col gap-1 lg:col-span-3">
+                <dt className="text-[0.7rem] font-medium uppercase tracking-wide">FO</dt>
+                <dd className="text-base font-semibold text-foreground">FO – {formIdentifier}</dd>
+              </div>
+              <div className="flex flex-col gap-1">
+                <dt className="text-[0.7rem] font-medium uppercase tracking-wide">Emissão</dt>
+                <dd className="text-sm font-medium text-foreground">—</dd>
+              </div>
+              <div className="flex flex-col gap-1">
+                <dt className="text-[0.7rem] font-medium uppercase tracking-wide">Revisão</dt>
+                <dd className="text-sm font-medium text-foreground">—</dd>
+              </div>
+              <div className="flex flex-col gap-1">
+                <dt className="text-[0.7rem] font-medium uppercase tracking-wide">Número</dt>
+                <dd className="text-sm font-medium text-foreground">—</dd>
+              </div>
+            </dl>
           </div>
         </div>
       </div>

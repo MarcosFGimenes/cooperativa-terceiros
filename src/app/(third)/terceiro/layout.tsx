@@ -19,7 +19,7 @@ export default function TerceiroLayout({ children }: { children: ReactNode }) {
           </nav>
         </div>
       </header>
-      <main className="container mx-auto p-4">{children}</main>
+      <main className="mx-auto w-full max-w-[1200px] px-4 pb-6">{children}</main>
     </div>
   );
 }
