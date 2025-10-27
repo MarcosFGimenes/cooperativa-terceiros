@@ -153,56 +153,175 @@ function getConditionLabel(value?: string | null) {
   return CONDITION_LABELS[key] ?? value;
 }
 
-function toThirdUpdate(update: any): ThirdServiceUpdate {
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function toOptionalString(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const trimmed = value.trim();
+  return trimmed || undefined;
+}
+
+function toNullableNumber(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim()) {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return null;
+}
+
+function toTimestampMs(value: unknown): number {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (value instanceof Date) {
+    const time = value.getTime();
+    return Number.isNaN(time) ? Date.now() : time;
+  }
+  if (typeof value === "string" && value.trim()) {
+    const numeric = Number(value);
+    if (Number.isFinite(numeric)) return numeric;
+    const parsed = new Date(value);
+    const time = parsed.getTime();
+    return Number.isNaN(time) ? Date.now() : time;
+  }
+  return Date.now();
+}
+
+function isPresent<T>(value: T | null | undefined): value is T {
+  return value !== null && value !== undefined;
+}
+
+function toThirdUpdate(update: unknown): ThirdServiceUpdate {
+  const record = isRecord(update) ? update : {};
+  const timeWindowRecord = isRecord(record.timeWindow) ? record.timeWindow : null;
+  const timeWindowCandidate = timeWindowRecord
+    ? {
+        start: toNullableNumber(timeWindowRecord.start),
+        end: toNullableNumber(timeWindowRecord.end),
+        hours: toNullableNumber(timeWindowRecord.hours),
+      }
+    : undefined;
+  const timeWindow =
+    timeWindowCandidate &&
+    timeWindowCandidate.start === null &&
+    timeWindowCandidate.end === null &&
+    timeWindowCandidate.hours === null
+      ? undefined
+      : timeWindowCandidate;
+
+  const subactivityRecord = isRecord(record.subactivity) ? record.subactivity : null;
+  const subactivity = subactivityRecord
+    ? {
+        id: toOptionalString(subactivityRecord.id) ?? null,
+        label: toOptionalString(subactivityRecord.label) ?? null,
+      }
+    : undefined;
+
+  const workforce = Array.isArray(record.workforce)
+    ? record.workforce
+        .map((item) => {
+          if (!isRecord(item)) return null;
+          const role = toOptionalString(item.role);
+          if (!role) return null;
+          const quantityValue =
+            typeof item.quantity === "number"
+              ? item.quantity
+              : typeof item.quantity === "string"
+                ? Number(item.quantity)
+                : undefined;
+          const numeric =
+            quantityValue !== undefined && Number.isFinite(quantityValue)
+              ? Math.max(1, Math.round(Number(quantityValue)))
+              : 1;
+          return { role, quantity: numeric };
+        })
+        .filter(isPresent)
+    : undefined;
+
+  const shiftConditions = Array.isArray(record.shiftConditions)
+    ? record.shiftConditions
+        .map((item) => {
+          if (!isRecord(item)) return null;
+          const shiftRaw = toOptionalString(item.shift)?.toLowerCase();
+          const weatherRaw = toOptionalString(item.weather)?.toLowerCase();
+          const conditionRaw = toOptionalString(item.condition)?.toLowerCase();
+          if (!shiftRaw || !weatherRaw || !conditionRaw) return null;
+          if (!SHIFT_LABELS[shiftRaw as keyof typeof SHIFT_LABELS]) return null;
+          if (!WEATHER_LABELS[weatherRaw as keyof typeof WEATHER_LABELS]) return null;
+          if (!CONDITION_LABELS[conditionRaw as keyof typeof CONDITION_LABELS]) return null;
+          return {
+            shift: shiftRaw as "manha" | "tarde" | "noite",
+            weather: weatherRaw as "claro" | "nublado" | "chuvoso",
+            condition: conditionRaw as "praticavel" | "impraticavel",
+          };
+        })
+        .filter(isPresent)
+    : undefined;
+
+  const impediments = Array.isArray(record.impediments)
+    ? record.impediments
+        .map((item) => {
+          if (!isRecord(item)) return null;
+          const type = toOptionalString(item.type);
+          if (!type) return null;
+          return { type, durationHours: toNullableNumber(item.durationHours) };
+        })
+        .filter(isPresent)
+    : undefined;
+
+  const resources = Array.isArray(record.resources)
+    ? record.resources
+        .map((item) => {
+          if (!isRecord(item)) return null;
+          const name = toOptionalString(item.name);
+          if (!name) return null;
+          return {
+            name,
+            quantity: toNullableNumber(item.quantity),
+            unit: toOptionalString(item.unit) ?? null,
+          };
+        })
+        .filter(isPresent)
+    : undefined;
+
+  const evidences = Array.isArray(record.evidences)
+    ? record.evidences
+        .map((item) => {
+          if (!isRecord(item)) return null;
+          const url = toOptionalString(item.url);
+          if (!url) return null;
+          return { url, label: toOptionalString(item.label) ?? null };
+        })
+        .filter(isPresent)
+    : undefined;
+
+  const previousPercent = toNullableNumber(record.previousPercent);
+
   return {
-    id: String(update.id ?? crypto.randomUUID()),
-    percent: clampPercent(update.percent ?? update.realPercentSnapshot ?? update.manualPercent ?? 0),
-    description: typeof update.description === "string" ? update.description : update.note,
-    createdAt:
-      typeof update.createdAt === "number"
-        ? update.createdAt
-        : update.createdAt
-          ? new Date(update.createdAt).getTime()
-          : Date.now(),
-    timeWindow: update.timeWindow,
-    subactivity: update.subactivity,
-    mode: update.mode,
-    impediments: update.impediments,
-    resources: update.resources,
-    workforce: Array.isArray(update.workforce)
-      ? (update.workforce as Array<{ role?: string; quantity?: number }>)
-          .map((item) => {
-            const role = typeof item.role === "string" ? item.role.trim() : "";
-            const quantity = Number(item.quantity);
-            if (!role) return null;
-            const normalisedQuantity = Number.isFinite(quantity) ? Math.max(1, Math.round(quantity)) : 1;
-            return { role, quantity: normalisedQuantity };
-          })
-          .filter(Boolean)
-      : undefined,
-    shiftConditions: Array.isArray(update.shiftConditions)
-      ? (update.shiftConditions as Array<{ shift?: string; weather?: string; condition?: string }>)
-          .map((item) => {
-            const shiftRaw = typeof item.shift === "string" ? item.shift.trim().toLowerCase() : "";
-            const weatherRaw = typeof item.weather === "string" ? item.weather.trim().toLowerCase() : "";
-            const conditionRaw = typeof item.condition === "string" ? item.condition.trim().toLowerCase() : "";
-            if (!SHIFT_LABELS[shiftRaw as keyof typeof SHIFT_LABELS]) return null;
-            if (!WEATHER_LABELS[weatherRaw as keyof typeof WEATHER_LABELS]) return null;
-            if (!CONDITION_LABELS[conditionRaw as keyof typeof CONDITION_LABELS]) return null;
-            return {
-              shift: shiftRaw as "manha" | "tarde" | "noite",
-              weather: weatherRaw as "claro" | "nublado" | "chuvoso",
-              condition: conditionRaw as "praticavel" | "impraticavel",
-            };
-          })
-          .filter(Boolean)
-      : undefined,
-    forecastDate: update.forecastDate ?? null,
-    criticality: update.criticality ?? null,
-    evidences: update.evidences,
-    justification: update.justification ?? null,
-    previousPercent: update.previousPercent ?? null,
-    declarationAccepted: update.declarationAccepted ?? undefined,
+    id: String(record.id ?? crypto.randomUUID()),
+    percent: clampPercent(record.percent ?? record.realPercentSnapshot ?? record.manualPercent ?? 0),
+    description:
+      typeof record.description === "string"
+        ? record.description
+        : typeof record.note === "string"
+          ? record.note
+          : undefined,
+    createdAt: toTimestampMs(record.createdAt ?? record.createdAtMillis ?? record.createdAtMs ?? undefined),
+    timeWindow,
+    subactivity,
+    mode: record.mode === "detailed" || record.mode === "simple" ? record.mode : undefined,
+    impediments,
+    resources,
+    workforce,
+    shiftConditions,
+    forecastDate: toNullableNumber(record.forecastDate),
+    criticality: toNullableNumber(record.criticality),
+    evidences,
+    justification: toOptionalString(record.justification) ?? null,
+    previousPercent: previousPercent ?? null,
+    declarationAccepted:
+      typeof record.declarationAccepted === "boolean" ? record.declarationAccepted : undefined,
   };
 }
 

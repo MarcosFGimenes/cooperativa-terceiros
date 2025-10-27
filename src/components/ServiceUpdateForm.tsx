@@ -82,6 +82,13 @@ const CONDITION_OPTIONS = [
   { id: "impraticavel" as const, label: "Impraticável" },
 ];
 
+function extractFieldErrorMessage(value: unknown): string | null {
+  if (!value || typeof value !== "object") return null;
+  if (!("message" in value)) return null;
+  const record = value as { message?: unknown };
+  return typeof record.message === "string" ? record.message : null;
+}
+
 const workforceItemSchema = z.object({
   role: z.string().min(1, "Selecione a função"),
   quantity: z
@@ -623,9 +630,12 @@ export default function ServiceUpdateForm({
         {errors.shifts && !Array.isArray(errors.shifts) && typeof errors.shifts.message === "string" ? (
           <p className="text-xs text-destructive">{errors.shifts.message}</p>
         ) : null}
-        {errors.shifts && !Array.isArray(errors.shifts) && typeof (errors.shifts as any)?.root?.message === "string" ? (
-          <p className="text-xs text-destructive">{(errors.shifts as any).root.message}</p>
-        ) : null}
+        {errors.shifts && !Array.isArray(errors.shifts)
+          ? (() => {
+              const message = extractFieldErrorMessage(errors.shifts?.root);
+              return message ? <p className="text-xs text-destructive">{message}</p> : null;
+            })()
+          : null}
         {shiftArray.fields.length > 0 ? (
           <div className="space-y-3">
             {shiftArray.fields.map((field, index) => (

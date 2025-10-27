@@ -36,8 +36,8 @@ export async function POST(req: NextRequest) {
     const found = snap.docs[0];
     await updateDoc(docRef(webDb, "accessTokens", found.id), { active: false, status: "revoked" });
     return NextResponse.json({ ok: true, found: true });
-  } catch (e: any) {
-    console.error("[tokens/revoke]", e);
+  } catch (error) {
+    console.error("[tokens/revoke]", error);
     return NextResponse.json({ ok: false, error: "server_error" }, { status: 500 });
   }
 }

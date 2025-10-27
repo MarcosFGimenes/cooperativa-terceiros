@@ -142,9 +142,9 @@ export async function POST(req: Request) {
             const url = typeof item.url === "string" ? item.url.trim() : "";
             if (!url) return null;
             try {
-              // eslint-disable-next-line no-new
-              new URL(url);
-            } catch (error) {
+              const parsed = new URL(url);
+              if (!parsed.protocol) return null;
+            } catch {
               return null;
             }
             const label = typeof item.label === "string" && item.label.trim() ? item.label.trim() : undefined;

@@ -49,8 +49,6 @@ const buildPeriodLabel = (start: Date | null, end: Date | null) => {
   return `${formatDate(start)} até ${formatDate(end)}`;
 };
 
-type CombinedPoint = { date: string; planned: number; actual: number };
-
 const mapActualPoints = (points: Array<{ d: string; pct: number }>) => {
   const sorted = [...points].sort((a, b) => a.d.localeCompare(b.d));
   const lookup: Record<string, number> = {};

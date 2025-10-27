@@ -24,7 +24,7 @@ function formatDate(value?: number) {
       timeStyle: "short",
       timeZone: "America/Sao_Paulo",
     }).format(date);
-  } catch (error) {
+  } catch {
     return "";
   }
 }
