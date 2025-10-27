@@ -341,12 +341,6 @@ export default function ServiceDetailsClient({ service, updates: initialUpdates,
     return service.id;
   }, [service]);
 
-  const formIdentifier = useMemo(() => {
-    if (service.code && service.code.trim()) return service.code.trim();
-    if (service.os && service.os.trim()) return service.os.trim();
-    return service.id;
-  }, [service]);
-
   const companyLabel = useMemo(() => {
     if (service.company && service.company.trim()) return service.company.trim();
     return null;
@@ -513,34 +507,33 @@ export default function ServiceDetailsClient({ service, updates: initialUpdates,
   );
 
   return (
-    <div className="space-y-6">
-      <div className="card space-y-4 p-4">
+    <div className="mx-auto flex w-full max-w-[1120px] flex-col space-y-6">
+      <div className="card p-4">
         <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
-          <div className="space-y-2">
+          <div className="space-y-3">
             <p className="text-xs font-semibold uppercase tracking-widest text-primary">Portal do Terceiro</p>
-            <h1 className="text-3xl font-semibold text-foreground">FO – {formIdentifier}</h1>
+            <h1 className="text-3xl font-semibold text-foreground">OS: {serviceLabel}</h1>
             <p className="text-sm text-muted-foreground">Formulário Único de Atualização diária.</p>
-            <p className="text-sm text-muted-foreground">
-              Serviço: <span className="font-medium text-foreground">{serviceLabel}</span>
-            </p>
           </div>
-          <div className="min-w-[240px] overflow-hidden rounded-lg border border-dashed">
-            <table className="w-full text-xs">
-              <thead className="bg-muted/60 text-muted-foreground">
-                <tr>
-                  <th className="px-3 py-2 text-left font-medium uppercase tracking-wide">Emissão</th>
-                  <th className="px-3 py-2 text-left font-medium uppercase tracking-wide">Revisão</th>
-                  <th className="px-3 py-2 text-left font-medium uppercase tracking-wide">Número</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr className="text-foreground">
-                  <td className="px-3 py-3">—</td>
-                  <td className="px-3 py-3">—</td>
-                  <td className="px-3 py-3">—</td>
-                </tr>
-              </tbody>
-            </table>
+          <div className="lg:ml-auto lg:min-w-[420px] lg:max-w-[540px]">
+            <div className="grid gap-4 rounded-lg border border-dashed p-4 text-sm sm:grid-cols-2 lg:grid-cols-4">
+              <div className="flex flex-col gap-1 sm:col-span-2 lg:col-span-2">
+                <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">FO</span>
+                <span className="text-base font-semibold text-foreground">FO – xxxx xx xxxx</span>
+              </div>
+              <div className="flex flex-col gap-1">
+                <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Emissão</span>
+                <span className="text-base font-medium text-muted-foreground opacity-60">—</span>
+              </div>
+              <div className="flex flex-col gap-1">
+                <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Revisão</span>
+                <span className="text-base font-medium text-muted-foreground opacity-60">—</span>
+              </div>
+              <div className="flex flex-col gap-1">
+                <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Número</span>
+                <span className="text-base font-medium text-muted-foreground opacity-60">—</span>
+              </div>
+            </div>
           </div>
         </div>
       </div>
