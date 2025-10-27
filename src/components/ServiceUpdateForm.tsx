@@ -113,7 +113,7 @@ const formSchema = z
     percent: z
       .number({ invalid_type_error: "Informe um percentual" })
       .refine((value) => Number.isFinite(value), { message: "Informe um percentual" })
-      .min(0, "Mínimo 0%")
+      .min(1, "Mínimo 1%")
       .max(100, "Máximo 100%"),
     justification: z.string().max(1000).optional(),
     declarationAccepted: z.literal(true, {
@@ -432,7 +432,7 @@ export default function ServiceUpdateForm({
             htmlFor={`${serviceId}-percent`}
             className="text-sm font-medium text-foreground"
           >
-            Percentual total (0 a 100)
+            Percentual total (1 a 100)
           </label>
           <div className="mt-1 flex w-full items-center gap-2 sm:w-48">
             <input
@@ -440,11 +440,34 @@ export default function ServiceUpdateForm({
               type="number"
               inputMode="decimal"
               className="input flex-1"
-              min={0}
+              min={1}
               max={100}
               step={0.1}
-              placeholder="0"
-              {...register("percent", { valueAsNumber: true })}
+              placeholder="1"
+              {...register("percent", {
+                valueAsNumber: true,
+                setValueAs: (value) => {
+                  if (value === "" || value === null || typeof value === "undefined") {
+                    return undefined;
+                  }
+
+                  const numericValue = typeof value === "number" ? value : Number(value);
+
+                  if (!Number.isFinite(numericValue)) {
+                    return undefined;
+                  }
+
+                  if (numericValue < 1) {
+                    return 1;
+                  }
+
+                  if (numericValue > 100) {
+                    return 100;
+                  }
+
+                  return numericValue;
+                },
+              })}
             />
             <span className="text-sm font-medium text-muted-foreground">%</span>
           </div>
