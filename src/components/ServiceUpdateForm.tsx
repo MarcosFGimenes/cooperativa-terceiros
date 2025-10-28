@@ -345,26 +345,34 @@ export default function ServiceUpdateForm({
 
     form.clearErrors("subactivityId");
 
-    await onSubmit({
-      percent: values.percent,
-      description: values.description.trim(),
-      start: startIso.toISOString(),
-      end: endIso.toISOString(),
-      subactivityId: selectedSubactivity?.id,
-      subactivityLabel: selectedSubactivity?.label,
-      resources: (values.resources ?? [])
-        .map((resourceId) => RESOURCE_OPTIONS.find((option) => option.id === resourceId)?.label ?? resourceId)
-        .filter((label) => typeof label === "string" && label.trim().length > 0)
-        .map((label) => ({ name: label })),
-      workforce: values.workforce.map((item) => ({ role: item.role.trim(), quantity: Math.max(1, Math.round(item.quantity)) })),
-      shiftConditions: values.shifts.map((item) => ({
-        shift: item.shift,
-        weather: item.weather,
-        condition: item.condition,
-      })),
-      justification: values.justification?.trim() || undefined,
-      declarationAccepted: true,
-    });
+    try {
+      await onSubmit({
+        percent: values.percent,
+        description: values.description.trim(),
+        start: startIso.toISOString(),
+        end: endIso.toISOString(),
+        subactivityId: selectedSubactivity?.id,
+        subactivityLabel: selectedSubactivity?.label,
+        resources: (values.resources ?? [])
+          .map((resourceId) => RESOURCE_OPTIONS.find((option) => option.id === resourceId)?.label ?? resourceId)
+          .filter((label) => typeof label === "string" && label.trim().length > 0)
+          .map((label) => ({ name: label })),
+        workforce: values.workforce.map((item) => ({
+          role: item.role.trim(),
+          quantity: Math.max(1, Math.round(item.quantity)),
+        })),
+        shiftConditions: values.shifts.map((item) => ({
+          shift: item.shift,
+          weather: item.weather,
+          condition: item.condition,
+        })),
+        justification: values.justification?.trim() || undefined,
+        declarationAccepted: true,
+      });
+    } catch (error) {
+      console.warn("[service-update-form] Falha ao enviar atualização", error);
+      return;
+    }
 
     const nextSubactivityId = selectedSubactivity?.id ?? (defaultSubactivityChoice || undefined);
 
