@@ -334,11 +334,6 @@ export default function ServiceDetailsClient({ service, updates: initialUpdates,
   const [updates, setUpdates] = useState(sortedInitialUpdates);
   const [progress, setProgress] = useState(() => computeInitialProgress(service, sortedInitialUpdates));
   const [storedSubactivity, setStoredSubactivity] = useState<{ id?: string; label?: string } | null>(null);
-  const [serviceStatus, setServiceStatus] = useState(service.status);
-  const [isServiceOpen, setIsServiceOpen] = useState(() => {
-    const rawStatus = String(service.status ?? "").toLowerCase();
-    return rawStatus === "aberto";
-  });
 
   const serviceLabel = useMemo(() => {
     if (service.os && service.os.trim()) return service.os.trim();
@@ -354,13 +349,12 @@ export default function ServiceDetailsClient({ service, updates: initialUpdates,
   const lastUpdateAt = updates[0]?.createdAt ?? service.updatedAt ?? null;
   const suggestion = useMemo(() => computeChecklistSuggestion(checklist), [checklist]);
 
-  useEffect(() => {
-    setServiceStatus(service.status);
-    const rawStatus = String(service.status ?? "").toLowerCase();
-    setIsServiceOpen(rawStatus === "aberto");
-  }, [service.status]);
+  const statusLabel = useMemo(() => normaliseStatus(service.status), [service.status]);
 
-  const statusLabel = useMemo(() => normaliseStatus(serviceStatus), [serviceStatus]);
+  const isServiceOpen = useMemo(() => {
+    const rawStatus = String(service.status ?? "").toLowerCase();
+    return rawStatus === "aberto";
+  }, [service.status]);
 
   const detailItems = useMemo(
     () => [
@@ -513,13 +507,6 @@ export default function ServiceDetailsClient({ service, updates: initialUpdates,
       } catch (error) {
         console.error("[service-details] Falha ao registrar atualização", error);
         toast.error(errorMessage);
-        const normalizedError = errorMessage?.toLowerCase?.() ?? "";
-        const normalizedWithoutAccents =
-          normalizedError.normalize?.("NFD").replace(/[\u0300-\u036f]/g, "") ?? normalizedError;
-        if (normalizedError.includes("serviço fechado") || normalizedWithoutAccents.includes("servico fechado")) {
-          setServiceStatus("fechado");
-          setIsServiceOpen(false);
-        }
         throw error instanceof Error ? error : new Error(errorMessage);
       }
     },
