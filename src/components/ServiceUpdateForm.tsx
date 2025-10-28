@@ -82,6 +82,22 @@ const CONDITION_OPTIONS = [
   { id: "impraticavel" as const, label: "Impraticável" },
 ];
 
+function clampPercentValue(value: unknown): number | undefined {
+  if (value === "" || value === null || typeof value === "undefined") {
+    return undefined;
+  }
+
+  const numericValue =
+    typeof value === "number" ? value : Number(String(value).replace(",", "."));
+
+  if (!Number.isFinite(numericValue)) {
+    return undefined;
+  }
+
+  const clamped = Math.min(100, Math.max(1, numericValue));
+  return Number.parseFloat(clamped.toFixed(1));
+}
+
 function extractFieldErrorMessage(value: unknown): string | null {
   if (!value || typeof value !== "object") return null;
   if (!("message" in value)) return null;
@@ -445,27 +461,31 @@ export default function ServiceUpdateForm({
               step={0.1}
               placeholder="1"
               {...register("percent", {
-                valueAsNumber: true,
-                setValueAs: (value) => {
-                  if (value === "" || value === null || typeof value === "undefined") {
-                    return undefined;
+                setValueAs: clampPercentValue,
+                onChange: (event) => {
+                  const rawValue = event.target.value;
+
+                  if (!rawValue) {
+                    setValue("percent", undefined, { shouldDirty: true, shouldValidate: false });
+                    return;
                   }
 
-                  const numericValue = typeof value === "number" ? value : Number(value);
+                  const numericValue = Number(rawValue.replace(",", "."));
 
                   if (!Number.isFinite(numericValue)) {
-                    return undefined;
+                    event.target.value = "";
+                    setValue("percent", undefined, { shouldDirty: true, shouldValidate: false });
+                    return;
                   }
 
-                  if (numericValue < 1) {
-                    return 1;
-                  }
+                  const clamped = clampPercentValue(numericValue);
 
-                  if (numericValue > 100) {
-                    return 100;
+                  if (typeof clamped === "number") {
+                    if (clamped !== numericValue) {
+                      event.target.value = clamped.toString();
+                    }
+                    setValue("percent", clamped, { shouldDirty: true, shouldValidate: false });
                   }
-
-                  return numericValue;
                 },
               })}
             />
