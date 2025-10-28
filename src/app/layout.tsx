@@ -1,40 +1,23 @@
 import "./globals.css";
 import type { ReactNode } from "react";
-import { cookies } from "next/headers";
 import { Toaster } from "sonner";
 import RootHeader from "@/components/RootHeader";
 import SkipToContent from "@/components/SkipToContent";
 import Footer from "@/components/Footer";
 import PreloadAsFix from "@/components/PreloadAsFix";
+import ThemeScript from "@/components/ThemeScript";
 import FirebaseConfigScript from "@/components/FirebaseConfigScript";
-
-type ThemeMode = "light" | "dark";
-
-async function resolveInitialTheme(): Promise<ThemeMode> {
-  const cookieStore = await cookies();
-  const themeCookie = cookieStore.get("theme")?.value;
-  if (themeCookie === "light" || themeCookie === "dark") {
-    return themeCookie;
-  }
-  return "light";
-}
 
 export const metadata = {
   title: "PCM • Terceiros",
   description: "Acompanhamento de serviços de terceiros (PCM)",
 };
 
-export default async function RootLayout({ children }: { children: ReactNode }) {
-  const theme = await resolveInitialTheme();
-
+export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html
-      lang="pt-BR"
-      suppressHydrationWarning
-      data-theme={theme}
-      className={theme === "dark" ? "dark" : undefined}
-    >
+    <html lang="pt-BR" suppressHydrationWarning>
       <head>
+        <ThemeScript />
         <PreloadAsFix />
         <FirebaseConfigScript />
       </head>
