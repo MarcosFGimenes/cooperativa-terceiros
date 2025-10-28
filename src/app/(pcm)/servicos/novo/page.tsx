@@ -3,7 +3,17 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { Timestamp, addDoc, collection, getDocs, orderBy, query, serverTimestamp } from "firebase/firestore";
+import {
+  Timestamp,
+  addDoc,
+  collection,
+  doc,
+  getDocs,
+  orderBy,
+  query,
+  serverTimestamp,
+  writeBatch,
+} from "firebase/firestore";
 
 import {
   Dialog,
@@ -148,6 +158,14 @@ export default function NovoServico() {
       return;
     }
 
+    const sanitizedChecklist = withChecklist
+      ? checklist.map((item) => ({
+          id: item.id,
+          description: item.descricao.trim(),
+          weight: Number(item.peso) || 0,
+        }))
+      : [];
+
     setSaving(true);
     try {
       const payload = {
@@ -166,13 +184,12 @@ export default function NovoServico() {
         pacoteId: form.pacoteId || null,
         packageId: form.pacoteId || null,
         andamento: 0,
-        checklist: withChecklist
-          ? checklist.map((item) => ({
-              id: item.id,
-              descricao: item.descricao.trim(),
-              peso: Number(item.peso) || 0,
-            }))
-          : [],
+        hasChecklist: sanitizedChecklist.length > 0,
+        checklist: sanitizedChecklist.map((item) => ({
+          id: item.id,
+          descricao: item.description,
+          peso: item.weight,
+        })),
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
         createdBy: "pcm",
@@ -180,6 +197,24 @@ export default function NovoServico() {
 
       const servicesCollection = collection(firestore, "services");
       const docRef = await addDoc(servicesCollection, payload);
+
+      if (sanitizedChecklist.length > 0) {
+        const batch = writeBatch(firestore);
+        const checklistCollection = collection(docRef, "checklist");
+        sanitizedChecklist.forEach((item) => {
+          const itemRef = doc(checklistCollection, item.id);
+          batch.set(itemRef, {
+            description: item.description,
+            weight: item.weight,
+            progress: 0,
+            status: "nao_iniciado",
+            updatedAt: serverTimestamp(),
+          });
+        });
+        batch.update(docRef, { hasChecklist: true });
+        await batch.commit();
+      }
+
       setCreatedServiceId(docRef.id);
       toast.success("Serviço criado com sucesso.");
     } catch (error) {
