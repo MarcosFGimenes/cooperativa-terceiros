@@ -172,20 +172,20 @@ function toNullableNumber(value: unknown): number | null {
   return null;
 }
 
-function toTimestampMs(value: unknown): number {
+function toTimestampMs(value: unknown): number | null {
   if (typeof value === "number" && Number.isFinite(value)) return value;
   if (value instanceof Date) {
     const time = value.getTime();
-    return Number.isNaN(time) ? Date.now() : time;
+    return Number.isNaN(time) ? null : time;
   }
   if (typeof value === "string" && value.trim()) {
     const numeric = Number(value);
     if (Number.isFinite(numeric)) return numeric;
     const parsed = new Date(value);
     const time = parsed.getTime();
-    return Number.isNaN(time) ? Date.now() : time;
+    return Number.isNaN(time) ? null : time;
   }
-  return Date.now();
+  return null;
 }
 
 function isPresent<T>(value: T | null | undefined): value is T {

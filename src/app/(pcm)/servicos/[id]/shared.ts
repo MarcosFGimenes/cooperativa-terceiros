@@ -593,15 +593,14 @@ export function buildRealizedSeries(params: {
   }
 
   const plannedStart = params.plannedStart ?? params.planned[0]?.date ?? toDayIso(params.createdAt);
-  const plannedEnd =
-    params.plannedEnd ?? params.planned[params.planned.length - 1]?.date ?? toDayIso(Date.now());
+  const plannedEndFromData = params.plannedEnd ?? params.planned[params.planned.length - 1]?.date ?? null;
 
-  if (!plannedStart && !plannedEnd) {
+  const start = plannedStart ?? plannedEndFromData;
+  const end = plannedEndFromData ?? plannedStart;
+
+  if (!start || !end) {
     return [];
   }
-
-  const start = plannedStart ?? plannedEnd!;
-  const end = plannedEnd ?? plannedStart!;
   const realised = normaliseProgress(params.realizedPercent);
 
   if (start === end) {
