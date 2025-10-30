@@ -1,3 +1,5 @@
+"use client";
+
 import { tryGetFirestore } from "@/lib/firebase";
 import { collection, orderBy, query, where } from "firebase/firestore";
 

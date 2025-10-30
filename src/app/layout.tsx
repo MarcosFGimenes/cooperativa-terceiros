@@ -7,6 +7,7 @@ import Footer from "@/components/Footer";
 import PreloadAsFix from "@/components/PreloadAsFix";
 import ThemeScript from "@/components/ThemeScript";
 import FirebaseConfigScript from "@/components/FirebaseConfigScript";
+import NetworkBanner from "@/components/NetworkBanner";
 
 export const metadata = {
   title: "PCM • Terceiros",
@@ -34,6 +35,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         </main>
         <Footer />
         <Toaster richColors closeButton />
+        <NetworkBanner />
       </body>
     </html>
   );

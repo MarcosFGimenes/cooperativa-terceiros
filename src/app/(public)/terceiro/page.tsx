@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { onSnapshot, type FirestoreError } from "firebase/firestore";
 
+import { isFirestoreLongPollingForced } from "@/lib/firebase";
 import { servicesQueryForCompany } from "@/lib/repo/services-client";
 
 type ServiceItem = {
@@ -37,6 +38,7 @@ export default function TerceiroHome() {
   const [connectionIssue, setConnectionIssue] = useState<string | null>(null);
   const [sessionRetryKey, setSessionRetryKey] = useState(0);
   const [listenerSeed, setListenerSeed] = useState(0);
+  const longPollingForced = isFirestoreLongPollingForced;
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -169,7 +171,9 @@ export default function TerceiroHome() {
             const errorObject = err as FirestoreError | undefined;
             const message =
               errorObject?.code === "unavailable"
-                ? "Conexão com o Firestore indisponível. Exibindo dados locais."
+                ? longPollingForced
+                  ? "Conexão com o Firestore indisponível. Continuaremos tentando via long-polling."
+                  : "Conexão com o Firestore indisponível. Ative NEXT_PUBLIC_FIRESTORE_FORCE_LONG_POLLING=true se proxies ou firewalls bloquearem streams."
                 : "Não foi possível sincronizar com o Firestore. Tentaremos novamente.";
             console.warn("[terceiro] falha na escuta de serviços", errorObject ?? err);
             setConnectionIssue(message);
@@ -179,7 +183,10 @@ export default function TerceiroHome() {
       } catch (err) {
         if (!active) return;
         console.warn("[terceiro] não foi possível iniciar a sincronização", err);
-        setConnectionIssue("Sincronização temporariamente indisponível. Tentaremos novamente.");
+        const hint = longPollingForced
+          ? "Sincronização temporariamente indisponível. Continuaremos tentando via long-polling."
+          : "Sincronização temporariamente indisponível. Ative NEXT_PUBLIC_FIRESTORE_FORCE_LONG_POLLING=true se estiver atrás de proxy corporativo.";
+        setConnectionIssue(hint);
         scheduleRetry();
       }
     };
@@ -195,7 +202,7 @@ export default function TerceiroHome() {
         unsubscribe();
       }
     };
-  }, [companyId, listenerSeed]);
+  }, [companyId, listenerSeed, longPollingForced]);
 
   return (
     <div className="container mx-auto space-y-4 p-4">
