@@ -34,7 +34,7 @@ function parseISO(value?: string | null) {
 function formatDate(value?: string | null) {
   const date = parseISO(value ?? undefined);
   if (!date) return "-";
-  return new Intl.DateTimeFormat("pt-BR").format(date);
+  return new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo" }).format(date);
 }
 
 function computeServiceRealized(service: Service) {
