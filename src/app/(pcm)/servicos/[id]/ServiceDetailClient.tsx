@@ -16,7 +16,7 @@ import {
 import SCurve from "@/components/SCurve";
 import DeleteServiceButton from "@/components/DeleteServiceButton";
 import { plannedCurve } from "@/lib/curve";
-import { tryGetFirestore } from "@/lib/firebase";
+import { isFirestoreLongPollingForced, tryGetFirestore } from "@/lib/firebase";
 import type { ChecklistItem, ServiceUpdate } from "@/lib/types";
 import {
   ServiceRealtimeData,
@@ -71,6 +71,7 @@ export default function ServiceDetailClient({
   const [updates, setUpdates] = useState<ServiceUpdate[]>(toNewUpdates(initialUpdates));
   const [connectionIssue, setConnectionIssue] = useState<string | null>(null);
   const normalizedInitialUpdates = useMemo(() => toNewUpdates(initialUpdates), [initialUpdates]);
+  const longPollingForced = isFirestoreLongPollingForced;
 
   useEffect(() => {
     let cancelled = false;
@@ -81,9 +82,11 @@ export default function ServiceDetailClient({
       if (error) {
         console.warn("[service-detail] Firestore indisponível", error);
       }
-      setConnectionIssue(
-        "Sincronização temporariamente indisponível. Exibindo dados mais recentes carregados.",
-      );
+      const hint = longPollingForced
+        ? "Operando com Firestore em modo long-polling; aguardando reconexão."
+        :
+          "Sincronização temporariamente indisponível. Considere ativar NEXT_PUBLIC_FIRESTORE_FORCE_LONG_POLLING=true em ambientes restritivos.";
+      setConnectionIssue(hint);
       return () => {
         cancelled = true;
       };
@@ -94,9 +97,13 @@ export default function ServiceDetailClient({
     const handleError = (firestoreError: FirestoreError) => {
       if (cancelled) return;
       console.warn(`[service-detail] Falha na escuta do serviço ${serviceId}`, firestoreError);
+      const unavailableMessage = longPollingForced
+        ? "Conexão com o Firestore indisponível. Continuaremos tentando via long-polling."
+        :
+          "Conexão com o Firestore indisponível. Ative NEXT_PUBLIC_FIRESTORE_FORCE_LONG_POLLING=true se estiver atrás de proxy ou firewall.";
       const message =
         firestoreError.code === "unavailable"
-          ? "Conexão com o Firestore indisponível. Exibindo dados em cache."
+          ? unavailableMessage
           : "Não foi possível sincronizar com o Firestore. Tentaremos novamente.";
       setConnectionIssue(message);
     };
@@ -150,7 +157,7 @@ export default function ServiceDetailClient({
         }
       });
     };
-  }, [serviceId]);
+  }, [serviceId, longPollingForced]);
 
   const planned = useMemo(() => {
     const start = service.plannedStart ?? composedInitial.plannedStart;

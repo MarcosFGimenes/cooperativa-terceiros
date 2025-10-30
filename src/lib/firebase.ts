@@ -1,144 +1,123 @@
-import { initializeApp, getApps, type FirebaseApp } from "firebase/app";
+"use client";
+
+import { getApp, getApps, initializeApp, type FirebaseApp } from "firebase/app";
 import { getAuth, type Auth } from "firebase/auth";
-import { getFirestore, initializeFirestore, type Firestore } from "firebase/firestore";
+import { initializeFirestore, setLogLevel, type Firestore } from "firebase/firestore";
 
 import { getFirebasePublicConfig } from "@/lib/firebaseConfig";
 
-let clientApp: FirebaseApp | null = null;
-let initError: Error | null = null;
-let authInstance: Auth | null = null;
-let firestoreInstance: Firestore | null = null;
-let firestoreConfigured = false;
+type FirebaseClientGlobal = typeof globalThis & {
+  __FIREBASE_CLIENT_APP__?: FirebaseApp;
+  __FIREBASE_CLIENT_AUTH__?: Auth;
+  __FIREBASE_CLIENT_DB__?: Firestore;
+  __FIREBASE_CLIENT_ERROR__?: Error;
+  __FIREBASE_CLIENT_FORCE_LONG_POLLING__?: boolean;
+  __FIREBASE_CLIENT_USE_FETCH_STREAMS__?: boolean;
+};
 
-function ensureClientApp() {
-  if (typeof window === "undefined") {
-    if (!initError) {
-      initError = new Error("Firebase client is only available in the browser context");
-      if (process.env.NODE_ENV !== "production") {
-        console.warn("[firebase] Attempted to initialise Firebase client on the server");
-      }
-    }
-    return;
-  }
+const globalForFirebase = globalThis as FirebaseClientGlobal;
 
-  if (clientApp || initError) return;
+const forceLongPolling =
+  String(process.env.NEXT_PUBLIC_FIRESTORE_FORCE_LONG_POLLING ?? "false").toLowerCase() ===
+  "true";
+const useFetchStreams =
+  String(process.env.NEXT_PUBLIC_FIRESTORE_USE_FETCH_STREAMS ?? "false").toLowerCase() ===
+  "true";
 
+if (!globalForFirebase.__FIREBASE_CLIENT_APP__ && !globalForFirebase.__FIREBASE_CLIENT_ERROR__) {
   try {
-    const existing = getApps();
-    clientApp = existing.length ? existing[0]! : initializeApp(getFirebasePublicConfig());
-  } catch (error) {
-    initError = error instanceof Error ? error : new Error(String(error));
+    const config = getFirebasePublicConfig();
+    const app = getApps().length ? getApp() : initializeApp(config);
+
     if (process.env.NODE_ENV !== "production") {
-      console.error("[firebase] Failed to initialize Firebase client", initError);
+      setLogLevel("debug");
+      console.info(
+        `[firebase] Firestore configurado com ${
+          forceLongPolling ? "long-polling forçado" : "transporte padrão"
+        } (useFetchStreams=${useFetchStreams ? "true" : "false"}).`,
+      );
+    }
+
+    const db = initializeFirestore(app, {
+      experimentalForceLongPolling: forceLongPolling,
+      useFetchStreams,
+    });
+
+    const auth = getAuth(app);
+
+    globalForFirebase.__FIREBASE_CLIENT_APP__ = app;
+    globalForFirebase.__FIREBASE_CLIENT_DB__ = db;
+    globalForFirebase.__FIREBASE_CLIENT_AUTH__ = auth;
+    globalForFirebase.__FIREBASE_CLIENT_FORCE_LONG_POLLING__ = forceLongPolling;
+    globalForFirebase.__FIREBASE_CLIENT_USE_FETCH_STREAMS__ = useFetchStreams;
+  } catch (error) {
+    const err = error instanceof Error ? error : new Error(String(error));
+    globalForFirebase.__FIREBASE_CLIENT_ERROR__ = err;
+    if (process.env.NODE_ENV !== "production") {
+      console.error("[firebase] Falha ao inicializar Firebase client", err);
     }
   }
 }
 
+const initializationError = globalForFirebase.__FIREBASE_CLIENT_ERROR__ ?? null;
+const appCandidate = globalForFirebase.__FIREBASE_CLIENT_APP__;
+const firestoreCandidate = globalForFirebase.__FIREBASE_CLIENT_DB__;
+const authCandidate = globalForFirebase.__FIREBASE_CLIENT_AUTH__;
+
+if (!appCandidate || !firestoreCandidate || !authCandidate) {
+  throw initializationError ?? new Error("Firebase client não pôde ser inicializado.");
+}
+
+const resolvedApp = appCandidate as FirebaseApp;
+const resolvedDb = firestoreCandidate as Firestore;
+const resolvedAuth = authCandidate as Auth;
+
+export const db = resolvedDb;
+export const auth = resolvedAuth;
+export default resolvedApp;
+
+export const isFirestoreLongPollingForced =
+  globalForFirebase.__FIREBASE_CLIENT_FORCE_LONG_POLLING__ ?? forceLongPolling;
+export const isFirestoreFetchStreamsEnabled =
+  globalForFirebase.__FIREBASE_CLIENT_USE_FETCH_STREAMS__ ?? useFetchStreams;
+
 export function tryGetClientApp(): { app: FirebaseApp | null; error: Error | null } {
-  ensureClientApp();
-  return { app: clientApp, error: initError };
+  return { app: resolvedApp, error: initializationError };
 }
 
 export function getClientApp(): FirebaseApp {
-  const { app, error } = tryGetClientApp();
-  if (!app) {
-    const fallbackError = error ?? new Error("Firebase client has not been initialised");
-    if (process.env.NODE_ENV !== "production") {
-      console.error("[firebase] Firebase app requested before being available", fallbackError);
-    }
-    throw fallbackError;
+  if (initializationError) {
+    throw initializationError;
   }
-  return app;
+  return resolvedApp;
 }
 
 export const getClientFirebaseApp = getClientApp;
 
 export function tryGetAuth(): { auth: Auth | null; error: Error | null } {
-  const { app, error } = tryGetClientApp();
-  if (!app) {
-    return { auth: null, error };
+  if (initializationError) {
+    return { auth: null, error: initializationError };
   }
-
-  if (!authInstance) {
-    try {
-      authInstance = getAuth(app);
-    } catch (authError) {
-      const errorObject =
-        authError instanceof Error ? authError : new Error(String(authError));
-      if (!initError) {
-        initError = errorObject;
-      }
-      if (process.env.NODE_ENV !== "production") {
-        console.error("[firebase] Failed to access Firebase Auth", errorObject);
-      }
-      return { auth: null, error: errorObject };
-    }
-  }
-
-  return { auth: authInstance, error: null };
+  return { auth: resolvedAuth, error: null };
 }
 
 export function getAuthClient(): Auth {
-  const { auth, error } = tryGetAuth();
-  if (!auth) {
-    const fallbackError = error ?? new Error("Firebase Auth is not available");
-    if (process.env.NODE_ENV !== "production") {
-      console.error("[firebase] Firebase Auth requested before being available", fallbackError);
-    }
-    throw fallbackError;
+  if (initializationError) {
+    throw initializationError;
   }
-  return auth;
+  return resolvedAuth;
 }
 
 export function tryGetFirestore(): { db: Firestore | null; error: Error | null } {
-  const { app, error } = tryGetClientApp();
-  if (!app) {
-    return { db: null, error };
+  if (initializationError) {
+    return { db: null, error: initializationError };
   }
-
-  if (!firestoreInstance) {
-    try {
-      if (!firestoreConfigured) {
-        try {
-          initializeFirestore(app, {
-            experimentalAutoDetectLongPolling: true,
-            useFetchStreams: false,
-          });
-        } catch (configError) {
-          const message =
-            configError instanceof Error ? configError.message : String(configError ?? "");
-          if (!message.includes("already been initialized")) {
-            if (process.env.NODE_ENV !== "production") {
-              console.warn("[firebase] Unable to apply Firestore settings", configError);
-            }
-          }
-        }
-        firestoreConfigured = true;
-      }
-      firestoreInstance = getFirestore(app);
-    } catch (dbError) {
-      const errorObject = dbError instanceof Error ? dbError : new Error(String(dbError));
-      if (!initError) {
-        initError = errorObject;
-      }
-      if (process.env.NODE_ENV !== "production") {
-        console.error("[firebase] Failed to access Firestore", errorObject);
-      }
-      return { db: null, error: errorObject };
-    }
-  }
-
-  return { db: firestoreInstance, error: null };
+  return { db: resolvedDb, error: null };
 }
 
 export function getFirestoreClient(): Firestore {
-  const { db, error } = tryGetFirestore();
-  if (!db) {
-    const fallbackError = error ?? new Error("Firestore is not available");
-    if (process.env.NODE_ENV !== "production") {
-      console.error("[firebase] Firestore requested before being available", fallbackError);
-    }
-    throw fallbackError;
+  if (initializationError) {
+    throw initializationError;
   }
-  return db;
+  return resolvedDb;
 }
