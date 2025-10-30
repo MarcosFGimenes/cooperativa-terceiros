@@ -16,6 +16,8 @@ type ServiceDetailsClientProps = {
 
 const MAX_UPDATES = 20;
 
+const DEFAULT_TIME_ZONE = "America/Sao_Paulo";
+
 function clampPercent(value: unknown): number {
   const numeric = typeof value === "number" ? value : Number(value);
   if (!Number.isFinite(numeric)) return 0;
@@ -29,6 +31,7 @@ function formatDate(value?: number | string | null, withTime = false): string {
   return new Intl.DateTimeFormat("pt-BR", {
     dateStyle: "short",
     timeStyle: withTime ? "short" : undefined,
+    timeZone: DEFAULT_TIME_ZONE,
   }).format(date);
 }
 
@@ -82,15 +85,25 @@ function formatTimeWindow(update: ThirdServiceUpdate): string | null {
   const startDate = new Date(start);
   const endDate = new Date(end);
   if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) return null;
-  const sameDay = startDate.toDateString() === endDate.toDateString();
+  const dayKeyFormatter = new Intl.DateTimeFormat("en-CA", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    timeZone: DEFAULT_TIME_ZONE,
+  });
+  const sameDay = dayKeyFormatter.format(startDate) === dayKeyFormatter.format(endDate);
   const formatter = new Intl.DateTimeFormat("pt-BR", {
     dateStyle: sameDay ? undefined : "short",
     timeStyle: "short",
+    timeZone: DEFAULT_TIME_ZONE,
   });
   const startLabel = formatter.format(startDate);
   const endLabel = formatter.format(endDate);
   if (sameDay) {
-    const dateLabel = new Intl.DateTimeFormat("pt-BR", { dateStyle: "short" }).format(startDate);
+    const dateLabel = new Intl.DateTimeFormat("pt-BR", {
+      dateStyle: "short",
+      timeZone: DEFAULT_TIME_ZONE,
+    }).format(startDate);
     return `${dateLabel}, ${startLabel} - ${endLabel}`;
   }
   return `${startLabel} → ${endLabel}`;
@@ -172,20 +185,20 @@ function toNullableNumber(value: unknown): number | null {
   return null;
 }
 
-function toTimestampMs(value: unknown): number {
+function toTimestampMs(value: unknown): number | null {
   if (typeof value === "number" && Number.isFinite(value)) return value;
   if (value instanceof Date) {
     const time = value.getTime();
-    return Number.isNaN(time) ? Date.now() : time;
+    return Number.isNaN(time) ? null : time;
   }
   if (typeof value === "string" && value.trim()) {
     const numeric = Number(value);
     if (Number.isFinite(numeric)) return numeric;
     const parsed = new Date(value);
     const time = parsed.getTime();
-    return Number.isNaN(time) ? Date.now() : time;
+    return Number.isNaN(time) ? null : time;
   }
-  return Date.now();
+  return null;
 }
 
 function isPresent<T>(value: T | null | undefined): value is T {

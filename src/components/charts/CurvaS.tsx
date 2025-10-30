@@ -14,12 +14,15 @@ const clampPercent = (value: number) => {
 
 const roundTwo = (value: number) => Math.round(value * 100) / 100;
 
+const UTC_TIME_ZONE = "UTC";
+
 const getDateLabel = (iso: string) => {
   const date = new Date(`${iso}T00:00:00Z`);
   if (Number.isNaN(date.getTime())) return iso;
   return new Intl.DateTimeFormat("pt-BR", {
     day: "2-digit",
     month: "2-digit",
+    timeZone: UTC_TIME_ZONE,
   }).format(date);
 };
 
@@ -30,6 +33,7 @@ const getLongDateLabel = (iso: string) => {
     day: "2-digit",
     month: "long",
     year: "numeric",
+    timeZone: UTC_TIME_ZONE,
   }).format(date);
 };
 

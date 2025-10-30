@@ -17,12 +17,19 @@ type FirebaseClientGlobal = typeof globalThis & {
 
 const globalForFirebase = globalThis as FirebaseClientGlobal;
 
-const forceLongPolling =
-  String(process.env.NEXT_PUBLIC_FIRESTORE_FORCE_LONG_POLLING ?? "false").toLowerCase() ===
-  "true";
-const useFetchStreams =
-  String(process.env.NEXT_PUBLIC_FIRESTORE_USE_FETCH_STREAMS ?? "false").toLowerCase() ===
-  "true";
+function parseBooleanEnv(value: string | undefined | null): boolean | null {
+  if (typeof value !== "string") return null;
+  const normalized = value.trim().toLowerCase();
+  if (normalized === "true") return true;
+  if (normalized === "false") return false;
+  return null;
+}
+
+const envForceLongPolling = parseBooleanEnv(process.env.NEXT_PUBLIC_FIRESTORE_FORCE_LONG_POLLING);
+const envUseFetchStreams = parseBooleanEnv(process.env.NEXT_PUBLIC_FIRESTORE_USE_FETCH_STREAMS);
+
+const forceLongPolling = envForceLongPolling ?? process.env.NODE_ENV === "production";
+const useFetchStreams = forceLongPolling ? false : envUseFetchStreams ?? false;
 
 if (!globalForFirebase.__FIREBASE_CLIENT_APP__ && !globalForFirebase.__FIREBASE_CLIENT_ERROR__) {
   try {

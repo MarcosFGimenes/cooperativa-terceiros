@@ -41,6 +41,8 @@ type FirestoreLikeTimestamp = { toMillis?: () => number } | { seconds?: number; 
 
 type ServiceRecord = Record<string, unknown>;
 
+const DEFAULT_TIME_ZONE = "America/Sao_Paulo";
+
 type FirestoreAudit = {
   submittedBy?: string | null;
   submittedByType?: "token" | "user" | "system" | string | null;
@@ -455,12 +457,25 @@ export function normaliseStatus(value: unknown): "Aberto" | "Concluído" | "Ence
   return "Aberto";
 }
 
+const dateFormatter = new Intl.DateTimeFormat("pt-BR", { timeZone: DEFAULT_TIME_ZONE });
+const dateTimeFormatter = new Intl.DateTimeFormat("pt-BR", {
+  dateStyle: "short",
+  timeStyle: "short",
+  timeZone: DEFAULT_TIME_ZONE,
+});
+const dayKeyFormatter = new Intl.DateTimeFormat("en-CA", {
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  timeZone: DEFAULT_TIME_ZONE,
+});
+
 export function formatDate(value?: number | string | Date | null): string {
   if (value === null || value === undefined) return "-";
   const date = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(date.getTime())) return "-";
   try {
-    return new Intl.DateTimeFormat("pt-BR").format(date);
+    return dateFormatter.format(date);
   } catch (error) {
     console.warn("[service-shared] Falha ao formatar data", error);
     return "-";
@@ -472,7 +487,7 @@ export function formatDateTime(value?: number | string | Date | null): string {
   const date = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(date.getTime())) return "-";
   try {
-    return new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(date);
+    return dateTimeFormatter.format(date);
   } catch (error) {
     console.warn("[service-shared] Falha ao formatar data/hora", error);
     return "-";
@@ -503,15 +518,18 @@ export function formatTimeWindow(update: ServiceUpdate): string | null {
   const startDate = new Date(start);
   const endDate = new Date(end);
   if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) return null;
-  const sameDay = startDate.toDateString() === endDate.toDateString();
+  const startKey = dayKeyFormatter.format(startDate);
+  const endKey = dayKeyFormatter.format(endDate);
+  const sameDay = startKey === endKey;
   const formatter = new Intl.DateTimeFormat("pt-BR", {
     dateStyle: sameDay ? undefined : "short",
     timeStyle: "short",
+    timeZone: DEFAULT_TIME_ZONE,
   });
   const startLabel = formatter.format(startDate);
   const endLabel = formatter.format(endDate);
   if (sameDay) {
-    const dateLabel = new Intl.DateTimeFormat("pt-BR", { dateStyle: "short" }).format(startDate);
+    const dateLabel = dateFormatter.format(startDate);
     return `${dateLabel}, ${startLabel} - ${endLabel}`;
   }
   return `${startLabel} → ${endLabel}`;
@@ -593,15 +611,14 @@ export function buildRealizedSeries(params: {
   }
 
   const plannedStart = params.plannedStart ?? params.planned[0]?.date ?? toDayIso(params.createdAt);
-  const plannedEnd =
-    params.plannedEnd ?? params.planned[params.planned.length - 1]?.date ?? toDayIso(Date.now());
+  const plannedEndFromData = params.plannedEnd ?? params.planned[params.planned.length - 1]?.date ?? null;
 
-  if (!plannedStart && !plannedEnd) {
+  const start = plannedStart ?? plannedEndFromData;
+  const end = plannedEndFromData ?? plannedStart;
+
+  if (!start || !end) {
     return [];
   }
-
-  const start = plannedStart ?? plannedEnd!;
-  const end = plannedEnd ?? plannedStart!;
   const realised = normaliseProgress(params.realizedPercent);
 
   if (start === end) {

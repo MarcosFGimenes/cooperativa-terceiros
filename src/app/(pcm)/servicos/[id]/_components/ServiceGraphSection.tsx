@@ -23,6 +23,8 @@ type ServiceGraphSectionProps = {
   actual: CurvePoint[];
 };
 
+const UTC_TIME_ZONE = "UTC";
+
 const toDateLabel = (iso: string | undefined | null) => {
   if (!iso) return "—";
   const date = new Date(`${iso}T00:00:00Z`);
@@ -31,6 +33,7 @@ const toDateLabel = (iso: string | undefined | null) => {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
+    timeZone: UTC_TIME_ZONE,
   }).format(date);
 };
 
