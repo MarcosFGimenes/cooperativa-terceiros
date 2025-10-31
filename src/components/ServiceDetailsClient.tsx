@@ -1,6 +1,6 @@
 "use client";
 
-import { type FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import ServiceUpdateForm, { type ServiceUpdateFormPayload } from "@/components/ServiceUpdateForm";
@@ -48,20 +48,17 @@ function formatChecklistStatus(status: ThirdChecklistItem["status"]): string {
   return "Não iniciado";
 }
 
-const CHECKLIST_STATUS_OPTIONS: Array<{ value: ThirdChecklistItem["status"]; label: string }> = [
-  { value: "nao-iniciado", label: "Não iniciado" },
-  { value: "em-andamento", label: "Em andamento" },
-  { value: "concluido", label: "Concluído" },
-];
+function statusFromProgress(progress: number): ThirdChecklistItem["status"] {
+  if (progress >= 100) return "concluido";
+  if (progress <= 0) return "nao-iniciado";
+  return "em-andamento";
+}
 
-const CHECKLIST_STATUS_MAP_TO_API: Record<
-  ThirdChecklistItem["status"],
-  "nao_iniciado" | "andamento" | "concluido"
-> = {
-  "nao-iniciado": "nao_iniciado",
-  "em-andamento": "andamento",
-  concluido: "concluido",
-};
+function statusToApi(status: ThirdChecklistItem["status"]): "nao_iniciado" | "andamento" | "concluido" {
+  if (status === "concluido") return "concluido";
+  if (status === "em-andamento") return "andamento";
+  return "nao_iniciado";
+}
 
 function normaliseChecklistItems(items: ThirdChecklistItem[]): ThirdChecklistItem[] {
   return items.map((item) => ({
@@ -373,10 +370,6 @@ export default function ServiceDetailsClient({ service, updates: initialUpdates,
   const [checklistItems, setChecklistItems] = useState<ThirdChecklistItem[]>(() =>
     normaliseChecklistItems(checklist),
   );
-  const [checklistDirty, setChecklistDirty] = useState(false);
-  const [checklistSaving, setChecklistSaving] = useState(false);
-  const [checklistError, setChecklistError] = useState<string | null>(null);
-  const [storedSubactivity, setStoredSubactivity] = useState<{ id?: string; label?: string } | null>(null);
 
   const serviceLabel = useMemo(() => {
     if (service.os && service.os.trim()) return service.os.trim();
@@ -392,7 +385,17 @@ export default function ServiceDetailsClient({ service, updates: initialUpdates,
   const lastUpdateAt = updates[0]?.createdAt ?? service.updatedAt ?? null;
   const suggestion = useMemo(() => computeChecklistSuggestion(checklistItems), [checklistItems]);
   const checklistOptions = useMemo(
-    () => checklistItems.map((item) => ({ id: item.id, description: item.description })),
+    () => checklistItems.map((item) => ({ id: item.id, description: item.description, progress: item.progress })),
+    [checklistItems],
+  );
+
+  const recentChecklist = useMemo(
+    () =>
+      [...checklistItems].sort((a, b) => {
+        const left = typeof a.updatedAt === "number" ? a.updatedAt : 0;
+        const right = typeof b.updatedAt === "number" ? b.updatedAt : 0;
+        return right - left;
+      }),
     [checklistItems],
   );
 
@@ -405,8 +408,6 @@ export default function ServiceDetailsClient({ service, updates: initialUpdates,
 
   useEffect(() => {
     setChecklistItems(normaliseChecklistItems(checklist));
-    setChecklistDirty(false);
-    setChecklistError(null);
   }, [checklist]);
 
   const detailItems = useMemo(
@@ -433,166 +434,93 @@ export default function ServiceDetailsClient({ service, updates: initialUpdates,
     [service, progress, lastUpdateAt, companyLabel, statusLabel],
   );
 
-  const subactivityStorageKey = useMemo(
-    () => `third-service:${service.id}:last-subactivity`,
-    [service.id],
-  );
-
-  useEffect(() => {
-    try {
-      const stored = window.localStorage.getItem(subactivityStorageKey);
-      if (!stored) return;
-      const parsed = JSON.parse(stored) as { id?: string; label?: string } | null;
-      if (parsed && (parsed.id || parsed.label)) {
-        setStoredSubactivity(parsed);
+  const submitChecklistUpdates = useCallback(
+    async (
+      subactivities: ServiceUpdateFormPayload["subactivities"],
+    ): Promise<number | null> => {
+      if (!service.hasChecklist || !Array.isArray(subactivities) || subactivities.length === 0) {
+        return null;
       }
-    } catch (error) {
-      console.warn("[service-details] Falha ao carregar subatividade recente", error);
-    }
-  }, [subactivityStorageKey]);
 
-  const persistSubactivity = useCallback(
-    (value: { id?: string; label?: string }) => {
-      setStoredSubactivity(value);
-      try {
-        window.localStorage.setItem(subactivityStorageKey, JSON.stringify(value));
-      } catch (error) {
-        console.warn("[service-details] Falha ao salvar subatividade", error);
-      }
-    },
-    [subactivityStorageKey],
-  );
-
-  const handleChecklistProgressChange = useCallback((itemId: string, value: number) => {
-    setChecklistItems((prev) =>
-      prev.map((item) => {
-        if (item.id !== itemId) return item;
-        const numeric = Number.isFinite(value) ? Math.round(Math.max(0, Math.min(100, value))) : 0;
-        let nextStatus = item.status;
-        if (numeric <= 0) {
-          nextStatus = "nao-iniciado";
-        } else if (numeric >= 100) {
-          nextStatus = "concluido";
-        } else if (nextStatus === "nao-iniciado" || nextStatus === "concluido") {
-          nextStatus = "em-andamento";
-        }
-        return { ...item, progress: numeric, status: nextStatus };
-      }),
-    );
-    setChecklistDirty(true);
-    setChecklistError(null);
-  }, []);
-
-  const handleChecklistStatusChange = useCallback(
-    (itemId: string, status: ThirdChecklistItem["status"]) => {
-      setChecklistItems((prev) =>
-        prev.map((item) => {
-          if (item.id !== itemId) return item;
-          let nextProgress = item.progress;
-          if (status === "concluido") {
-            nextProgress = 100;
-          } else if (status === "nao-iniciado") {
-            nextProgress = 0;
-          } else if (status === "em-andamento") {
-            if (nextProgress <= 0 || nextProgress >= 100) {
-              nextProgress = 50;
-            }
+      const updatesPayload = subactivities
+        .map((item) => {
+          if (typeof item.progress !== "number" || !Number.isFinite(item.progress)) {
+            return null;
           }
-          return { ...item, status, progress: nextProgress };
-        }),
-      );
-      setChecklistDirty(true);
-      setChecklistError(null);
-    },
-    [],
-  );
-
-  const handleChecklistMarkDone = useCallback(
-    (itemId: string) => handleChecklistStatusChange(itemId, "concluido"),
-    [handleChecklistStatusChange],
-  );
-
-  const handleChecklistSubmit = useCallback(
-    async (event: FormEvent<HTMLFormElement>) => {
-      event.preventDefault();
-      if (!checklistItems.length || checklistSaving) return;
-      if (!checklistDirty) {
-        setChecklistError(null);
-        return;
-      }
-
-      setChecklistSaving(true);
-      setChecklistError(null);
-
-      try {
-        const url = new URL(`/api/public/service/update-checklist`, window.location.origin);
-        url.searchParams.set("serviceId", service.id);
-        if (token) {
-          url.searchParams.set("token", token);
-        }
-
-        const updatesPayload = checklistItems.map((item) => ({
-          id: item.id,
-          progress: Math.round(Math.max(0, Math.min(100, Number(item.progress) || 0))),
-          status: CHECKLIST_STATUS_MAP_TO_API[item.status],
-        }));
-
-        const response = await fetch(url.toString(), {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ updates: updatesPayload }),
-        });
-
-        const json = (await response.json().catch(() => null)) as
-          | { ok?: boolean; error?: string; realPercent?: number }
-          | null;
-
-        if (!response.ok || !json?.ok) {
-          const message = json?.error ?? "Não foi possível salvar o checklist.";
-          setChecklistError(message);
-          toast.error(message);
-          return;
-        }
-
-        setChecklistDirty(false);
-        setChecklistItems((prev) =>
-          prev.map((item) => {
-            const numeric = Math.round(Math.max(0, Math.min(100, Number(item.progress) || 0)));
-            let nextStatus = item.status;
-            if (numeric <= 0) {
-              nextStatus = "nao-iniciado";
-            } else if (numeric >= 100) {
-              nextStatus = "concluido";
-            } else if (nextStatus === "nao-iniciado" || nextStatus === "concluido") {
-              nextStatus = "em-andamento";
-            }
-            return { ...item, progress: numeric, status: nextStatus };
-          }),
+          const rounded = Math.max(0, Math.min(100, Math.round(item.progress)));
+          return {
+            id: item.id,
+            progress: rounded,
+            status: statusToApi(statusFromProgress(rounded)),
+          };
+        })
+        .filter((item): item is { id: string; progress: number; status: "nao_iniciado" | "andamento" | "concluido" } =>
+          Boolean(item?.id),
         );
 
-        if (json?.realPercent !== undefined) {
-          const numericPercent = Number(json.realPercent);
-          if (Number.isFinite(numericPercent)) {
-            setProgress(clampPercent(numericPercent));
-          }
-        }
-
-        toast.success("Checklist atualizado com sucesso!");
-      } catch (error) {
-        console.error(`[service-details] Falha ao atualizar checklist do serviço ${service.id}`, error);
-        const message =
-          error instanceof Error ? error.message : "Não foi possível salvar o checklist.";
-        setChecklistError(message);
-        toast.error(message);
-      } finally {
-        setChecklistSaving(false);
+      if (updatesPayload.length === 0) {
+        return null;
       }
+
+      const url = new URL(`/api/public/service/update-checklist`, window.location.origin);
+      url.searchParams.set("serviceId", service.id);
+      if (token) {
+        url.searchParams.set("token", token);
+      }
+
+      const response = await fetch(url.toString(), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ updates: updatesPayload }),
+      });
+
+      const json = (await response.json().catch(() => null)) as
+        | { ok?: boolean; error?: string; realPercent?: number }
+        | null;
+
+      if (!response.ok || !json?.ok) {
+        const message = json?.error ?? "Não foi possível salvar o checklist.";
+        throw new Error(message);
+      }
+
+      const updatesMap = new Map(updatesPayload.map((item) => [item.id, item]));
+      setChecklistItems((prev) =>
+        prev.map((item) => {
+          const update = updatesMap.get(item.id);
+          if (!update) return item;
+          return {
+            ...item,
+            progress: update.progress,
+            status: statusFromProgress(update.progress),
+            updatedAt: Date.now(),
+          };
+        }),
+      );
+
+      if (json?.realPercent !== undefined) {
+        const numericPercent = Number(json.realPercent);
+        if (Number.isFinite(numericPercent)) {
+          setProgress(clampPercent(numericPercent));
+          return clampPercent(numericPercent);
+        }
+      }
+
+      return null;
     },
-    [checklistDirty, checklistItems, checklistSaving, service.id, token],
+    [service.hasChecklist, service.id, token],
   );
 
   const handleUpdateSubmit = useCallback(
     async (payload: ServiceUpdateFormPayload) => {
+      try {
+        await submitChecklistUpdates(payload.subactivities);
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : "Não foi possível salvar o checklist.";
+        toast.error(message);
+        throw error instanceof Error ? error : new Error(message);
+      }
+
       const url = new URL(`/api/public/service/update-manual`, window.location.origin);
       url.searchParams.set("serviceId", service.id);
       if (token) {
@@ -609,10 +537,6 @@ export default function ServiceDetailsClient({ service, updates: initialUpdates,
         percent: payload.percent,
         description: payload.description,
         timeWindow: { start: payload.start, end: payload.end },
-        subactivity:
-          payload.subactivityId || payload.subactivityLabel
-            ? { id: payload.subactivityId, label: payload.subactivityLabel }
-            : undefined,
         mode: "simple",
         resources: resourcesPayload,
         workforce: payload.workforce,
@@ -665,10 +589,6 @@ export default function ServiceDetailsClient({ service, updates: initialUpdates,
                   end: new Date(payload.end).getTime(),
                   hours: (new Date(payload.end).getTime() - new Date(payload.start).getTime()) / 3_600_000,
                 },
-                subactivity:
-                  payload.subactivityId || payload.subactivityLabel
-                    ? { id: payload.subactivityId, label: payload.subactivityLabel }
-                    : undefined,
                 mode: "simple",
                 resources: resourcesPayload,
                 workforce: payload.workforce,
@@ -691,7 +611,7 @@ export default function ServiceDetailsClient({ service, updates: initialUpdates,
         throw error instanceof Error ? error : new Error(errorMessage);
       }
     },
-    [progress, service.id, token],
+    [progress, service.id, submitChecklistUpdates, token],
   );
 
   return (
@@ -765,9 +685,6 @@ export default function ServiceDetailsClient({ service, updates: initialUpdates,
               lastProgress={progress}
               suggestedPercent={suggestion}
               checklist={checklistOptions}
-              defaultSubactivityId={storedSubactivity?.id}
-              defaultSubactivityLabel={storedSubactivity?.label}
-              onPersistSubactivity={persistSubactivity}
               onSubmit={handleUpdateSubmit}
             />
           ) : (
@@ -780,105 +697,29 @@ export default function ServiceDetailsClient({ service, updates: initialUpdates,
 
       <div className="grid gap-4 lg:grid-cols-2">
         <div className="card p-4">
-          <h2 className="text-lg font-semibold">Checklist</h2>
+          <div className="flex flex-col gap-1">
+            <h2 className="text-lg font-semibold">Checklists Recentes</h2>
+            <span className="text-xs text-muted-foreground">Serviço {serviceLabel}</span>
+          </div>
           {checklistItems.length === 0 ? (
             <p className="mt-2 text-sm text-muted-foreground">Nenhum item de checklist disponível.</p>
           ) : (
-            <form onSubmit={handleChecklistSubmit} className="mt-3 space-y-4 text-sm">
-              <ul className="space-y-3">
-                {checklistItems.map((item) => {
-                  const roundedProgress = Math.round(
-                    Math.max(0, Math.min(100, Number(item.progress) || 0)),
-                  );
-                  return (
-                    <li key={item.id} className="rounded-lg border p-3">
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <span className="font-medium text-foreground">{item.description}</span>
-                        <span className="text-xs text-muted-foreground">Peso: {Math.round(item.weight)}%</span>
-                      </div>
-                      <div className="mt-3 grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(160px,1fr)]">
-                        <div>
-                          <label
-                            htmlFor={`${service.id}-checklist-progress-${item.id}`}
-                            className="text-xs font-medium text-muted-foreground"
-                          >
-                            Progresso (%)
-                          </label>
-                          <input
-                            id={`${service.id}-checklist-progress-${item.id}`}
-                            type="number"
-                            min={0}
-                            max={100}
-                            step={1}
-                            className="input mt-1 w-full"
-                            value={roundedProgress}
-                            onChange={(event) => {
-                              const numeric = Number(event.target.value);
-                              handleChecklistProgressChange(
-                                item.id,
-                                Number.isFinite(numeric) ? numeric : 0,
-                              );
-                            }}
-                          />
-                        </div>
-                        <div>
-                          <label
-                            htmlFor={`${service.id}-checklist-status-${item.id}`}
-                            className="text-xs font-medium text-muted-foreground"
-                          >
-                            Status
-                          </label>
-                          <select
-                            id={`${service.id}-checklist-status-${item.id}`}
-                            className="input mt-1 w-full"
-                            value={item.status}
-                            onChange={(event) =>
-                              handleChecklistStatusChange(
-                                item.id,
-                                event.target.value as ThirdChecklistItem["status"],
-                              )
-                            }
-                          >
-                            {CHECKLIST_STATUS_OPTIONS.map((option) => (
-                              <option key={option.value} value={option.value}>
-                                {option.label}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                      </div>
-                      <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
-                        <span>
-                          Status atual:{" "}
-                          <span className="font-semibold text-foreground">
-                            {formatChecklistStatus(item.status)}
-                          </span>
-                        </span>
-                        <button
-                          type="button"
-                          className="btn btn-ghost btn-xs"
-                          onClick={() => handleChecklistMarkDone(item.id)}
-                          disabled={item.status === "concluido" && roundedProgress >= 100}
-                        >
-                          Marcar como concluído
-                        </button>
-                      </div>
-                    </li>
-                  );
-                })}
-              </ul>
-              {checklistError ? <p className="text-xs text-destructive">{checklistError}</p> : null}
-              <div className="flex flex-wrap items-center justify-end gap-3 text-xs text-muted-foreground">
-                {checklistDirty ? (
-                  <span>Existem alterações não salvas.</span>
-                ) : (
-                  <span>Nenhuma alteração pendente.</span>
-                )}
-                <button type="submit" className="btn btn-primary" disabled={!checklistDirty || checklistSaving}>
-                  {checklistSaving ? "Salvando..." : "Salvar checklist"}
-                </button>
-              </div>
-            </form>
+            <ul className="mt-3 space-y-2 text-sm">
+              {recentChecklist.map((item) => (
+                <li key={item.id} className="space-y-2 rounded-lg border p-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="font-medium text-foreground">{item.description}</span>
+                    <span className="text-xs text-muted-foreground">
+                      {formatDate(item.updatedAt, true)}
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+                    <span>Status: {formatChecklistStatus(item.status)}</span>
+                    <span className="text-sm font-semibold text-primary">{Math.round(item.progress)}%</span>
+                  </div>
+                </li>
+              ))}
+            </ul>
           )}
         </div>
 
