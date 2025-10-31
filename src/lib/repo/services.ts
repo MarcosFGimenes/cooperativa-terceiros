@@ -660,6 +660,23 @@ type ManualUpdateInput = {
   ip?: string | null;
 };
 
+function buildComputedUpdatePayload(params: { realPercent: number; note?: string; token?: string }) {
+  const payload: Record<string, unknown> = {
+    realPercentSnapshot: params.realPercent,
+    createdAt: FieldValue.serverTimestamp(),
+  };
+
+  if (typeof params.note === "string" && params.note.trim()) {
+    payload.note = params.note.trim();
+  }
+
+  if (params.token) {
+    payload.token = params.token;
+  }
+
+  return payload;
+}
+
 function buildUpdatePayload(serviceId: string, params: ManualUpdateInput & { realPercent: number }) {
   const payload: Record<string, unknown> = {
     realPercentSnapshot: params.realPercent,
@@ -870,7 +887,7 @@ export async function addComputedUpdate(
     const updateRef = updatesCol.doc();
     tx.set(
       updateRef,
-      buildUpdatePayload({
+      buildComputedUpdatePayload({
         note,
         token,
         realPercent: percent,
