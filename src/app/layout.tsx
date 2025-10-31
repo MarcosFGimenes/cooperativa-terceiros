@@ -22,7 +22,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         <PreloadAsFix />
         <FirebaseConfigScript />
       </head>
-      <body className="relative bg-background text-foreground">
+      <body className="relative flex min-h-dvh flex-col bg-background text-foreground">
         <div className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
           <div className="absolute left-[-15%] top-[-20%] h-64 w-64 rounded-full bg-primary/20 blur-[120px] dark:bg-primary/25" />
           <div className="absolute right-[-18%] top-[-10%] h-72 w-72 rounded-full bg-emerald-200/35 blur-[140px] dark:bg-slate-900/60" />
@@ -30,7 +30,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         </div>
         <SkipToContent />
         <RootHeader />
-        <main id="conteudo" className="relative min-h-[calc(100dvh-56px-48px)] py-6 sm:py-10">
+        <main id="conteudo" className="relative flex-1 py-6 sm:py-10">
           <div className="relative z-10">{children}</div>
         </main>
         <Footer />
