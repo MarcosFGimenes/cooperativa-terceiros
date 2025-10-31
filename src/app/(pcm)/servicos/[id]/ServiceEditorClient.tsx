@@ -18,7 +18,7 @@ import {
 import { Field, FormRow } from "@/components/ui/form-controls";
 import { tryGetFirestore } from "@/lib/firebase";
 
-type ChecklistDraft = Array<{ id: string; descricao: string; peso: number }>;
+type ChecklistDraft = Array<{ id: string; descricao: string; peso: number | "" }>;
 
 type PackageOption = { id: string; nome: string };
 
@@ -30,7 +30,14 @@ type UpdateHistoryItem = {
   items?: Array<{ itemId: string; pct: number }>;
 };
 
-const STATUS_OPTIONS = ["Aberto", "Concluído", "Encerrado"] as const;
+const STATUS_OPTIONS = ["Aberto", "Pendente", "Concluído"] as const;
+
+function toFormStatus(value: unknown): (typeof STATUS_OPTIONS)[number] {
+  const raw = String(value ?? "").toLowerCase();
+  if (raw === "pendente") return "Pendente";
+  if (raw === "concluido" || raw === "concluído" || raw === "encerrado") return "Concluído";
+  return "Aberto";
+}
 
 function createChecklistId(seed: number) {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
@@ -118,7 +125,12 @@ export default function ServiceEditorClient({ serviceId }: ServiceEditorClientPr
   }, [firestoreError]);
 
   const totalPeso = useMemo(
-    () => checklist.reduce((acc, item) => acc + (Number(item.peso) || 0), 0),
+    () =>
+      checklist.reduce((acc, item) => {
+        const numeric = Number(item.peso);
+        if (!Number.isFinite(numeric)) return acc;
+        return acc + Math.max(0, Math.min(100, numeric));
+      }, 0),
     [checklist],
   );
 
@@ -197,7 +209,7 @@ export default function ServiceEditorClient({ serviceId }: ServiceEditorClientPr
           dataFim: toDateInput(data.fimPrevisto),
           horasPrevistas: data.horasPrevistas ? String(data.horasPrevistas) : "",
           empresaId: String(data.empresaId ?? data.company ?? ""),
-          status: (data.status ?? "Aberto") as (typeof STATUS_OPTIONS)[number],
+          status: toFormStatus(data.status),
           pacoteId: String(data.pacoteId ?? data.packageId ?? ""),
         });
         const checklistData = Array.isArray(data.checklist) ? data.checklist : [];
@@ -236,7 +248,7 @@ export default function ServiceEditorClient({ serviceId }: ServiceEditorClientPr
     const id = typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
       ? crypto.randomUUID()
       : Math.random().toString(36).slice(2, 11);
-    setChecklist((prev) => [...prev, { id, descricao: "", peso: 0 }]);
+    setChecklist((prev) => [...prev, { id, descricao: "", peso: "" }]);
     setWithChecklist(true);
   }
 
@@ -284,9 +296,9 @@ export default function ServiceEditorClient({ serviceId }: ServiceEditorClientPr
         packageId: form.pacoteId || null,
         checklist: withChecklist
           ? checklist.map((item) => ({
-            id: item.id,
+              id: item.id,
               descricao: item.descricao.trim(),
-              peso: Number(item.peso) || 0,
+              peso: Math.max(0, Math.min(100, Number(item.peso) || 0)),
             }))
           : [],
         updatedAt: serverTimestamp(),
@@ -502,8 +514,18 @@ export default function ServiceEditorClient({ serviceId }: ServiceEditorClientPr
                                 min={0}
                                 max={100}
                                 step="0.5"
-                                value={item.peso}
-                                onChange={(event) => updateChecklistItem(item.id, { peso: Number(event.target.value ?? 0) })}
+                                value={item.peso === "" ? "" : item.peso}
+                                onChange={(event) => {
+                                  const raw = event.target.value;
+                                  if (raw === "") {
+                                    updateChecklistItem(item.id, { peso: "" });
+                                    return;
+                                  }
+                                  const parsed = Number(raw);
+                                  if (!Number.isFinite(parsed)) return;
+                                  const clamped = Math.max(0, Math.min(100, parsed));
+                                  updateChecklistItem(item.id, { peso: clamped });
+                                }}
                                 className="mt-1 w-full rounded-md border border-border bg-background px-3 py-2 text-sm shadow-sm focus-visible:ring-2 focus-visible:ring-primary/40"
                               />
                             </div>
@@ -558,11 +580,11 @@ export default function ServiceEditorClient({ serviceId }: ServiceEditorClientPr
                 </button>
                 <button
                   type="button"
-                  className="btn btn-ghost text-destructive"
-                  onClick={() => changeStatus("Encerrado")}
+                  className="btn btn-ghost"
+                  onClick={() => changeStatus("Pendente")}
                   disabled={saving}
                 >
-                  Encerrar
+                  Marcar como pendente
                 </button>
               </div>
             </div>

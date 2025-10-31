@@ -6,13 +6,14 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
   Timestamp,
-  addDoc,
   collection,
+  deleteDoc,
   doc,
   getDocs,
   orderBy,
   query,
   serverTimestamp,
+  setDoc,
   writeBatch,
 } from "firebase/firestore";
 
@@ -20,11 +21,11 @@ import { Field, FormRow } from "@/components/ui/form-controls";
 import { createAccessToken } from "@/lib/accessTokens";
 import { tryGetFirestore } from "@/lib/firebase";
 
-type ChecklistDraft = Array<{ id: string; descricao: string; peso: number }>;
+type ChecklistDraft = Array<{ id: string; descricao: string; peso: number | "" }>;
 
 type PackageOption = { id: string; nome: string };
 
-const STATUS_OPTIONS = ["Aberto", "Concluído", "Encerrado"] as const;
+const STATUS_OPTIONS = ["Aberto", "Pendente", "Concluído"] as const;
 
 const newChecklistItem = (): ChecklistDraft[number] => ({
   id:
@@ -32,7 +33,7 @@ const newChecklistItem = (): ChecklistDraft[number] => ({
       ? crypto.randomUUID()
       : Math.random().toString(36).slice(2, 11),
   descricao: "",
-  peso: 0,
+  peso: "",
 });
 
 function toTimestamp(value: string) {
@@ -72,7 +73,12 @@ export default function NovoServico() {
   }, [firestoreError]);
 
   const totalPeso = useMemo(
-    () => checklist.reduce((acc, item) => acc + (Number(item.peso) || 0), 0),
+    () =>
+      checklist.reduce((acc, item) => {
+        const numeric = Number(item.peso);
+        if (!Number.isFinite(numeric)) return acc;
+        return acc + Math.max(0, Math.min(100, numeric));
+      }, 0),
     [checklist],
   );
 
@@ -116,7 +122,7 @@ export default function NovoServico() {
       ? checklist.map((item) => ({
           id: item.id,
           descricao: item.descricao.trim(),
-          peso: Number(item.peso) || 0,
+          peso: Math.max(0, Math.min(100, Number(item.peso) || 0)),
         }))
       : [];
 
@@ -187,7 +193,29 @@ export default function NovoServico() {
       };
 
       const servicesCollection = collection(firestore, "services");
-      const docRef = await addDoc(servicesCollection, payload);
+      const docRef = doc(servicesCollection);
+      await setDoc(docRef, payload);
+
+      try {
+        const token = await createAccessToken({
+          serviceId: docRef.id,
+          empresa: companyId ?? undefined,
+          company: companyId ?? undefined,
+        });
+        console.info(`[servicos/novo] Token gerado para serviço ${docRef.id}:`, token);
+      } catch (tokenError) {
+        console.error(`[servicos/novo] Falha ao gerar token do serviço ${docRef.id}`, tokenError);
+        try {
+          await deleteDoc(docRef);
+        } catch (cleanupError) {
+          console.error(
+            `[servicos/novo] Falha ao remover serviço ${docRef.id} após erro ao gerar token`,
+            cleanupError,
+          );
+        }
+        toast.error("Não foi possível criar o serviço. Tente novamente.");
+        return;
+      }
 
       if (sanitizedChecklist.length > 0) {
         const batch = writeBatch(firestore);
@@ -205,21 +233,6 @@ export default function NovoServico() {
         });
 
         await batch.commit();
-      }
-
-      try {
-        const token = await createAccessToken({
-          serviceId: docRef.id,
-          empresa: companyId ?? undefined,
-          company: companyId ?? undefined,
-        });
-        console.info(`[servicos/novo] Token gerado para serviço ${docRef.id}:`, token);
-      } catch (tokenError) {
-        console.error(`[servicos/novo] Falha ao gerar token do serviço ${docRef.id}`, tokenError);
-        toast.error(
-          "Serviço criado, mas não foi possível gerar o token de acesso. Tente novamente na página do serviço.",
-        );
-        return;
       }
 
       toast.success("Serviço criado com sucesso.");
@@ -398,8 +411,18 @@ export default function NovoServico() {
                               min={0}
                               max={100}
                               step="0.5"
-                              value={item.peso}
-                              onChange={(event) => updateChecklistItem(item.id, { peso: Number(event.target.value ?? 0) })}
+                              value={item.peso === "" ? "" : item.peso}
+                              onChange={(event) => {
+                                const raw = event.target.value;
+                                if (raw === "") {
+                                  updateChecklistItem(item.id, { peso: "" });
+                                  return;
+                                }
+                                const parsed = Number(raw);
+                                if (!Number.isFinite(parsed)) return;
+                                const clamped = Math.max(0, Math.min(100, parsed));
+                                updateChecklistItem(item.id, { peso: clamped });
+                              }}
                               className="mt-1 w-full rounded-md border border-border bg-background px-3 py-2 text-sm shadow-sm focus-visible:ring-2 focus-visible:ring-primary/40"
                             />
                           </div>

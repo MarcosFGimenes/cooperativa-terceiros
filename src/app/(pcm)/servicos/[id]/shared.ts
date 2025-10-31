@@ -450,10 +450,10 @@ export function mapUpdateSnapshot(
   };
 }
 
-export function normaliseStatus(value: unknown): "Aberto" | "Concluído" | "Encerrado" {
+export function normaliseStatus(value: unknown): "Aberto" | "Pendente" | "Concluído" {
   const raw = String(value ?? "").toLowerCase();
-  if (raw === "concluido" || raw === "concluído") return "Concluído";
-  if (raw === "encerrado") return "Encerrado";
+  if (raw === "concluido" || raw === "concluído" || raw === "encerrado") return "Concluído";
+  if (raw === "pendente") return "Pendente";
   return "Aberto";
 }
 

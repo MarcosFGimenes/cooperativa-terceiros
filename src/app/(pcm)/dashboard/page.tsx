@@ -7,10 +7,10 @@ import { listRecentPackages } from "@/lib/repo/packages";
 import { listRecentServices } from "@/lib/repo/services";
 import type { Service } from "@/types";
 
-function normaliseStatus(status: Service["status"]): "Aberto" | "Concluído" | "Encerrado" {
+function normaliseStatus(status: Service["status"]): "Aberto" | "Pendente" | "Concluído" {
   const raw = String(status ?? "").toLowerCase();
-  if (raw === "concluido" || raw === "concluído") return "Concluído";
-  if (raw === "encerrado") return "Encerrado";
+  if (raw === "concluido" || raw === "concluído" || raw === "encerrado") return "Concluído";
+  if (raw === "pendente") return "Pendente";
   return "Aberto";
 }
 
@@ -41,7 +41,7 @@ export default async function DashboardPCM() {
       acc[key] += 1;
       return acc;
     },
-    { Aberto: 0, "Concluído": 0, "Encerrado": 0 } as Record<"Aberto" | "Concluído" | "Encerrado", number>,
+    { Aberto: 0, Pendente: 0, "Concluído": 0 } as Record<"Aberto" | "Pendente" | "Concluído", number>,
   );
 
   return (
@@ -71,12 +71,12 @@ export default async function DashboardPCM() {
           <p className="text-2xl font-semibold">{statusGroups.Aberto}</p>
         </div>
         <div className="card space-y-1 p-4">
-          <p className="text-xs uppercase tracking-wide text-muted-foreground">Concluídos</p>
-          <p className="text-2xl font-semibold">{statusGroups["Concluído"]}</p>
+          <p className="text-xs uppercase tracking-wide text-muted-foreground">Pendentes</p>
+          <p className="text-2xl font-semibold">{statusGroups.Pendente}</p>
         </div>
         <div className="card space-y-1 p-4">
-          <p className="text-xs uppercase tracking-wide text-muted-foreground">Encerrados</p>
-          <p className="text-2xl font-semibold">{statusGroups["Encerrado"]}</p>
+          <p className="text-xs uppercase tracking-wide text-muted-foreground">Concluídos</p>
+          <p className="text-2xl font-semibold">{statusGroups["Concluído"]}</p>
         </div>
       </section>
 
