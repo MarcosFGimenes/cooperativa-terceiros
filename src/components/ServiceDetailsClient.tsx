@@ -385,7 +385,13 @@ export default function ServiceDetailsClient({ service, updates: initialUpdates,
   const lastUpdateAt = updates[0]?.createdAt ?? service.updatedAt ?? null;
   const suggestion = useMemo(() => computeChecklistSuggestion(checklistItems), [checklistItems]);
   const checklistOptions = useMemo(
-    () => checklistItems.map((item) => ({ id: item.id, description: item.description, progress: item.progress })),
+    () =>
+      checklistItems.map((item) => ({
+        id: item.id,
+        description: item.description,
+        progress: item.progress,
+        weight: item.weight,
+      })),
     [checklistItems],
   );
 
@@ -512,8 +518,12 @@ export default function ServiceDetailsClient({ service, updates: initialUpdates,
 
   const handleUpdateSubmit = useCallback(
     async (payload: ServiceUpdateFormPayload) => {
+      let percentToSend = clampPercent(payload.percent);
       try {
-        await submitChecklistUpdates(payload.subactivities);
+        const checklistPercent = await submitChecklistUpdates(payload.subactivities);
+        if (typeof checklistPercent === "number" && Number.isFinite(checklistPercent)) {
+          percentToSend = clampPercent(checklistPercent);
+        }
       } catch (error) {
         const message =
           error instanceof Error ? error.message : "Não foi possível salvar o checklist.";
@@ -533,10 +543,20 @@ export default function ServiceDetailsClient({ service, updates: initialUpdates,
         unit: null,
       }));
 
+      const startDate = new Date(payload.start);
+      const endDate = new Date(payload.end);
+      const durationHours = Number.isFinite(startDate.getTime()) && Number.isFinite(endDate.getTime())
+        ? Math.max(0, Math.round(((endDate.getTime() - startDate.getTime()) / 3_600_000) * 100) / 100)
+        : null;
+
       const body: Record<string, unknown> = {
-        percent: payload.percent,
+        percent: percentToSend,
         description: payload.description,
-        timeWindow: { start: payload.start, end: payload.end },
+        timeWindow: {
+          start: payload.start,
+          end: payload.end,
+          hours: durationHours ?? undefined,
+        },
         mode: "simple",
         resources: resourcesPayload,
         workforce: payload.workforce,
@@ -564,7 +584,7 @@ export default function ServiceDetailsClient({ service, updates: initialUpdates,
         }
 
         const nextPercent = clampPercent(
-          Number.isFinite(json.realPercent) ? Number(json.realPercent) : payload.percent,
+          Number.isFinite(json.realPercent) ? Number(json.realPercent) : percentToSend,
         );
 
         if (json.update) {
@@ -585,9 +605,9 @@ export default function ServiceDetailsClient({ service, updates: initialUpdates,
                 description: payload.description,
                 createdAt,
                 timeWindow: {
-                  start: new Date(payload.start).getTime(),
-                  end: new Date(payload.end).getTime(),
-                  hours: (new Date(payload.end).getTime() - new Date(payload.start).getTime()) / 3_600_000,
+                  start: startDate.getTime(),
+                  end: endDate.getTime(),
+                  hours: durationHours,
                 },
                 mode: "simple",
                 resources: resourcesPayload,
