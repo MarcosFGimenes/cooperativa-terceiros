@@ -17,6 +17,7 @@ import {
 } from "firebase/firestore";
 
 import { Field, FormRow } from "@/components/ui/form-controls";
+import { createAccessToken } from "@/lib/accessTokens";
 import { tryGetFirestore } from "@/lib/firebase";
 
 type ChecklistDraft = Array<{ id: string; descricao: string; peso: number }>;
@@ -161,6 +162,7 @@ export default function NovoServico() {
 
     setSaving(true);
     try {
+      const companyId = form.empresaId.trim() || null;
       const payload = {
         os: form.os.trim(),
         oc: form.oc.trim() || null,
@@ -171,8 +173,8 @@ export default function NovoServico() {
         inicioPrevisto: toTimestamp(form.dataInicio),
         fimPrevisto: toTimestamp(form.dataFim),
         horasPrevistas: horas,
-        empresaId: form.empresaId.trim() || null,
-        company: form.empresaId.trim() || null,
+        empresaId: companyId,
+        company: companyId,
         status: form.status,
         pacoteId: form.pacoteId || null,
         packageId: form.pacoteId || null,
@@ -203,6 +205,21 @@ export default function NovoServico() {
         });
 
         await batch.commit();
+      }
+
+      try {
+        const token = await createAccessToken({
+          serviceId: docRef.id,
+          empresa: companyId ?? undefined,
+          company: companyId ?? undefined,
+        });
+        console.info(`[servicos/novo] Token gerado para serviço ${docRef.id}:`, token);
+      } catch (tokenError) {
+        console.error(`[servicos/novo] Falha ao gerar token do serviço ${docRef.id}`, tokenError);
+        toast.error(
+          "Serviço criado, mas não foi possível gerar o token de acesso. Tente novamente na página do serviço.",
+        );
+        return;
       }
 
       toast.success("Serviço criado com sucesso.");
