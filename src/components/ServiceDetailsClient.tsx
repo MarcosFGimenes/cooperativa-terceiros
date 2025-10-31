@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { type FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import ServiceUpdateForm, { type ServiceUpdateFormPayload } from "@/components/ServiceUpdateForm";
@@ -46,6 +46,30 @@ function formatChecklistStatus(status: ThirdChecklistItem["status"]): string {
   if (status === "concluido") return "Concluído";
   if (status === "em-andamento") return "Em andamento";
   return "Não iniciado";
+}
+
+const CHECKLIST_STATUS_OPTIONS: Array<{ value: ThirdChecklistItem["status"]; label: string }> = [
+  { value: "nao-iniciado", label: "Não iniciado" },
+  { value: "em-andamento", label: "Em andamento" },
+  { value: "concluido", label: "Concluído" },
+];
+
+const CHECKLIST_STATUS_MAP_TO_API: Record<
+  ThirdChecklistItem["status"],
+  "nao_iniciado" | "andamento" | "concluido"
+> = {
+  "nao-iniciado": "nao_iniciado",
+  "em-andamento": "andamento",
+  concluido: "concluido",
+};
+
+function normaliseChecklistItems(items: ThirdChecklistItem[]): ThirdChecklistItem[] {
+  return items.map((item) => ({
+    ...item,
+    weight: Number.isFinite(item.weight) ? Number(item.weight) : 0,
+    progress: clampPercent(item.progress ?? 0),
+    status: item.status ?? "nao-iniciado",
+  }));
 }
 
 function computeInitialProgress(service: ThirdService, updates: ThirdServiceUpdate[]): number {
@@ -346,6 +370,12 @@ export default function ServiceDetailsClient({ service, updates: initialUpdates,
 
   const [updates, setUpdates] = useState(sortedInitialUpdates);
   const [progress, setProgress] = useState(() => computeInitialProgress(service, sortedInitialUpdates));
+  const [checklistItems, setChecklistItems] = useState<ThirdChecklistItem[]>(() =>
+    normaliseChecklistItems(checklist),
+  );
+  const [checklistDirty, setChecklistDirty] = useState(false);
+  const [checklistSaving, setChecklistSaving] = useState(false);
+  const [checklistError, setChecklistError] = useState<string | null>(null);
   const [storedSubactivity, setStoredSubactivity] = useState<{ id?: string; label?: string } | null>(null);
 
   const serviceLabel = useMemo(() => {
@@ -360,7 +390,11 @@ export default function ServiceDetailsClient({ service, updates: initialUpdates,
   }, [service.company]);
 
   const lastUpdateAt = updates[0]?.createdAt ?? service.updatedAt ?? null;
-  const suggestion = useMemo(() => computeChecklistSuggestion(checklist), [checklist]);
+  const suggestion = useMemo(() => computeChecklistSuggestion(checklistItems), [checklistItems]);
+  const checklistOptions = useMemo(
+    () => checklistItems.map((item) => ({ id: item.id, description: item.description })),
+    [checklistItems],
+  );
 
   const statusLabel = useMemo(() => normaliseStatus(service.status), [service.status]);
 
@@ -368,6 +402,12 @@ export default function ServiceDetailsClient({ service, updates: initialUpdates,
     const rawStatus = String(service.status ?? "").toLowerCase();
     return rawStatus === "aberto";
   }, [service.status]);
+
+  useEffect(() => {
+    setChecklistItems(normaliseChecklistItems(checklist));
+    setChecklistDirty(false);
+    setChecklistError(null);
+  }, [checklist]);
 
   const detailItems = useMemo(
     () => [
@@ -421,6 +461,134 @@ export default function ServiceDetailsClient({ service, updates: initialUpdates,
       }
     },
     [subactivityStorageKey],
+  );
+
+  const handleChecklistProgressChange = useCallback((itemId: string, value: number) => {
+    setChecklistItems((prev) =>
+      prev.map((item) => {
+        if (item.id !== itemId) return item;
+        const numeric = Number.isFinite(value) ? Math.round(Math.max(0, Math.min(100, value))) : 0;
+        let nextStatus = item.status;
+        if (numeric <= 0) {
+          nextStatus = "nao-iniciado";
+        } else if (numeric >= 100) {
+          nextStatus = "concluido";
+        } else if (nextStatus === "nao-iniciado" || nextStatus === "concluido") {
+          nextStatus = "em-andamento";
+        }
+        return { ...item, progress: numeric, status: nextStatus };
+      }),
+    );
+    setChecklistDirty(true);
+    setChecklistError(null);
+  }, []);
+
+  const handleChecklistStatusChange = useCallback(
+    (itemId: string, status: ThirdChecklistItem["status"]) => {
+      setChecklistItems((prev) =>
+        prev.map((item) => {
+          if (item.id !== itemId) return item;
+          let nextProgress = item.progress;
+          if (status === "concluido") {
+            nextProgress = 100;
+          } else if (status === "nao-iniciado") {
+            nextProgress = 0;
+          } else if (status === "em-andamento") {
+            if (nextProgress <= 0 || nextProgress >= 100) {
+              nextProgress = 50;
+            }
+          }
+          return { ...item, status, progress: nextProgress };
+        }),
+      );
+      setChecklistDirty(true);
+      setChecklistError(null);
+    },
+    [],
+  );
+
+  const handleChecklistMarkDone = useCallback(
+    (itemId: string) => handleChecklistStatusChange(itemId, "concluido"),
+    [handleChecklistStatusChange],
+  );
+
+  const handleChecklistSubmit = useCallback(
+    async (event: FormEvent<HTMLFormElement>) => {
+      event.preventDefault();
+      if (!checklistItems.length || checklistSaving) return;
+      if (!checklistDirty) {
+        setChecklistError(null);
+        return;
+      }
+
+      setChecklistSaving(true);
+      setChecklistError(null);
+
+      try {
+        const url = new URL(`/api/public/service/update-checklist`, window.location.origin);
+        url.searchParams.set("serviceId", service.id);
+        if (token) {
+          url.searchParams.set("token", token);
+        }
+
+        const updatesPayload = checklistItems.map((item) => ({
+          id: item.id,
+          progress: Math.round(Math.max(0, Math.min(100, Number(item.progress) || 0))),
+          status: CHECKLIST_STATUS_MAP_TO_API[item.status],
+        }));
+
+        const response = await fetch(url.toString(), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ updates: updatesPayload }),
+        });
+
+        const json = (await response.json().catch(() => null)) as
+          | { ok?: boolean; error?: string; realPercent?: number }
+          | null;
+
+        if (!response.ok || !json?.ok) {
+          const message = json?.error ?? "Não foi possível salvar o checklist.";
+          setChecklistError(message);
+          toast.error(message);
+          return;
+        }
+
+        setChecklistDirty(false);
+        setChecklistItems((prev) =>
+          prev.map((item) => {
+            const numeric = Math.round(Math.max(0, Math.min(100, Number(item.progress) || 0)));
+            let nextStatus = item.status;
+            if (numeric <= 0) {
+              nextStatus = "nao-iniciado";
+            } else if (numeric >= 100) {
+              nextStatus = "concluido";
+            } else if (nextStatus === "nao-iniciado" || nextStatus === "concluido") {
+              nextStatus = "em-andamento";
+            }
+            return { ...item, progress: numeric, status: nextStatus };
+          }),
+        );
+
+        if (json?.realPercent !== undefined) {
+          const numericPercent = Number(json.realPercent);
+          if (Number.isFinite(numericPercent)) {
+            setProgress(clampPercent(numericPercent));
+          }
+        }
+
+        toast.success("Checklist atualizado com sucesso!");
+      } catch (error) {
+        console.error(`[service-details] Falha ao atualizar checklist do serviço ${service.id}`, error);
+        const message =
+          error instanceof Error ? error.message : "Não foi possível salvar o checklist.";
+        setChecklistError(message);
+        toast.error(message);
+      } finally {
+        setChecklistSaving(false);
+      }
+    },
+    [checklistDirty, checklistItems, checklistSaving, service.id, token],
   );
 
   const handleUpdateSubmit = useCallback(
@@ -596,7 +764,7 @@ export default function ServiceDetailsClient({ service, updates: initialUpdates,
               serviceId={service.id}
               lastProgress={progress}
               suggestedPercent={suggestion}
-              checklist={checklist.map((item) => ({ id: item.id, description: item.description }))}
+              checklist={checklistOptions}
               defaultSubactivityId={storedSubactivity?.id}
               defaultSubactivityLabel={storedSubactivity?.label}
               onPersistSubactivity={persistSubactivity}
@@ -613,25 +781,104 @@ export default function ServiceDetailsClient({ service, updates: initialUpdates,
       <div className="grid gap-4 lg:grid-cols-2">
         <div className="card p-4">
           <h2 className="text-lg font-semibold">Checklist</h2>
-          {checklist.length === 0 ? (
+          {checklistItems.length === 0 ? (
             <p className="mt-2 text-sm text-muted-foreground">Nenhum item de checklist disponível.</p>
           ) : (
-            <ul className="mt-3 space-y-2 text-sm">
-              {checklist.map((item) => (
-                <li key={item.id} className="rounded-lg border p-3">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <span className="font-medium">{item.description}</span>
-                    <span className="text-xs text-muted-foreground">Peso: {Math.round(item.weight)}%</span>
-                  </div>
-                  <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
-                    <span className="text-xs uppercase tracking-wide text-muted-foreground">
-                      Status: {formatChecklistStatus(item.status)}
-                    </span>
-                    <span className="text-sm font-semibold text-primary">{Math.round(item.progress)}%</span>
-                  </div>
-                </li>
-              ))}
-            </ul>
+            <form onSubmit={handleChecklistSubmit} className="mt-3 space-y-4 text-sm">
+              <ul className="space-y-3">
+                {checklistItems.map((item) => {
+                  const roundedProgress = Math.round(
+                    Math.max(0, Math.min(100, Number(item.progress) || 0)),
+                  );
+                  return (
+                    <li key={item.id} className="rounded-lg border p-3">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span className="font-medium text-foreground">{item.description}</span>
+                        <span className="text-xs text-muted-foreground">Peso: {Math.round(item.weight)}%</span>
+                      </div>
+                      <div className="mt-3 grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(160px,1fr)]">
+                        <div>
+                          <label
+                            htmlFor={`${service.id}-checklist-progress-${item.id}`}
+                            className="text-xs font-medium text-muted-foreground"
+                          >
+                            Progresso (%)
+                          </label>
+                          <input
+                            id={`${service.id}-checklist-progress-${item.id}`}
+                            type="number"
+                            min={0}
+                            max={100}
+                            step={1}
+                            className="input mt-1 w-full"
+                            value={roundedProgress}
+                            onChange={(event) => {
+                              const numeric = Number(event.target.value);
+                              handleChecklistProgressChange(
+                                item.id,
+                                Number.isFinite(numeric) ? numeric : 0,
+                              );
+                            }}
+                          />
+                        </div>
+                        <div>
+                          <label
+                            htmlFor={`${service.id}-checklist-status-${item.id}`}
+                            className="text-xs font-medium text-muted-foreground"
+                          >
+                            Status
+                          </label>
+                          <select
+                            id={`${service.id}-checklist-status-${item.id}`}
+                            className="input mt-1 w-full"
+                            value={item.status}
+                            onChange={(event) =>
+                              handleChecklistStatusChange(
+                                item.id,
+                                event.target.value as ThirdChecklistItem["status"],
+                              )
+                            }
+                          >
+                            {CHECKLIST_STATUS_OPTIONS.map((option) => (
+                              <option key={option.value} value={option.value}>
+                                {option.label}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                      <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+                        <span>
+                          Status atual:{" "}
+                          <span className="font-semibold text-foreground">
+                            {formatChecklistStatus(item.status)}
+                          </span>
+                        </span>
+                        <button
+                          type="button"
+                          className="btn btn-ghost btn-xs"
+                          onClick={() => handleChecklistMarkDone(item.id)}
+                          disabled={item.status === "concluido" && roundedProgress >= 100}
+                        >
+                          Marcar como concluído
+                        </button>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+              {checklistError ? <p className="text-xs text-destructive">{checklistError}</p> : null}
+              <div className="flex flex-wrap items-center justify-end gap-3 text-xs text-muted-foreground">
+                {checklistDirty ? (
+                  <span>Existem alterações não salvas.</span>
+                ) : (
+                  <span>Nenhuma alteração pendente.</span>
+                )}
+                <button type="submit" className="btn btn-primary" disabled={!checklistDirty || checklistSaving}>
+                  {checklistSaving ? "Salvando..." : "Salvar checklist"}
+                </button>
+              </div>
+            </form>
           )}
         </div>
 
