@@ -248,6 +248,24 @@ export default function ServiceDetailClient({
 
   const displayedUpdates = updates.length ? updates : normalizedInitialUpdates;
 
+  const recentChecklist = useMemo(
+    () =>
+      [...checklist].sort((a, b) => {
+        const left = typeof a.updatedAt === "number" ? a.updatedAt : 0;
+        const right = typeof b.updatedAt === "number" ? b.updatedAt : 0;
+        return right - left;
+      }),
+    [checklist],
+  );
+
+  const descriptionUpdates = useMemo(
+    () =>
+      displayedUpdates
+        .filter((update) => typeof update.description === "string" && update.description.trim().length > 0)
+        .slice(0, 8),
+    [displayedUpdates],
+  );
+
   return (
     <div className="container mx-auto space-y-6 p-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -362,19 +380,22 @@ export default function ServiceDetailClient({
 
       <div className="grid gap-4 lg:grid-cols-2">
         <div className="card p-4">
-          <h2 className="text-lg font-semibold">Checklist</h2>
-          {checklist.length === 0 ? (
+          <div className="flex flex-col gap-1">
+            <h2 className="text-lg font-semibold">Checklists Recentes</h2>
+            <span className="text-xs text-muted-foreground">Serviço {serviceLabel}</span>
+          </div>
+          {recentChecklist.length === 0 ? (
             <p className="mt-2 text-sm text-muted-foreground">Nenhum checklist cadastrado.</p>
           ) : (
             <ul className="mt-3 space-y-2 text-sm">
-              {checklist.map((item) => (
-                <li key={item.id} className="rounded-lg border p-3">
+              {recentChecklist.map((item) => (
+                <li key={item.id} className="space-y-2 rounded-lg border p-3">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <span className="font-medium">{item.description}</span>
-                    <span className="text-xs text-muted-foreground">Peso: {item.weight}%</span>
+                    <span className="text-xs text-muted-foreground">{formatDateTime(item.updatedAt)}</span>
                   </div>
-                  <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
-                    <span className="text-xs uppercase tracking-wide text-muted-foreground">
+                  <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+                    <span>
                       Status: {item.status === "em-andamento" ? "Em andamento" : item.status === "concluido" ? "Concluído" : "Não iniciado"}
                     </span>
                     <span className="text-sm font-semibold text-primary">{Math.round(item.progress)}%</span>
@@ -494,6 +515,24 @@ export default function ServiceDetailClient({
                   </li>
                 );
               })}
+            </ul>
+          )}
+        </div>
+        <div className="card p-4 lg:col-span-2">
+          <h2 className="text-lg font-semibold">Descrição do que foi realizado</h2>
+          {descriptionUpdates.length === 0 ? (
+            <p className="mt-2 text-sm text-muted-foreground">Nenhum registro de descrição disponível.</p>
+          ) : (
+            <ul className="mt-3 space-y-2 text-sm">
+              {descriptionUpdates.map((update) => (
+                <li key={update.id} className="space-y-1 rounded-lg border p-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+                    <span>{formatDateTime(update.createdAt)}</span>
+                    <span className="font-semibold text-foreground">{Math.round(update.percent ?? 0)}%</span>
+                  </div>
+                  <p className="text-sm text-foreground">{update.description}</p>
+                </li>
+              ))}
             </ul>
           )}
         </div>

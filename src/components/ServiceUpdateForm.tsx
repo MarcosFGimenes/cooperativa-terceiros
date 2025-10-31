@@ -10,8 +10,7 @@ export type ServiceUpdateFormPayload = {
   description: string;
   start: string;
   end: string;
-  subactivityId?: string;
-  subactivityLabel?: string;
+  subactivities: Array<{ id: string; label: string; progress?: number }>;
   resources: Array<{ name: string }>;
   workforce: Array<{ role: string; quantity: number }>;
   shiftConditions: Array<{
@@ -23,16 +22,13 @@ export type ServiceUpdateFormPayload = {
   declarationAccepted: true;
 };
 
-type ChecklistOption = { id: string; description: string };
+type ChecklistOption = { id: string; description: string; progress?: number };
 
 type ServiceUpdateFormProps = {
   serviceId: string;
   lastProgress: number;
   suggestedPercent?: number;
   checklist: ChecklistOption[];
-  defaultSubactivityId?: string | null;
-  defaultSubactivityLabel?: string | null;
-  onPersistSubactivity?: (subactivity: { id?: string; label?: string }) => void;
   onSubmit: (payload: ServiceUpdateFormPayload) => Promise<void> | void;
 };
 
@@ -120,11 +116,19 @@ const shiftDetailSchema = z.object({
   condition: z.enum(["praticavel", "impraticavel"]),
 });
 
+const subactivitySchema = z.object({
+  id: z.string(),
+  progress: z
+    .number({ invalid_type_error: "Informe o percentual da subatividade" })
+    .min(0, "Mínimo 0%")
+    .max(100, "Máximo 100%")
+    .optional(),
+});
+
 const formSchema = z
   .object({
     start: z.string().min(1, "Início obrigatório"),
     end: z.string().min(1, "Fim obrigatório"),
-    subactivityId: z.string().optional(),
     description: z.string().min(1, "Descreva o que foi realizado"),
     percent: z
       .number({ invalid_type_error: "Informe um percentual" })
@@ -141,6 +145,7 @@ const formSchema = z
       .array(shiftDetailSchema)
       .min(1, "Selecione ao menos um turno")
       .max(2, "Selecione até dois turnos"),
+    subactivities: z.array(subactivitySchema).default([]),
   })
   .superRefine((values, ctx) => {
     const startDate = new Date(values.start);
@@ -193,36 +198,22 @@ export default function ServiceUpdateForm({
   lastProgress,
   suggestedPercent,
   checklist,
-  defaultSubactivityId,
-  defaultSubactivityLabel,
-  onPersistSubactivity,
   onSubmit,
 }: ServiceUpdateFormProps) {
-  const defaultSubactivityChoice = useMemo(() => {
-    if (defaultSubactivityId && checklist.some((item) => item.id === defaultSubactivityId)) {
-      return defaultSubactivityId;
-    }
-
-    if (defaultSubactivityLabel) {
-      const matchingOption = checklist.find((item) => item.description === defaultSubactivityLabel);
-      if (matchingOption) {
-        return matchingOption.id;
-      }
-    }
-
-    if (checklist.length > 0) {
-      return checklist[0].id;
-    }
-
-    return "";
-  }, [checklist, defaultSubactivityId, defaultSubactivityLabel]);
+  const checklistDefaults = useMemo(
+    () =>
+      checklist.map((item) => ({
+        id: item.id,
+        progress: undefined,
+      })),
+    [checklist],
+  );
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       start: "",
       end: "",
-      subactivityId: defaultSubactivityChoice || undefined,
       description: "",
       percent: undefined,
       resources: [],
@@ -230,6 +221,7 @@ export default function ServiceUpdateForm({
       shifts: [],
       justification: "",
       declarationAccepted: false,
+      subactivities: checklistDefaults,
     },
   });
 
@@ -239,7 +231,6 @@ export default function ServiceUpdateForm({
     handleSubmit,
     watch,
     setValue,
-    getValues,
     reset,
     formState: { errors, isSubmitting },
   } = form;
@@ -252,6 +243,7 @@ export default function ServiceUpdateForm({
   const percentValue = watch("percent");
   const justification = watch("justification");
   const selectedResources = watch("resources");
+  const subactivityValues = watch("subactivities");
 
   const numericPercent = useMemo(() => {
     if (typeof percentValue === "number" && Number.isFinite(percentValue)) {
@@ -266,15 +258,8 @@ export default function ServiceUpdateForm({
   );
 
   useEffect(() => {
-    if (!checklist.length) return;
-    const current = getValues("subactivityId");
-    if (current && checklist.some((item) => item.id === current)) {
-      return;
-    }
-    if (defaultSubactivityChoice) {
-      setValue("subactivityId", defaultSubactivityChoice, { shouldDirty: false });
-    }
-  }, [checklist, defaultSubactivityChoice, getValues, setValue]);
+    setValue("subactivities", checklistDefaults, { shouldDirty: false });
+  }, [checklistDefaults, setValue]);
 
   useEffect(() => {
     if (requiresJustification && !justification) {
@@ -314,11 +299,6 @@ export default function ServiceUpdateForm({
   }
 
   async function submit(values: FormValues) {
-    if (checklist.length > 0 && !values.subactivityId) {
-      form.setError("subactivityId", { type: "custom", message: "Selecione a subatividade" });
-      return;
-    }
-
     const startIso = new Date(values.start);
     const endIso = new Date(values.end);
     if (endIso < startIso) {
@@ -331,27 +311,27 @@ export default function ServiceUpdateForm({
       return;
     }
 
-    const selectedSubactivity = (() => {
-      const option = checklist.find((item) => item.id === values.subactivityId);
-      if (option) {
-        return { id: option.id, label: option.description };
-      }
-      return undefined;
-    })();
-
-    if (selectedSubactivity) {
-      onPersistSubactivity?.({ id: selectedSubactivity.id, label: selectedSubactivity.label });
-    }
-
-    form.clearErrors("subactivityId");
+    const subactivityUpdates = values.subactivities
+      .map((item, index) => {
+        const meta = checklist[index];
+        if (!meta) return null;
+        const progress = typeof item?.progress === "number" && Number.isFinite(item.progress)
+          ? Math.max(0, Math.min(100, Math.round(item.progress)))
+          : undefined;
+        return {
+          id: meta.id,
+          label: meta.description,
+          progress,
+        };
+      })
+      .filter((item): item is { id: string; label: string; progress?: number } => Boolean(item));
 
     await onSubmit({
       percent: values.percent,
       description: values.description.trim(),
       start: startIso.toISOString(),
       end: endIso.toISOString(),
-      subactivityId: selectedSubactivity?.id,
-      subactivityLabel: selectedSubactivity?.label,
+      subactivities: subactivityUpdates,
       resources: (values.resources ?? [])
         .map((resourceId) => RESOURCE_OPTIONS.find((option) => option.id === resourceId)?.label ?? resourceId)
         .filter((label) => typeof label === "string" && label.trim().length > 0)
@@ -366,12 +346,9 @@ export default function ServiceUpdateForm({
       declarationAccepted: true,
     });
 
-    const nextSubactivityId = selectedSubactivity?.id ?? (defaultSubactivityChoice || undefined);
-
     reset({
       start: "",
       end: "",
-      subactivityId: nextSubactivityId,
       description: "",
       percent: undefined,
       resources: [],
@@ -379,6 +356,7 @@ export default function ServiceUpdateForm({
       shifts: [],
       justification: "",
       declarationAccepted: false,
+      subactivities: checklist.map((item) => ({ id: item.id, progress: undefined })),
     });
   }
 
@@ -422,26 +400,6 @@ export default function ServiceUpdateForm({
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">
-        <div>
-          <label htmlFor={`${serviceId}-subactivity`} className="text-sm font-medium text-foreground">
-            Subatividade / Etapa
-          </label>
-          {checklist.length > 0 ? (
-            <select id={`${serviceId}-subactivity`} className="input mt-1 w-full" {...register("subactivityId")}>
-              <option value="">Selecione uma subatividade</option>
-              {checklist.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.description}
-                </option>
-              ))}
-            </select>
-          ) : (
-            <input type="hidden" value="" readOnly {...register("subactivityId")} />
-          )}
-          {errors.subactivityId ? (
-            <p className="mt-1 text-xs text-destructive">{errors.subactivityId.message}</p>
-          ) : null}
-        </div>
         <div className="space-y-2">
           <label
             id={`${serviceId}-percent-label`}
@@ -489,11 +447,66 @@ export default function ServiceUpdateForm({
                 },
               })}
             />
-            <span className="text-sm font-medium text-muted-foreground">%</span>
-          </div>
-          {errors.percent ? <p className="mt-1 text-xs text-destructive">{errors.percent.message}</p> : null}
+          <span className="text-sm font-medium text-muted-foreground">%</span>
         </div>
+        {errors.percent ? <p className="mt-1 text-xs text-destructive">{errors.percent.message}</p> : null}
       </div>
+      </div>
+
+      {checklist.length > 0 ? (
+        <div className="space-y-4">
+          <h3 className="text-sm font-semibold text-foreground">Subatividades / Etapas</h3>
+          <p className="text-xs text-muted-foreground">
+            Informe o percentual atualizado para cada subatividade de acordo com o progresso realizado.
+          </p>
+          <ul className="space-y-3 text-sm">
+            {checklist.map((item, index) => {
+              const fieldError = extractFieldErrorMessage(errors.subactivities?.[index]?.progress);
+              const currentValue =
+                typeof subactivityValues?.[index]?.progress === "number"
+                  ? subactivityValues[index]?.progress
+                  : undefined;
+              return (
+                <li key={item.id} className="space-y-2 rounded-lg border p-3">
+                  <div className="flex flex-col gap-1">
+                    <span className="font-medium text-foreground">{item.description}</span>
+                    <span className="text-xs text-muted-foreground">
+                      Progresso atual registrado: {Math.round(item.progress ?? 0)}%
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input
+                      id={`${serviceId}-subactivity-${item.id}`}
+                      type="number"
+                      min={0}
+                      max={100}
+                      step={1}
+                      placeholder="0"
+                      className="input w-24"
+                      {...register(`subactivities.${index}.progress`, {
+                        setValueAs: (value) => {
+                          if (value === "" || value === null || typeof value === "undefined") {
+                            return undefined;
+                          }
+                          const numeric = Number(String(value).replace(",", "."));
+                          if (!Number.isFinite(numeric)) return undefined;
+                          const clamped = Math.max(0, Math.min(100, Math.round(numeric)));
+                          return clamped;
+                        },
+                      })}
+                    />
+                    <span className="text-xs text-muted-foreground">%</span>
+                    {typeof currentValue === "number" ? (
+                      <span className="text-xs text-muted-foreground">Novo valor: {currentValue}%</span>
+                    ) : null}
+                  </div>
+                  {fieldError ? <p className="text-xs text-destructive">{fieldError}</p> : null}
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      ) : null}
 
       <div>
         <label htmlFor={`${serviceId}-description`} className="text-sm font-medium text-foreground">
