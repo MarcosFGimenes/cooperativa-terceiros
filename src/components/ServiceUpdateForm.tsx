@@ -10,6 +10,7 @@ export type ServiceUpdateFormPayload = {
   description: string;
   start: string;
   end: string;
+  date: string;
   subactivities: Array<{ id: string; label: string; progress?: number }>;
   resources: Array<{ name: string }>;
   workforce: Array<{ role: string; quantity: number }>;
@@ -22,7 +23,7 @@ export type ServiceUpdateFormPayload = {
   declarationAccepted: true;
 };
 
-type ChecklistOption = { id: string; description: string; progress?: number };
+type ChecklistOption = { id: string; description: string; progress?: number; weight?: number };
 
 type ServiceUpdateFormProps = {
   serviceId: string;
@@ -78,20 +79,78 @@ const CONDITION_OPTIONS = [
   { id: "impraticavel" as const, label: "Impraticável" },
 ];
 
-function clampPercentValue(value: unknown): number | undefined {
-  if (value === "" || value === null || typeof value === "undefined") {
-    return undefined;
+function parseDateOnly(value: string): Date | null {
+  if (!value || typeof value !== "string") return null;
+  const match = /^\d{4}-\d{2}-\d{2}$/.exec(value.trim());
+  if (!match) return null;
+  const [year, month, day] = value.split("-").map((part) => Number(part));
+  if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) {
+    return null;
+  }
+  const date = new Date(year, month - 1, day);
+  if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) {
+    return null;
+  }
+  return date;
+}
+
+function toDateRangeIso(value: string): { start: string; end: string } | null {
+  const date = parseDateOnly(value);
+  if (!date) return null;
+  const start = new Date(date);
+  start.setHours(0, 0, 0, 0);
+  const end = new Date(date);
+  end.setHours(23, 59, 59, 999);
+  return { start: start.toISOString(), end: end.toISOString() };
+}
+
+function computeChecklistPercent(
+  checklist: ChecklistOption[],
+  subactivities: Array<{ progress?: number } | undefined> | undefined,
+  fallback: number,
+): number {
+  if (!Array.isArray(checklist) || checklist.length === 0) {
+    return Math.round(fallback * 10) / 10;
   }
 
-  const numericValue =
-    typeof value === "number" ? value : Number(String(value).replace(",", "."));
+  let weightedSum = 0;
+  let totalWeight = 0;
 
-  if (!Number.isFinite(numericValue)) {
-    return undefined;
+  checklist.forEach((item, index) => {
+    const baseProgress = (() => {
+      const submitted = subactivities?.[index]?.progress;
+      if (typeof submitted === "number" && Number.isFinite(submitted)) {
+        return submitted;
+      }
+      if (typeof item.progress === "number" && Number.isFinite(item.progress)) {
+        return item.progress;
+      }
+      return null;
+    })();
+
+    if (baseProgress === null) {
+      return;
+    }
+
+    const weightValue =
+      typeof item.weight === "number" && Number.isFinite(item.weight) && item.weight > 0
+        ? item.weight
+        : 1;
+
+    weightedSum += weightValue * baseProgress;
+    totalWeight += weightValue;
+  });
+
+  if (totalWeight === 0) {
+    return Math.round(fallback * 10) / 10;
   }
 
-  const clamped = Math.min(100, Math.max(1, numericValue));
-  return Number.parseFloat(clamped.toFixed(1));
+  const computed = weightedSum / totalWeight;
+  if (!Number.isFinite(computed)) {
+    return Math.round(fallback * 10) / 10;
+  }
+
+  return Math.round(computed * 10) / 10;
 }
 
 function extractFieldErrorMessage(value: unknown): string | null {
@@ -127,14 +186,8 @@ const subactivitySchema = z.object({
 
 const formSchema = z
   .object({
-    start: z.string().min(1, "Início obrigatório"),
-    end: z.string().min(1, "Fim obrigatório"),
+    date: z.string().min(1, "Data obrigatória"),
     description: z.string().min(1, "Descreva o que foi realizado"),
-    percent: z
-      .number({ invalid_type_error: "Informe um percentual" })
-      .refine((value) => Number.isFinite(value), { message: "Informe um percentual" })
-      .min(1, "Mínimo 1%")
-      .max(100, "Máximo 100%"),
     justification: z.string().max(1000).optional(),
     declarationAccepted: z.literal(true, {
       errorMap: () => ({ message: "É necessário aceitar a declaração" }),
@@ -148,27 +201,11 @@ const formSchema = z
     subactivities: z.array(subactivitySchema).default([]),
   })
   .superRefine((values, ctx) => {
-    const startDate = new Date(values.start);
-    const endDate = new Date(values.end);
-    if (Number.isNaN(startDate.getTime())) {
+    if (!parseDateOnly(values.date)) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        path: ["start"],
-        message: "Data/hora inicial inválida",
-      });
-    }
-    if (Number.isNaN(endDate.getTime())) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["end"],
-        message: "Data/hora final inválida",
-      });
-    }
-    if (!Number.isNaN(startDate.getTime()) && !Number.isNaN(endDate.getTime()) && endDate < startDate) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["end"],
-        message: "Fim deve ser maior que o início",
+        path: ["date"],
+        message: "Data inválida",
       });
     }
     const uniqueShifts = new Set(values.shifts.map((item) => item.shift));
@@ -182,16 +219,6 @@ const formSchema = z
   });
 
 type FormValues = z.infer<typeof formSchema>;
-
-function differenceInHours(start: string, end: string): number | null {
-  if (!start || !end) return null;
-  const startDate = new Date(start);
-  const endDate = new Date(end);
-  if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) return null;
-  const diff = (endDate.getTime() - startDate.getTime()) / 3_600_000;
-  if (!Number.isFinite(diff) || diff < 0) return null;
-  return Math.round(diff * 100) / 100;
-}
 
 export default function ServiceUpdateForm({
   serviceId,
@@ -212,10 +239,8 @@ export default function ServiceUpdateForm({
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      start: "",
-      end: "",
+      date: "",
       description: "",
-      percent: undefined,
       resources: [],
       workforce: [{ role: "", quantity: 1 }],
       shifts: [],
@@ -238,23 +263,18 @@ export default function ServiceUpdateForm({
   const workforceArray = useFieldArray({ control, name: "workforce" });
   const shiftArray = useFieldArray({ control, name: "shifts" });
 
-  const startValue = watch("start");
-  const endValue = watch("end");
-  const percentValue = watch("percent");
   const justification = watch("justification");
   const selectedResources = watch("resources");
   const subactivityValues = watch("subactivities");
 
-  const numericPercent = useMemo(() => {
-    if (typeof percentValue === "number" && Number.isFinite(percentValue)) {
-      return percentValue;
-    }
-    return null;
-  }, [percentValue]);
+  const computedPercent = useMemo(
+    () => computeChecklistPercent(checklist, subactivityValues, lastProgress),
+    [checklist, subactivityValues, lastProgress],
+  );
 
   const requiresJustification = useMemo(
-    () => numericPercent !== null && numericPercent < lastProgress,
-    [numericPercent, lastProgress],
+    () => Number.isFinite(computedPercent) && computedPercent < lastProgress,
+    [computedPercent, lastProgress],
   );
 
   useEffect(() => {
@@ -271,8 +291,6 @@ export default function ServiceUpdateForm({
       form.clearErrors("justification");
     }
   }, [form, justification, requiresJustification]);
-
-  const hours = useMemo(() => differenceInHours(startValue, endValue), [startValue, endValue]);
 
   const selectedShifts = useMemo(() => shiftArray.fields.map((item) => item.shift), [shiftArray.fields]);
 
@@ -299,10 +317,9 @@ export default function ServiceUpdateForm({
   }
 
   async function submit(values: FormValues) {
-    const startIso = new Date(values.start);
-    const endIso = new Date(values.end);
-    if (endIso < startIso) {
-      form.setError("end", { type: "custom", message: "Fim deve ser maior que o início" });
+    const range = toDateRangeIso(values.date);
+    if (!range) {
+      form.setError("date", { type: "custom", message: "Data inválida" });
       return;
     }
 
@@ -326,11 +343,14 @@ export default function ServiceUpdateForm({
       })
       .filter((item): item is { id: string; label: string; progress?: number } => Boolean(item));
 
+    const normalizedPercent = Number.isFinite(computedPercent) ? computedPercent : lastProgress;
+
     await onSubmit({
-      percent: values.percent,
+      percent: normalizedPercent,
       description: values.description.trim(),
-      start: startIso.toISOString(),
-      end: endIso.toISOString(),
+      start: range.start,
+      end: range.end,
+      date: values.date,
       subactivities: subactivityUpdates,
       resources: (values.resources ?? [])
         .map((resourceId) => RESOURCE_OPTIONS.find((option) => option.id === resourceId)?.label ?? resourceId)
@@ -347,10 +367,8 @@ export default function ServiceUpdateForm({
     });
 
     reset({
-      start: "",
-      end: "",
+      date: "",
       description: "",
-      percent: undefined,
       resources: [],
       workforce: [{ role: "", quantity: 1 }],
       shifts: [],
@@ -365,92 +383,27 @@ export default function ServiceUpdateForm({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="space-y-1">
           <label className="text-sm font-medium text-foreground">Percentual de conclusão</label>
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <div className="flex flex-col gap-1 text-xs text-muted-foreground">
             <span>Último registro: {lastProgress.toFixed(1)}%</span>
             {Number.isFinite(suggestedPercent ?? NaN) ? (
-              <span className="rounded-full bg-muted px-2 py-0.5">Sugerido: {Number(suggestedPercent).toFixed(1)}%</span>
+              <span className="w-fit rounded-full bg-muted px-2 py-0.5">
+                Sugerido: {Number(suggestedPercent).toFixed(1)}%
+              </span>
             ) : null}
+            <span>Valor calculado automaticamente a partir das subatividades.</span>
           </div>
         </div>
         <div className="flex items-center gap-2 text-sm font-semibold text-primary">
-          {numericPercent !== null ? (
-            <span>{numericPercent.toFixed(1)}%</span>
-          ) : (
-            <span className="text-muted-foreground">—</span>
-          )}
+          <span>{Number.isFinite(computedPercent) ? computedPercent.toFixed(1) : "-"}%</span>
         </div>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div>
-          <label htmlFor={`${serviceId}-start`} className="text-sm font-medium text-foreground">
-            Início
-          </label>
-          <input id={`${serviceId}-start`} type="datetime-local" className="input mt-1 w-full" {...register("start")} />
-          {errors.start ? <p className="mt-1 text-xs text-destructive">{errors.start.message}</p> : null}
-        </div>
-        <div>
-          <label htmlFor={`${serviceId}-end`} className="text-sm font-medium text-foreground">
-            Fim
-          </label>
-          <input id={`${serviceId}-end`} type="datetime-local" className="input mt-1 w-full" {...register("end")} />
-          {errors.end ? <p className="mt-1 text-xs text-destructive">{errors.end.message}</p> : null}
-          {hours !== null ? <p className="mt-1 text-xs text-muted-foreground">Horas calculadas: {hours.toFixed(2)}</p> : null}
-        </div>
-      </div>
-
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div className="space-y-2">
-          <label
-            id={`${serviceId}-percent-label`}
-            htmlFor={`${serviceId}-percent`}
-            className="text-sm font-medium text-foreground"
-          >
-            Percentual total (1 a 100)
-          </label>
-          <div className="mt-1 flex w-full items-center gap-2 sm:w-48">
-            <input
-              id={`${serviceId}-percent`}
-              type="number"
-              inputMode="decimal"
-              className="input flex-1"
-              min={1}
-              max={100}
-              step={0.1}
-              placeholder="1"
-              {...register("percent", {
-                setValueAs: clampPercentValue,
-                onChange: (event) => {
-                  const rawValue = event.target.value;
-
-                  if (!rawValue) {
-                    setValue("percent", undefined, { shouldDirty: true, shouldValidate: false });
-                    return;
-                  }
-
-                  const numericValue = Number(rawValue.replace(",", "."));
-
-                  if (!Number.isFinite(numericValue)) {
-                    event.target.value = "";
-                    setValue("percent", undefined, { shouldDirty: true, shouldValidate: false });
-                    return;
-                  }
-
-                  const clamped = clampPercentValue(numericValue);
-
-                  if (typeof clamped === "number") {
-                    if (clamped !== numericValue) {
-                      event.target.value = clamped.toString();
-                    }
-                    setValue("percent", clamped, { shouldDirty: true, shouldValidate: false });
-                  }
-                },
-              })}
-            />
-          <span className="text-sm font-medium text-muted-foreground">%</span>
-        </div>
-        {errors.percent ? <p className="mt-1 text-xs text-destructive">{errors.percent.message}</p> : null}
-      </div>
+      <div>
+        <label htmlFor={`${serviceId}-date`} className="text-sm font-medium text-foreground">
+          Data
+        </label>
+        <input id={`${serviceId}-date`} type="date" className="input mt-1 w-full" {...register("date")} />
+        {errors.date ? <p className="mt-1 text-xs text-destructive">{errors.date.message}</p> : null}
       </div>
 
       {checklist.length > 0 ? (
