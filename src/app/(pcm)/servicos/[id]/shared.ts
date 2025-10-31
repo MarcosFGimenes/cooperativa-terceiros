@@ -419,6 +419,13 @@ export function mapUpdateSnapshot(
     return "";
   })();
 
+  const auditSubmittedAt =
+    typeof data.audit === "object" && data.audit !== null
+      ? toMillis((data.audit as ServiceRecord).submittedAt)
+      : null;
+
+  const createdAt = toMillis(data.date ?? data.createdAt) ?? auditSubmittedAt ?? 0;
+
   return {
     id: doc.id,
     serviceId: doc.ref.parent.parent?.id,
@@ -446,7 +453,7 @@ export function mapUpdateSnapshot(
     declarationAccepted:
       typeof data.declarationAccepted === "boolean" ? data.declarationAccepted : undefined,
     audit: mapAudit(data.audit),
-    createdAt: toMillis(data.createdAt) ?? 0,
+    createdAt,
   };
 }
 
