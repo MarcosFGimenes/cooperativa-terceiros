@@ -24,7 +24,7 @@ export type Service = {
   inicioPrevisto?: string; // ISO
   fimPrevisto?: string; // ISO
   horasPrevistas?: number;
-  status?: "Aberto" | "Concluído" | "Encerrado";
+  status?: "Aberto" | "Pendente" | "Concluído";
   empresa?: string;
   pacoteId?: string;
   andamento?: number; // 0-100
@@ -34,7 +34,7 @@ export type Service = {
 export type Package = {
   id: string;
   nome: string;
-  status?: "Aberto" | "Concluído" | "Encerrado";
+  status?: "Aberto" | "Pendente" | "Concluído";
   criadoEm?: string;
 };
 
@@ -58,7 +58,8 @@ function toStatus(value: unknown): Service["status"] | undefined {
   const normalised = value.trim().toLowerCase();
   if (!normalised) return undefined;
   if (normalised === "concluido" || normalised === "concluído") return "Concluído";
-  if (normalised === "encerrado") return "Encerrado";
+  if (normalised === "encerrado") return "Concluído";
+  if (normalised === "pendente") return "Pendente";
   if (normalised === "aberto") return "Aberto";
   return undefined;
 }

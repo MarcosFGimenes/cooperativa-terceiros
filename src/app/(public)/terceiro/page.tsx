@@ -25,8 +25,8 @@ function normaliseProgress(value?: number | null) {
 
 function normaliseStatus(value?: string | null) {
   const raw = String(value ?? "").toLowerCase();
-  if (raw === "concluido" || raw === "concluído") return "Concluído";
-  if (raw === "encerrado") return "Encerrado";
+  if (raw === "concluido" || raw === "concluído" || raw === "encerrado") return "Concluído";
+  if (raw === "pendente") return "Pendente";
   return "Aberto";
 }
 

@@ -107,7 +107,7 @@ function mapServiceDoc(doc: FirebaseFirestore.DocumentSnapshot): Service {
           return Number.isFinite(numeric) ? numeric : 0;
         })
       : undefined,
-    status: (data.status ?? "aberto") as ServiceStatus,
+    status: normaliseServiceStatus(data.status),
     company:
       data.company !== undefined && data.company !== null
         ? String(data.company)
@@ -129,8 +129,8 @@ function mapServiceDoc(doc: FirebaseFirestore.DocumentSnapshot): Service {
 
 function normaliseServiceStatus(value: unknown): ServiceStatus {
   const raw = String(value ?? "").trim().toLowerCase();
-  if (raw === "concluido" || raw === "concluído") return "Concluído";
-  if (raw === "encerrado") return "Encerrado";
+  if (raw === "concluido" || raw === "concluído" || raw === "encerrado") return "Concluído";
+  if (raw === "pendente") return "Pendente";
   return "Aberto";
 }
 

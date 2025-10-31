@@ -94,9 +94,10 @@ export type ServiceUpdate = {
 
 export type ServiceStatus =
   | "Aberto"
+  | "Pendente"
   | "Concluído"
-  | "Encerrado"
   | "aberto"
+  | "pendente"
   | "concluido"
   | "concluído"
   | "encerrado";

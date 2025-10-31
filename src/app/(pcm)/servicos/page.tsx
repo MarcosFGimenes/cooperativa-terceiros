@@ -8,8 +8,8 @@ import type { Service } from "@/types";
 
 function normaliseStatus(status: Service["status"]): string {
   const raw = String(status ?? "").toLowerCase();
-  if (raw === "concluido" || raw === "concluído") return "Concluído";
-  if (raw === "encerrado") return "Encerrado";
+  if (raw === "concluido" || raw === "concluído" || raw === "encerrado") return "Concluído";
+  if (raw === "pendente") return "Pendente";
   return "Aberto";
 }
 

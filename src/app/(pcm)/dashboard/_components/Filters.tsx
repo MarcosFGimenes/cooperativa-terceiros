@@ -17,8 +17,8 @@ type DashboardFiltersProps = {
 const statuses = [
   { value: "", label: "Todos os status" },
   { value: "aberto", label: "Abertos" },
+  { value: "pendente", label: "Pendentes" },
   { value: "concluido", label: "Concluídos" },
-  { value: "encerrado", label: "Encerrados" },
 ];
 
 export default function DashboardFilters({ companies, packages, current }: DashboardFiltersProps) {

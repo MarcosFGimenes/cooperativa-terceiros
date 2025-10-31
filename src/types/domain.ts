@@ -1,4 +1,4 @@
-export type Status = "Aberto" | "Concluído" | "Encerrado";
+export type Status = "Aberto" | "Pendente" | "Concluído";
 
 export type ChecklistItem = {
   id: string;

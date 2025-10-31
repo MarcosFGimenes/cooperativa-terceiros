@@ -37,8 +37,8 @@ function formatDate(value?: number | string | null, withTime = false): string {
 
 function normaliseStatus(value: string | null | undefined): string {
   const raw = String(value ?? "").trim().toLowerCase();
-  if (raw === "concluido" || raw === "concluído") return "Concluído";
-  if (raw === "encerrado") return "Encerrado";
+  if (raw === "concluido" || raw === "concluído" || raw === "encerrado") return "Concluído";
+  if (raw === "pendente") return "Pendente";
   return "Aberto";
 }
 

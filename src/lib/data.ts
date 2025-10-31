@@ -4,8 +4,8 @@ import { tryGetAdminDb, getServerWebDb } from "@/lib/serverDb";
 // Normaliza status (aceita "ABERTO", "aberto", etc.)
 export function normStatus(s?: string | null) {
   const v = (s ?? "").toString().trim().toLowerCase();
-  if (v === "concluido" || v === "concluído") return "Concluído";
-  if (v === "encerrado") return "Encerrado";
+  if (v === "concluido" || v === "concluído" || v === "encerrado") return "Concluído";
+  if (v === "pendente") return "Pendente";
   return "Aberto";
 }
 
@@ -86,14 +86,18 @@ export async function listServicesForToken(tokenDoc: unknown) {
     if (admin) {
       const doc = await admin.collection("services").doc(serviceId).get();
       if (!doc.exists) return [];
-      return [mapDoc(doc.id, doc.data() as Record<string, unknown>)].filter((s) => s.status === "Aberto");
+      return [mapDoc(doc.id, doc.data() as Record<string, unknown>)].filter(
+        (s) => s.status === "Aberto" || s.status === "Pendente",
+      );
     } else {
       const db = await getServerWebDb();
       const { doc, getDoc } = await import("firebase/firestore");
       const dref = doc(db, "services", serviceId);
       const ds = await getDoc(dref);
       if (!ds.exists()) return [];
-      return [mapDoc(ds.id, ds.data() as Record<string, unknown>)].filter((s) => s.status === "Aberto");
+      return [mapDoc(ds.id, ds.data() as Record<string, unknown>)].filter(
+        (s) => s.status === "Aberto" || s.status === "Pendente",
+      );
     }
   }
 
@@ -112,13 +116,15 @@ export async function listServicesForToken(tokenDoc: unknown) {
           .get();
         return q.docs
           .map((docSnap) => mapDoc(docSnap.id, docSnap.data() as Record<string, unknown>))
-          .filter((s) => s.status === "Aberto");
+          .filter((s) => s.status === "Aberto" || s.status === "Pendente");
       } catch {
         // fallback: busca por packageId e filtra empresa em memória
         const q2 = await admin.collection("services").where("packageId", "==", packageId).get();
         return q2.docs
           .map((docSnap) => mapDoc(docSnap.id, docSnap.data() as Record<string, unknown>))
-          .filter((s) => s.empresa === empresa && s.status === "Aberto");
+          .filter(
+            (s) => s.empresa === empresa && (s.status === "Aberto" || s.status === "Pendente"),
+          );
       }
     } else {
       const db = await getServerWebDb();
@@ -132,14 +138,16 @@ export async function listServicesForToken(tokenDoc: unknown) {
         const snap = await getDocs(q);
         return snap.docs
           .map((docSnap) => mapDoc(docSnap.id, docSnap.data() as Record<string, unknown>))
-          .filter((s) => s.status === "Aberto");
+          .filter((s) => s.status === "Aberto" || s.status === "Pendente");
       } catch {
         // fallback: só por packageId
         const q2 = query(collection(db, "services"), where("packageId", "==", packageId));
         const snap2 = await getDocs(q2);
         return snap2.docs
           .map((docSnap) => mapDoc(docSnap.id, docSnap.data() as Record<string, unknown>))
-          .filter((s) => s.empresa === empresa && s.status === "Aberto");
+          .filter(
+            (s) => s.empresa === empresa && (s.status === "Aberto" || s.status === "Pendente"),
+          );
       }
     }
   }

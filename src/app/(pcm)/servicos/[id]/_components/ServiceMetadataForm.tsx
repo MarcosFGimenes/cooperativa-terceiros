@@ -22,8 +22,8 @@ type Props = {
 
 const STATUS_OPTIONS: { value: ServiceStatus; label: string }[] = [
   { value: "aberto", label: "Aberto" },
+  { value: "pendente", label: "Pendente" },
   { value: "concluido", label: "Concluído" },
-  { value: "encerrado", label: "Encerrado" },
 ];
 
 export default function ServiceMetadataForm({ serviceId, initial }: Props) {
