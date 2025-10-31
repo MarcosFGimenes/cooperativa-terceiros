@@ -23,6 +23,45 @@ function toOptionalString(value: unknown): string | undefined {
   return trimmed || undefined;
 }
 
+function normaliseToLower(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  return trimmed.toLowerCase();
+}
+
+function isServiceOpen(data: Record<string, unknown>): boolean {
+  const status = normaliseToLower(data.status);
+  if (!status) return true;
+  return status === "aberto" || status === "aberta" || status === "open" || status === "pendente";
+}
+
+function matchesCompanyConstraint(data: Record<string, unknown>, company: string | undefined): boolean {
+  if (!company) return true;
+  const expected = company.trim().toLowerCase();
+  if (!expected) return true;
+
+  const candidates = [data.empresa, data.empresaId, data.company, data.companyId];
+  for (const candidate of candidates) {
+    if (typeof candidate === "string" && candidate.trim().toLowerCase() === expected) {
+      return true;
+    }
+  }
+
+  const assigned = data.assignedTo;
+  if (assigned && typeof assigned === "object") {
+    const assignedRecord = assigned as Record<string, unknown>;
+    const assignedCandidates = [assignedRecord.companyId, assignedRecord.company, assignedRecord.companyID];
+    for (const candidate of assignedCandidates) {
+      if (typeof candidate === "string" && candidate.trim().toLowerCase() === expected) {
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
 function toOptionalNumber(value: unknown): number | undefined {
   if (typeof value === "number" && Number.isFinite(value)) return value;
   if (typeof value === "string" && value.trim()) {
@@ -72,6 +111,11 @@ export async function getServicesForToken(token: string): Promise<ServiceDoc[]> 
   const t = await getTokenDoc(token);
   if (!t) return [];
   const adminDb = tryGetAdminDb();
+  const tokenCompany =
+    toOptionalString(t.empresa) ??
+    toOptionalString((t as Record<string, unknown>).empresaId) ??
+    toOptionalString((t as Record<string, unknown>).company) ??
+    toOptionalString((t as Record<string, unknown>).companyId);
 
   // Caso 1: token vinculado a 1 serviço
   const serviceId = toOptionalString(t.serviceId);
@@ -80,9 +124,8 @@ export async function getServicesForToken(token: string): Promise<ServiceDoc[]> 
       const doc = await adminDb.collection("services").doc(serviceId).get();
       if (!doc.exists) return [];
       const data = (doc.data() ?? {}) as Record<string, unknown>;
-      const mapped = mapServiceDoc(doc.id, data);
-      if (mapped.status && mapped.status !== "Aberto") return [];
-      return [mapped];
+      if (!isServiceOpen(data)) return [];
+      return [mapServiceDoc(doc.id, data)];
     } else {
       const webDb = await getServerWebDb();
       const { doc, getDoc } = await import("firebase/firestore");
@@ -90,35 +133,38 @@ export async function getServicesForToken(token: string): Promise<ServiceDoc[]> 
       const ds = await getDoc(dref);
       if (!ds.exists()) return [];
       const data = (ds.data() ?? {}) as Record<string, unknown>;
-      const mapped = mapServiceDoc(ds.id, data);
-      if (mapped.status && mapped.status !== "Aberto") return [];
-      return [mapped];
+      if (!isServiceOpen(data)) return [];
+      return [mapServiceDoc(ds.id, data)];
     }
   }
 
   // Caso 2: token de pacote + empresa → lista serviços do pacote daquela empresa (status Aberto)
   const packageId = toOptionalString(t.packageId);
-  const empresa = toOptionalString(t.empresa);
+  const empresa = tokenCompany;
   if (packageId && empresa) {
     if (adminDb) {
-      const snap = await adminDb
-        .collection("services")
-        .where("packageId", "==", packageId)
-        .where("empresa", "==", empresa)
-        .where("status", "==", "Aberto")
-        .get();
-      return snap.docs.map((docSnap) => mapServiceDoc(docSnap.id, (docSnap.data() ?? {}) as Record<string, unknown>));
+      const snap = await adminDb.collection("services").where("packageId", "==", packageId).get();
+      return snap.docs
+        .map((docSnap) => {
+          const data = (docSnap.data() ?? {}) as Record<string, unknown>;
+          if (!isServiceOpen(data)) return null;
+          if (!matchesCompanyConstraint(data, empresa)) return null;
+          return mapServiceDoc(docSnap.id, data);
+        })
+        .filter((value): value is ServiceDoc => Boolean(value));
     } else {
       const webDb = await getServerWebDb();
       const { collection, getDocs, query, where } = await import("firebase/firestore");
-      const q = query(
-        collection(webDb, "services"),
-        where("packageId", "==", packageId),
-        where("empresa", "==", empresa),
-        where("status", "==", "Aberto"),
-      );
+      const q = query(collection(webDb, "services"), where("packageId", "==", packageId));
       const snap = await getDocs(q);
-      return snap.docs.map((docSnap) => mapServiceDoc(docSnap.id, (docSnap.data() ?? {}) as Record<string, unknown>));
+      return snap.docs
+        .map((docSnap) => {
+          const data = (docSnap.data() ?? {}) as Record<string, unknown>;
+          if (!isServiceOpen(data)) return null;
+          if (!matchesCompanyConstraint(data, empresa)) return null;
+          return mapServiceDoc(docSnap.id, data);
+        })
+        .filter((value): value is ServiceDoc => Boolean(value));
     }
   }
 
