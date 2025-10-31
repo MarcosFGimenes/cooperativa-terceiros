@@ -34,6 +34,11 @@ export default async function TerceiroServicoPage({ params }: { params: { id: st
   const hasChecklist = service.hasChecklist || checklist.length > 0;
 
   return (
-    <ServiceDetailsClient service={{ ...service, hasChecklist }} updates={updates} checklist={checklist} />
+    <ServiceDetailsClient
+      service={{ ...service, hasChecklist }}
+      updates={updates}
+      checklist={checklist}
+      token={token}
+    />
   );
 }
