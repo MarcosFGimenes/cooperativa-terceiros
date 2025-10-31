@@ -143,7 +143,8 @@ export function mapThirdService(id: string, data: Record<string, unknown>): Thir
     realPercent,
     manualPercent,
     updatedAt: toMillis(data.updatedAt ?? data.lastUpdate ?? data.modifiedAt),
-    hasChecklist: data.hasChecklist === true || Array.isArray(data.checklist),
+    hasChecklist:
+      data.hasChecklist === true || Array.isArray(data.checklist) || Array.isArray(data.checklists),
   };
 }
 
@@ -275,21 +276,75 @@ export async function fetchThirdServiceUpdates(serviceId: string, limitCount: nu
   return snap.docs.map((doc) => mapThirdUpdate(doc.id, doc.data() as Record<string, unknown>));
 }
 
+function mapChecklistArray(raw: unknown): ThirdChecklistItem[] {
+  if (!Array.isArray(raw) || raw.length === 0) return [];
+  return raw
+    .map((item, index) => {
+      if (typeof item !== "object" || item === null) return null;
+      const record = item as Record<string, unknown>;
+      const payload: Record<string, unknown> = { ...record };
+      if (typeof payload.id !== "string" || !payload.id) {
+        const fallbackId =
+          (typeof record.id === "string" && record.id) ||
+          (typeof record.itemId === "string" && record.itemId) ||
+          `item-${index}`;
+        payload.id = fallbackId;
+      }
+      return mapThirdChecklistItem(payload);
+    })
+    .filter((entry): entry is ThirdChecklistItem => Boolean(entry));
+}
+
+async function fetchChecklistFromDocument(
+  serviceId: string,
+  source: "admin" | "client",
+): Promise<ThirdChecklistItem[]> {
+  try {
+    if (source === "admin") {
+      const adminDb = tryGetAdminDb();
+      if (!adminDb) return [];
+      const snap = await adminDb.collection("services").doc(serviceId).get();
+      if (!snap.exists) return [];
+      const data = (snap.data() ?? {}) as Record<string, unknown>;
+      return mapChecklistArray(data.checklist ?? data.checklists ?? data.items);
+    }
+
+    const webDb = await getServerWebDb();
+    const { doc, getDoc } = await import("firebase/firestore");
+    const ref = doc(webDb, "services", serviceId);
+    const snap = await getDoc(ref);
+    if (!snap.exists()) return [];
+    const data = snap.data() as Record<string, unknown>;
+    return mapChecklistArray(data.checklist ?? data.checklists ?? data.items);
+  } catch (error) {
+    console.warn(`[thirdServiceData] Falha ao carregar checklist embutido de ${serviceId}`, error);
+    return [];
+  }
+}
+
 export async function fetchThirdServiceChecklist(serviceId: string): Promise<ThirdChecklistItem[]> {
   const adminDb = tryGetAdminDb();
   if (adminDb) {
     const col = adminDb.collection("services").doc(serviceId).collection("checklist");
     const snap = await col.orderBy("description", "asc").get();
-    return snap.docs.map((doc) =>
+    const items = snap.docs.map((doc) =>
       mapThirdChecklistItem({ id: doc.id, ...(doc.data() ?? {}) } as Record<string, unknown>),
     );
+    if (items.length > 0) {
+      return items;
+    }
+    return fetchChecklistFromDocument(serviceId, "admin");
   }
 
   const webDb = await getServerWebDb();
   const { collection, getDocs, orderBy, query } = await import("firebase/firestore");
   const q = query(collection(webDb, "services", serviceId, "checklist"), orderBy("description", "asc"));
   const snap = await getDocs(q);
-  return snap.docs.map((doc) =>
+  const items = snap.docs.map((doc) =>
     mapThirdChecklistItem({ id: doc.id, ...(doc.data() ?? {}) } as Record<string, unknown>),
   );
+  if (items.length > 0) {
+    return items;
+  }
+  return fetchChecklistFromDocument(serviceId, "client");
 }

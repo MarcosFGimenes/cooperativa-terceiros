@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, Pencil } from "lucide-react";
+import { toast } from "sonner";
 import {
   collection,
   doc,
@@ -70,8 +71,16 @@ export default function ServiceDetailClient({
   const [checklist, setChecklist] = useState<ChecklistItem[]>(toNewChecklist(initialChecklist));
   const [updates, setUpdates] = useState<ServiceUpdate[]>(toNewUpdates(initialUpdates));
   const [connectionIssue, setConnectionIssue] = useState<string | null>(null);
+  const [currentToken, setCurrentToken] = useState<ServiceDetailClientProps["latestToken"]>(latestToken);
+  const [currentTokenLink, setCurrentTokenLink] = useState<string | null>(tokenLink);
+  const [issuingToken, setIssuingToken] = useState(false);
   const normalizedInitialUpdates = useMemo(() => toNewUpdates(initialUpdates), [initialUpdates]);
   const longPollingForced = isFirestoreLongPollingForced;
+
+  useEffect(() => {
+    setCurrentToken(latestToken);
+    setCurrentTokenLink(tokenLink);
+  }, [latestToken, tokenLink]);
 
   useEffect(() => {
     let cancelled = false;
@@ -239,6 +248,57 @@ export default function ServiceDetailClient({
 
   const statusLabel = useMemo(() => normaliseStatus(service.status), [service.status]);
 
+  const companyForToken = useMemo(() => {
+    const assignedId = service.assignedTo?.companyId?.trim();
+    if (assignedId) return assignedId;
+    const assignedName = service.assignedTo?.companyName?.trim();
+    if (assignedName) return assignedName;
+    if (typeof service.company === "string" && service.company.trim()) {
+      return service.company.trim();
+    }
+    if (typeof service.empresa === "string" && service.empresa.trim()) {
+      return service.empresa.trim();
+    }
+    return null;
+  }, [service.assignedTo, service.company, service.empresa]);
+
+  const handleGenerateToken = useCallback(async () => {
+    if (issuingToken) return;
+    setIssuingToken(true);
+    try {
+      const scope: Record<string, unknown> = { type: "service", serviceId };
+      if (companyForToken) {
+        scope.company = companyForToken;
+      }
+
+      const response = await fetch("/api/tokens/issue", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ scope }),
+      });
+
+      const data = (await response.json().catch(() => null)) as
+        | { ok?: boolean; token?: string; error?: string }
+        | null;
+
+      if (!response.ok || !data?.ok || typeof data.token !== "string" || !data.token.trim()) {
+        const message = data?.error ?? "Não foi possível gerar o token.";
+        throw new Error(message);
+      }
+
+      const code = data.token.trim();
+      setCurrentToken({ code, company: companyForToken ?? null });
+      setCurrentTokenLink(`/acesso?token=${encodeURIComponent(code)}`);
+      toast.success("Token de acesso gerado com sucesso.");
+    } catch (error) {
+      console.error(`[service-detail] Falha ao gerar token para ${serviceId}`, error);
+      const message = error instanceof Error ? error.message : "Não foi possível gerar o token.";
+      toast.error(message);
+    } finally {
+      setIssuingToken(false);
+    }
+  }, [companyForToken, issuingToken, serviceId]);
+
   const displayedUpdates = updates.length ? updates : normalizedInitialUpdates;
 
   return (
@@ -325,16 +385,16 @@ export default function ServiceDetailClient({
             </div>
             <div className="sm:col-span-2">
               <dt className="text-muted-foreground">Token de acesso</dt>
-              <dd className="font-medium">
-                {latestToken ? (
+              <dd className="space-y-3">
+                {currentToken ? (
                   <div className="space-y-2">
                     <div className="inline-flex items-center rounded-md border border-primary/40 bg-primary/10 px-2 py-1 font-mono text-sm text-primary">
-                      {latestToken.code}
+                      {currentToken.code}
                     </div>
                     <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-                      {latestToken.company ? <span>Empresa vinculada: {latestToken.company}</span> : null}
-                      {tokenLink ? (
-                        <Link className="link text-xs" href={tokenLink} target="_blank" rel="noreferrer">
+                      {currentToken.company ? <span>Empresa vinculada: {currentToken.company}</span> : null}
+                      {currentTokenLink ? (
+                        <Link className="link text-xs" href={currentTokenLink} target="_blank" rel="noreferrer">
                           Abrir link público
                         </Link>
                       ) : null}
@@ -343,6 +403,18 @@ export default function ServiceDetailClient({
                 ) : (
                   <span className="text-muted-foreground">Nenhum token ativo</span>
                 )}
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-xs"
+                  onClick={handleGenerateToken}
+                  disabled={issuingToken}
+                >
+                  {issuingToken
+                    ? "Gerando token..."
+                    : currentToken
+                      ? "Gerar novo token"
+                      : "Gerar token"}
+                </button>
               </dd>
             </div>
           </dl>
