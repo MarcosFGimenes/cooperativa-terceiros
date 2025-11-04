@@ -67,17 +67,13 @@ if (!globalForFirebase.__FIREBASE_CLIENT_APP__ && !globalForFirebase.__FIREBASE_
 }
 
 const initializationError = globalForFirebase.__FIREBASE_CLIENT_ERROR__ ?? null;
-const appCandidate = globalForFirebase.__FIREBASE_CLIENT_APP__;
-const firestoreCandidate = globalForFirebase.__FIREBASE_CLIENT_DB__;
-const authCandidate = globalForFirebase.__FIREBASE_CLIENT_AUTH__;
+const appCandidate = globalForFirebase.__FIREBASE_CLIENT_APP__ ?? null;
+const firestoreCandidate = globalForFirebase.__FIREBASE_CLIENT_DB__ ?? null;
+const authCandidate = globalForFirebase.__FIREBASE_CLIENT_AUTH__ ?? null;
 
-if (!appCandidate || !firestoreCandidate || !authCandidate) {
-  throw initializationError ?? new Error("Firebase client não pôde ser inicializado.");
-}
-
-const resolvedApp = appCandidate as FirebaseApp;
-const resolvedDb = firestoreCandidate as Firestore;
-const resolvedAuth = authCandidate as Auth;
+const resolvedApp = appCandidate;
+const resolvedDb = firestoreCandidate;
+const resolvedAuth = authCandidate;
 
 export const db = resolvedDb;
 export const auth = resolvedAuth;
@@ -96,6 +92,9 @@ export function getClientApp(): FirebaseApp {
   if (initializationError) {
     throw initializationError;
   }
+  if (!resolvedApp) {
+    throw new Error("Firebase client não pôde ser inicializado.");
+  }
   return resolvedApp;
 }
 
@@ -112,6 +111,9 @@ export function getAuthClient(): Auth {
   if (initializationError) {
     throw initializationError;
   }
+  if (!resolvedAuth) {
+    throw new Error("Firebase auth não pôde ser inicializado.");
+  }
   return resolvedAuth;
 }
 
@@ -125,6 +127,9 @@ export function tryGetFirestore(): { db: Firestore | null; error: Error | null }
 export function getFirestoreClient(): Firestore {
   if (initializationError) {
     throw initializationError;
+  }
+  if (!resolvedDb) {
+    throw new Error("Firestore client não pôde ser inicializado.");
   }
   return resolvedDb;
 }
