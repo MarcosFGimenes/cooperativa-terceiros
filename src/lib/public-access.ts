@@ -1,9 +1,9 @@
-import type { ChecklistItem, Package, Service, ServiceStatus } from "@/lib/types";
+import type { ChecklistItem, Service, ServiceStatus } from "@/lib/types";
 import { getAdmin } from "@/lib/firebaseAdmin";
 
 const accessTokensCollection = () => getAdmin().db.collection("accessTokens");
 const servicesCollection = () => getAdmin().db.collection("services");
-const packagesCollection = () => getAdmin().db.collection("packages");
+const foldersCollection = () => getAdmin().db.collection("packageFolders");
 
 export class PublicAccessError extends Error {
   status: number;
@@ -33,6 +33,10 @@ type AccessTokenData = {
   revoked?: boolean;
   active?: boolean;
   expiresAt?: unknown;
+  packageId?: string;
+  pacoteId?: string;
+  folderId?: string;
+  pastaId?: string;
 };
 
 function getTokenCompany(token: AccessTokenData): string | undefined {
@@ -57,7 +61,26 @@ async function fetchToken(tokenId: string): Promise<AccessTokenData> {
     throw new PublicAccessError(403, "Token expirado");
   }
 
-  return { ...data, targetType: data.targetType, targetId: data.targetId };
+  const record = data as Record<string, unknown>;
+  const targetType = typeof data.targetType === "string" ? data.targetType : undefined;
+  const targetId = typeof data.targetId === "string" ? data.targetId : undefined;
+  const packageId =
+    (typeof data.packageId === "string" && data.packageId.trim()) ||
+    (typeof data.pacoteId === "string" && data.pacoteId.trim()) ||
+    undefined;
+  const folderId =
+    (typeof record.folderId === "string" && record.folderId.trim()) ||
+    (typeof record.pastaId === "string" && record.pastaId.trim()) ||
+    (targetType === "folder" && typeof targetId === "string" ? targetId : undefined) ||
+    undefined;
+
+  return {
+    ...data,
+    targetType,
+    targetId,
+    packageId,
+    folderId,
+  };
 }
 
 function normalizeCompany(data: FirebaseFirestore.DocumentData): string | undefined {
@@ -99,6 +122,54 @@ function ensureCompanyMatch(token: AccessTokenData, data: FirebaseFirestore.Docu
   }
 }
 
+function extractFolderId(token: AccessTokenData): string | undefined {
+  if (typeof token.folderId === "string" && token.folderId.trim()) return token.folderId.trim();
+  if (typeof token.pastaId === "string" && token.pastaId.trim()) return token.pastaId.trim();
+  if (token.targetType === "folder" && typeof token.targetId === "string" && token.targetId.trim()) {
+    return token.targetId.trim();
+  }
+  return undefined;
+}
+
+async function ensureServiceAllowedByFolder(token: AccessTokenData, serviceId: string) {
+  const folderId = extractFolderId(token);
+  if (!folderId) {
+    throw new PublicAccessError(403, "Token não corresponde à pasta");
+  }
+
+  const snap = await foldersCollection().doc(folderId).get();
+  if (!snap.exists) {
+    throw new PublicAccessError(403, "Pasta não encontrada para este token");
+  }
+
+  const data = (snap.data() ?? {}) as Record<string, unknown>;
+  const services = Array.isArray(data.services)
+    ? (data.services as unknown[])
+        .map((value) => (typeof value === "string" ? value.trim() : ""))
+        .filter((value) => value.length > 0)
+    : [];
+
+  if (!services.includes(serviceId)) {
+    throw new PublicAccessError(403, "Serviço não faz parte desta pasta");
+  }
+
+  const tokenCompany = getTokenCompany(token)?.toLowerCase();
+  const folderCompany =
+    typeof data.companyId === "string" && data.companyId.trim()
+      ? data.companyId.trim().toLowerCase()
+      : undefined;
+  if (tokenCompany && folderCompany && tokenCompany !== folderCompany) {
+    throw new PublicAccessError(403, "Token não possui acesso a esta pasta");
+  }
+
+  const packageId =
+    (typeof data.packageId === "string" && data.packageId.trim()) ||
+    (typeof data.pacoteId === "string" && data.pacoteId.trim()) ||
+    undefined;
+
+  return { folderId, packageId };
+}
+
 export async function requireServiceAccess(
   tokenId: string,
   serviceId: string,
@@ -106,12 +177,21 @@ export async function requireServiceAccess(
 ): Promise<{
   token: AccessTokenData;
   service: Service;
+  folderId?: string;
 }> {
   if (!tokenId) throw new PublicAccessError(400, "Token ausente");
   if (!serviceId) throw new PublicAccessError(400, "serviceId ausente");
 
   const token = preloadedToken ?? await fetchToken(tokenId);
-  if (token.targetType !== "service" || token.targetId !== serviceId) {
+  let folderContext: { folderId: string; packageId?: string } | null = null;
+
+  if (token.targetType === "service") {
+    if (token.targetId !== serviceId) {
+      throw new PublicAccessError(403, "Token não corresponde ao serviço");
+    }
+  } else if (token.targetType === "folder") {
+    folderContext = await ensureServiceAllowedByFolder(token, serviceId);
+  } else {
     throw new PublicAccessError(403, "Token não corresponde ao serviço");
   }
 
@@ -129,60 +209,15 @@ export async function requireServiceAccess(
 
   ensureCompanyMatch(token, data);
 
+  if (folderContext?.packageId) {
+    const servicePackageId = typeof data.packageId === "string" ? data.packageId.trim() : undefined;
+    if (servicePackageId && servicePackageId !== folderContext.packageId) {
+      throw new PublicAccessError(403, "Serviço não pertence a esta pasta");
+    }
+  }
+
   const service = mapServiceDoc(snap);
-  return { token, service };
-}
-
-function mapPackageDoc(doc: FirebaseFirestore.DocumentSnapshot): Package {
-  const data = doc.data() ?? {};
-  return {
-    id: doc.id,
-    name: data.name ?? "",
-    status: data.status ?? "aberto",
-    serviceIds: Array.isArray(data.serviceIds) ? data.serviceIds : [],
-    createdAt: toMillis(data.createdAt),
-  };
-}
-
-export async function requirePackageAccess(
-  tokenId: string,
-  packageId: string,
-  preloadedToken?: AccessTokenData,
-): Promise<{
-  token: AccessTokenData;
-  pkg: Package;
-}> {
-  if (!tokenId) throw new PublicAccessError(400, "Token ausente");
-  if (!packageId) throw new PublicAccessError(400, "packageId ausente");
-
-  const token = preloadedToken ?? await fetchToken(tokenId);
-  if (token.targetType !== "package" || token.targetId !== packageId) {
-    throw new PublicAccessError(403, "Token não corresponde ao pacote");
-  }
-
-  const snap = await packagesCollection().doc(packageId).get();
-  if (!snap.exists) {
-    throw new PublicAccessError(404, "Pacote não encontrado");
-  }
-
-  const pkg = mapPackageDoc(snap);
-  if ((pkg.status ?? "aberto") !== "aberto") {
-    throw new PublicAccessError(403, "Pacote não está disponível");
-  }
-
-  return { token, pkg };
-}
-
-export function filterServicesByTokenCompany<T extends { company?: string | null | undefined }>(
-  services: T[],
-  token: AccessTokenData,
-): T[] {
-  const tokenCompany = getTokenCompany(token);
-  if (!tokenCompany) return services;
-  return services.filter((service) => {
-    if (!service.company) return true;
-    return service.company === tokenCompany;
-  });
+  return { token, service, folderId: folderContext?.folderId };
 }
 
 export async function fetchServiceChecklist(serviceId: string): Promise<ChecklistItem[]> {
@@ -202,14 +237,9 @@ export async function fetchServiceChecklist(serviceId: string): Promise<Checklis
   });
 }
 
-export async function fetchPackageServices(packageId: string): Promise<Service[]> {
-  const snap = await servicesCollection().where("packageId", "==", packageId).get();
-  return snap.docs.map((doc) => mapServiceDoc(doc));
-}
-
 export async function resolvePublicAccessRedirect(tokenId: string): Promise<{
   redirectPath: string;
-  targetType: "service" | "package";
+  targetType: "service" | "folder";
   targetId: string;
 }> {
   if (!tokenId) throw new PublicAccessError(400, "Token ausente");
@@ -230,12 +260,19 @@ export async function resolvePublicAccessRedirect(tokenId: string): Promise<{
     };
   }
 
-  if (token.targetType === "package") {
-    const { pkg } = await requirePackageAccess(tokenId, targetId, token);
+  if (token.targetType === "folder") {
+    const folderId = extractFolderId(token) ?? targetId;
+    if (!folderId) {
+      throw new PublicAccessError(400, "Token sem pasta configurada");
+    }
+    const snap = await foldersCollection().doc(folderId).get();
+    if (!snap.exists) {
+      throw new PublicAccessError(404, "Pasta não encontrada");
+    }
     return {
-      redirectPath: `/p/${pkg.id}`,
-      targetType: "package",
-      targetId: pkg.id,
+      redirectPath: `/terceiro`,
+      targetType: "folder",
+      targetId: folderId,
     };
   }
 

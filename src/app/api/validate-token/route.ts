@@ -35,17 +35,17 @@ function extractTokenData(data: unknown, docId?: string | null) {
     toOptionalString(scope?.serviceId) ??
     toOptionalString(scope?.targetId) ??
     toOptionalString(scopeService?.id);
-  const directPackageId =
-    toOptionalString(record.packageId) ??
-    toOptionalString(record.pacoteId) ??
-    toOptionalString(scope?.pacoteId) ??
-    toOptionalString(scope?.packageId) ??
-    toOptionalString(scope?.targetId);
+
+  const directFolderId =
+    toOptionalString((record as Record<string, unknown>).folderId) ??
+    toOptionalString((record as Record<string, unknown>).pastaId) ??
+    toOptionalString(scope?.folderId) ??
+    toOptionalString(scope?.pastaId);
 
   const targetType = typeof record.targetType === "string" ? record.targetType : "";
 
   const serviceId = directServiceId ?? (targetType === "service" ? resolvedTargetId : null);
-  const packageId = directPackageId ?? (targetType === "package" ? resolvedTargetId : null);
+  const folderId = directFolderId ?? (targetType === "folder" ? resolvedTargetId : null);
 
   const empresa =
     toOptionalString(record.empresa) ??
@@ -58,53 +58,100 @@ function extractTokenData(data: unknown, docId?: string | null) {
 
   return {
     serviceId,
-    packageId,
+    folderId,
     empresa,
   };
 }
 
-async function fetchPackageServicesAdmin(pkgId: string, empresa: string | null) {
-  const adminDb = tryGetAdminDb();
-  if (!adminDb) return [] as string[];
-  const normalizedEmpresa = normalizeCompany(empresa ?? undefined);
-  const seen = new Set<string>();
-  const snapshots = await Promise.all([
-    adminDb.collection("services").where("packageId", "==", pkgId).get(),
-    adminDb.collection("services").where("pacoteId", "==", pkgId).get(),
-  ]);
-  for (const snap of snapshots) {
-    for (const doc of snap.docs) {
-      const data = (doc.data() ?? {}) as Record<string, unknown>;
-      const status = String(data.status ?? "").toLowerCase();
-      if (status && status !== "aberto") continue;
-      const company = normalizeCompany(data.empresaId ?? data.company ?? "");
-      if (normalizedEmpresa && company && company !== normalizedEmpresa) continue;
-      seen.add(doc.id);
+function isServiceOpenRecord(data: Record<string, unknown>): boolean {
+  const status = typeof data.status === "string" ? data.status.trim().toLowerCase() : "";
+  if (!status) return true;
+  return status === "aberto" || status === "aberta" || status === "open" || status === "pendente";
+}
+
+function extractServiceCompany(data: Record<string, unknown>): string {
+  const candidates = [data.company, data.companyId, data.empresa, data.empresaId];
+  for (const value of candidates) {
+    if (typeof value === "string" && value.trim()) {
+      return normalizeCompany(value);
     }
   }
+  return "";
+}
+
+async function fetchFolderServicesAdmin(folderId: string, empresa: string | null) {
+  const adminDb = tryGetAdminDb();
+  if (!adminDb) return [] as string[];
+
+  const folderSnap = await adminDb.collection("packageFolders").doc(folderId).get();
+  if (!folderSnap.exists) return [];
+
+  const data = (folderSnap.data() ?? {}) as Record<string, unknown>;
+  const services = Array.isArray(data.services)
+    ? (data.services as unknown[])
+        .map((value) => (typeof value === "string" ? value.trim() : ""))
+        .filter((value) => value.length > 0)
+    : [];
+
+  const normalizedEmpresa = normalizeCompany(empresa ?? undefined);
+  const folderCompany = normalizeCompany(data.companyId ?? data.company ?? data.empresa ?? undefined);
+  if (normalizedEmpresa && folderCompany && normalizedEmpresa !== folderCompany) {
+    return [];
+  }
+
+  const seen = new Set<string>();
+  for (const serviceId of services) {
+    if (seen.has(serviceId)) continue;
+    const docSnap = await adminDb.collection("services").doc(serviceId).get();
+    if (!docSnap.exists) continue;
+    const serviceData = (docSnap.data() ?? {}) as Record<string, unknown>;
+    if (!isServiceOpenRecord(serviceData)) continue;
+    if (normalizedEmpresa) {
+      const serviceCompany = extractServiceCompany(serviceData);
+      if (serviceCompany && serviceCompany !== normalizedEmpresa) continue;
+    }
+    seen.add(docSnap.id);
+  }
+
   return Array.from(seen);
 }
 
-async function fetchPackageServicesWeb(pkgId: string, empresa: string | null) {
+async function fetchFolderServicesWeb(folderId: string, empresa: string | null) {
   const webDb = await getServerWebDb();
-  const { collection, getDocs, query, where } = await import("firebase/firestore");
+  const { collection, doc: docRef, getDoc } = await import("firebase/firestore");
+
+  const folderRef = docRef(collection(webDb, "packageFolders"), folderId);
+  const folderSnap = await getDoc(folderRef);
+  if (!folderSnap.exists()) return [];
+
+  const data = (folderSnap.data() ?? {}) as Record<string, unknown>;
+  const services = Array.isArray(data.services)
+    ? (data.services as unknown[])
+        .map((value) => (typeof value === "string" ? value.trim() : ""))
+        .filter((value) => value.length > 0)
+    : [];
+
   const normalizedEmpresa = normalizeCompany(empresa ?? undefined);
-  const seen = new Set<string>();
-  const queries = [
-    query(collection(webDb, "services"), where("packageId", "==", pkgId)),
-    query(collection(webDb, "services"), where("pacoteId", "==", pkgId)),
-  ];
-  for (const q of queries) {
-    const snap = await getDocs(q);
-    snap.forEach((doc) => {
-      const data = (doc.data() ?? {}) as Record<string, unknown>;
-      const status = String(data.status ?? "").toLowerCase();
-      if (status && status !== "aberto") return;
-      const company = normalizeCompany(data.empresaId ?? data.company ?? "");
-      if (normalizedEmpresa && company && company !== normalizedEmpresa) return;
-      seen.add(doc.id);
-    });
+  const folderCompany = normalizeCompany(data.companyId ?? data.company ?? data.empresa ?? undefined);
+  if (normalizedEmpresa && folderCompany && normalizedEmpresa !== folderCompany) {
+    return [];
   }
+
+  const seen = new Set<string>();
+  for (const serviceId of services) {
+    if (seen.has(serviceId)) continue;
+    const serviceRef = docRef(collection(webDb, "services"), serviceId);
+    const serviceSnap = await getDoc(serviceRef);
+    if (!serviceSnap.exists()) continue;
+    const serviceData = (serviceSnap.data() ?? {}) as Record<string, unknown>;
+    if (!isServiceOpenRecord(serviceData)) continue;
+    if (normalizedEmpresa) {
+      const serviceCompany = extractServiceCompany(serviceData);
+      if (serviceCompany && serviceCompany !== normalizedEmpresa) continue;
+    }
+    seen.add(serviceSnap.id);
+  }
+
   return Array.from(seen);
 }
 
@@ -155,13 +202,13 @@ export async function GET(req: Request) {
         return NextResponse.json({ ok: true, found: false, serviceIds: [] });
       }
 
-      const { serviceId, packageId, empresa } = extractTokenData(data, doc.id);
+      const { serviceId, folderId, empresa } = extractTokenData(data, doc.id);
       if (serviceId) {
         return NextResponse.json({ ok: true, found: true, serviceIds: [serviceId] });
       }
 
-      if (packageId) {
-        const serviceIds = await fetchPackageServicesAdmin(packageId, empresa);
+      if (folderId) {
+        const serviceIds = await fetchFolderServicesAdmin(folderId, empresa);
         return NextResponse.json({ ok: true, found: serviceIds.length > 0, serviceIds });
       }
 
@@ -199,13 +246,13 @@ export async function GET(req: Request) {
       return NextResponse.json({ ok: true, found: false, serviceIds: [] });
     }
 
-    const { serviceId, packageId, empresa } = extractTokenData(data, doc.id);
+    const { serviceId, folderId, empresa } = extractTokenData(data, doc.id);
     if (serviceId) {
       return NextResponse.json({ ok: true, found: true, serviceIds: [serviceId] });
     }
 
-    if (packageId) {
-      const serviceIds = await fetchPackageServicesWeb(packageId, empresa);
+    if (folderId) {
+      const serviceIds = await fetchFolderServicesWeb(folderId, empresa);
       return NextResponse.json({ ok: true, found: serviceIds.length > 0, serviceIds });
     }
 

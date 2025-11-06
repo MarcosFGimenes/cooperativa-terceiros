@@ -150,9 +150,22 @@ export type Package = {
   assignedCompanies?: { companyId: string; companyName?: string }[];
 };
 
+export type PackageFolder = {
+  id: string;
+  packageId: string;
+  name: string;
+  companyId?: string | null;
+  services: string[];
+  tokenId?: string | null;
+  tokenCode?: string | null;
+  createdAt?: number;
+  updatedAt?: number;
+  tokenCreatedAt?: number | null;
+};
+
 export type AccessTokenTarget =
   | { targetType: "service"; targetId: string; company?: string }
-  | { targetType: "package"; targetId: string; company?: string };
+  | { targetType: "folder"; targetId: string; company?: string };
 
 export type AccessToken = AccessTokenTarget & {
   id: string;

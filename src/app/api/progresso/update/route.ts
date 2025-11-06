@@ -5,7 +5,7 @@ import { tryGetAdminDb, getServerWebDb } from "@/lib/serverDb";
 
 type TokenScope =
   | { type: "service"; serviceId: string }
-  | { type: "package"; packageId: string; empresa?: string };
+  | { type: "folder"; folderId: string; packageId?: string | null; empresa?: string | null };
 
 type ChecklistEntry = { id: string; peso: number };
 
@@ -33,26 +33,57 @@ function isTokenActive(data: unknown) {
 
 function parseTokenScope(data: unknown): TokenScope | null {
   if (!isRecord(data)) return null;
-  const scope = isRecord(data.scope) ? data.scope : undefined;
-  if (scope?.type === "service" && typeof scope.serviceId === "string") {
-    return { type: "service", serviceId: scope.serviceId };
-  }
-  if (scope?.type === "packageCompany") {
-    const packageId = getStringField(scope, "pacoteId", "packageId");
-    const empresa = getStringField(scope, "empresaId", "company");
-    if (packageId) {
-      return { type: "package", packageId, empresa };
+  const scope = isRecord(data.scope) ? (data.scope as Record<string, unknown>) : undefined;
+  const scopeService = scope && isRecord(scope.service) ? (scope.service as Record<string, unknown>) : undefined;
+
+  const scopeType = typeof scope?.type === "string" ? scope.type.toLowerCase() : "";
+
+  if (scopeType === "service") {
+    const serviceId =
+      getStringField(scope, "serviceId", "targetId") ||
+      (scopeService ? getStringField(scopeService, "id") : undefined);
+    if (serviceId) {
+      return { type: "service", serviceId };
     }
   }
-  const directService = getStringField(data, "serviceId");
+
+  if (scopeType === "folder") {
+    const folderId = getStringField(scope, "folderId", "pastaId", "targetId");
+    if (folderId) {
+      const packageId = getStringField(scope, "packageId", "pacoteId");
+      const empresa = getStringField(scope, "empresa", "empresaId", "company");
+      return { type: "folder", folderId, packageId, empresa };
+    }
+  }
+
+  const resolvedTargetId = getStringField(data, "targetId");
+  const targetType = typeof data.targetType === "string" ? data.targetType.toLowerCase() : "";
+
+  const directService =
+    getStringField(data, "serviceId") ||
+    (scope ? getStringField(scope, "serviceId") : undefined) ||
+    (scopeService ? getStringField(scopeService, "id") : undefined) ||
+    (targetType === "service" ? resolvedTargetId : undefined);
   if (directService) {
     return { type: "service", serviceId: directService };
   }
-  const packageId = getStringField(data, "packageId", "pacoteId");
-  if (packageId) {
-    const empresa = getStringField(data, "empresa", "empresaId", "company");
-    return { type: "package", packageId, empresa };
+
+  const folderId =
+    getStringField(data, "folderId", "pastaId") ||
+    (scope ? getStringField(scope, "folderId", "pastaId") : undefined) ||
+    (targetType === "folder" ? resolvedTargetId : undefined) ||
+    (scope ? getStringField(scope, "targetId") : undefined);
+
+  if (folderId) {
+    const packageId =
+      getStringField(data, "packageId", "pacoteId") ||
+      (scope ? getStringField(scope, "packageId", "pacoteId") : undefined);
+    const empresa =
+      getStringField(data, "empresa", "empresaId", "company", "companyId") ||
+      (scope ? getStringField(scope, "empresa", "empresaId", "company") : undefined);
+    return { type: "folder", folderId, packageId, empresa };
   }
+
   return null;
 }
 
@@ -103,18 +134,44 @@ async function handleWithAdmin(
     return NextResponse.json({ ok: false, error: "forbidden_scope" }, { status: 403 });
   }
 
-  if (scope.type === "package") {
-    const pkgId = scope.packageId;
-    const empresaToken = normalizeCompany(scope.empresa ?? null);
-    const svcPackage = getStringField(serviceData, "packageId", "pacoteId") ?? "";
-    if (pkgId && svcPackage !== pkgId) {
+  if (scope.type === "folder") {
+    const folderRef = adminDb.collection("packageFolders").doc(scope.folderId);
+    const folderSnap = await folderRef.get();
+    if (!folderSnap.exists) {
       return NextResponse.json({ ok: false, error: "forbidden_scope" }, { status: 403 });
     }
+
+    const folderData = (folderSnap.data() ?? {}) as Record<string, unknown>;
+    const services = Array.isArray(folderData.services)
+      ? (folderData.services as unknown[])
+          .map((value) => (typeof value === "string" ? value.trim() : ""))
+          .filter((value) => value.length > 0)
+      : [];
+    if (!services.includes(payload.serviceId)) {
+      return NextResponse.json({ ok: false, error: "forbidden_scope" }, { status: 403 });
+    }
+
+    const empresaToken = normalizeCompany(scope.empresa ?? null);
+    const folderCompany = normalizeCompany(
+      getStringField(folderData, "companyId", "company", "empresa") ?? null,
+    );
+    if (empresaToken && folderCompany && folderCompany !== empresaToken) {
+      return NextResponse.json({ ok: false, error: "forbidden_scope" }, { status: 403 });
+    }
+
     if (empresaToken) {
       const svcCompany = normalizeCompany(
-        getStringField(serviceData, "empresaId", "company") ?? null,
+        getStringField(serviceData, "empresaId", "company", "empresa") ?? null,
       );
       if (svcCompany && svcCompany !== empresaToken) {
+        return NextResponse.json({ ok: false, error: "forbidden_scope" }, { status: 403 });
+      }
+    }
+
+    const expectedPackage = scope.packageId ?? getStringField(folderData, "packageId", "pacoteId") ?? null;
+    if (expectedPackage) {
+      const svcPackage = getStringField(serviceData, "packageId", "pacoteId") ?? null;
+      if (svcPackage && svcPackage !== expectedPackage) {
         return NextResponse.json({ ok: false, error: "forbidden_scope" }, { status: 403 });
       }
     }
@@ -267,18 +324,44 @@ async function handleWithWeb(
     return NextResponse.json({ ok: false, error: "forbidden_scope" }, { status: 403 });
   }
 
-  if (scope.type === "package") {
-    const pkgId = scope.packageId;
-    const empresaToken = normalizeCompany(scope.empresa ?? null);
-    const svcPackage = getStringField(serviceData, "packageId", "pacoteId") ?? "";
-    if (pkgId && svcPackage !== pkgId) {
+  if (scope.type === "folder") {
+    const folderRef = doc(db, "packageFolders", scope.folderId);
+    const folderSnap = await getDoc(folderRef);
+    if (!folderSnap.exists()) {
       return NextResponse.json({ ok: false, error: "forbidden_scope" }, { status: 403 });
     }
+
+    const folderData = (folderSnap.data() ?? {}) as Record<string, unknown>;
+    const services = Array.isArray(folderData.services)
+      ? (folderData.services as unknown[])
+          .map((value) => (typeof value === "string" ? value.trim() : ""))
+          .filter((value) => value.length > 0)
+      : [];
+    if (!services.includes(payload.serviceId)) {
+      return NextResponse.json({ ok: false, error: "forbidden_scope" }, { status: 403 });
+    }
+
+    const empresaToken = normalizeCompany(scope.empresa ?? null);
+    const folderCompany = normalizeCompany(
+      getStringField(folderData, "companyId", "company", "empresa") ?? null,
+    );
+    if (empresaToken && folderCompany && folderCompany !== empresaToken) {
+      return NextResponse.json({ ok: false, error: "forbidden_scope" }, { status: 403 });
+    }
+
     if (empresaToken) {
       const svcCompany = normalizeCompany(
-        getStringField(serviceData, "empresaId", "company") ?? null,
+        getStringField(serviceData, "empresaId", "company", "empresa") ?? null,
       );
       if (svcCompany && svcCompany !== empresaToken) {
+        return NextResponse.json({ ok: false, error: "forbidden_scope" }, { status: 403 });
+      }
+    }
+
+    const expectedPackage = scope.packageId ?? getStringField(folderData, "packageId", "pacoteId") ?? null;
+    if (expectedPackage) {
+      const svcPackage = getStringField(serviceData, "packageId", "pacoteId") ?? null;
+      if (svcPackage && svcPackage !== expectedPackage) {
         return NextResponse.json({ ok: false, error: "forbidden_scope" }, { status: 403 });
       }
     }

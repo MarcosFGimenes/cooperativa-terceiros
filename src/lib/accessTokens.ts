@@ -19,9 +19,10 @@ export function randomToken(len = 8) {
 }
 
 type NormalisedScope = {
-  targetType: "service" | "package";
+  targetType: "service" | "folder";
   targetId: string;
   company?: string;
+  packageId?: string;
 };
 
 type FirestoreLikeTimestamp =
@@ -55,22 +56,34 @@ function normaliseScope(payload: {
   serviceId?: string | null;
   packageId?: string | null;
   pacoteId?: string | null;
+  folderId?: string | null;
+  pastaId?: string | null;
   empresa?: string | null;
   company?: string | null;
 }): NormalisedScope {
   const serviceId = (payload.serviceId ?? "").trim();
   const packageId = (payload.packageId ?? payload.pacoteId ?? "").trim();
+  const folderId = (payload.folderId ?? payload.pastaId ?? "").trim();
   const company = (payload.empresa ?? payload.company ?? "").trim();
 
   if (serviceId) {
-    return { targetType: "service", targetId: serviceId, company: company || undefined };
+    return {
+      targetType: "service",
+      targetId: serviceId,
+      company: company || undefined,
+    };
   }
 
-  if (packageId) {
-    return { targetType: "package", targetId: packageId, company: company || undefined };
+  if (folderId) {
+    return {
+      targetType: "folder",
+      targetId: folderId,
+      company: company || undefined,
+      packageId: packageId || undefined,
+    };
   }
 
-  throw new Error("É necessário informar serviceId ou packageId para gerar o token.");
+  throw new Error("É necessário informar serviceId ou folderId para gerar o token.");
 }
 
 function toMillis(value: unknown): number | undefined {
@@ -123,7 +136,7 @@ async function findExistingToken(scope: NormalisedScope): Promise<StoredToken | 
   const { db } = tryGetFirestore();
   if (!db) return null;
 
-  async function getSnapshot(field: "targetId" | "serviceId" | "packageId" | "pacoteId") {
+  async function getSnapshot(field: "targetId" | "serviceId" | "folderId" | "pastaId") {
     try {
       const q = query(
         collection(db, "accessTokens"),
@@ -139,11 +152,11 @@ async function findExistingToken(scope: NormalisedScope): Promise<StoredToken | 
   }
 
   let snapshot: Awaited<ReturnType<typeof getSnapshot>> | null = null;
-  const preferredFields: Array<"targetId" | "serviceId" | "packageId" | "pacoteId"> = ["targetId"];
+  const preferredFields: Array<"targetId" | "serviceId" | "folderId" | "pastaId"> = ["targetId"];
   if (scope.targetType === "service") {
     preferredFields.push("serviceId");
   } else {
-    preferredFields.push("packageId", "pacoteId");
+    preferredFields.push("folderId", "pastaId");
   }
 
   for (const field of preferredFields) {
@@ -169,8 +182,10 @@ async function findExistingToken(scope: NormalisedScope): Promise<StoredToken | 
     const tokenTargetId =
       (typeof data.targetId === "string" && data.targetId.trim()) ||
       (typeof data.serviceId === "string" && data.serviceId.trim()) ||
-      (typeof data.packageId === "string" && data.packageId.trim()) ||
-      (typeof data.pacoteId === "string" && data.pacoteId.trim()) ||
+      (typeof (data as Record<string, unknown>).folderId === "string" &&
+        ((data as Record<string, unknown>).folderId as string).trim()) ||
+      (typeof (data as Record<string, unknown>).pastaId === "string" &&
+        ((data as Record<string, unknown>).pastaId as string).trim()) ||
       null;
 
     if (tokenTargetId && tokenTargetId !== scope.targetId) {
@@ -223,6 +238,8 @@ async function createTokenViaAdmin(scope: NormalisedScope): Promise<string> {
       targetType: scope.targetType,
       targetId: scope.targetId,
       company: scope.company,
+      packageId: scope.targetType === "folder" ? scope.packageId : undefined,
+      folderId: scope.targetType === "folder" ? scope.targetId : undefined,
     }),
   });
 
@@ -284,8 +301,12 @@ async function createTokenFallback(scope: NormalisedScope): Promise<string> {
     if (scope.targetType === "service") {
       payload.serviceId = scope.targetId;
     } else {
-      payload.packageId = scope.targetId;
-      payload.pacoteId = scope.targetId;
+      payload.folderId = scope.targetId;
+      payload.pastaId = scope.targetId;
+      if (scope.packageId) {
+        payload.packageId = scope.packageId;
+        payload.pacoteId = scope.packageId;
+      }
     }
 
     await setDoc(ref, payload);
@@ -299,6 +320,8 @@ export async function createAccessToken(payload: {
   serviceId?: string;
   packageId?: string;
   pacoteId?: string;
+  folderId?: string;
+  pastaId?: string;
   empresa?: string;
   company?: string;
 }) {

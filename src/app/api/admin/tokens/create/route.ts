@@ -18,17 +18,22 @@ type CreateTokenBody = {
   targetId?: unknown;
   company?: unknown;
   expiresAt?: unknown;
+  packageId?: unknown;
+  pacoteId?: unknown;
+  folderId?: unknown;
+  pastaId?: unknown;
 };
 
 function parseBody(body: CreateTokenBody): {
-  targetType: "service" | "package";
+  targetType: "service" | "folder";
   targetId: string;
   company?: string;
   expiresAt?: Timestamp;
+  packageId?: string;
 } {
   const { targetType, targetId, company, expiresAt } = body;
 
-  if (targetType !== "service" && targetType !== "package") {
+  if (targetType !== "service" && targetType !== "folder") {
     throw new HttpError(400, "targetType inválido");
   }
 
@@ -54,17 +59,31 @@ function parseBody(body: CreateTokenBody): {
 
   const companyValue = typeof company === "string" ? company.trim() : undefined;
 
+  let packageId: string | undefined;
+  if (typeof body.packageId === "string" && body.packageId.trim()) {
+    packageId = body.packageId.trim();
+  } else if (typeof body.pacoteId === "string" && body.pacoteId.trim()) {
+    packageId = body.pacoteId.trim();
+  }
+
   return {
     targetType,
     targetId: targetId.trim(),
     company: companyValue,
     expiresAt: expiresAtTimestamp,
+    packageId,
   };
 }
 
 async function persistToken(
   db: FirebaseFirestore.Firestore,
-  data: { targetType: "service" | "package"; targetId: string; company?: string; expiresAt?: Timestamp },
+  data: {
+    targetType: "service" | "folder";
+    targetId: string;
+    company?: string;
+    expiresAt?: Timestamp;
+    packageId?: string;
+  },
 ): Promise<string> {
   const col = db.collection("accessTokens");
 
@@ -92,8 +111,12 @@ async function persistToken(
     if (data.targetType === "service") {
       payload.serviceId = data.targetId;
     } else {
-      payload.packageId = data.targetId;
-      payload.pacoteId = data.targetId;
+      payload.folderId = data.targetId;
+      payload.pastaId = data.targetId;
+      if (data.packageId) {
+        payload.packageId = data.packageId;
+        payload.pacoteId = data.packageId;
+      }
     }
 
     try {
