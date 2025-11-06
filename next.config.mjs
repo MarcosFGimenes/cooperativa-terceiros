@@ -15,7 +15,6 @@ const nextConfig = {
     config.resolve.alias = {
       ...(config.resolve.alias || {}),
       "@": path.resolve(__dirname, "src"),
-      sonner: path.resolve(__dirname, "src/lib/sonner.tsx"),
     };
     return config;
   },

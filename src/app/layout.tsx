@@ -1,6 +1,5 @@
 import "./globals.css";
 import type { ReactNode } from "react";
-import { Toaster } from "sonner";
 import RootHeader from "@/components/RootHeader";
 import SkipToContent from "@/components/SkipToContent";
 import Footer from "@/components/Footer";
@@ -8,6 +7,7 @@ import PreloadAsFix from "@/components/PreloadAsFix";
 import ThemeScript from "@/components/ThemeScript";
 import FirebaseConfigScript from "@/components/FirebaseConfigScript";
 import NetworkBanner from "@/components/NetworkBanner";
+import AppToaster from "@/components/AppToaster";
 
 export const metadata = {
   title: "PCM • Terceiros",
@@ -34,7 +34,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           <div className="relative z-10">{children}</div>
         </main>
         <Footer />
-        <Toaster richColors closeButton />
+        <AppToaster />
         <NetworkBanner />
       </body>
     </html>

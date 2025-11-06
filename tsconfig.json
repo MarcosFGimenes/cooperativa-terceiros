@@ -20,9 +20,6 @@
     "paths": {
       "@/*": [
         "src/*"
-      ],
-      "sonner": [
-        "src/lib/sonner"
       ]
     },
     "incremental": true,
