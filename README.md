@@ -28,17 +28,33 @@ You can start editing the page by modifying `app/page.tsx`. The page auto-update
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
-## Learn More
+## Notas de implementação
 
-To learn more about Next.js, take a look at the following resources:
+- Atualizações de serviço agora são deduplicadas por meio de uma chave estável que prioriza o ID do documento do Firestore. Entradas sem ID utilizam `{modo, autor, timestamp normalizado, percentual, hash da descrição}`. O helper `dedupeUpdates` registra telemetria em `updates.deduplicated`.
+- Recursos informados com quantidade `0` ou negativa passam a ser persistidos como `null` e a UI omite o sufixo `• 0`. O helper `sanitiseResourceQuantities` garante consistência nas duas frentes.
+- A troca de status para **Concluído** grava `previousProgress` e a reabertura para **Pendente** restaura o valor via `resolveReopenedProgress`. Eventos são registrados em `service.progress.snapshot` e `service.progress.restore`.
+- O portal público grava o token validado no cookie de sessão e também em `sessionStorage` (`third_portal_token`). Erros de validação geram `token.validation.failure`; revalidações bem-sucedidas geram `token.validation.success`. Quando a sessão expira, `token.session.missing` e `token.session.expired` são emitidos.
+- A tela de pacotes foi reorganizada para priorizar a curva S e expor o pareamento Serviço × Empresa em um card dedicado.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### Feature flags e rollback
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- Deduplicação de atualizações e saneamento de recursos são funções puras; para rollback basta trocar os helpers por implementações anteriores.
+- A restauração de andamento depende do campo `previousProgress`. Para voltar ao comportamento antigo remova as chamadas de `resolveReopenedProgress`/`snapshotBeforeConclusion` em `ServiceEditorClient` e limpe o campo no Firestore.
+- O fluxo do link público utiliza `sessionStorage`. Para desativar, remova a chamada `persistTokenSession` e o uso de `tokenStorageKey` no portal do terceiro.
 
-## Deploy on Vercel
+### Testes
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Foram adicionados testes unitários (`tests/unit`) escritos com Vitest e um cenário E2E (`tests/e2e`) com Playwright. Em ambientes restritos é necessário instalar manualmente as dependências:
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```bash
+npm install --save-dev vitest @playwright/test
+```
+
+Execução dos testes:
+
+```bash
+npm run test          # unitários
+npx playwright test   # E2E
+```
+
+> **Observação:** o ambiente de CI local pode bloquear o download dessas bibliotecas (erro 403). Caso ocorra, habilite o acesso ao registry npm ou utilize um mirror interno antes de rodar os testes.

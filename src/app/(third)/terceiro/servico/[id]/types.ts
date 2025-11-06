@@ -16,6 +16,7 @@ export type ThirdService = {
   manualPercent?: number | null;
   updatedAt?: number | null;
   hasChecklist?: boolean;
+  previousProgress?: number | null;
 };
 
 export type ThirdServiceUpdate = {

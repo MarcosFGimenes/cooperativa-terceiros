@@ -43,6 +43,7 @@ export type Service = BaseService & {
   hasChecklist?: boolean;
   packageId?: string;
   updatedAt?: number;
+  previousProgress?: number | null;
 };
 
 export type Package = BasePackage & {

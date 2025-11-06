@@ -17,6 +17,8 @@ import {
 
 import { Field, FormRow } from "@/components/ui/form-controls";
 import { tryGetFirestore } from "@/lib/firebase";
+import { recordTelemetry } from "@/lib/telemetry";
+import { resolveReopenedProgress, snapshotBeforeConclusion } from "@/lib/serviceProgress";
 
 type ChecklistDraft = Array<{ id: string; descricao: string; peso: number | "" }>;
 
@@ -108,6 +110,7 @@ export default function ServiceEditorClient({ serviceId }: ServiceEditorClientPr
     pacoteId: "",
   });
   const [andamento, setAndamento] = useState(0);
+  const [previousProgress, setPreviousProgress] = useState<number | null>(null);
   const [withChecklist, setWithChecklist] = useState(false);
   const [checklist, setChecklist] = useState<ChecklistDraft>([]);
   const [saving, setSaving] = useState(false);
@@ -216,6 +219,8 @@ export default function ServiceEditorClient({ serviceId }: ServiceEditorClientPr
         setChecklist(checklistData.map((item, index) => normaliseChecklistEntry(item, index)));
         setWithChecklist(checklistData.length > 0);
         setAndamento(Number(data.andamento ?? data.realPercent ?? 0));
+        const prevProgressValue = Number(data.previousProgress ?? data.progressBeforeConclusion ?? data.previousPercent ?? NaN);
+        setPreviousProgress(Number.isFinite(prevProgressValue) ? prevProgressValue : null);
         await loadUpdates();
       } catch (error) {
         console.error("[servicos/:id] Falha ao carregar serviço", error);
@@ -325,12 +330,42 @@ export default function ServiceEditorClient({ serviceId }: ServiceEditorClientPr
         status,
         updatedAt: serverTimestamp(),
       };
-      if (typeof progresso === "number") {
-        payload.andamento = progresso;
+      let nextProgress: number | null = null;
+      const clamp = (value: number) => Math.max(0, Math.min(100, Math.round(value)));
+      const currentProgress = Number.isFinite(andamento) ? clamp(andamento) : 0;
+
+      if (status === "Concluído") {
+        const snapshot = snapshotBeforeConclusion(currentProgress, previousProgress);
+        payload.previousProgress = snapshot;
+        payload.andamento = 100;
+        nextProgress = 100;
+        setPreviousProgress(snapshot);
+        recordTelemetry("service.progress.snapshot", { serviceId, progress: snapshot });
+      } else if (status === "Pendente") {
+        const history = updates
+          .map((item) => (typeof item.totalPct === "number" ? item.totalPct : null))
+          .filter((value): value is number => Number.isFinite(value ?? NaN));
+        const target = resolveReopenedProgress({
+          requested: typeof progresso === "number" ? progresso : null,
+          previousStored: previousProgress,
+          history,
+          current: andamento,
+        });
+        payload.andamento = target;
+        payload.previousProgress = target;
+        nextProgress = target;
+        setPreviousProgress(target);
+        recordTelemetry("service.progress.restore", { serviceId, restored: target });
+      } else if (typeof progresso === "number" && Number.isFinite(progresso)) {
+        payload.andamento = clamp(progresso);
+        nextProgress = clamp(progresso);
       }
+
       await updateDoc(ref, payload);
       setForm((prev) => ({ ...prev, status }));
-      if (typeof progresso === "number") setAndamento(progresso);
+      if (nextProgress !== null) {
+        setAndamento(nextProgress);
+      }
       toast.success("Status atualizado.");
     } catch (error) {
       console.error("[servicos/:id] Falha ao alterar status", error);
