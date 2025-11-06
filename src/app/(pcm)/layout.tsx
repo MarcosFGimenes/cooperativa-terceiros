@@ -30,10 +30,15 @@ export default async function PcmLayout({ children }: { children: ReactNode }) {
         </>
       );
     } catch (error) {
-      console.error("[pcm-layout] Falha ao validar sessão", error);
+      // When Admin verification fails we fall back to client-side token validation below.
+      if (process.env.NODE_ENV !== "production") {
+        console.info("[pcm-layout] Falling back to token verification", error);
+      }
     }
   }
 
+  // If Admin SDK is unavailable (getAdminApp() === null) or verification fails, use the
+  // Firebase Identity Toolkit fallback to keep the PCM area accessible.
   const fallback = await verifyFirebaseIdToken(sessionCookie);
   if (!fallback) {
     redirect("/login");

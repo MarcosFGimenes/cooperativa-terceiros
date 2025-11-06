@@ -173,6 +173,10 @@ input:-webkit-autofill:focus {
 .select, .textarea { @apply block w-full rounded-lg border border-input bg-background px-4 text-[15px] placeholder:text-muted-foreground focus:ring-2 focus:ring-primary/40 focus:outline-none; }
 .textarea { @apply h-auto py-3; }
 
+.label {
+  @apply mb-1 block text-sm font-medium text-foreground/90;
+}
+
 .btn,
 .btn-primary,
 .btn-secondary,

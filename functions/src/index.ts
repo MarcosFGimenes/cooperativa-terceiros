@@ -1,32 +1,56 @@
 import * as admin from "firebase-admin";
 import * as functions from "firebase-functions/v1";
+import { Timestamp } from "firebase-admin/firestore";
 import type { Request, Response } from "express";
 
 if (!admin.apps.length) admin.initializeApp();
 const REGION = "southamerica-east1";
 
-function asTimestamp(v: any): number | null {
-  try {
-    // @ts-ignore
-    if (v && typeof v.toMillis === "function") return v.toMillis();
-    if (v instanceof Date) return v.getTime();
-  } catch {}
+type TimestampLike = Timestamp | Date | { toMillis?: () => number } | number | null | undefined;
+
+function asTimestamp(value: TimestampLike): number | null {
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : null;
+  }
+
+  if (!value) return null;
+
+  if (value instanceof Timestamp) {
+    return value.toMillis();
+  }
+
+  if (value instanceof Date) {
+    return Number.isFinite(value.getTime()) ? value.getTime() : null;
+  }
+
+  if (typeof value === "object" && typeof value.toMillis === "function") {
+    const millis = value.toMillis();
+    return Number.isFinite(millis) ? millis : null;
+  }
+
   return null;
 }
 
-type AccessTokenData = {
+type AccessTokenData = FirebaseFirestore.DocumentData & {
   targetType?: "service" | "package" | string;
   targetId?: string;
   companyId?: string;
   company?: string;
   revoked?: boolean;
   active?: boolean;
-  expiresAt?: admin.firestore.Timestamp | Date | number | null;
+  expiresAt?: TimestampLike;
+  oneTime?: boolean;
 };
 
 type ServiceDoc = FirebaseFirestore.DocumentData & {
   status?: string;
   hasChecklist?: boolean;
+  companyId?: string;
+  company?: string;
+};
+
+type TargetDoc = FirebaseFirestore.DocumentData & {
+  status?: string;
   companyId?: string;
   company?: string;
 };
@@ -37,7 +61,8 @@ type ChecklistItem = {
   progress?: number;
 };
 
-const servicesCollection = () => admin.firestore().collection("services");
+const servicesCollection = () =>
+  admin.firestore().collection("services") as FirebaseFirestore.CollectionReference<ServiceDoc>;
 
 function sanitisePercent(value: number) {
   if (!Number.isFinite(value)) return 0;
@@ -76,16 +101,19 @@ function applyCors(req: Request, res: Response): boolean {
 async function fetchAndValidateToken(
   tokenId: string,
 ): Promise<{
-  tokenSnap: FirebaseFirestore.DocumentSnapshot;
+  tokenSnap: FirebaseFirestore.DocumentSnapshot<AccessTokenData>;
   tokenData: AccessTokenData;
 }> {
-  const tokenRef = admin.firestore().collection("accessTokens").doc(tokenId);
-  const tokenSnap = await tokenRef.get();
+  const tokenRef =
+    admin
+      .firestore()
+      .collection("accessTokens") as FirebaseFirestore.CollectionReference<AccessTokenData>;
+  const tokenSnap = await tokenRef.doc(tokenId).get();
   if (!tokenSnap.exists) {
     throw new functions.https.HttpsError("not-found", "Token inválido");
   }
 
-  const tokenData = (tokenSnap.data() || {}) as AccessTokenData;
+  const tokenData = tokenSnap.data() ?? ({} as AccessTokenData);
   if (tokenData.revoked === true || tokenData.active === false) {
     throw new functions.https.HttpsError("permission-denied", "Token inativo");
   }
@@ -102,10 +130,16 @@ function ensureCompanyMatch(
   tokenData: AccessTokenData,
   target: ServiceDoc | FirebaseFirestore.DocumentData,
 ) {
-  const tokenCompany = tokenData.companyId || (tokenData as any).company;
+  const tokenCompany = tokenData.companyId || tokenData.company;
   if (!tokenCompany) return;
 
-  const targetCompany = (target as any).companyId || (target as any).company;
+  const targetRecord = target as Record<string, unknown>;
+  const targetCompany =
+    typeof targetRecord.companyId === "string"
+      ? targetRecord.companyId
+      : typeof targetRecord.company === "string"
+        ? targetRecord.company
+        : undefined;
   if (targetCompany && targetCompany !== tokenCompany) {
     throw new functions.https.HttpsError(
       "permission-denied",
@@ -117,14 +151,17 @@ function ensureCompanyMatch(
 async function validateServiceAccess(
   tokenId: string,
   serviceId: string,
-): Promise<{ tokenData: AccessTokenData; serviceSnap: FirebaseFirestore.DocumentSnapshot<ServiceDoc> }> {
+): Promise<{
+  tokenData: AccessTokenData;
+  serviceSnap: FirebaseFirestore.DocumentSnapshot<ServiceDoc>;
+}> {
   const { tokenData } = await fetchAndValidateToken(tokenId);
 
   if (tokenData.targetType !== "service" || tokenData.targetId !== serviceId) {
     throw new functions.https.HttpsError("permission-denied", "Token não corresponde ao serviço");
   }
 
-  const serviceRef = servicesCollection().doc(serviceId) as FirebaseFirestore.DocumentReference<ServiceDoc>;
+  const serviceRef = servicesCollection().doc(serviceId);
   const serviceSnap = await serviceRef.get();
   if (!serviceSnap.exists) {
     throw new functions.https.HttpsError("not-found", "Serviço não encontrado");
@@ -301,17 +338,19 @@ export const claimAccessV2 = functions
     }
 
     try {
-      const tokenRef = admin.firestore().collection("accessTokens").doc(tokenId);
-      const tokenSnap = await tokenRef.get();
+      const tokenRef =
+        admin
+          .firestore()
+          .collection("accessTokens") as FirebaseFirestore.CollectionReference<AccessTokenData>;
+      const tokenSnap = await tokenRef.doc(tokenId).get();
 
       if (!tokenSnap.exists) {
         console.error("[claimAccessV2] token não encontrado:", tokenId);
         throw new functions.https.HttpsError("not-found", "Token inválido");
       }
 
-      const t = tokenSnap.data() as any;
-      const { targetType, targetId, companyId, revoked, oneTime, expiresAt } = t || {};
-      console.log("[claimAccessV2] token", { tokenId, targetType, targetId, companyId, revoked, oneTime });
+      const t = tokenSnap.data() ?? ({} as AccessTokenData);
+      const { targetType, targetId, companyId, revoked, oneTime, expiresAt } = t;
 
       if (revoked === true) throw new functions.https.HttpsError("permission-denied", "Token revogado");
       const expMillis = asTimestamp(expiresAt);
@@ -323,10 +362,11 @@ export const claimAccessV2 = functions
       }
 
       const col = targetType === "service" ? "services" : "packages";
-      const targetSnap = await admin.firestore().collection(col).doc(targetId).get();
+      const targetCollection = admin.firestore().collection(col) as FirebaseFirestore.CollectionReference<TargetDoc>;
+      const targetSnap = await targetCollection.doc(targetId).get();
       if (!targetSnap.exists) throw new functions.https.HttpsError("not-found", "Alvo não encontrado");
 
-      const target = targetSnap.data() as any;
+      const target = targetSnap.data() ?? ({} as TargetDoc);
       if (target.status !== "aberto") {
         console.warn("[claimAccessV2] alvo fechado:", { col, targetId, status: target.status });
         throw new functions.https.HttpsError("permission-denied", "Alvo não está aberto");
@@ -484,7 +524,7 @@ export const publicPackageServices = functions
       }
 
       const servicesSnap = await servicesCollection().where("packageId", "==", packageId).get();
-      const tokenCompany = tokenData.companyId || (tokenData as any).company;
+      const tokenCompany = tokenData.companyId || tokenData.company;
 
       const services = servicesSnap.docs
         .filter((doc) => {
