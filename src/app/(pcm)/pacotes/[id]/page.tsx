@@ -7,10 +7,11 @@ import { notFound } from "next/navigation";
 import SCurve from "@/components/SCurve";
 import { plannedCurve } from "@/lib/curve";
 import { getPackageById, listPackageServices } from "@/lib/repo/packages";
+import { listPackageFolders } from "@/lib/repo/folders";
 import { getServiceById } from "@/lib/repo/services";
 import type { Package, Service } from "@/types";
 
-import PackageTokenManager from "./PackageTokenManager";
+import PackageFoldersManager from "./PackageFoldersManager";
 
 function normaliseStatus(status: Package["status"] | Service["status"]): string {
   const raw = String(status ?? "").toLowerCase();
@@ -129,6 +130,29 @@ export default async function PackageDetailPage({ params }: { params: { id: stri
     : null;
 
   const assignedCompanies = pkg.assignedCompanies?.filter((item) => item.companyId);
+  const folders = await listPackageFolders(pkg.id);
+
+  const serviceFoldersMap = new Map<string, string[]>();
+  folders.forEach((folder) => {
+    folder.services.forEach((serviceId) => {
+      if (!serviceId) return;
+      const list = serviceFoldersMap.get(serviceId) ?? [];
+      list.push(folder.name);
+      serviceFoldersMap.set(serviceId, list);
+    });
+  });
+
+  const folderServiceOptions = services.map((service) => {
+    const baseLabel = service.os || service.code || service.id;
+    const companyLabel =
+      service.assignedTo?.companyName ||
+      service.assignedTo?.companyId ||
+      service.company ||
+      service.empresa ||
+      "";
+    return { id: service.id, label: companyLabel ? `${baseLabel} — ${companyLabel}` : baseLabel };
+  });
+
   const serviceCompanyPairs = services.map((service) => {
     const serviceLabel = service.os || service.code || service.id;
     const companyLabel =
@@ -139,7 +163,8 @@ export default async function PackageDetailPage({ params }: { params: { id: stri
       assignedCompanies?.find((item) => item.companyId === service.assignedTo?.companyId)?.companyName ||
       assignedCompanies?.find((item) => item.companyName)?.companyName ||
       "-";
-    return { id: service.id, serviceLabel, companyLabel };
+    const foldersForService = serviceFoldersMap.get(service.id) ?? [];
+    return { id: service.id, serviceLabel, companyLabel, folders: foldersForService };
   });
 
   return (
@@ -175,7 +200,10 @@ export default async function PackageDetailPage({ params }: { params: { id: stri
                 {serviceCompanyPairs.map((pair) => (
                   <li key={pair.id} className="flex flex-wrap items-center justify-between gap-3 rounded border p-3">
                     <span className="font-medium text-foreground">{pair.serviceLabel}</span>
-                    <span className="text-xs text-muted-foreground">{pair.companyLabel || "-"}</span>
+                    <span className="text-xs text-muted-foreground">
+                      {pair.companyLabel || "-"}
+                      {pair.folders.length ? ` • ${pair.folders.join(", ")}` : ""}
+                    </span>
                   </li>
                 ))}
               </ul>
@@ -195,6 +223,7 @@ export default async function PackageDetailPage({ params }: { params: { id: stri
               <div className="space-y-2">
                 {services.map((service) => {
                   const progress = computeServiceRealized(service);
+                  const foldersForService = serviceFoldersMap.get(service.id) ?? [];
                   return (
                     <Link
                       key={service.id}
@@ -208,6 +237,7 @@ export default async function PackageDetailPage({ params }: { params: { id: stri
                           {service.assignedTo?.companyName || service.assignedTo?.companyId
                             ? ` • ${service.assignedTo.companyName || service.assignedTo.companyId}`
                             : ""}
+                          {foldersForService.length ? ` • Pastas: ${foldersForService.join(", ")}` : ""}
                         </p>
                       </div>
                       <span className="text-sm font-semibold text-primary">{progress}%</span>
@@ -257,7 +287,11 @@ export default async function PackageDetailPage({ params }: { params: { id: stri
             </dl>
           </div>
 
-          <PackageTokenManager packageId={pkg.id} companies={assignedCompanies} />
+          <PackageFoldersManager
+            packageId={pkg.id}
+            services={folderServiceOptions}
+            initialFolders={folders}
+          />
         </div>
       </div>
     </div>

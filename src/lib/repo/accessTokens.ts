@@ -22,6 +22,9 @@ type RawTokenData = Record<string, unknown> & {
   targetId?: unknown;
   targetType?: unknown;
   serviceId?: unknown;
+  packageId?: unknown;
+  folderId?: unknown;
+  pastaId?: unknown;
 };
 
 export type ServiceAccessToken = {

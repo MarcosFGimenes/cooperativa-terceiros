@@ -35,7 +35,7 @@ export type ServiceUpdate = {
 
 export type TokenScope =
   | { type: "service"; serviceId: string }
-  | { type: "packageCompany"; pacoteId: string; empresaId: string };
+  | { type: "folder"; folderId: string; pacoteId?: string | null; packageId?: string | null; empresaId?: string | null };
 
 export type AccessTokenDoc = {
   token: string;

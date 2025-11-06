@@ -1,0 +1,58 @@
+import { NextResponse } from "next/server";
+
+import { requirePcmUser } from "@/app/api/admin/tokens/_lib/auth";
+import { createPackageFolder, listPackageFolders } from "@/lib/repo/folders";
+
+function normalisePackageId(params: Record<string, string | string[] | undefined>): string {
+  const value = params.packageId;
+  if (typeof value === "string") return value.trim();
+  if (Array.isArray(value) && value.length > 0) return String(value[0] ?? "").trim();
+  return "";
+}
+
+export async function GET(req: Request, context: { params: Record<string, string | string[] | undefined> }) {
+  await requirePcmUser(req);
+  const packageId = normalisePackageId(context.params);
+  if (!packageId) {
+    return NextResponse.json({ ok: false, error: "packageId inválido" }, { status: 400 });
+  }
+
+  try {
+    const folders = await listPackageFolders(packageId);
+    return NextResponse.json({ ok: true, folders });
+  } catch (error) {
+    console.error("[folders] Falha ao listar pastas", error);
+    return NextResponse.json({ ok: false, error: "Não foi possível carregar as pastas." }, { status: 500 });
+  }
+}
+
+export async function POST(req: Request, context: { params: Record<string, string | string[] | undefined> }) {
+  await requirePcmUser(req);
+  const packageId = normalisePackageId(context.params);
+  if (!packageId) {
+    return NextResponse.json({ ok: false, error: "packageId inválido" }, { status: 400 });
+  }
+
+  let payload: { name?: unknown; companyId?: unknown } = {};
+  try {
+    payload = (await req.json().catch(() => ({}))) as { name?: unknown; companyId?: unknown };
+  } catch {
+    payload = {};
+  }
+
+  const name = typeof payload.name === "string" ? payload.name.trim() : "";
+  const companyId = typeof payload.companyId === "string" ? payload.companyId.trim() : undefined;
+
+  if (!name) {
+    return NextResponse.json({ ok: false, error: "Informe o nome da pasta." }, { status: 400 });
+  }
+
+  try {
+    const folder = await createPackageFolder({ packageId, name, companyId });
+    return NextResponse.json({ ok: true, folder });
+  } catch (error) {
+    console.error("[folders] Falha ao criar pasta", error);
+    const message = error instanceof Error ? error.message : "Não foi possível criar a pasta.";
+    return NextResponse.json({ ok: false, error: message }, { status: 500 });
+  }
+}
