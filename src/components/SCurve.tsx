@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import type { TooltipProps } from "recharts";
 import {
   CartesianGrid,
@@ -13,6 +13,8 @@ import {
   YAxis,
 } from "recharts";
 
+import { cn } from "@/lib/utils";
+
 type PlannedPoint = { date: string; percent: number; hoursAccum?: number };
 type CurvePoint = { date: string; percent: number };
 
@@ -20,6 +22,11 @@ type Props = {
   planned: PlannedPoint[];
   realizedSeries: CurvePoint[];
   realizedPercent: number;
+  title?: string;
+  description?: string;
+  headerAside?: ReactNode;
+  className?: string;
+  chartHeight?: number;
 };
 
 type ChartEntry = {
@@ -118,7 +125,16 @@ function clampPercent(value: number | null | undefined) {
   return Math.max(0, Math.min(100, value));
 }
 
-export default function SCurve({ planned, realizedSeries, realizedPercent }: Props) {
+export default function SCurve({
+  planned,
+  realizedSeries,
+  realizedPercent,
+  title,
+  description,
+  headerAside,
+  className,
+  chartHeight,
+}: Props) {
   const chartData = useMemo<ChartEntry[]>(() => {
     const map = new Map<string, ChartEntry>();
 
@@ -192,13 +208,19 @@ export default function SCurve({ planned, realizedSeries, realizedPercent }: Pro
     setIsClientReady(true);
   }, []);
 
+  const resolvedTitle = title ?? "Curva S";
+  const resolvedDescription =
+    description ?? "Comparativo entre o avanço planejado e o realizado ao longo do tempo.";
+  const resolvedChartHeight = chartHeight && Number.isFinite(chartHeight) && chartHeight > 0 ? chartHeight : 288;
+
   return (
-    <div className="card space-y-4 p-4">
-      <div className="flex flex-col gap-1">
-        <h3 className="text-base font-semibold">Curva S</h3>
-        <p className="text-xs text-muted-foreground">
-          Comparativo entre o avanço planejado e o realizado ao longo do tempo.
-        </p>
+    <div className={cn("card space-y-4 p-4", className)}>
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div className="min-w-0 space-y-1">
+          <h3 className="truncate text-base font-semibold">{resolvedTitle}</h3>
+          <p className="text-xs text-muted-foreground">{resolvedDescription}</p>
+        </div>
+        {headerAside ? <div className="text-xs text-muted-foreground">{headerAside}</div> : null}
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -214,7 +236,7 @@ export default function SCurve({ planned, realizedSeries, realizedPercent }: Pro
 
       {hasData ? (
         isClientReady ? (
-          <div className="h-72 w-full">
+          <div className="w-full" style={{ height: resolvedChartHeight }}>
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={chartData} margin={{ left: 4, right: 16, top: 16, bottom: 8 }}>
                 <CartesianGrid strokeDasharray="4 4" stroke="hsl(var(--border))" />
