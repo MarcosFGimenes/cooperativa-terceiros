@@ -19,10 +19,10 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     <html lang="pt-BR" suppressHydrationWarning>
       <head>
         <ThemeScript />
-        <PreloadAsFix />
         <FirebaseConfigScript />
       </head>
       <body className="relative flex min-h-dvh flex-col bg-background text-foreground">
+        <PreloadAsFix />
         <div className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
           <div className="absolute left-[-15%] top-[-20%] h-64 w-64 rounded-full bg-primary/20 blur-[120px] dark:bg-primary/25" />
           <div className="absolute right-[-18%] top-[-10%] h-72 w-72 rounded-full bg-emerald-200/35 blur-[140px] dark:bg-slate-900/60" />
