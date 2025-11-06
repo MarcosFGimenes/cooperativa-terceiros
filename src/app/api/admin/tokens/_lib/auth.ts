@@ -28,36 +28,36 @@ export async function requirePcmUser(req: Request): Promise<AuthenticatedUser> {
     throw new HttpError(401, "Formato do header Authorization inválido");
   }
 
-  const app = getAdminApp();
-  if (!app) {
-    throw new HttpError(503, "Firebase Admin não configurado");
-  }
-
   const bearerToken = match[1]!.trim();
   if (!bearerToken) {
     throw new HttpError(401, "Token inválido");
   }
 
-  try {
-    const decoded = await getAuth(app).verifyIdToken(bearerToken);
-    const email = decoded.email;
-    if (!email) {
-      throw new HttpError(401, "Token não possui e-mail associado");
-    }
+  const app = getAdminApp();
+  if (app) {
+    try {
+      const decoded = await getAuth(app).verifyIdToken(bearerToken);
+      const email = decoded.email;
+      if (!email) {
+        throw new HttpError(401, "Token não possui e-mail associado");
+      }
 
-    if (!isPCMUser(email)) {
-      console.error("[requirePcmUser] Usuário não autorizado", { email });
-      throw new HttpError(401, "Usuário não autorizado");
-    }
+      if (!isPCMUser(email)) {
+        console.error("[requirePcmUser] Usuário não autorizado", { email });
+        throw new HttpError(401, "Usuário não autorizado");
+      }
 
-    return { uid: decoded.uid, email: email.toLowerCase(), token: decoded };
-  } catch (err: unknown) {
-    console.error("[requirePcmUser] Falha ao verificar token com Firebase Admin", err);
+      return { uid: decoded.uid, email: email.toLowerCase(), token: decoded };
+    } catch (err: unknown) {
+      console.error("[requirePcmUser] Falha ao verificar token com Firebase Admin", err);
+    }
+  } else {
+    console.warn("[requirePcmUser] Firebase Admin não configurado. Utilizando fallback Identity Toolkit.");
   }
 
   const fallback = await verifyFirebaseIdToken(bearerToken);
   if (!fallback) {
-    throw new HttpError(401, "Token inválido");
+    throw new HttpError(app ? 401 : 503, app ? "Token inválido" : "Autenticação PCM indisponível");
   }
 
   const email = fallback.email;
