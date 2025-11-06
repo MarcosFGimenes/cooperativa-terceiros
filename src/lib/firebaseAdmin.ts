@@ -12,6 +12,7 @@ type ServiceAccountConfig = {
 };
 
 let adminApp: App | null = null;
+let missingAdminConfigWarned = false;
 
 function readServiceAccountFromBase64(): ServiceAccountConfig | null {
   const base64 =
@@ -74,10 +75,21 @@ function readServiceAccountFromEnv(): ServiceAccountConfig {
   return { projectId: projectId ?? undefined, clientEmail, privateKey };
 }
 
+function logMissingAdminConfig() {
+  if (missingAdminConfigWarned) return;
+  console.warn(
+    "[firebaseAdmin] Service account credentials are not fully configured. Firebase Admin features are disabled until the environment variables are provided.",
+  );
+  missingAdminConfigWarned = true;
+}
+
 export function getAdminApp() {
   const { projectId, clientEmail, privateKey } = readServiceAccountFromEnv();
 
-  if (!projectId || !clientEmail || !privateKey) return null;
+  if (!projectId || !clientEmail || !privateKey) {
+    logMissingAdminConfig();
+    return null;
+  }
 
   if (!adminApp) {
     const existingApp = getApps()[0];
@@ -97,14 +109,20 @@ export function getAdminApp() {
   return adminApp;
 }
 
-export function getAdmin() {
+export function getOptionalAdmin() {
   const app = getAdminApp();
-  if (!app) {
-    throw new Error("FIREBASE_ADMIN_NOT_CONFIGURED");
-  }
+  if (!app) return null;
   return {
     app,
     db: getFirestore(app),
     auth: getAuth(app),
   };
+}
+
+export function getAdmin() {
+  const context = getOptionalAdmin();
+  if (!context) {
+    throw new Error("FIREBASE_ADMIN_NOT_CONFIGURED");
+  }
+  return context;
 }

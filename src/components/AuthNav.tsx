@@ -6,7 +6,7 @@ import { onAuthStateChanged, signOut, type User } from "firebase/auth";
 import { tryGetAuth } from "@/lib/firebase";
 
 export default function AuthNav() {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<User | null | undefined>(undefined);
   const { auth: authInstance, error: authError } = useMemo(() => tryGetAuth(), []);
 
   useEffect(() => {
@@ -17,10 +17,25 @@ export default function AuthNav() {
 
   useEffect(() => {
     if (!authInstance) return;
-    return onAuthStateChanged(authInstance, setUser);
+    return onAuthStateChanged(authInstance, (current) => {
+      setUser(current ?? null);
+    });
   }, [authInstance]);
 
-  if (!authInstance || !user) {
+  if (!authInstance) {
+    return (
+      <nav className="flex items-center gap-3 text-sm">
+        <Link className="link" href="/login">Login</Link>
+        <Link className="link" href="/acesso">Acesso por token</Link>
+      </nav>
+    );
+  }
+
+  if (user === undefined) {
+    return null;
+  }
+
+  if (user === null) {
     return (
       <nav className="flex items-center gap-3 text-sm">
         <Link className="link" href="/login">Login</Link>

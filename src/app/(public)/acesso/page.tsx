@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -77,6 +77,28 @@ export default function AcessoPorTokenPage() {
   const [savingUpdate, setSavingUpdate] = useState(false);
   const tokenStorageKey = "third_portal_token";
 
+  const persistTokenSession = useCallback(
+    async (code: string) => {
+      const response = await fetch("/api/token-session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token: code }),
+      });
+      const json = (await response.json().catch(() => null)) as { ok?: boolean; error?: string } | null;
+      if (!response.ok || !json?.ok) {
+        recordTelemetry("token.session.failure", { status: response.status, error: json?.error });
+        throw new Error(json?.error ?? "Não foi possível iniciar a sessão.");
+      }
+      try {
+        window.sessionStorage.setItem(tokenStorageKey, code);
+      } catch (error) {
+        console.warn("[acesso] não foi possível persistir token em sessionStorage", error);
+      }
+      await new Promise((resolve) => setTimeout(resolve, 60));
+    },
+    [tokenStorageKey],
+  );
+
   const selectedService = useMemo(
     () => services.find((service) => service.id === selectedServiceId) ?? null,
     [services, selectedServiceId],
@@ -85,10 +107,9 @@ export default function AcessoPorTokenPage() {
   useEffect(() => {
     setToken(initial);
     if (initial) {
-      void onValidate();
+      void validateToken(initial);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initial]);
+  }, [initial, validateToken]);
 
   useEffect(() => {
     if (!selectedService) {
@@ -110,7 +131,7 @@ export default function AcessoPorTokenPage() {
     }
   }, [selectedService]);
 
-  async function fetchService(tokenValue: string, serviceId: string): Promise<ServiceSummary | null> {
+  const fetchService = useCallback(async (tokenValue: string, serviceId: string): Promise<ServiceSummary | null> => {
     try {
       const response = await fetch(
         `/api/public/service?serviceId=${encodeURIComponent(serviceId)}&token=${encodeURIComponent(tokenValue)}`,
@@ -142,75 +163,90 @@ export default function AcessoPorTokenPage() {
       console.error("[acesso] Falha ao carregar serviço", error);
       return null;
     }
-  }
+  }, []);
 
-  async function loadServices(tokenValue: string, serviceIds: string[]) {
-    setLoadingServices(true);
-    try {
-      const entries = await Promise.all(serviceIds.map((id) => fetchService(tokenValue, id)));
-      const onlyOpen = entries
-        .filter((service): service is ServiceSummary => Boolean(service))
-        .filter((service) => (service.status || "").toLowerCase() === "aberto");
-      setServices(onlyOpen);
-      if (onlyOpen.length > 0) {
-        setSelectedServiceId(onlyOpen[0].id);
-      } else {
-        setSelectedServiceId(null);
+  const loadServices = useCallback(
+    async (tokenValue: string, serviceIds: string[]) => {
+      setLoadingServices(true);
+      try {
+        const entries = await Promise.all(serviceIds.map((id) => fetchService(tokenValue, id)));
+        const onlyOpen = entries
+          .filter((service): service is ServiceSummary => Boolean(service))
+          .filter((service) => (service.status || "").toLowerCase() === "aberto");
+        setServices(onlyOpen);
+        if (onlyOpen.length > 0) {
+          setSelectedServiceId(onlyOpen[0].id);
+        } else {
+          setSelectedServiceId(null);
+        }
+      } finally {
+        setLoadingServices(false);
       }
-    } finally {
-      setLoadingServices(false);
-    }
-  }
+    },
+    [fetchService],
+  );
 
-  async function onValidate(e?: FormEvent) {
-    e?.preventDefault();
-    const code = token.trim().toUpperCase();
-    if (!code) return;
-    setValidating(true);
-    setValidationError(null);
-    setServices([]);
-    setSelectedServiceId(null);
-    try {
-      const response = await fetch(`/api/validate-token?token=${encodeURIComponent(code)}`, { cache: "no-store" });
-      const json: ValidateSuccess | ValidateError = await response.json();
-      if (!response.ok || !json || json.ok === false) {
-        setValidatedToken(null);
-        toast.error("Token inválido ou expirado.");
-        setValidationError("Token inválido ou expirado.");
-        recordTelemetry("token.validation.failure", { status: response.status, error: json?.error });
-        return;
-      }
+  const validateToken = useCallback(
+    async (rawCode: string) => {
+      const code = rawCode.trim().toUpperCase();
+      if (!code) return;
+      setValidating(true);
+      setValidationError(null);
+      setServices([]);
+      setSelectedServiceId(null);
+      try {
+        const response = await fetch(`/api/validate-token?token=${encodeURIComponent(code)}`, {
+          cache: "no-store",
+        });
+        const json: ValidateSuccess | ValidateError = await response.json();
+        if (!response.ok || !json || json.ok === false) {
+          setValidatedToken(null);
+          toast.error("Token inválido ou expirado.");
+          setValidationError("Token inválido ou expirado.");
+          recordTelemetry("token.validation.failure", { status: response.status, error: json?.error });
+          return;
+        }
 
-      if (json.ok && json.found) {
-        await persistTokenSession(code);
-        recordTelemetry("token.validation.success", { services: json.serviceIds?.length ?? 0 });
-        toast.success("Token válido! Redirecionando…");
-        router.replace("/terceiro");
-        return;
-      }
+        if (json.ok && json.found) {
+          await persistTokenSession(code);
+          recordTelemetry("token.validation.success", { services: json.serviceIds?.length ?? 0 });
+          toast.success("Token válido! Redirecionando…");
+          router.replace("/terceiro");
+          return;
+        }
 
-      if (!json.found || ("serviceIds" in json && json.serviceIds.length === 0)) {
+        if (!json.found || ("serviceIds" in json && json.serviceIds.length === 0)) {
+          setValidatedToken(code);
+          toast.info("Token válido, mas nenhum serviço aberto foi encontrado.");
+          setValidationError("Nenhum serviço aberto encontrado para este token.");
+          recordTelemetry("token.validation.success", { services: 0 });
+          return;
+        }
+
         setValidatedToken(code);
-        toast.info("Token válido, mas nenhum serviço aberto foi encontrado.");
-        setValidationError("Nenhum serviço aberto encontrado para este token.");
-        recordTelemetry("token.validation.success", { services: 0 });
-        return;
+        recordTelemetry("token.validation.success", { services: json.serviceIds.length });
+        toast.success("Token validado. Selecione um serviço para atualizar.");
+        const ids = "serviceIds" in json ? json.serviceIds : [];
+        await loadServices(code, ids);
+      } catch (error) {
+        console.error("[acesso] Falha ao validar token", error);
+        setValidatedToken(null);
+        toast.error("Falha ao validar token.");
+        setValidationError("Não foi possível validar o token no momento.");
+      } finally {
+        setValidating(false);
       }
+    },
+    [loadServices, persistTokenSession, router],
+  );
 
-      setValidatedToken(code);
-      recordTelemetry("token.validation.success", { services: json.serviceIds.length });
-      toast.success("Token validado. Selecione um serviço para atualizar.");
-      const ids = "serviceIds" in json ? json.serviceIds : [];
-      await loadServices(code, ids);
-    } catch (error) {
-      console.error("[acesso] Falha ao validar token", error);
-      setValidatedToken(null);
-      toast.error("Falha ao validar token.");
-      setValidationError("Não foi possível validar o token no momento.");
-    } finally {
-      setValidating(false);
-    }
-  }
+  const handleValidate = useCallback(
+    async (event?: FormEvent<HTMLFormElement>) => {
+      event?.preventDefault();
+      await validateToken(token);
+    },
+    [token, validateToken],
+  );
 
   function updateChecklistValue(id: string, value: number) {
     setChecklistValues((prev) => ({ ...prev, [id]: Math.max(0, Math.min(100, Math.round(value))) }));
@@ -291,7 +327,7 @@ export default function AcessoPorTokenPage() {
           Informe o código recebido para visualizar seus serviços e registrar o andamento.
         </p>
 
-        <form onSubmit={onValidate} className="grid items-end gap-3 sm:grid-cols-[1fr_auto]">
+        <form onSubmit={handleValidate} className="grid items-end gap-3 sm:grid-cols-[1fr_auto]">
           <div className="space-y-2">
             <label htmlFor="token" className="text-sm font-medium text-foreground/90">
               Código do token
@@ -428,21 +464,3 @@ export default function AcessoPorTokenPage() {
     </div>
   );
 }
-  async function persistTokenSession(code: string) {
-    const response = await fetch("/api/token-session", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ token: code }),
-    });
-    const json = (await response.json().catch(() => null)) as { ok?: boolean; error?: string } | null;
-    if (!response.ok || !json?.ok) {
-      recordTelemetry("token.session.failure", { status: response.status, error: json?.error });
-      throw new Error(json?.error ?? "Não foi possível iniciar a sessão.");
-    }
-    try {
-      window.sessionStorage.setItem(tokenStorageKey, code);
-    } catch (error) {
-      console.warn("[acesso] não foi possível persistir token em sessionStorage", error);
-    }
-    await new Promise((resolve) => setTimeout(resolve, 60));
-  }

@@ -1,9 +1,39 @@
+import type { FirebaseFirestore } from "firebase-admin/firestore";
+
 import type { ChecklistItem, Service, ServiceStatus } from "@/lib/types";
 import { getAdmin } from "@/lib/firebaseAdmin";
 
-const accessTokensCollection = () => getAdmin().db.collection("accessTokens");
-const servicesCollection = () => getAdmin().db.collection("services");
-const foldersCollection = () => getAdmin().db.collection("packageFolders");
+type AccessTokenData = FirebaseFirestore.DocumentData & {
+  targetType?: string;
+  targetId?: string;
+  company?: string;
+  companyId?: string;
+  revoked?: boolean;
+  active?: boolean;
+  expiresAt?: unknown;
+  packageId?: string;
+  pacoteId?: string;
+  folderId?: string;
+  pastaId?: string;
+  oneTime?: boolean;
+};
+
+type FolderDoc = FirebaseFirestore.DocumentData & {
+  services?: string[];
+  companyId?: string;
+  company?: string;
+  pastaId?: string;
+  folderId?: string;
+  packageId?: string;
+  pacoteId?: string;
+};
+
+const accessTokensCollection = () =>
+  getAdmin().db.collection("accessTokens") as FirebaseFirestore.CollectionReference<AccessTokenData>;
+const servicesCollection = () =>
+  getAdmin().db.collection("services") as FirebaseFirestore.CollectionReference<FirebaseFirestore.DocumentData>;
+const foldersCollection = () =>
+  getAdmin().db.collection("packageFolders") as FirebaseFirestore.CollectionReference<FolderDoc>;
 
 export class PublicAccessError extends Error {
   status: number;
@@ -25,20 +55,6 @@ function toMillis(value: unknown | FirestoreTimestamp): number | undefined {
   return undefined;
 }
 
-type AccessTokenData = {
-  targetType?: string;
-  targetId?: string;
-  company?: string;
-  companyId?: string;
-  revoked?: boolean;
-  active?: boolean;
-  expiresAt?: unknown;
-  packageId?: string;
-  pacoteId?: string;
-  folderId?: string;
-  pastaId?: string;
-};
-
 function getTokenCompany(token: AccessTokenData): string | undefined {
   if (typeof token.companyId === "string" && token.companyId.trim()) return token.companyId.trim();
   if (typeof token.company === "string" && token.company.trim()) return token.company.trim();
@@ -51,7 +67,7 @@ async function fetchToken(tokenId: string): Promise<AccessTokenData> {
     throw new PublicAccessError(403, "Token inválido");
   }
 
-  const data = (snap.data() || {}) as AccessTokenData;
+  const data = snap.data() ?? ({} as AccessTokenData);
   if (data.revoked === true || data.active === false) {
     throw new PublicAccessError(403, "Token inativo");
   }
@@ -142,9 +158,9 @@ async function ensureServiceAllowedByFolder(token: AccessTokenData, serviceId: s
     throw new PublicAccessError(403, "Pasta não encontrada para este token");
   }
 
-  const data = (snap.data() ?? {}) as Record<string, unknown>;
+  const data = snap.data() ?? ({} as FolderDoc);
   const services = Array.isArray(data.services)
-    ? (data.services as unknown[])
+    ? data.services
         .map((value) => (typeof value === "string" ? value.trim() : ""))
         .filter((value) => value.length > 0)
     : [];
@@ -157,7 +173,9 @@ async function ensureServiceAllowedByFolder(token: AccessTokenData, serviceId: s
   const folderCompany =
     typeof data.companyId === "string" && data.companyId.trim()
       ? data.companyId.trim().toLowerCase()
-      : undefined;
+      : typeof data.company === "string" && data.company.trim()
+        ? data.company.trim().toLowerCase()
+        : undefined;
   if (tokenCompany && folderCompany && tokenCompany !== folderCompany) {
     throw new PublicAccessError(403, "Token não possui acesso a esta pasta");
   }

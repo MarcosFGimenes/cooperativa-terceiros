@@ -12,6 +12,7 @@ type FirebasePublicConfig = FirebaseOptions & {
 let cachedConfig: FirebasePublicConfig | null = null;
 
 const fallbackNotices = new Set<string>();
+const missingEnvWarnings = new Set<string>();
 
 declare global {
   interface Window {
@@ -42,10 +43,30 @@ function readEnvValue(names: string[]): string | undefined {
   return undefined;
 }
 
+function warnMissingEnv(name: string) {
+  if (missingEnvWarnings.has(name)) return;
+  const environment = process.env.NODE_ENV || "development";
+  const messageBase = `[firebase] Environment variable ${name} is not defined.`;
+  if (environment === "production") {
+    console.warn(`${messageBase} Firebase features may be degraded until it is configured.`);
+  } else {
+    console.warn(
+      `${messageBase} Using a development placeholder so the application can continue to build.`,
+    );
+  }
+  missingEnvWarnings.add(name);
+}
+
+function toPlaceholder(name: string) {
+  const normalized = name.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+  return normalized ? `missing-${normalized}` : "missing-value";
+}
+
 function readRequiredEnv(name: string, fallbackNames: string[] = []) {
   const value = readEnvValue([name, ...fallbackNames]);
   if (!value) {
-    throw new Error(`Missing environment variable ${name}`);
+    warnMissingEnv(name);
+    return toPlaceholder(name);
   }
   return value;
 }

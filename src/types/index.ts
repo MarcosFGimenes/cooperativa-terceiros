@@ -172,4 +172,5 @@ export type AccessToken = AccessTokenTarget & {
   active: boolean;
   expiresAt?: number | null;
   createdAt?: number;
+  oneTime?: boolean | null;
 };
