@@ -5,6 +5,7 @@ import Link from "next/link";
 import { onSnapshot, type FirestoreError } from "firebase/firestore";
 
 import { isFirestoreLongPollingForced } from "@/lib/firebase";
+import { recordTelemetry } from "@/lib/telemetry";
 import { servicesQueryForCompany } from "@/lib/repo/services-client";
 
 type ServiceItem = {
@@ -35,10 +36,12 @@ export default function TerceiroHome() {
   const [items, setItems] = useState<ServiceItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [tokenExpired, setTokenExpired] = useState(false);
   const [connectionIssue, setConnectionIssue] = useState<string | null>(null);
   const [sessionRetryKey, setSessionRetryKey] = useState(0);
   const [listenerSeed, setListenerSeed] = useState(0);
   const longPollingForced = isFirestoreLongPollingForced;
+  const tokenStorageKey = "third_portal_token";
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -78,6 +81,25 @@ export default function TerceiroHome() {
           const payload = await response.json().catch(() => ({}));
           if (cancelled) return;
 
+          if (response.status === 401 || payload?.error === "missing_token") {
+            setError("token-expired");
+            setTokenExpired(true);
+            setItems([]);
+            setCompanyId(null);
+            recordTelemetry("token.session.missing", {});
+            try {
+              window.sessionStorage.removeItem(tokenStorageKey);
+            } catch (storageError) {
+              console.warn("[terceiro] falha ao limpar token armazenado", storageError);
+            }
+            if (typeof window !== "undefined") {
+              retryTimeout = window.setTimeout(() => {
+                setSessionRetryKey((value) => value + 1);
+              }, 200);
+            }
+            return;
+          }
+
           if (response.status >= 500) {
             const message =
               typeof payload?.error === "string" && payload.error
@@ -92,7 +114,18 @@ export default function TerceiroHome() {
             return;
           }
 
-          setError(payload?.error ?? "Não foi possível carregar os dados.");
+          const message =
+            typeof payload?.error === "string" && payload.error
+              ? payload.error
+              : "Não foi possível carregar os dados.";
+          if (payload?.error === "token_not_found") {
+            setError("token-expired");
+            setTokenExpired(true);
+            recordTelemetry("token.session.expired", {});
+          } else {
+            setError(message);
+            setTokenExpired(false);
+          }
           setItems([]);
           setCompanyId(null);
           setConnectionIssue(null);
@@ -104,6 +137,7 @@ export default function TerceiroHome() {
         const list = Array.isArray(data?.services) ? (data.services as ServiceItem[]) : [];
         setItems(list);
         setError(null);
+        setTokenExpired(false);
         setConnectionIssue(null);
         const company = typeof data?.companyId === "string" && data.companyId ? data.companyId : null;
         setCompanyId(company);
@@ -225,7 +259,18 @@ export default function TerceiroHome() {
       {loading ? (
         <div className="card p-6 text-sm text-muted-foreground">Carregando…</div>
       ) : error ? (
-        <div className="card p-6 text-sm text-muted-foreground">{error}</div>
+        <div className="card space-y-3 p-6 text-sm text-muted-foreground">
+          {tokenExpired ? (
+            <>
+              <p>O acesso público expirou. Solicite um novo link para continuar acompanhando os serviços.</p>
+              <Link className="text-primary underline" href="/acesso">
+                Gerar novo acesso
+              </Link>
+            </>
+          ) : (
+            error
+          )}
+        </div>
       ) : items.length === 0 ? (
         <div className="card p-6 text-sm text-muted-foreground">
           {connectionIssue ? "Nenhum dado disponível no momento. Aguarde a reconexão." : "Nenhum serviço atribuído."}

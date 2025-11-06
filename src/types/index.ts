@@ -132,6 +132,7 @@ export type Service = {
   andamento?: number;
   realPercent?: number;
   updatedAt?: number;
+  previousProgress?: number | null;
 };
 
 export type PackageStatus = ServiceStatus;

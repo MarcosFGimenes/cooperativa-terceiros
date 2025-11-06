@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import ServiceUpdateForm, { type ServiceUpdateFormPayload } from "@/components/ServiceUpdateForm";
+import { dedupeUpdates, formatResourcesLine, sanitiseResourceQuantities } from "@/lib/serviceUpdates";
 
 import type { ThirdChecklistItem, ThirdService, ThirdServiceUpdate } from "@/app/(third)/terceiro/servico/[id]/types";
 
@@ -74,7 +75,7 @@ function computeInitialProgress(service: ThirdService, updates: ThirdServiceUpda
     return clampPercent(updates[0]?.percent ?? 0);
   }
 
-  const candidates = [service.realPercent, service.manualPercent, service.andamento];
+  const candidates = [service.realPercent, service.manualPercent, service.andamento, service.previousProgress];
   for (const value of candidates) {
     if (typeof value === "number" && Number.isFinite(value)) {
       return clampPercent(value);
@@ -99,37 +100,6 @@ function computeChecklistSuggestion(checklist: ThirdChecklistItem[]): number | u
   return Math.round((weighted / totalWeight) * 10) / 10;
 }
 
-function formatTimeWindow(update: ThirdServiceUpdate): string | null {
-  const start = update.timeWindow?.start;
-  const end = update.timeWindow?.end;
-  if (start === null || start === undefined || end === null || end === undefined) return null;
-  const startDate = new Date(start);
-  const endDate = new Date(end);
-  if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) return null;
-  const dayKeyFormatter = new Intl.DateTimeFormat("en-CA", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    timeZone: DEFAULT_TIME_ZONE,
-  });
-  const sameDay = dayKeyFormatter.format(startDate) === dayKeyFormatter.format(endDate);
-  const formatter = new Intl.DateTimeFormat("pt-BR", {
-    dateStyle: sameDay ? undefined : "short",
-    timeStyle: "short",
-    timeZone: DEFAULT_TIME_ZONE,
-  });
-  const startLabel = formatter.format(startDate);
-  const endLabel = formatter.format(endDate);
-  if (sameDay) {
-    const dateLabel = new Intl.DateTimeFormat("pt-BR", {
-      dateStyle: "short",
-      timeZone: DEFAULT_TIME_ZONE,
-    }).format(startDate);
-    return `${dateLabel}, ${startLabel} - ${endLabel}`;
-  }
-  return `${startLabel} → ${endLabel}`;
-}
-
 function computeTimeWindowHours(update: ThirdServiceUpdate): number | null {
   const raw = update.timeWindow?.hours;
   if (typeof raw === "number" && Number.isFinite(raw)) {
@@ -150,6 +120,16 @@ function computeTimeWindowHours(update: ThirdServiceUpdate): number | null {
   const diff = (endDate.getTime() - startDate.getTime()) / 3_600_000;
   if (!Number.isFinite(diff) || diff < 0) return null;
   return Math.round(diff * 100) / 100;
+}
+
+function buildThirdUpdateSummary(update: ThirdServiceUpdate) {
+  const title = formatDate(update.timeWindow?.start ?? update.createdAt ?? null);
+  const percentLabel = `${Math.round(update.percent)}%`;
+  const description = update.description ? `Descrição do dia: ${update.description}` : null;
+  const hours = computeTimeWindowHours(update);
+  const hoursLabel = hours !== null && Math.abs(hours - 24) > 0.01 ? `Horas informadas: ${hours.toFixed(2)}` : null;
+  const resourcesLabel = update.resources && update.resources.length ? formatResourcesLine(update.resources) : null;
+  return { title, percentLabel, description, hoursLabel, resourcesLabel };
 }
 
 const SHIFT_LABELS = {
@@ -360,13 +340,16 @@ function toThirdUpdate(update: unknown): ThirdServiceUpdate {
 }
 
 export default function ServiceDetailsClient({ service, updates: initialUpdates, checklist, token }: ServiceDetailsClientProps) {
-  const sortedInitialUpdates = useMemo(
-    () => [...initialUpdates].sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0)),
+  const normalisedInitialUpdates = useMemo(
+    () => dedupeUpdates(initialUpdates.map((item) => sanitiseResourceQuantities(item))).slice(0, MAX_UPDATES),
     [initialUpdates],
   );
 
-  const [updates, setUpdates] = useState(sortedInitialUpdates);
-  const [progress, setProgress] = useState(() => computeInitialProgress(service, sortedInitialUpdates));
+  const [updates, setUpdates] = useState(normalisedInitialUpdates);
+  useEffect(() => {
+    setUpdates(normalisedInitialUpdates);
+  }, [normalisedInitialUpdates]);
+  const [progress, setProgress] = useState(() => computeInitialProgress(service, normalisedInitialUpdates));
   const [checklistItems, setChecklistItems] = useState<ThirdChecklistItem[]>(() =>
     normaliseChecklistItems(checklist),
   );
@@ -588,38 +571,30 @@ export default function ServiceDetailsClient({ service, updates: initialUpdates,
         );
 
         if (json.update) {
-          const mapped = toThirdUpdate(json.update);
-          setUpdates((prev) => {
-            const next = [mapped, ...prev];
-            return next
-              .sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0))
-              .slice(0, MAX_UPDATES);
-          });
+          const mapped = sanitiseResourceQuantities(toThirdUpdate(json.update));
+          setUpdates((prev) => dedupeUpdates([mapped, ...prev]).slice(0, MAX_UPDATES));
         } else {
           const createdAt = Date.now();
           setUpdates((prev) => {
-            const next = [
-              {
-                id: `local-${createdAt}`,
-                percent: nextPercent,
-                description: payload.description,
-                createdAt,
-                timeWindow: {
-                  start: startDate.getTime(),
-                  end: endDate.getTime(),
-                  hours: durationHours,
-                },
-                mode: "simple",
-                resources: resourcesPayload,
-                workforce: payload.workforce,
-                shiftConditions: payload.shiftConditions,
-                justification: payload.justification ?? null,
-                previousPercent: progress,
-                declarationAccepted: true,
+            const optimistic = sanitiseResourceQuantities({
+              id: `local-${createdAt}`,
+              percent: nextPercent,
+              description: payload.description,
+              createdAt,
+              timeWindow: {
+                start: startDate.getTime(),
+                end: endDate.getTime(),
+                hours: durationHours,
               },
-              ...prev,
-            ];
-            return next.slice(0, MAX_UPDATES);
+              mode: "simple",
+              resources: resourcesPayload,
+              workforce: payload.workforce,
+              shiftConditions: payload.shiftConditions,
+              justification: payload.justification ?? null,
+              previousPercent: progress,
+              declarationAccepted: true,
+            });
+            return dedupeUpdates([optimistic, ...prev]).slice(0, MAX_UPDATES);
           });
         }
 
@@ -750,24 +725,32 @@ export default function ServiceDetailsClient({ service, updates: initialUpdates,
           ) : (
             <ul className="mt-3 space-y-2 text-sm">
               {updates.slice(0, 10).map((update) => {
+                const summary = buildThirdUpdateSummary(update);
                 const hours = computeTimeWindowHours(update);
-                const timeWindow = formatTimeWindow(update);
                 return (
                   <li key={update.id} className="space-y-2 rounded-lg border p-3">
                     <div className="flex flex-wrap items-center justify-between gap-2">
-                      <span className="text-base font-semibold text-foreground">{Math.round(update.percent)}%</span>
-                      <span className="text-xs text-muted-foreground">{formatDate(update.createdAt, true)}</span>
+                      <span className="text-base font-semibold text-foreground">{summary.title}</span>
+                      <span className="text-sm font-semibold text-primary">{summary.percentLabel}</span>
                     </div>
+                    <p className="text-xs text-muted-foreground">Atualizado em {formatDate(update.createdAt, true)}</p>
                     {update.subactivity?.label ? (
                       <p className="text-xs text-muted-foreground">
                         Subatividade: <span className="font-medium text-foreground">{update.subactivity.label}</span>
                       </p>
                     ) : null}
-                    {timeWindow ? <p className="text-xs text-muted-foreground">Período: {timeWindow}</p> : null}
-                    {hours !== null ? (
-                      <p className="text-xs text-muted-foreground">Horas informadas: {hours.toFixed(2)}</p>
+                    {summary.description ? <p className="text-sm text-foreground">{summary.description}</p> : null}
+                    {summary.resources ? (
+                      <p className="text-xs text-muted-foreground">Recursos: {summary.resources}</p>
                     ) : null}
-                    {update.description ? <p className="text-sm text-foreground">{update.description}</p> : null}
+                    {summary.hoursLabel ? (
+                      <p className="text-xs text-muted-foreground">{summary.hoursLabel}</p>
+                    ) : null}
+                    {hours === null && update.timeWindow?.start && update.timeWindow?.end ? (
+                      <p className="text-xs text-muted-foreground">
+                        Período: {formatDate(update.timeWindow.start, true)} → {formatDate(update.timeWindow.end, true)}
+                      </p>
+                    ) : null}
                     {update.impediments && update.impediments.length > 0 ? (
                       <div className="text-xs text-muted-foreground">
                         <span className="font-semibold text-foreground">Impedimentos:</span>
@@ -777,21 +760,6 @@ export default function ServiceDetailsClient({ service, updates: initialUpdates,
                               {item.type}
                               {item.durationHours !== null && item.durationHours !== undefined
                                 ? ` • ${item.durationHours}h`
-                                : ""}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    ) : null}
-                    {update.resources && update.resources.length > 0 ? (
-                      <div className="text-xs text-muted-foreground">
-                        <span className="font-semibold text-foreground">Recursos:</span>
-                        <ul className="mt-1 space-y-1">
-                          {update.resources.map((item, index) => (
-                            <li key={index}>
-                              {item.name}
-                              {item.quantity !== null && item.quantity !== undefined
-                                ? ` • ${item.quantity}${item.unit ? ` ${item.unit}` : ""}`
                                 : ""}
                             </li>
                           ))}

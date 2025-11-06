@@ -118,6 +118,7 @@ function mapServiceDoc(doc: FirebaseFirestore.DocumentSnapshot): Service {
     updatedAt: toMillis(data.updatedAt),
     hasChecklist: data.hasChecklist ?? Array.isArray(data.checklist),
     realPercent: toNumber(data.realPercent ?? data.andamento) ?? 0,
+    previousProgress: toNumber((data as Record<string, unknown>).previousProgress) ?? null,
     packageId:
       data.packageId !== undefined && data.packageId !== null
         ? String(data.packageId)
@@ -343,10 +344,11 @@ function mapResources(value: unknown) {
       const name = typeof record.name === "string" ? record.name.trim() : "";
       if (!name) return null;
       const quantity = toNumber(record.quantity);
+      const numericQuantity = Number.isFinite(quantity ?? NaN) ? Number(quantity) : null;
       const unit = typeof record.unit === "string" && record.unit.trim() ? record.unit.trim() : null;
       return {
         name,
-        quantity: Number.isFinite(quantity ?? NaN) ? Number(quantity) : null,
+        quantity: numericQuantity && numericQuantity > 0 ? numericQuantity : null,
         unit,
       };
     })
@@ -740,7 +742,7 @@ function buildUpdatePayload(serviceId: string, params: ManualUpdateInput & { rea
       .map((item) => ({
         name: item.name.trim(),
         quantity:
-          typeof item.quantity === "number" && Number.isFinite(item.quantity)
+          typeof item.quantity === "number" && Number.isFinite(item.quantity) && item.quantity > 0
             ? Number(item.quantity)
             : null,
         unit: item.unit?.trim() || null,

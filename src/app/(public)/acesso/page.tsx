@@ -6,6 +6,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 import { Field, RangeItem } from "@/components/ui/form-controls";
+import { recordTelemetry } from "@/lib/telemetry";
 
 type ValidateSuccess =
   | {
@@ -74,6 +75,7 @@ export default function AcessoPorTokenPage() {
   const [manualPercent, setManualPercent] = useState<string>("");
   const [checklistValues, setChecklistValues] = useState<Record<string, number>>({});
   const [savingUpdate, setSavingUpdate] = useState(false);
+  const tokenStorageKey = "third_portal_token";
 
   const selectedService = useMemo(
     () => services.find((service) => service.id === selectedServiceId) ?? null,
@@ -175,15 +177,13 @@ export default function AcessoPorTokenPage() {
         setValidatedToken(null);
         toast.error("Token inválido ou expirado.");
         setValidationError("Token inválido ou expirado.");
+        recordTelemetry("token.validation.failure", { status: response.status, error: json?.error });
         return;
       }
 
       if (json.ok && json.found) {
-        await fetch("/api/token-session", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ token: code }),
-        });
+        await persistTokenSession(code);
+        recordTelemetry("token.validation.success", { services: json.serviceIds?.length ?? 0 });
         toast.success("Token válido! Redirecionando…");
         router.replace("/terceiro");
         return;
@@ -193,10 +193,12 @@ export default function AcessoPorTokenPage() {
         setValidatedToken(code);
         toast.info("Token válido, mas nenhum serviço aberto foi encontrado.");
         setValidationError("Nenhum serviço aberto encontrado para este token.");
+        recordTelemetry("token.validation.success", { services: 0 });
         return;
       }
 
       setValidatedToken(code);
+      recordTelemetry("token.validation.success", { services: json.serviceIds.length });
       toast.success("Token validado. Selecione um serviço para atualizar.");
       const ids = "serviceIds" in json ? json.serviceIds : [];
       await loadServices(code, ids);
@@ -426,3 +428,21 @@ export default function AcessoPorTokenPage() {
     </div>
   );
 }
+  async function persistTokenSession(code: string) {
+    const response = await fetch("/api/token-session", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token: code }),
+    });
+    const json = (await response.json().catch(() => null)) as { ok?: boolean; error?: string } | null;
+    if (!response.ok || !json?.ok) {
+      recordTelemetry("token.session.failure", { status: response.status, error: json?.error });
+      throw new Error(json?.error ?? "Não foi possível iniciar a sessão.");
+    }
+    try {
+      window.sessionStorage.setItem(tokenStorageKey, code);
+    } catch (error) {
+      console.warn("[acesso] não foi possível persistir token em sessionStorage", error);
+    }
+    await new Promise((resolve) => setTimeout(resolve, 60));
+  }

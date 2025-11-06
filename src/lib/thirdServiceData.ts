@@ -142,6 +142,7 @@ export function mapThirdService(id: string, data: Record<string, unknown>): Thir
     andamento,
     realPercent,
     manualPercent,
+    previousProgress: toFiniteNumber(data.previousProgress ?? data.progressBeforeConclusion ?? data.previousPercent) ?? null,
     updatedAt: toMillis(data.updatedAt ?? data.lastUpdate ?? data.modifiedAt),
     hasChecklist:
       data.hasChecklist === true || Array.isArray(data.checklist) || Array.isArray(data.checklists),
@@ -208,7 +209,11 @@ export function mapThirdUpdate(id: string, data: Record<string, unknown>): Third
             if (!name) return null;
             const quantity = toFiniteNumber(item.quantity ?? item.qty ?? item.quantidade);
             const unit = toOptionalString(item.unit ?? item.unidade);
-            return { name, quantity: quantity ?? null, unit: unit ?? undefined };
+            return {
+              name,
+              quantity: quantity && quantity > 0 ? quantity : null,
+              unit: unit ?? undefined,
+            };
           })
           .filter(Boolean) as Array<{ name: string; quantity?: number | null; unit?: string | null }>
       : undefined,

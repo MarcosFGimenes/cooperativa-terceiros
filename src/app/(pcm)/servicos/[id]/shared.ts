@@ -1,4 +1,5 @@
 import { realizedFromChecklist, realizedFromUpdates } from "@/lib/curve";
+import { dedupeUpdates, formatUpdateSummary, sanitiseResourceQuantities } from "@/lib/serviceUpdates";
 import type {
   ChecklistItem,
   Service,
@@ -33,6 +34,7 @@ export type ServiceRealtimeData = {
   createdAt?: number | null;
   updatedAt?: number | null;
   hasChecklist?: boolean | null;
+  previousProgress?: number | null;
 };
 
 type PlannedPoint = { date: string; percent: number; hoursAccum?: number };
@@ -159,6 +161,7 @@ export function composeServiceRealtimeData(
     createdAt: primary?.createdAt ?? fallback?.createdAt ?? null,
     updatedAt: primary?.updatedAt ?? fallback?.updatedAt ?? null,
     hasChecklist: primary?.hasChecklist ?? fallback?.hasChecklist ?? null,
+    previousProgress: primary?.previousProgress ?? fallback?.previousProgress ?? null,
   };
 
   if (!base.plannedStart && typeof primary?.createdAt === "number") {
@@ -243,6 +246,7 @@ export function mapServiceSnapshot(
     createdAt: toMillis(data.createdAt) ?? null,
     updatedAt: toMillis(data.updatedAt) ?? null,
     hasChecklist: data.hasChecklist === true || Array.isArray(data.checklist) ? true : null,
+    previousProgress: toNumber(data.previousProgress) ?? null,
   };
 }
 
@@ -516,32 +520,6 @@ function toDayIso(value: unknown): string | null {
   return `${year}-${month}-${day}`;
 }
 
-export function formatTimeWindow(update: ServiceUpdate): string | null {
-  const start = update.timeWindow?.start;
-  const end = update.timeWindow?.end;
-  if (start === null || start === undefined || end === null || end === undefined) {
-    return null;
-  }
-  const startDate = new Date(start);
-  const endDate = new Date(end);
-  if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) return null;
-  const startKey = dayKeyFormatter.format(startDate);
-  const endKey = dayKeyFormatter.format(endDate);
-  const sameDay = startKey === endKey;
-  const formatter = new Intl.DateTimeFormat("pt-BR", {
-    dateStyle: sameDay ? undefined : "short",
-    timeStyle: "short",
-    timeZone: DEFAULT_TIME_ZONE,
-  });
-  const startLabel = formatter.format(startDate);
-  const endLabel = formatter.format(endDate);
-  if (sameDay) {
-    const dateLabel = dateFormatter.format(startDate);
-    return `${dateLabel}, ${startLabel} - ${endLabel}`;
-  }
-  return `${startLabel} → ${endLabel}`;
-}
-
 export function computeTimeWindowHours(update: ServiceUpdate): number | null {
   const raw = update.timeWindow?.hours;
   if (typeof raw === "number" && Number.isFinite(raw)) {
@@ -582,13 +560,11 @@ export function toNewChecklist(items: ChecklistItem[]): ChecklistItem[] {
 }
 
 export function toNewUpdates(updates: ServiceUpdate[]): ServiceUpdate[] {
-  return updates
-    .map((update) => ({
-      ...update,
-      percent: update.percent ?? update.manualPercent ?? update.realPercentSnapshot ?? 0,
-    }))
-    .sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0));
+  const normalised = updates.map((update) => sanitiseResourceQuantities(update));
+  return dedupeUpdates(normalised);
 }
+
+export { formatUpdateSummary };
 
 export function buildRealizedSeries(params: {
   updates: ServiceUpdate[];

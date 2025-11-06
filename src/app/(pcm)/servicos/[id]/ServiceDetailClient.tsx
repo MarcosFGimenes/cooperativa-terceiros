@@ -26,6 +26,7 @@ import {
   deriveRealizedPercent,
   formatDate,
   formatDateTime,
+  formatUpdateSummary,
   mapChecklistSnapshot,
   mapServiceSnapshot,
   mapUpdateSnapshot,
@@ -246,19 +247,10 @@ export default function ServiceDetailClient({
   const statusLabel = useMemo(() => normaliseStatus(service.status), [service.status]);
 
   const displayedUpdates = useMemo(() => {
-    const source = updates.length ? updates : normalizedInitialUpdates;
-    if (source.length === 0) {
-      return source;
+    if (updates.length === 0) {
+      return normalizedInitialUpdates;
     }
-
-    const seen = new Set<string>();
-
-    return source.filter((update) => {
-      const key = update.id || `${update.createdAt}-${update.percent}-${update.description}`;
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
+    return toNewUpdates([...updates, ...normalizedInitialUpdates]);
   }, [updates, normalizedInitialUpdates]);
 
   const recentChecklist = useMemo(
@@ -418,22 +410,32 @@ export default function ServiceDetailClient({
           ) : (
             <ul className="mt-3 space-y-2 text-sm">
               {displayedUpdates.slice(0, 6).map((update) => {
+                const summary = formatUpdateSummary(update);
                 const hours = computeTimeWindowHours(update);
                 return (
                   <li key={update.id} className="space-y-2 rounded-lg border p-3">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-base font-semibold text-foreground">{Math.round(update.percent ?? 0)}%</span>
-                      <span className="text-xs text-muted-foreground">{formatDateTime(update.createdAt)}</span>
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="text-base font-semibold text-foreground">{summary.title}</span>
+                      <span className="text-sm font-semibold text-primary">{summary.percentLabel}</span>
                     </div>
+                    <p className="text-xs text-muted-foreground">Atualizado em {formatDateTime(update.createdAt)}</p>
                     {update.subactivity?.label ? (
                       <p className="text-xs text-muted-foreground">
                         Subatividade: <span className="font-medium text-foreground">{update.subactivity.label}</span>
                       </p>
                     ) : null}
-                    {hours !== null ? (
-                      <p className="text-xs text-muted-foreground">Horas informadas: {hours.toFixed(2)}</p>
+                    {summary.description ? <p className="text-sm text-foreground">{summary.description}</p> : null}
+                    {summary.resources ? (
+                      <p className="text-xs text-muted-foreground">Recursos: {summary.resources}</p>
                     ) : null}
-                    {update.description ? <p className="text-sm text-foreground">{update.description}</p> : null}
+                    {summary.hoursLabel ? (
+                      <p className="text-xs text-muted-foreground">{summary.hoursLabel}</p>
+                    ) : null}
+                    {hours === null && update.timeWindow?.start && update.timeWindow?.end ? (
+                      <p className="text-xs text-muted-foreground">
+                        Período: {formatDateTime(update.timeWindow.start)} → {formatDateTime(update.timeWindow.end)}
+                      </p>
+                    ) : null}
                     {update.impediments && update.impediments.length > 0 ? (
                       <div className="text-xs text-muted-foreground">
                         <span className="font-semibold text-foreground">Impedimentos:</span>
@@ -443,21 +445,6 @@ export default function ServiceDetailClient({
                               {item.type}
                               {item.durationHours !== null && item.durationHours !== undefined
                                 ? ` • ${item.durationHours}h`
-                                : ""}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    ) : null}
-                    {update.resources && update.resources.length > 0 ? (
-                      <div className="text-xs text-muted-foreground">
-                        <span className="font-semibold text-foreground">Recursos:</span>
-                        <ul className="mt-1 space-y-1">
-                          {update.resources.map((item, index) => (
-                            <li key={index}>
-                              {item.name}
-                              {item.quantity !== null && item.quantity !== undefined
-                                ? ` • ${item.quantity}${item.unit ? ` ${item.unit}` : ""}`
                                 : ""}
                             </li>
                           ))}
