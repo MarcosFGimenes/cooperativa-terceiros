@@ -559,9 +559,78 @@ export function toNewChecklist(items: ChecklistItem[]): ChecklistItem[] {
   });
 }
 
+function hasText(value: string | null | undefined): boolean {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
+function hasFiniteNumber(value: unknown): boolean {
+  return typeof value === "number" && Number.isFinite(value);
+}
+
+function hasMeaningfulTimeWindow(update: ServiceUpdate): boolean {
+  const window = update.timeWindow;
+  if (!window) return false;
+  return [window.start, window.end, window.hours].some(hasFiniteNumber);
+}
+
+function hasMeaningfulResources(update: ServiceUpdate): boolean {
+  if (!Array.isArray(update.resources)) return false;
+  return update.resources.some((resource) => hasText(resource.name) || hasFiniteNumber(resource.quantity));
+}
+
+function hasMeaningfulWorkforce(update: ServiceUpdate): boolean {
+  if (!Array.isArray(update.workforce)) return false;
+  return update.workforce.some(
+    (entry) => hasText(entry.role) && hasFiniteNumber(entry.quantity) && Number(entry.quantity) > 0,
+  );
+}
+
+function hasMeaningfulImpediment(update: ServiceUpdate): boolean {
+  if (!Array.isArray(update.impediments)) return false;
+  return update.impediments.some((impediment) => hasText(impediment.type) || hasFiniteNumber(impediment.durationHours));
+}
+
+function hasMeaningfulShift(update: ServiceUpdate): boolean {
+  if (!Array.isArray(update.shiftConditions)) return false;
+  return update.shiftConditions.length > 0;
+}
+
+function hasMeaningfulEvidence(update: ServiceUpdate): boolean {
+  if (!Array.isArray(update.evidences)) return false;
+  return update.evidences.some((evidence) => hasText(evidence.url) || hasText(evidence.label));
+}
+
+function hasMeaningfulPercent(update: ServiceUpdate): boolean {
+  const percent = hasFiniteNumber(update.percent) ? Number(update.percent) : null;
+  const previousPercent = hasFiniteNumber(update.previousPercent) ? Number(update.previousPercent) : null;
+  const criticality = hasFiniteNumber(update.criticality) ? Number(update.criticality) : null;
+
+  if (criticality !== null) return true;
+  if (percent !== null && percent > 0) return true;
+  if (previousPercent !== null && previousPercent > 0) return true;
+  if (percent !== null && previousPercent !== null && percent !== previousPercent) return true;
+  return false;
+}
+
+function isMeaningfulUpdate(update: ServiceUpdate): boolean {
+  return (
+    hasText(update.description) ||
+    hasText(update.justification) ||
+    hasMeaningfulPercent(update) ||
+    hasMeaningfulTimeWindow(update) ||
+    hasMeaningfulResources(update) ||
+    hasMeaningfulWorkforce(update) ||
+    hasMeaningfulImpediment(update) ||
+    hasMeaningfulShift(update) ||
+    hasMeaningfulEvidence(update) ||
+    hasFiniteNumber(update.forecastDate)
+  );
+}
+
 export function toNewUpdates(updates: ServiceUpdate[]): ServiceUpdate[] {
   const normalised = updates.map((update) => sanitiseResourceQuantities(update));
-  return dedupeUpdates(normalised);
+  const filtered = normalised.filter(isMeaningfulUpdate);
+  return dedupeUpdates(filtered);
 }
 
 export { formatUpdateSummary };

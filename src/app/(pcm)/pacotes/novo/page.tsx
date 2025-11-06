@@ -5,12 +5,12 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { addDoc, collection, serverTimestamp } from "firebase/firestore";
 
-import { Field } from "@/components/ui/form-controls";
+import { Field, FormRow } from "@/components/ui/form-controls";
 import { tryGetFirestore } from "@/lib/firebase";
 
 export default function NovoPacotePage() {
   const router = useRouter();
-  const [form, setForm] = useState({ nome: "", descricao: "" });
+  const [form, setForm] = useState({ nome: "", descricao: "", dataInicio: "", dataFim: "" });
   const [saving, setSaving] = useState(false);
   const { db: firestore, error: firestoreError } = useMemo(() => tryGetFirestore(), []);
 
@@ -31,6 +31,24 @@ export default function NovoPacotePage() {
       toast.error("Informe o nome do pacote.");
       return;
     }
+    if (!form.dataInicio) {
+      toast.error("Informe a data inicial do pacote.");
+      return;
+    }
+    if (!form.dataFim) {
+      toast.error("Informe a data final do pacote.");
+      return;
+    }
+    const startDate = new Date(form.dataInicio);
+    const endDate = new Date(form.dataFim);
+    if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
+      toast.error("Datas inválidas. Verifique os valores informados.");
+      return;
+    }
+    if (startDate.getTime() > endDate.getTime()) {
+      toast.error("A data final deve ser posterior ou igual à data inicial.");
+      return;
+    }
     if (!firestore) {
       toast.error("Banco de dados indisponível.");
       return;
@@ -39,12 +57,20 @@ export default function NovoPacotePage() {
     try {
       const nome = form.nome.trim();
       const descricao = form.descricao.trim();
+      const inicio = form.dataInicio;
+      const fim = form.dataFim;
       const payload = {
         nome,
         name: nome,
         descricao: descricao || null,
         description: descricao || null,
         status: "Aberto",
+        plannedStart: inicio,
+        plannedEnd: fim,
+        dataInicio: inicio,
+        dataFim: fim,
+        inicioPlanejado: inicio,
+        fimPlanejado: fim,
         createdAt: serverTimestamp(),
       };
       const ref = await addDoc(collection(firestore, "packages"), payload);
@@ -83,6 +109,23 @@ export default function NovoPacotePage() {
 
       <form onSubmit={onSubmit} className="space-y-5 rounded-2xl border bg-card/80 p-6 shadow-sm">
         <Field label="Nome do pacote" value={form.nome} onChange={(event) => updateForm("nome", event.target.value)} required />
+        <FormRow>
+          <Field
+            label="Data inicial"
+            type="date"
+            value={form.dataInicio}
+            onChange={(event) => updateForm("dataInicio", event.target.value)}
+            required
+          />
+          <Field
+            label="Data final"
+            type="date"
+            value={form.dataFim}
+            min={form.dataInicio || undefined}
+            onChange={(event) => updateForm("dataFim", event.target.value)}
+            required
+          />
+        </FormRow>
         <div className="space-y-1">
           <label className="text-sm font-medium text-foreground/90" htmlFor="descricao">
             Descrição

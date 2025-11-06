@@ -156,19 +156,15 @@ export default async function PackageDetailPage({ params }: { params: { id: stri
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.6fr)_minmax(320px,1fr)]">
         <div className="space-y-4">
-          <div className="card space-y-4 p-4">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <h2 className="text-lg font-semibold">Curva S consolidada</h2>
-              <span className="text-xs text-muted-foreground">Realizado: {realized ?? 0}%</span>
-            </div>
-            <div className="h-[360px] min-h-[320px] w-full">
-              <SCurve
-                planned={planned}
-                realizedSeries={buildPackageRealizedSeries(planned, realized ?? 0)}
-                realizedPercent={realized ?? 0}
-              />
-            </div>
-          </div>
+          <SCurve
+            planned={planned}
+            realizedSeries={buildPackageRealizedSeries(planned, realized ?? 0)}
+            realizedPercent={realized ?? 0}
+            title="Curva S consolidada"
+            description="Planejado versus realizado considerando todos os serviços do pacote."
+            headerAside={<span className="font-medium text-foreground">Realizado: {realized ?? 0}%</span>}
+            chartHeight={360}
+          />
 
           <div className="card p-4">
             <h2 className="mb-4 text-lg font-semibold">Serviços e Empresas</h2>
