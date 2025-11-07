@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { onSnapshot, type FirestoreError } from "firebase/firestore";
 
-import { isFirestoreLongPollingForced } from "@/lib/firebase";
+import { isFirestoreLongPollingForced, tryGetAuth } from "@/lib/firebase";
 import { recordTelemetry } from "@/lib/telemetry";
 import { servicesQueryForCompany } from "@/lib/repo/services-client";
 
@@ -192,6 +192,13 @@ export default function TerceiroHome() {
 
     const attachListener = () => {
       try {
+        const { auth } = tryGetAuth();
+        const hasAuthenticatedUser = Boolean(auth?.currentUser);
+        if (!hasAuthenticatedUser) {
+          console.warn("[terceiro] usuário sem permissão para sync em tempo real - listener não iniciado");
+          setConnectionIssue("Sincronização em tempo real não disponível para este usuário.");
+          return;
+        }
         const query = servicesQueryForCompany(companyId);
         unsubscribe = onSnapshot(
           query,
@@ -203,11 +210,16 @@ export default function TerceiroHome() {
           (err) => {
             if (!active) return;
             const errorObject = err as FirestoreError | undefined;
+            if (errorObject?.code === "permission-denied") {
+              console.warn("[terceiro] usuário sem permissão para sync em tempo real", errorObject);
+              setConnectionIssue("Sincronização em tempo real não disponível para este usuário.");
+              return;
+            }
             const message =
               errorObject?.code === "unavailable"
                 ? longPollingForced
                   ? "Conexão com o Firestore indisponível. Continuaremos tentando via long-polling."
-                  : "Conexão com o Firestore indisponível. Ative NEXT_PUBLIC_FIRESTORE_FORCE_LONG_POLLING=true se proxies ou firewalls bloquearem streams."
+                  : "Conexão indisponível. Considere ativar long-polling."
                 : "Não foi possível sincronizar com o Firestore. Tentaremos novamente.";
             console.warn("[terceiro] falha na escuta de serviços", errorObject ?? err);
             setConnectionIssue(message);
@@ -218,8 +230,8 @@ export default function TerceiroHome() {
         if (!active) return;
         console.warn("[terceiro] não foi possível iniciar a sincronização", err);
         const hint = longPollingForced
-          ? "Sincronização temporariamente indisponível. Continuaremos tentando via long-polling."
-          : "Sincronização temporariamente indisponível. Ative NEXT_PUBLIC_FIRESTORE_FORCE_LONG_POLLING=true se estiver atrás de proxy corporativo.";
+          ? "Conexão com o Firestore indisponível. Continuaremos tentando via long-polling."
+          : "Conexão indisponível. Considere ativar long-polling.";
         setConnectionIssue(hint);
         scheduleRetry();
       }

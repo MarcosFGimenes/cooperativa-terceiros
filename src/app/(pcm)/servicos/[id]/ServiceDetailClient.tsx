@@ -90,9 +90,8 @@ export default function ServiceDetailClient({
         console.warn("[service-detail] Firestore indisponível", error);
       }
       const hint = longPollingForced
-        ? "Sincronização em tempo real indisponível no momento. Tentaremos nova conexão automaticamente."
-        :
-          "Sincronização em tempo real indisponível neste ambiente. Caso esteja em uma rede restritiva, ative NEXT_PUBLIC_FIRESTORE_FORCE_LONG_POLLING=true.";
+        ? "Conexão com o Firestore indisponível. Continuaremos tentando via long-polling."
+        : "Conexão indisponível. Considere ativar long-polling.";
       setConnectionIssue(hint);
       return () => {
         cancelled = true;
@@ -103,15 +102,22 @@ export default function ServiceDetailClient({
 
     const handleError = (firestoreError: FirestoreError) => {
       if (cancelled) return;
-      console.warn(`[service-detail] Falha na escuta do serviço ${serviceId}`, firestoreError);
-      const unavailableMessage = longPollingForced
-        ? "Sincronização em tempo real indisponível no momento. Tentaremos novamente automaticamente."
-        :
-          "Sincronização em tempo real indisponível. Se estiver atrás de proxy ou firewall, ative NEXT_PUBLIC_FIRESTORE_FORCE_LONG_POLLING=true.";
+      if (firestoreError.code === "permission-denied") {
+        console.warn(
+          `[service-detail] Usuário sem permissão para sincronização em tempo real do serviço ${serviceId}`,
+          firestoreError,
+        );
+        setConnectionIssue("Sincronização em tempo real não disponível para este usuário.");
+        return;
+      }
+
       const message =
-        firestoreError.code === "permission-denied"
-          ? "Seu usuário não possui permissão para acompanhar a sincronização em tempo real. Os dados exibidos continuam atualizados."
-          : unavailableMessage;
+        firestoreError.code === "unavailable"
+          ? longPollingForced
+            ? "Conexão com o Firestore indisponível. Continuaremos tentando via long-polling."
+            : "Conexão indisponível. Considere ativar long-polling."
+          : "Não foi possível sincronizar com o Firestore. Tentaremos novamente.";
+      console.warn(`[service-detail] Falha na escuta do serviço ${serviceId}`, firestoreError);
       setConnectionIssue(message);
     };
 
