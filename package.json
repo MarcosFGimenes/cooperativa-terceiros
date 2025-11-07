@@ -27,7 +27,8 @@
     "react-to-print": "^3.1.1",
     "recharts": "^2.12.6",
     "sonner": "^1.4.0",
-    "zod": "^4.1.12"
+    "zod": "^4.1.12",
+    "patch-package": "file:packages/patch-package"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
