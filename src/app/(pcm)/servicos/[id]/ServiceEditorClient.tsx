@@ -150,7 +150,15 @@ export default function ServiceEditorClient({ serviceId }: ServiceEditorClientPr
       })
       .catch((error) => {
         console.error("[servicos/:id] Falha ao carregar pacotes", error);
-        toast.error("Não foi possível carregar os pacotes disponíveis.");
+        const errorCode =
+          typeof error === "object" && error !== null && "code" in error && typeof (error as { code?: unknown }).code === "string"
+            ? ((error as { code: string }).code)
+            : null;
+        if (errorCode === "permission-denied") {
+          toast.error("Você não tem permissão para ver os pacotes disponíveis.");
+        } else {
+          toast.error("Não foi possível carregar os pacotes disponíveis.");
+        }
       })
       .finally(() => setLoadingPackages(false));
   }, [firestore]);

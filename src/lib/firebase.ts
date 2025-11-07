@@ -28,27 +28,32 @@ function parseBooleanEnv(value: string | undefined | null): boolean | null {
 const envForceLongPolling = parseBooleanEnv(process.env.NEXT_PUBLIC_FIRESTORE_FORCE_LONG_POLLING);
 const envUseFetchStreams = parseBooleanEnv(process.env.NEXT_PUBLIC_FIRESTORE_USE_FETCH_STREAMS);
 
-const forceLongPolling = envForceLongPolling ?? process.env.NODE_ENV === "production";
-const useFetchStreams = forceLongPolling ? false : envUseFetchStreams ?? false;
+const forceLongPolling = envForceLongPolling === true;
+const useFetchStreams = !forceLongPolling && envUseFetchStreams === true;
 
 if (!globalForFirebase.__FIREBASE_CLIENT_APP__ && !globalForFirebase.__FIREBASE_CLIENT_ERROR__) {
   try {
     const config = getFirebasePublicConfig();
     const app = getApps().length ? getApp() : initializeApp(config);
 
-    if (process.env.NODE_ENV !== "production") {
-      setLogLevel("debug");
-      console.info(
-        `[firebase] Firestore configurado com ${
-          forceLongPolling ? "long-polling forçado" : "transporte padrão"
-        } (useFetchStreams=${useFetchStreams ? "true" : "false"}).`,
-      );
+    const firestoreSettings: Parameters<typeof initializeFirestore>[1] = {};
+    if (forceLongPolling) {
+      firestoreSettings.experimentalForceLongPolling = true;
+    } else if (useFetchStreams) {
+      firestoreSettings.useFetchStreams = true;
     }
 
-    const db = initializeFirestore(app, {
-      experimentalForceLongPolling: forceLongPolling,
-      useFetchStreams,
-    });
+    if (process.env.NODE_ENV !== "production") {
+      setLogLevel("debug");
+      const strategy = forceLongPolling
+        ? "long-polling forçado"
+        : useFetchStreams
+          ? "fetch streams habilitado"
+          : "transporte padrão";
+      console.info(`[firebase] Firestore usando estratégia de rede: ${strategy}.`);
+    }
+
+    const db = initializeFirestore(app, firestoreSettings);
 
     const auth = getAuth(app);
 

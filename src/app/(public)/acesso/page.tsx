@@ -194,6 +194,7 @@ export default function AcessoPorTokenPage() {
       setValidationError(null);
       setServices([]);
       setSelectedServiceId(null);
+      let didRedirect = false;
       try {
         const response = await fetch(`/api/validate-token?token=${encodeURIComponent(code)}`, {
           cache: "no-store",
@@ -211,6 +212,7 @@ export default function AcessoPorTokenPage() {
           await persistTokenSession(code);
           recordTelemetry("token.validation.success", { services: json.serviceIds?.length ?? 0 });
           toast.success("Token válido! Redirecionando…");
+          didRedirect = true;
           router.replace("/terceiro");
           return;
         }
@@ -234,7 +236,9 @@ export default function AcessoPorTokenPage() {
         toast.error("Falha ao validar token.");
         setValidationError("Não foi possível validar o token no momento.");
       } finally {
-        setValidating(false);
+        if (!didRedirect) {
+          setValidating(false);
+        }
       }
     },
     [loadServices, persistTokenSession, router],
