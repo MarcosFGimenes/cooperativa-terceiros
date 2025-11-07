@@ -13,6 +13,10 @@ service cloud.firestore {
 
     match /services/{serviceId} {
       allow read, write: if isSignedIn();
+
+      match /{document=**} {
+        allow read, write: if isSignedIn();
+      }
     }
 
     match /packages/{packageId} {
