@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "preinstall": "node scripts/ensure-patch-package-bin.cjs",
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
