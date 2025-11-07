@@ -1,19 +1,10 @@
 #!/usr/bin/env node
 
-/**
- * Minimal patch-package replacement used to satisfy environments that expect
- * the `patch-package` binary during `npm install`.
- *
- * The script attempts to apply any .patch files found inside the `patches`
- * directory relative to the project root. If no patches are present the script
- * exits successfully without making any changes.
- */
-
 const fs = require('fs');
 const path = require('path');
 const { spawnSync } = require('child_process');
 
-const projectRoot = process.cwd();
+const projectRoot = path.resolve(__dirname, '..', '..');
 const patchesDir = path.join(projectRoot, 'patches');
 
 if (!fs.existsSync(patchesDir)) {
@@ -30,6 +21,29 @@ if (patchFiles.length === 0) {
   console.log('[patch-package shim] No patch files found. Skipping.');
   process.exit(0);
 }
+
+let cliPath;
+try {
+  cliPath = require.resolve('patch-package/dist/index.js', { paths: [projectRoot] });
+} catch (error) {
+  cliPath = null;
+}
+
+if (cliPath) {
+  const result = spawnSync(process.execPath, [cliPath], {
+    cwd: projectRoot,
+    stdio: 'inherit',
+  });
+
+  if (result.status === null) {
+    console.error('[patch-package shim] Failed to execute patch-package CLI.');
+    process.exit(1);
+  }
+
+  process.exit(result.status);
+}
+
+console.warn('[patch-package shim] `patch-package` dependency not found; attempting to apply patches with the `patch` binary.');
 
 let hasErrors = false;
 
