@@ -1,7 +1,0 @@
-{
-  "name": "patch-package",
-  "version": "0.0.1",
-  "bin": {
-    "patch-package": "./bin/patch-package.js"
-  }
-}
