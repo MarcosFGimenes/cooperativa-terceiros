@@ -1,13 +1,8 @@
 import { NextResponse } from "next/server";
-import type {
-  DocumentSnapshot as AdminDocumentSnapshot,
-  QueryDocumentSnapshot as AdminQueryDocumentSnapshot,
-} from "firebase-admin/firestore";
-import type {
-  DocumentSnapshot as ClientDocumentSnapshot,
-  QueryDocumentSnapshot as ClientQueryDocumentSnapshot,
-} from "firebase/firestore";
-import { tryGetAdminDb, getServerWebDb } from "@/lib/serverDb";
+import type { DocumentSnapshot, QueryDocumentSnapshot, Firestore } from "firebase-admin/firestore";
+
+import { AdminDbUnavailableError, getAdminDbOrThrow } from "@/lib/serverDb";
+import { mapFirestoreError } from "@/lib/utils/firestoreErrors";
 
 function normalizeCompany(raw?: unknown) {
   if (typeof raw !== "string") return "";
@@ -79,11 +74,8 @@ function extractServiceCompany(data: Record<string, unknown>): string {
   return "";
 }
 
-async function fetchFolderServicesAdmin(folderId: string, empresa: string | null) {
-  const adminDb = tryGetAdminDb();
-  if (!adminDb) return [] as string[];
-
-  const folderSnap = await adminDb.collection("packageFolders").doc(folderId).get();
+async function fetchFolderServicesAdmin(db: Firestore, folderId: string, empresa: string | null) {
+  const folderSnap = await db.collection("packageFolders").doc(folderId).get();
   if (!folderSnap.exists) return [];
 
   const data = (folderSnap.data() ?? {}) as Record<string, unknown>;
@@ -102,7 +94,7 @@ async function fetchFolderServicesAdmin(folderId: string, empresa: string | null
   const seen = new Set<string>();
   for (const serviceId of services) {
     if (seen.has(serviceId)) continue;
-    const docSnap = await adminDb.collection("services").doc(serviceId).get();
+    const docSnap = await db.collection("services").doc(serviceId).get();
     if (!docSnap.exists) continue;
     const serviceData = (docSnap.data() ?? {}) as Record<string, unknown>;
     if (!isServiceOpenRecord(serviceData)) continue;
@@ -111,45 +103,6 @@ async function fetchFolderServicesAdmin(folderId: string, empresa: string | null
       if (serviceCompany && serviceCompany !== normalizedEmpresa) continue;
     }
     seen.add(docSnap.id);
-  }
-
-  return Array.from(seen);
-}
-
-async function fetchFolderServicesWeb(folderId: string, empresa: string | null) {
-  const webDb = await getServerWebDb();
-  const { collection, doc: docRef, getDoc } = await import("firebase/firestore");
-
-  const folderRef = docRef(collection(webDb, "packageFolders"), folderId);
-  const folderSnap = await getDoc(folderRef);
-  if (!folderSnap.exists()) return [];
-
-  const data = (folderSnap.data() ?? {}) as Record<string, unknown>;
-  const services = Array.isArray(data.services)
-    ? (data.services as unknown[])
-        .map((value) => (typeof value === "string" ? value.trim() : ""))
-        .filter((value) => value.length > 0)
-    : [];
-
-  const normalizedEmpresa = normalizeCompany(empresa ?? undefined);
-  const folderCompany = normalizeCompany(data.companyId ?? data.company ?? data.empresa ?? undefined);
-  if (normalizedEmpresa && folderCompany && normalizedEmpresa !== folderCompany) {
-    return [];
-  }
-
-  const seen = new Set<string>();
-  for (const serviceId of services) {
-    if (seen.has(serviceId)) continue;
-    const serviceRef = docRef(collection(webDb, "services"), serviceId);
-    const serviceSnap = await getDoc(serviceRef);
-    if (!serviceSnap.exists()) continue;
-    const serviceData = (serviceSnap.data() ?? {}) as Record<string, unknown>;
-    if (!isServiceOpenRecord(serviceData)) continue;
-    if (normalizedEmpresa) {
-      const serviceCompany = extractServiceCompany(serviceData);
-      if (serviceCompany && serviceCompany !== normalizedEmpresa) continue;
-    }
-    seen.add(serviceSnap.id);
   }
 
   return Array.from(seen);
@@ -173,67 +126,22 @@ export async function GET(req: Request) {
   }
 
   try {
-    const adminDb = tryGetAdminDb();
-    if (adminDb) {
-      const collectionRef = adminDb.collection("accessTokens");
-      let doc: AdminDocumentSnapshot | AdminQueryDocumentSnapshot | null = null;
+    const adminDb = getAdminDbOrThrow();
+    const collectionRef = adminDb.collection("accessTokens");
+    let doc: DocumentSnapshot | QueryDocumentSnapshot | null = null;
 
-      const direct = await collectionRef.doc(token).get();
-      if (direct.exists) {
-        doc = direct;
-      }
-
-      if (!doc) {
-        const snap = await collectionRef.where("code", "==", token).limit(1).get();
-        doc = snap.docs[0] ?? null;
-      }
-
-      if (!doc) {
-        const legacy = await collectionRef.where("token", "==", token).where("active", "==", true).limit(1).get();
-        doc = legacy.docs[0] ?? null;
-      }
-
-      if (!doc) {
-        return NextResponse.json({ ok: true, found: false, serviceIds: [] });
-      }
-
-      const data = doc.data() ?? {};
-      if (!isTokenActive(data)) {
-        return NextResponse.json({ ok: true, found: false, serviceIds: [] });
-      }
-
-      const { serviceId, folderId, empresa } = extractTokenData(data, doc.id);
-      if (serviceId) {
-        return NextResponse.json({ ok: true, found: true, serviceIds: [serviceId] });
-      }
-
-      if (folderId) {
-        const serviceIds = await fetchFolderServicesAdmin(folderId, empresa);
-        return NextResponse.json({ ok: true, found: serviceIds.length > 0, serviceIds });
-      }
-
-      return NextResponse.json({ ok: true, found: false, serviceIds: [] });
-    }
-
-    const webDb = await getServerWebDb();
-    const { collection, doc: docRef, getDoc, getDocs, limit, query, where } = await import("firebase/firestore");
-    const tokensCollection = collection(webDb, "accessTokens");
-    let doc: ClientDocumentSnapshot | ClientQueryDocumentSnapshot | null = null;
-
-    const byId = await getDoc(docRef(tokensCollection, token));
-    if (byId.exists()) {
-      doc = byId;
+    const direct = await collectionRef.doc(token).get();
+    if (direct.exists) {
+      doc = direct;
     }
 
     if (!doc) {
-      const byCode = await getDocs(query(tokensCollection, where("code", "==", token), limit(1)));
-      doc = byCode.docs[0] ?? null;
+      const snap = await collectionRef.where("code", "==", token).limit(1).get();
+      doc = snap.docs[0] ?? null;
     }
 
     if (!doc) {
-      const legacy = await getDocs(
-        query(tokensCollection, where("token", "==", token), where("active", "==", true), limit(1)),
-      );
+      const legacy = await collectionRef.where("token", "==", token).where("active", "==", true).limit(1).get();
       doc = legacy.docs[0] ?? null;
     }
 
@@ -252,13 +160,27 @@ export async function GET(req: Request) {
     }
 
     if (folderId) {
-      const serviceIds = await fetchFolderServicesWeb(folderId, empresa);
+      const serviceIds = await fetchFolderServicesAdmin(adminDb, folderId, empresa);
       return NextResponse.json({ ok: true, found: serviceIds.length > 0, serviceIds });
     }
 
     return NextResponse.json({ ok: true, found: false, serviceIds: [] });
-  } catch (e) {
-    console.error("[validate-token]", e);
+  } catch (error) {
+    if (error instanceof AdminDbUnavailableError || (error instanceof Error && error.message === "FIREBASE_ADMIN_NOT_CONFIGURED")) {
+      console.error("[validate-token] Firebase Admin não configurado", error);
+      return NextResponse.json(
+        { ok: false, error: "Configuração de acesso ao banco indisponível." },
+        { status: 500 },
+      );
+    }
+
+    const mapped = mapFirestoreError(error);
+    if (mapped) {
+      console.warn("[validate-token] Falha ao validar token", error);
+      return NextResponse.json({ ok: false, error: mapped.message }, { status: mapped.status });
+    }
+
+    console.error("[validate-token] Erro inesperado", error);
     return NextResponse.json({ ok: false, error: "validate_failed" }, { status: 500 });
   }
 }

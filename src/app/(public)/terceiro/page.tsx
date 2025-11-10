@@ -1,12 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { onSnapshot, type FirestoreError } from "firebase/firestore";
 
-import { isFirestoreLongPollingForced, tryGetAuth } from "@/lib/firebase";
 import { recordTelemetry } from "@/lib/telemetry";
-import { servicesQueryForCompany } from "@/lib/repo/services-client";
 
 type ServiceItem = {
   id: string;
@@ -31,6 +28,9 @@ function normaliseStatus(value?: string | null) {
   return "Aberto";
 }
 
+const POLL_INTERVAL_MS = 15_000;
+const RETRY_INTERVAL_MS = 5_000;
+
 export default function TerceiroHome() {
   const [companyId, setCompanyId] = useState<string | null>(null);
   const [items, setItems] = useState<ServiceItem[]>([]);
@@ -39,15 +39,17 @@ export default function TerceiroHome() {
   const [tokenExpired, setTokenExpired] = useState(false);
   const [connectionIssue, setConnectionIssue] = useState<string | null>(null);
   const [sessionRetryKey, setSessionRetryKey] = useState(0);
-  const [listenerSeed, setListenerSeed] = useState(0);
-  const longPollingForced = isFirestoreLongPollingForced;
   const tokenStorageKey = "third_portal_token";
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const stored = window.localStorage.getItem("companyId");
-    if (stored) {
-      setCompanyId((current) => current ?? stored);
+    try {
+      const stored = window.localStorage.getItem("companyId");
+      if (stored) {
+        setCompanyId((current) => current ?? stored);
+      }
+    } catch (storageError) {
+      console.warn("[terceiro] falha ao ler companyId do localStorage", storageError);
     }
   }, []);
 
@@ -56,7 +58,6 @@ export default function TerceiroHome() {
     const handleOnline = () => {
       setConnectionIssue(null);
       setSessionRetryKey((value) => value + 1);
-      setListenerSeed((value) => value + 1);
     };
     const handleOffline = () => {
       setConnectionIssue("Sem conexão com a internet. Exibindo dados disponíveis.");
@@ -69,34 +70,79 @@ export default function TerceiroHome() {
     };
   }, []);
 
-  useEffect(() => {
-    let cancelled = false;
-    let retryTimeout: ReturnType<typeof setTimeout> | null = null;
+  const companyLabel = useMemo(() => {
+    if (!companyId) return null;
+    return <span className="ml-2 text-xs uppercase tracking-wide">Empresa: {companyId}</span>;
+  }, [companyId]);
 
-    async function loadSession() {
-      setLoading(true);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    let cancelled = false;
+    let controller: AbortController | null = null;
+    let retryTimeout: ReturnType<typeof setTimeout> | null = null;
+    let pollInterval: ReturnType<typeof setInterval> | null = null;
+    let firstFetch = true;
+    let fetching = false;
+
+    const scheduleRetry = (delay: number) => {
+      if (retryTimeout) {
+        window.clearTimeout(retryTimeout);
+        retryTimeout = null;
+      }
+      retryTimeout = window.setTimeout(() => {
+        if (cancelled) return;
+        void performFetch();
+      }, delay);
+    };
+
+    const clearRetry = () => {
+      if (retryTimeout) {
+        window.clearTimeout(retryTimeout);
+        retryTimeout = null;
+      }
+    };
+
+    const performFetch = async () => {
+      if (fetching) return;
+      fetching = true;
+      controller?.abort();
+      controller = new AbortController();
+      if (firstFetch) {
+        setLoading(true);
+      }
       try {
-        const response = await fetch("/api/terceiro/session", { cache: "no-store" });
+        const response = await fetch("/api/terceiro/session", {
+          cache: "no-store",
+          signal: controller.signal,
+        });
+        const payload = await response.json().catch(() => ({}));
+
+        if (cancelled) return;
+
         if (!response.ok) {
-          const payload = await response.json().catch(() => ({}));
-          if (cancelled) return;
+          clearRetry();
+          setItems([]);
+          setCompanyId(null);
 
           if (response.status === 401 || payload?.error === "missing_token") {
             setError("token-expired");
             setTokenExpired(true);
-            setItems([]);
-            setCompanyId(null);
             recordTelemetry("token.session.missing", {});
             try {
               window.sessionStorage.removeItem(tokenStorageKey);
             } catch (storageError) {
               console.warn("[terceiro] falha ao limpar token armazenado", storageError);
             }
-            if (typeof window !== "undefined") {
-              retryTimeout = window.setTimeout(() => {
-                setSessionRetryKey((value) => value + 1);
-              }, 200);
-            }
+            scheduleRetry(RETRY_INTERVAL_MS);
+            return;
+          }
+
+          if (response.status === 404 || payload?.error === "token_not_found") {
+            setError("O acesso público expirou. Solicite um novo link para continuar acompanhando os serviços.");
+            setTokenExpired(true);
+            recordTelemetry("token.session.expired", {});
+            scheduleRetry(RETRY_INTERVAL_MS);
             return;
           }
 
@@ -106,11 +152,9 @@ export default function TerceiroHome() {
                 ? payload.error
                 : "Serviço temporariamente indisponível. Tentaremos novamente em instantes.";
             setConnectionIssue(message);
-            if (typeof window !== "undefined") {
-              retryTimeout = window.setTimeout(() => {
-                setSessionRetryKey((value) => value + 1);
-              }, 5000);
-            }
+            setError(null);
+            setTokenExpired(false);
+            scheduleRetry(RETRY_INTERVAL_MS);
             return;
           }
 
@@ -118,137 +162,67 @@ export default function TerceiroHome() {
             typeof payload?.error === "string" && payload.error
               ? payload.error
               : "Não foi possível carregar os dados.";
-          if (payload?.error === "token_not_found") {
-            setError("token-expired");
-            setTokenExpired(true);
-            recordTelemetry("token.session.expired", {});
-          } else {
-            setError(message);
-            setTokenExpired(false);
-          }
-          setItems([]);
-          setCompanyId(null);
+          setError(message);
+          setTokenExpired(false);
           setConnectionIssue(null);
           return;
         }
 
-        const data = await response.json();
-        if (cancelled) return;
-        const list = Array.isArray(data?.services) ? (data.services as ServiceItem[]) : [];
+        const list = Array.isArray(payload?.services) ? (payload.services as ServiceItem[]) : [];
+        const company = typeof payload?.companyId === "string" && payload.companyId ? payload.companyId : null;
+
         setItems(list);
+        setCompanyId(company);
         setError(null);
         setTokenExpired(false);
         setConnectionIssue(null);
-        const company = typeof data?.companyId === "string" && data.companyId ? data.companyId : null;
-        setCompanyId(company);
-        if (company && typeof window !== "undefined") {
-          localStorage.setItem("companyId", company);
-        }
-      } catch (err) {
-        console.warn("[terceiro] falha ao carregar sessão", err);
-        if (!cancelled) {
-          const isOffline = typeof navigator !== "undefined" && navigator.onLine === false;
-          setConnectionIssue(
-            isOffline
-              ? "Sem conexão com a internet. Tentaremos sincronizar assim que possível."
-              : "Não foi possível atualizar as informações. Tentaremos novamente em instantes.",
-          );
-          if (typeof window !== "undefined") {
-            retryTimeout = window.setTimeout(() => {
-              setSessionRetryKey((value) => value + 1);
-            }, 5000);
+        clearRetry();
+
+        if (company) {
+          try {
+            window.localStorage.setItem("companyId", company);
+          } catch (storageError) {
+            console.warn("[terceiro] não foi possível persistir companyId", storageError);
           }
         }
+      } catch (err) {
+        if (cancelled) return;
+        console.warn("[terceiro] falha ao carregar sessão", err);
+        const isOffline = typeof navigator !== "undefined" && navigator.onLine === false;
+        setConnectionIssue(
+          isOffline
+            ? "Sem conexão com a internet. Tentaremos sincronizar assim que possível."
+            : "Não foi possível atualizar as informações. Tentaremos novamente em instantes.",
+        );
+        scheduleRetry(RETRY_INTERVAL_MS);
       } finally {
-        if (!cancelled) {
+        if (!cancelled && firstFetch) {
           setLoading(false);
         }
+        firstFetch = false;
+        fetching = false;
       }
-    }
+    };
 
-    void loadSession();
+    void performFetch();
+
+    pollInterval = window.setInterval(() => {
+      void performFetch();
+    }, POLL_INTERVAL_MS);
 
     return () => {
       cancelled = true;
-      if (retryTimeout) {
-        clearTimeout(retryTimeout);
+      controller?.abort();
+      clearRetry();
+      if (pollInterval) {
+        window.clearInterval(pollInterval);
       }
     };
-  }, [sessionRetryKey]);
+  }, [sessionRetryKey, tokenStorageKey]);
 
-  useEffect(() => {
-    if (!companyId) return undefined;
-
-    let active = true;
-    let unsubscribe: (() => void) | null = null;
-    let retryTimeout: ReturnType<typeof setTimeout> | null = null;
-
-    const scheduleRetry = () => {
-      if (typeof window === "undefined") return;
-      retryTimeout = window.setTimeout(() => {
-        setListenerSeed((value) => value + 1);
-      }, 5000);
-    };
-
-    const attachListener = () => {
-      try {
-        const { auth } = tryGetAuth();
-        const hasAuthenticatedUser = Boolean(auth?.currentUser);
-        if (!hasAuthenticatedUser) {
-          console.warn("[terceiro] usuário sem permissão para sync em tempo real - listener não iniciado");
-          setConnectionIssue("Sincronização em tempo real não disponível para este usuário.");
-          return;
-        }
-        const query = servicesQueryForCompany(companyId);
-        unsubscribe = onSnapshot(
-          query,
-          (snapshot) => {
-            if (!active) return;
-            setConnectionIssue(null);
-            setItems(snapshot.docs.map((doc) => ({ id: doc.id, ...(doc.data() as ServiceItem) })));
-          },
-          (err) => {
-            if (!active) return;
-            const errorObject = err as FirestoreError | undefined;
-            if (errorObject?.code === "permission-denied") {
-              console.warn("[terceiro] usuário sem permissão para sync em tempo real", errorObject);
-              setConnectionIssue("Sincronização em tempo real não disponível para este usuário.");
-              return;
-            }
-            const message =
-              errorObject?.code === "unavailable"
-                ? longPollingForced
-                  ? "Conexão com o Firestore indisponível. Continuaremos tentando via long-polling."
-                  : "Conexão indisponível. Considere ativar long-polling."
-                : "Não foi possível sincronizar com o Firestore. Tentaremos novamente.";
-            console.warn("[terceiro] falha na escuta de serviços", errorObject ?? err);
-            setConnectionIssue(message);
-            scheduleRetry();
-          },
-        );
-      } catch (err) {
-        if (!active) return;
-        console.warn("[terceiro] não foi possível iniciar a sincronização", err);
-        const hint = longPollingForced
-          ? "Conexão com o Firestore indisponível. Continuaremos tentando via long-polling."
-          : "Conexão indisponível. Considere ativar long-polling.";
-        setConnectionIssue(hint);
-        scheduleRetry();
-      }
-    };
-
-    attachListener();
-
-    return () => {
-      active = false;
-      if (retryTimeout) {
-        clearTimeout(retryTimeout);
-      }
-      if (unsubscribe) {
-        unsubscribe();
-      }
-    };
-  }, [companyId, listenerSeed, longPollingForced]);
+  const connectionBanner = connectionIssue && !error ? (
+    <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-700">{connectionIssue}</div>
+  ) : null;
 
   return (
     <div className="container mx-auto space-y-4 p-4">
@@ -257,16 +231,12 @@ export default function TerceiroHome() {
           <h1 className="text-2xl font-semibold tracking-tight">Meus Serviços</h1>
           <p className="text-sm text-muted-foreground">
             Serviços abertos atribuídos à sua empresa.
-            {companyId ? <span className="ml-2 text-xs uppercase tracking-wide">Empresa: {companyId}</span> : null}
+            {companyLabel}
           </p>
         </div>
       </div>
 
-      {connectionIssue && !error ? (
-        <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-700">
-          {connectionIssue}
-        </div>
-      ) : null}
+      {connectionBanner}
 
       {loading ? (
         <div className="card p-6 text-sm text-muted-foreground">Carregando…</div>
