@@ -1,3 +1,5 @@
+import { getAdminDbOrThrow } from "@/lib/serverDb";
+
 import type { IsoDate } from "./curvaSShared";
 import { computePlannedUniformPercent, dateRangeInclusive } from "./curvaSShared";
 
@@ -169,29 +171,15 @@ function buildCurve(serviceData: Record<string, unknown>, updates: ServiceUpdate
 }
 
 export async function curvaRealizada(serviceId: string): Promise<CurvePoint[]> {
-  const { tryGetAdminDb, getServerWebDb } = await import("@/lib/serverDb");
-  const adminDb = tryGetAdminDb();
-  if (adminDb) {
-    const serviceRef = adminDb.collection("services").doc(serviceId);
-    const [serviceSnap, updatesSnap] = await Promise.all([
-      serviceRef.get(),
-      serviceRef.collection("serviceUpdates").orderBy("date", "asc").get(),
-    ]);
+  const adminDb = getAdminDbOrThrow();
+  const serviceRef = adminDb.collection("services").doc(serviceId);
+  const [serviceSnap, updatesSnap] = await Promise.all([
+    serviceRef.get(),
+    serviceRef.collection("serviceUpdates").orderBy("date", "asc").get(),
+  ]);
 
-    if (!serviceSnap.exists) return [];
-    const serviceData = serviceSnap.data() ?? {};
-    const updates = updatesSnap.docs.map((docSnap) => docSnap.data() ?? {}) as ServiceUpdateLike[];
-    return buildCurve(serviceData, updates);
-  }
-
-  const db = await getServerWebDb();
-  const { doc, getDoc, collection, query, orderBy, getDocs } = await import("firebase/firestore");
-
-  const serviceRef = doc(db, "services", serviceId);
-  const serviceSnap = await getDoc(serviceRef);
-  if (!serviceSnap.exists()) return [];
-
-  const updatesSnap = await getDocs(query(collection(serviceRef, "serviceUpdates"), orderBy("date", "asc")));
+  if (!serviceSnap.exists) return [];
+  const serviceData = serviceSnap.data() ?? {};
   const updates = updatesSnap.docs.map((docSnap) => docSnap.data() ?? {}) as ServiceUpdateLike[];
-  return buildCurve(serviceSnap.data() ?? {}, updates);
+  return buildCurve(serviceData, updates);
 }

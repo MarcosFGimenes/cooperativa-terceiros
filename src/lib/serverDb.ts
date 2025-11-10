@@ -2,8 +2,14 @@
 import "server-only";
 import { getFirestore } from "firebase-admin/firestore";
 
-import { getFirebasePublicConfig } from "@/lib/firebaseConfig";
 import { getAdminApp } from "./firebaseAdmin";
+
+export class AdminDbUnavailableError extends Error {
+  constructor(message = "Firebase Admin Firestore is not configured.") {
+    super(message);
+    this.name = "AdminDbUnavailableError";
+  }
+}
 
 // Admin (preferido)
 export function tryGetAdminDb() {
@@ -12,12 +18,10 @@ export function tryGetAdminDb() {
   return getFirestore(app);
 }
 
-// Fallback: SDK Web rodando no servidor (usa NEXT_PUBLIC_*)
-export async function getServerWebDb() {
-  const { initializeApp, getApps } = await import("firebase/app");
-  const { getFirestore: getWebFirestore } = await import("firebase/firestore");
-  if (!getApps().length) {
-    initializeApp(getFirebasePublicConfig());
+export function getAdminDbOrThrow() {
+  const db = tryGetAdminDb();
+  if (!db) {
+    throw new AdminDbUnavailableError();
   }
-  return getWebFirestore();
+  return db;
 }
