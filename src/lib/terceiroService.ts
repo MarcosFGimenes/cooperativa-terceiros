@@ -1,6 +1,8 @@
 // server-only
 import "server-only";
-import { tryGetAdminDb, getServerWebDb } from "@/lib/serverDb";
+import type { Firestore } from "firebase-admin/firestore";
+
+import { getAdminDbOrThrow } from "@/lib/serverDb";
 
 type ServiceDoc = {
   id: string;
@@ -15,7 +17,7 @@ type ServiceDoc = {
   empresa?: string | null;
 };
 
-type TokenDoc = { id: string } & Record<string, unknown>;
+export type TokenDoc = { id: string } & Record<string, unknown>;
 
 function toOptionalString(value: unknown): string | undefined {
   if (typeof value !== "string") return undefined;
@@ -86,77 +88,71 @@ function mapServiceDoc(id: string, raw: Record<string, unknown>): ServiceDoc {
   };
 }
 
-export async function getTokenDoc(token: string) {
-  // Tenta Admin
-  const adminDb = tryGetAdminDb();
-  if (adminDb) {
-    const snap = await adminDb.collection("accessTokens").where("code", "==", token).limit(1).get();
-    if (snap.empty) return null;
-    const d = snap.docs[0];
-    const data = d.data() ?? {};
-    return { id: d.id, ...(data as Record<string, unknown>) } as TokenDoc;
+async function findTokenSnapshot(db: Firestore, token: string) {
+  const normalised = token.trim().toUpperCase();
+  const collection = db.collection("accessTokens");
+
+  const direct = await collection.doc(normalised).get();
+  if (direct.exists) {
+    return direct;
   }
-  // Fallback Web
-  const webDb = await getServerWebDb();
-  const { collection, getDocs, query, where, limit } = await import("firebase/firestore");
-  const q = query(collection(webDb, "accessTokens"), where("code", "==", token), limit(1));
-  const snap = await getDocs(q);
-  if (snap.empty) return null;
-  const d = snap.docs[0];
-  const data = d.data() ?? {};
-  return { id: d.id, ...(data as Record<string, unknown>) } as TokenDoc;
+
+  const byCode = await collection.where("code", "==", normalised).limit(1).get();
+  if (!byCode.empty) {
+    return byCode.docs[0];
+  }
+
+  const legacy = await collection.where("token", "==", normalised).limit(1).get();
+  if (!legacy.empty) {
+    return legacy.docs[0];
+  }
+
+  return null;
+}
+
+export async function getTokenDoc(token: string) {
+  if (!token) return null;
+  const adminDb = getAdminDbOrThrow();
+  const snapshot = await findTokenSnapshot(adminDb, token);
+  if (!snapshot) return null;
+  const data = snapshot.data() ?? {};
+  return { id: snapshot.id, ...(data as Record<string, unknown>) } as TokenDoc;
 }
 
 export async function getServicesForToken(token: string): Promise<ServiceDoc[]> {
-  const t = await getTokenDoc(token);
-  if (!t) return [];
-  const adminDb = tryGetAdminDb();
-  const tokenCompany =
-    toOptionalString(t.empresa) ??
-    toOptionalString((t as Record<string, unknown>).empresaId) ??
-    toOptionalString((t as Record<string, unknown>).company) ??
-    toOptionalString((t as Record<string, unknown>).companyId);
+  const adminDb = getAdminDbOrThrow();
+  const tokenDoc = await findTokenSnapshot(adminDb, token);
+  if (!tokenDoc) return [];
 
-  // Caso 1: token vinculado a 1 serviço
-  const serviceId = toOptionalString(t.serviceId);
+  const data = (tokenDoc.data() ?? {}) as Record<string, unknown>;
+  const tokenCompany =
+    toOptionalString(data.empresa) ??
+    toOptionalString(data.empresaId) ??
+    toOptionalString(data.company) ??
+    toOptionalString(data.companyId) ??
+    undefined;
+
+  const serviceId = toOptionalString(data.serviceId) ?? toOptionalString(data.targetId);
   if (serviceId) {
-    if (adminDb) {
-      const doc = await adminDb.collection("services").doc(serviceId).get();
-      if (!doc.exists) return [];
-      const data = (doc.data() ?? {}) as Record<string, unknown>;
-      if (!isServiceOpen(data)) return [];
-      return [mapServiceDoc(doc.id, data)];
-    } else {
-      const webDb = await getServerWebDb();
-      const { doc, getDoc } = await import("firebase/firestore");
-      const dref = doc(webDb, "services", serviceId);
-      const ds = await getDoc(dref);
-      if (!ds.exists()) return [];
-      const data = (ds.data() ?? {}) as Record<string, unknown>;
-      if (!isServiceOpen(data)) return [];
-      return [mapServiceDoc(ds.id, data)];
-    }
+    const doc = await adminDb.collection("services").doc(serviceId).get();
+    if (!doc.exists) return [];
+    const serviceData = (doc.data() ?? {}) as Record<string, unknown>;
+    if (!isServiceOpen(serviceData)) return [];
+    return [mapServiceDoc(doc.id, serviceData)];
   }
 
-  // Caso 2: token de pacote + empresa → lista serviços do pacote daquela empresa (status Aberto)
   const folderId =
-    toOptionalString((t as Record<string, unknown>).folderId) ??
-    toOptionalString((t as Record<string, unknown>).pastaId);
+    toOptionalString(data.folderId) ??
+    toOptionalString(data.pastaId) ??
+    (data.targetType === "folder" ? toOptionalString(data.targetId) : undefined);
   if (folderId) {
-    if (adminDb) {
-      return getServicesForFolderAdmin(adminDb, folderId, tokenCompany);
-    }
-    return getServicesForFolderWeb(folderId, tokenCompany);
+    return getServicesForFolder(adminDb, folderId, tokenCompany ?? null);
   }
 
   return [];
 }
 
-async function getServicesForFolderAdmin(
-  adminDb: FirebaseFirestore.Firestore,
-  folderId: string,
-  empresa: string | null,
-): Promise<ServiceDoc[]> {
+async function getServicesForFolder(adminDb: Firestore, folderId: string, empresa: string | null): Promise<ServiceDoc[]> {
   const folderSnap = await adminDb.collection("packageFolders").doc(folderId).get();
   if (!folderSnap.exists) return [];
 
@@ -183,43 +179,6 @@ async function getServicesForFolderAdmin(
     if (!isServiceOpen(data)) continue;
     if (!matchesCompanyConstraint(data, empresa ?? undefined)) continue;
     services.push(mapServiceDoc(snap.id, data));
-  }
-
-  return services;
-}
-
-async function getServicesForFolderWeb(folderId: string, empresa: string | null): Promise<ServiceDoc[]> {
-  const webDb = await getServerWebDb();
-  const { collection, doc, getDoc } = await import("firebase/firestore");
-
-  const folderRef = doc(collection(webDb, "packageFolders"), folderId);
-  const folderSnap = await getDoc(folderRef);
-  if (!folderSnap.exists()) return [];
-
-  const folderData = (folderSnap.data() ?? {}) as Record<string, unknown>;
-  const folderCompany = normaliseToLower(folderData.companyId ?? folderData.company ?? folderData.empresa);
-  const expectedCompany = normaliseToLower(empresa);
-  if (expectedCompany && folderCompany && folderCompany !== expectedCompany) {
-    return [];
-  }
-
-  const serviceIds = Array.isArray(folderData.services)
-    ? (folderData.services as unknown[])
-        .map((value) => (typeof value === "string" ? value.trim() : ""))
-        .filter((value) => value.length > 0)
-    : [];
-
-  if (!serviceIds.length) return [];
-
-  const services: ServiceDoc[] = [];
-  for (const serviceId of serviceIds) {
-    const serviceRef = doc(collection(webDb, "services"), serviceId);
-    const serviceSnap = await getDoc(serviceRef);
-    if (!serviceSnap.exists()) continue;
-    const data = (serviceSnap.data() ?? {}) as Record<string, unknown>;
-    if (!isServiceOpen(data)) continue;
-    if (!matchesCompanyConstraint(data, empresa ?? undefined)) continue;
-    services.push(mapServiceDoc(serviceSnap.id, data));
   }
 
   return services;

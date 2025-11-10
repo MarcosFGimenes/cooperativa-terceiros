@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { tryGetAdminDb, getServerWebDb } from "@/lib/serverDb";
+import { AdminDbUnavailableError, getAdminDbOrThrow } from "@/lib/serverDb";
+import { mapFirestoreError } from "@/lib/utils/firestoreErrors";
 
 export async function POST(req: NextRequest) {
   try {
@@ -10,33 +11,29 @@ export async function POST(req: NextRequest) {
     }
 
     const trimmed = token.trim().toUpperCase();
-    const adminDb = tryGetAdminDb();
+    const adminDb = getAdminDbOrThrow();
 
-    if (adminDb) {
-      const byCode = await adminDb.collection("accessTokens").where("code", "==", trimmed).limit(1).get();
-      let doc = byCode.docs[0];
-      if (!doc) {
-        const legacy = await adminDb.collection("accessTokens").where("token", "==", trimmed).limit(1).get();
-        doc = legacy.docs[0];
-      }
-      if (!doc) return NextResponse.json({ ok: true, found: false });
-      await doc.ref.update({ active: false, status: "revoked" });
-      return NextResponse.json({ ok: true, found: true });
+    const byCode = await adminDb.collection("accessTokens").where("code", "==", trimmed).limit(1).get();
+    let doc = byCode.docs[0];
+    if (!doc) {
+      const legacy = await adminDb.collection("accessTokens").where("token", "==", trimmed).limit(1).get();
+      doc = legacy.docs[0];
     }
-
-    const webDb = await getServerWebDb();
-    const { collection, query, where, limit, getDocs, updateDoc, doc: docRef } = await import("firebase/firestore");
-    let q = query(collection(webDb, "accessTokens"), where("code", "==", trimmed), limit(1));
-    let snap = await getDocs(q);
-    if (snap.empty) {
-      q = query(collection(webDb, "accessTokens"), where("token", "==", trimmed), limit(1));
-      snap = await getDocs(q);
-    }
-    if (snap.empty) return NextResponse.json({ ok: true, found: false });
-    const found = snap.docs[0];
-    await updateDoc(docRef(webDb, "accessTokens", found.id), { active: false, status: "revoked" });
+    if (!doc) return NextResponse.json({ ok: true, found: false });
+    await doc.ref.update({ active: false, status: "revoked" });
     return NextResponse.json({ ok: true, found: true });
   } catch (error) {
+    if (error instanceof AdminDbUnavailableError || (error instanceof Error && error.message === "FIREBASE_ADMIN_NOT_CONFIGURED")) {
+      console.error("[tokens/revoke] Firebase Admin não configurado", error);
+      return NextResponse.json({ ok: false, error: "Configuração de acesso ao banco indisponível." }, { status: 500 });
+    }
+
+    const mapped = mapFirestoreError(error);
+    if (mapped) {
+      console.warn("[tokens/revoke] Falha ao atualizar token", error);
+      return NextResponse.json({ ok: false, error: mapped.message }, { status: mapped.status });
+    }
+
     console.error("[tokens/revoke]", error);
     return NextResponse.json({ ok: false, error: "server_error" }, { status: 500 });
   }
