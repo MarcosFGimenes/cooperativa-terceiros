@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { addDoc, collection, serverTimestamp } from "firebase/firestore";
 
 import { Field, FormRow } from "@/components/ui/form-controls";
-import { tryGetFirestore } from "@/lib/firebase";
+import { isFirebaseClientConfigError, tryGetFirestore } from "@/lib/firebase";
 
 export default function NovoPacotePage() {
   const router = useRouter();
@@ -15,10 +15,10 @@ export default function NovoPacotePage() {
   const { db: firestore, error: firestoreError } = useMemo(() => tryGetFirestore(), []);
 
   useEffect(() => {
-    if (firestoreError) {
-      console.error("[pacotes/novo] Firestore indisponível", firestoreError);
-      toast.error("Configuração de banco de dados indisponível.");
-    }
+    if (!firestoreError) return;
+    const log = isFirebaseClientConfigError(firestoreError) ? console.warn : console.error;
+    log("[pacotes/novo] Firestore indisponível", firestoreError);
+    toast.error("Configuração de banco de dados indisponível.");
   }, [firestoreError]);
 
   function updateForm<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {

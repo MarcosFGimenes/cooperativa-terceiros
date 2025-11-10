@@ -6,6 +6,23 @@ import { initializeFirestore, setLogLevel, type Firestore } from "firebase/fires
 
 import { getFirebasePublicConfig } from "@/lib/firebaseConfig";
 
+function isPlaceholder(value: unknown): value is string {
+  return typeof value === "string" && value.startsWith("missing-");
+}
+
+export class FirebaseClientConfigError extends Error {
+  readonly code = "firebase/client-config-missing" as const;
+
+  constructor(message = "Firebase client configuration is missing or incomplete.") {
+    super(message);
+    this.name = "FirebaseClientConfigError";
+  }
+}
+
+export function isFirebaseClientConfigError(error: unknown): error is FirebaseClientConfigError {
+  return error instanceof FirebaseClientConfigError;
+}
+
 type FirebaseClientGlobal = typeof globalThis & {
   __FIREBASE_CLIENT_APP__?: FirebaseApp;
   __FIREBASE_CLIENT_AUTH__?: Auth;
@@ -34,6 +51,11 @@ const useFetchStreams = !forceLongPolling && envUseFetchStreams === true;
 if (!globalForFirebase.__FIREBASE_CLIENT_APP__ && !globalForFirebase.__FIREBASE_CLIENT_ERROR__) {
   try {
     const config = getFirebasePublicConfig();
+
+    const hasPlaceholders = Object.values(config).some((value) => isPlaceholder(value));
+    if (hasPlaceholders) {
+      throw new FirebaseClientConfigError();
+    }
     const app = getApps().length ? getApp() : initializeApp(config);
 
     const firestoreSettings: Parameters<typeof initializeFirestore>[1] = {};
@@ -66,7 +88,8 @@ if (!globalForFirebase.__FIREBASE_CLIENT_APP__ && !globalForFirebase.__FIREBASE_
     const err = error instanceof Error ? error : new Error(String(error));
     globalForFirebase.__FIREBASE_CLIENT_ERROR__ = err;
     if (process.env.NODE_ENV !== "production") {
-      console.error("[firebase] Falha ao inicializar Firebase client", err);
+      const log = isFirebaseClientConfigError(err) ? console.warn : console.error;
+      log("[firebase] Falha ao inicializar Firebase client", err);
     }
   }
 }

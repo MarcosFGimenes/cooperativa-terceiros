@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { onAuthStateChanged } from "firebase/auth";
 
-import { tryGetAuth } from "@/lib/firebase";
+import { isFirebaseClientConfigError, tryGetAuth } from "@/lib/firebase";
 
 type PcmGuardProps = {
   allowlist?: string;
@@ -27,10 +27,10 @@ export default function PcmGuard({ children, allowlist }: PcmGuardProps) {
   const { auth: authInstance, error: authError } = useMemo(() => tryGetAuth(), []);
 
   useEffect(() => {
-    if (authError) {
-      console.error("[pcm-guard] Falha ao inicializar autenticação do Firebase", authError);
-      setState("unauthenticated");
-    }
+    if (!authError) return;
+    const log = isFirebaseClientConfigError(authError) ? console.warn : console.error;
+    log("[pcm-guard] Falha ao inicializar autenticação do Firebase", authError);
+    setState("unauthenticated");
   }, [authError]);
 
   useEffect(() => {

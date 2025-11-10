@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { signInWithEmailAndPassword, signOut } from "firebase/auth";
-import { tryGetAuth } from "@/lib/firebase";
+import { isFirebaseClientConfigError, tryGetAuth } from "@/lib/firebase";
 
 export const dynamic = "force-dynamic";
 
@@ -16,10 +16,10 @@ export default function LoginPage() {
   const { auth: authInstance, error: authError } = useMemo(() => tryGetAuth(), []);
 
   useEffect(() => {
-    if (authError) {
-      console.error("[login] Falha ao carregar autenticação", authError);
-      setErr("Configuração de login indisponível. Entre em contato com o suporte.");
-    }
+    if (!authError) return;
+    const log = isFirebaseClientConfigError(authError) ? console.warn : console.error;
+    log("[login] Falha ao carregar autenticação", authError);
+    setErr("Configuração de login indisponível. Entre em contato com o suporte.");
   }, [authError]);
 
   async function onSubmit(e: React.FormEvent) {

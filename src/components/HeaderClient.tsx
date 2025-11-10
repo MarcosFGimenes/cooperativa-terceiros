@@ -3,7 +3,7 @@ import Link from "next/link";
 import { useAuth } from "@/lib/auth/useAuth";
 import { signOut } from "firebase/auth";
 
-import { tryGetAuth } from "@/lib/firebase";
+import { isFirebaseClientConfigError, tryGetAuth } from "@/lib/firebase";
 import ThemeToggle from "@/components/ThemeToggle";
 
 export default function HeaderClient() {
@@ -18,7 +18,12 @@ export default function HeaderClient() {
 
     const { auth, error } = tryGetAuth();
     if (!auth) {
-      console.error("[header] Autenticação indisponível", error);
+      if (error) {
+        const log = isFirebaseClientConfigError(error) ? console.warn : console.error;
+        log("[header] Autenticação indisponível", error);
+      } else {
+        console.warn("[header] Autenticação indisponível");
+      }
       return;
     }
     await signOut(auth);

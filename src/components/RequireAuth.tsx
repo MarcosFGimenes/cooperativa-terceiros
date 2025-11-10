@@ -3,7 +3,7 @@ import { onAuthStateChanged, type User } from "firebase/auth";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 
-import { tryGetAuth } from "@/lib/firebase";
+import { isFirebaseClientConfigError, tryGetAuth } from "@/lib/firebase";
 
 export default function RequireAuth({ children }: { children: ReactNode }) {
   const router = useRouter();
@@ -11,9 +11,9 @@ export default function RequireAuth({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null | undefined>(undefined);
 
   useEffect(() => {
-    if (authError) {
-      console.error("[require-auth] Autenticação indisponível", authError);
-    }
+    if (!authError) return;
+    const log = isFirebaseClientConfigError(authError) ? console.warn : console.error;
+    log("[require-auth] Autenticação indisponível", authError);
   }, [authError]);
 
   useEffect(() => {

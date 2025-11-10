@@ -16,7 +16,7 @@ import {
 } from "firebase/firestore";
 
 import { Field, FormRow } from "@/components/ui/form-controls";
-import { tryGetFirestore } from "@/lib/firebase";
+import { isFirebaseClientConfigError, tryGetFirestore } from "@/lib/firebase";
 import { recordTelemetry } from "@/lib/telemetry";
 import { resolveReopenedProgress, snapshotBeforeConclusion } from "@/lib/serviceProgress";
 
@@ -121,10 +121,10 @@ export default function ServiceEditorClient({ serviceId }: ServiceEditorClientPr
   const { db: firestore, error: firestoreError } = useMemo(() => tryGetFirestore(), []);
 
   useEffect(() => {
-    if (firestoreError) {
-      console.error("[servicos/:id] Firestore indisponível", firestoreError);
-      toast.error("Configuração de banco de dados indisponível.");
-    }
+    if (!firestoreError) return;
+    const log = isFirebaseClientConfigError(firestoreError) ? console.warn : console.error;
+    log("[servicos/:id] Firestore indisponível", firestoreError);
+    toast.error("Configuração de banco de dados indisponível.");
   }, [firestoreError]);
 
   const totalPeso = useMemo(
@@ -149,11 +149,15 @@ export default function ServiceEditorClient({ serviceId }: ServiceEditorClientPr
         setPackages(result);
       })
       .catch((error) => {
-        console.error("[servicos/:id] Falha ao carregar pacotes", error);
         const errorCode =
           typeof error === "object" && error !== null && "code" in error && typeof (error as { code?: unknown }).code === "string"
             ? ((error as { code: string }).code)
             : null;
+        if (errorCode === "permission-denied") {
+          console.warn("[servicos/:id] Falha ao carregar pacotes", error);
+        } else {
+          console.error("[servicos/:id] Falha ao carregar pacotes", error);
+        }
         if (errorCode === "permission-denied") {
           toast.error("Você não tem permissão para ver os pacotes disponíveis.");
         } else {

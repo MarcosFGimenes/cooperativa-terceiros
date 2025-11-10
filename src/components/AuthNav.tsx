@@ -3,16 +3,16 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { onAuthStateChanged, signOut, type User } from "firebase/auth";
 
-import { tryGetAuth } from "@/lib/firebase";
+import { isFirebaseClientConfigError, tryGetAuth } from "@/lib/firebase";
 
 export default function AuthNav() {
   const [user, setUser] = useState<User | null | undefined>(undefined);
   const { auth: authInstance, error: authError } = useMemo(() => tryGetAuth(), []);
 
   useEffect(() => {
-    if (authError) {
-      console.error("[auth-nav] Falha ao inicializar autenticação", authError);
-    }
+    if (!authError) return;
+    const log = isFirebaseClientConfigError(authError) ? console.warn : console.error;
+    log("[auth-nav] Falha ao inicializar autenticação", authError);
   }, [authError]);
 
   useEffect(() => {
