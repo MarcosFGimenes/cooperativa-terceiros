@@ -338,6 +338,7 @@ export default function ServiceEditorClient({ serviceId }: ServiceEditorClientPr
         const snapshot = snapshotBeforeConclusion(currentProgress, previousProgress);
         payload.previousProgress = snapshot;
         payload.andamento = 100;
+        payload.realPercent = 100;
         nextProgress = 100;
         setPreviousProgress(snapshot);
         recordTelemetry("service.progress.snapshot", { serviceId, progress: snapshot });
@@ -353,11 +354,13 @@ export default function ServiceEditorClient({ serviceId }: ServiceEditorClientPr
         });
         payload.andamento = target;
         payload.previousProgress = target;
+        payload.realPercent = target;
         nextProgress = target;
         setPreviousProgress(target);
         recordTelemetry("service.progress.restore", { serviceId, restored: target });
       } else if (typeof progresso === "number" && Number.isFinite(progresso)) {
         payload.andamento = clamp(progresso);
+        payload.realPercent = clamp(progresso);
         nextProgress = clamp(progresso);
       }
 
