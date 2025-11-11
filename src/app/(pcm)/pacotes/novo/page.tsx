@@ -7,6 +7,7 @@ import { addDoc, collection, serverTimestamp } from "firebase/firestore";
 
 import { Field, FormRow } from "@/components/ui/form-controls";
 import { tryGetFirestore } from "@/lib/firebase";
+import { dateOnlyToMillis, formatDateOnly, parseDateOnly } from "@/lib/dateOnly";
 
 export default function NovoPacotePage() {
   const router = useRouter();
@@ -31,21 +32,16 @@ export default function NovoPacotePage() {
       toast.error("Informe o nome do pacote.");
       return;
     }
-    if (!form.dataInicio) {
-      toast.error("Informe a data inicial do pacote.");
-      return;
-    }
-    if (!form.dataFim) {
-      toast.error("Informe a data final do pacote.");
-      return;
-    }
-    const startDate = new Date(form.dataInicio);
-    const endDate = new Date(form.dataFim);
-    if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
+    const startDate = parseDateOnly(form.dataInicio);
+    const endDate = parseDateOnly(form.dataFim);
+    if (!startDate || !endDate) {
       toast.error("Datas inválidas. Verifique os valores informados.");
       return;
     }
-    if (startDate.getTime() > endDate.getTime()) {
+
+    const startMillis = dateOnlyToMillis(startDate);
+    const endMillis = dateOnlyToMillis(endDate);
+    if (startMillis > endMillis) {
       toast.error("A data final deve ser posterior ou igual à data inicial.");
       return;
     }
@@ -57,8 +53,8 @@ export default function NovoPacotePage() {
     try {
       const nome = form.nome.trim();
       const descricao = form.descricao.trim();
-      const inicio = form.dataInicio;
-      const fim = form.dataFim;
+      const inicio = formatDateOnly(startDate);
+      const fim = formatDateOnly(endDate);
       const payload = {
         nome,
         name: nome,
