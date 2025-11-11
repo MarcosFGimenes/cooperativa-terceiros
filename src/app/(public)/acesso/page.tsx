@@ -162,6 +162,25 @@ export default function AcessoPorTokenPage() {
     }
   }
 
+  async function persistTokenSession(code: string) {
+    const response = await fetch("/api/token-session", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token: code }),
+    });
+    const json = (await response.json().catch(() => null)) as { ok?: boolean; error?: string } | null;
+    if (!response.ok || !json?.ok) {
+      recordTelemetry("token.session.failure", { status: response.status, error: json?.error });
+      throw new Error(json?.error ?? "Não foi possível iniciar a sessão.");
+    }
+    try {
+      window.sessionStorage.setItem(tokenStorageKey, code);
+    } catch (error) {
+      console.warn("[acesso] não foi possível persistir token em sessionStorage", error);
+    }
+    await new Promise((resolve) => setTimeout(resolve, 60));
+  }
+
   async function onValidate(e?: FormEvent) {
     e?.preventDefault();
     const code = token.trim().toUpperCase();
@@ -428,21 +447,3 @@ export default function AcessoPorTokenPage() {
     </div>
   );
 }
-  async function persistTokenSession(code: string) {
-    const response = await fetch("/api/token-session", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ token: code }),
-    });
-    const json = (await response.json().catch(() => null)) as { ok?: boolean; error?: string } | null;
-    if (!response.ok || !json?.ok) {
-      recordTelemetry("token.session.failure", { status: response.status, error: json?.error });
-      throw new Error(json?.error ?? "Não foi possível iniciar a sessão.");
-    }
-    try {
-      window.sessionStorage.setItem(tokenStorageKey, code);
-    } catch (error) {
-      console.warn("[acesso] não foi possível persistir token em sessionStorage", error);
-    }
-    await new Promise((resolve) => setTimeout(resolve, 60));
-  }
