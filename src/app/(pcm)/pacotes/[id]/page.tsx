@@ -9,7 +9,7 @@ import { plannedCurve } from "@/lib/curve";
 import { getPackageById, listPackageServices } from "@/lib/repo/packages";
 import { listPackageFolders } from "@/lib/repo/folders";
 import { getServiceById } from "@/lib/repo/services";
-import type { Package, Service } from "@/types";
+import type { Package, PackageFolder, Service } from "@/types";
 
 import PackageFoldersManager from "./PackageFoldersManager";
 
@@ -43,8 +43,12 @@ function computeServiceRealized(service: Service) {
 }
 
 function choosePlanBounds(pkg: Package, services: Service[]) {
-  const startCandidates = [pkg.plannedStart, ...services.map((service) => service.plannedStart)].map(parseISO).filter(Boolean) as Date[];
-  const endCandidates = [pkg.plannedEnd, ...services.map((service) => service.plannedEnd)].map(parseISO).filter(Boolean) as Date[];
+  const startCandidates = [pkg.plannedStart, ...services.map((service) => service.plannedStart)]
+    .map(parseISO)
+    .filter(Boolean) as Date[];
+  const endCandidates = [pkg.plannedEnd, ...services.map((service) => service.plannedEnd)]
+    .map(parseISO)
+    .filter(Boolean) as Date[];
   const start = startCandidates.length ? new Date(Math.min(...startCandidates.map((date) => date.getTime()))) : new Date();
   const end = endCandidates.length ? new Date(Math.max(...endCandidates.map((date) => date.getTime()))) : start;
   return {
@@ -86,23 +90,96 @@ function buildPackageRealizedSeries(planned: ReturnType<typeof plannedCurve>, re
 }
 
 export default async function PackageDetailPage({ params }: { params: { id: string } }) {
-  const pkg = await getPackageById(params.id);
-  if (!pkg) return notFound();
+  const warningSet = new Set<string>();
+  const registerWarning = (message: string, error?: unknown, context?: string) => {
+    if (error) {
+      console.error(`[PackageDetailPage:${params.id}] ${context ?? message}`, error);
+    }
+    warningSet.add(message);
+  };
+
+  let pkg: Package | null = null;
+
+  try {
+    pkg = await getPackageById(params.id);
+  } catch (error) {
+    registerWarning(
+      "Não foi possível carregar as informações do pacote. Verifique a configuração do Firebase ou tente novamente.",
+      error,
+      "Falha ao buscar pacote",
+    );
+  }
+
+  if (!pkg) {
+    const fallbackWarnings = Array.from(warningSet);
+    if (fallbackWarnings.length === 0) {
+      return notFound();
+    }
+
+    return (
+      <div className="container mx-auto space-y-6 p-4">
+        <div className="card mx-auto max-w-2xl space-y-4 p-6">
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight">Pacote {params.id}</h1>
+            <p className="text-sm text-muted-foreground">
+              Não foi possível carregar as informações deste pacote no momento.
+            </p>
+          </div>
+          <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
+            {fallbackWarnings.map((message) => (
+              <li key={message}>{message}</li>
+            ))}
+          </ul>
+          <Link className="btn btn-secondary w-fit" href="/pacotes">
+            Voltar
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   let services: Service[] = [];
 
   if (pkg.services?.length) {
-    const fetched = await Promise.all(pkg.services.map((id) => getServiceById(id)));
+    const fetched = await Promise.all(
+      pkg.services.map((id) =>
+        getServiceById(id).catch((error) => {
+          registerWarning(
+            "Não foi possível carregar alguns serviços vinculados ao pacote.",
+            error,
+            `Falha ao buscar serviço ${id}`,
+          );
+          return null;
+        }),
+      ),
+    );
     services = fetched.filter(Boolean) as Service[];
   }
 
   if (!services.length) {
-    const fallback = await listPackageServices(params.id).catch(() => []);
-    if (fallback.length) {
-      const enriched = await Promise.all(
-        fallback.map(async (service) => (await getServiceById(service.id)) ?? service),
+    try {
+      const fallback = await listPackageServices(params.id);
+      if (fallback.length) {
+        const enriched = await Promise.all(
+          fallback.map((service) =>
+            getServiceById(service.id).catch((error) => {
+              registerWarning(
+                "Alguns serviços foram carregados parcialmente.",
+                error,
+                `Falha ao detalhar serviço ${service.id}`,
+              );
+              return service;
+            }),
+          ),
+        );
+        services = enriched.filter(Boolean) as Service[];
+      }
+    } catch (error) {
+      registerWarning(
+        "Não foi possível carregar os serviços vinculados ao pacote.",
+        error,
+        "Falha ao listar serviços do pacote",
       );
-      services = enriched.filter(Boolean) as Service[];
     }
   }
 
@@ -123,14 +200,23 @@ export default async function PackageDetailPage({ params }: { params: { id: stri
   const realized = contributions.length
     ? totalWeight > 0
       ? Math.round(
-          contributions.reduce((acc, { hours, progress }) => acc + progress * (hours > 0 ? hours : 0), 0) /
-            totalWeight,
+          contributions.reduce((acc, { hours, progress }) => acc + progress * (hours > 0 ? hours : 0), 0) / totalWeight,
         )
       : Math.round(contributions.reduce((acc, entry) => acc + entry.progress, 0) / contributions.length)
     : null;
 
   const assignedCompanies = pkg.assignedCompanies?.filter((item) => item.companyId);
-  const folders = await listPackageFolders(pkg.id);
+  let folders: PackageFolder[] = [];
+
+  try {
+    folders = await listPackageFolders(pkg.id);
+  } catch (error) {
+    registerWarning(
+      "Não foi possível carregar as pastas vinculadas a este pacote.",
+      error,
+      "Falha ao listar pastas do pacote",
+    );
+  }
 
   const serviceFoldersMap = new Map<string, string[]>();
   folders.forEach((folder) => {
@@ -167,6 +253,8 @@ export default async function PackageDetailPage({ params }: { params: { id: stri
     return { id: service.id, serviceLabel, companyLabel, folders: foldersForService };
   });
 
+  const warningMessages = Array.from(warningSet);
+
   return (
     <div className="container mx-auto space-y-6 p-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -178,6 +266,17 @@ export default async function PackageDetailPage({ params }: { params: { id: stri
           Voltar
         </Link>
       </div>
+
+      {warningMessages.length ? (
+        <div className="rounded-md border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+          <p className="font-medium">Nem todas as informações foram carregadas.</p>
+          <ul className="mt-2 list-disc space-y-1 pl-5">
+            {warningMessages.map((message) => (
+              <li key={message}>{message}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.6fr)_minmax(320px,1fr)]">
         <div className="space-y-4">
