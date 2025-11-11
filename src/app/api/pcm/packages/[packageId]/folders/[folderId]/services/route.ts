@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { requirePcmUser } from "@/app/api/admin/tokens/_lib/auth";
+import { requirePcmUser } from "@/app/api/management/tokens/_lib/auth";
 import { setFolderServices } from "@/lib/repo/folders";
 
 function normaliseParam(value: string | string[] | undefined): string {

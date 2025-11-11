@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { requirePcmUser } from "@/app/api/admin/tokens/_lib/auth";
+import { requirePcmUser } from "@/app/api/management/tokens/_lib/auth";
 import { createPackageFolder, listPackageFolders } from "@/lib/repo/folders";
 
 function normalisePackageId(params: Record<string, string | string[] | undefined>): string {
