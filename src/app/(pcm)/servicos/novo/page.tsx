@@ -20,6 +20,7 @@ import {
 import { Field, FormRow } from "@/components/ui/form-controls";
 import { createAccessToken } from "@/lib/accessTokens";
 import { tryGetFirestore } from "@/lib/firebase";
+import { dateOnlyToMillis, parseDateOnly } from "@/lib/dateOnly";
 
 type ChecklistDraft = Array<{ id: string; descricao: string; peso: number | "" }>;
 
@@ -35,13 +36,6 @@ const newChecklistItem = (): ChecklistDraft[number] => ({
   descricao: "",
   peso: "",
 });
-
-function toTimestamp(value: string) {
-  if (!value) return null;
-  const date = new Date(`${value}T00:00:00`);
-  if (Number.isNaN(date.getTime())) return null;
-  return Timestamp.fromDate(date);
-}
 
 export default function NovoServico() {
   const router = useRouter();
@@ -158,8 +152,17 @@ export default function NovoServico() {
       toast.error("Informe o equipamento.");
       return;
     }
-    if (!form.dataInicio || !form.dataFim) {
-      toast.error("Informe as datas de início e fim previstas.");
+    const inicioPrevisto = parseDateOnly(form.dataInicio);
+    const fimPrevisto = parseDateOnly(form.dataFim);
+    if (!inicioPrevisto || !fimPrevisto) {
+      toast.error("Datas inválidas. Verifique os valores informados.");
+      return;
+    }
+
+    const inicioMillis = dateOnlyToMillis(inicioPrevisto);
+    const fimMillis = dateOnlyToMillis(fimPrevisto);
+    if (inicioMillis > fimMillis) {
+      toast.error("A data de término prevista deve ser posterior ou igual à data de início.");
       return;
     }
 
@@ -184,8 +187,8 @@ export default function NovoServico() {
         equipamento: form.equipamento.trim(),
         equipmentName: form.equipamento.trim(),
         setor: form.setor.trim() || null,
-        inicioPrevisto: toTimestamp(form.dataInicio),
-        fimPrevisto: toTimestamp(form.dataFim),
+        inicioPrevisto: Timestamp.fromMillis(inicioMillis),
+        fimPrevisto: Timestamp.fromMillis(fimMillis),
         horasPrevistas: horas,
         empresaId: companyId,
         company: companyId,
