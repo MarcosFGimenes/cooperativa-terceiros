@@ -28,8 +28,10 @@ function parseBooleanEnv(value: string | undefined | null): boolean | null {
 const envForceLongPolling = parseBooleanEnv(process.env.NEXT_PUBLIC_FIRESTORE_FORCE_LONG_POLLING);
 const envUseFetchStreams = parseBooleanEnv(process.env.NEXT_PUBLIC_FIRESTORE_USE_FETCH_STREAMS);
 
-const forceLongPolling = envForceLongPolling === true;
-const useFetchStreams = !forceLongPolling && envUseFetchStreams === true;
+const defaultForceLongPolling = process.env.VERCEL === "1";
+const forceLongPolling = envForceLongPolling ?? defaultForceLongPolling;
+const useFetchStreams = !forceLongPolling && (envUseFetchStreams ?? false);
+const usingDefaultLongPolling = defaultForceLongPolling && envForceLongPolling === null;
 
 if (!globalForFirebase.__FIREBASE_CLIENT_APP__ && !globalForFirebase.__FIREBASE_CLIENT_ERROR__) {
   try {
@@ -51,6 +53,11 @@ if (!globalForFirebase.__FIREBASE_CLIENT_APP__ && !globalForFirebase.__FIREBASE_
           ? "fetch streams habilitado"
           : "transporte padrão";
       console.info(`[firebase] Firestore usando estratégia de rede: ${strategy}.`);
+      if (usingDefaultLongPolling) {
+        console.info(
+          "[firebase] Long-polling habilitado automaticamente porque o deploy está sendo executado no Vercel.",
+        );
+      }
     }
 
     const db = initializeFirestore(app, firestoreSettings);
