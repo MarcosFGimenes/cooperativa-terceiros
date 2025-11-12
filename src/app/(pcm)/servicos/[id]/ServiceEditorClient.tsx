@@ -430,8 +430,19 @@ export default function ServiceEditorClient({ serviceId }: ServiceEditorClientPr
                   Atualize os campos do serviço e gerencie o checklist utilizado nas medições.
                 </p>
               </div>
-              <div className="rounded-lg border border-primary/40 bg-primary/5 px-4 py-2 text-sm">
-                Andamento atual: <span className="font-semibold text-primary">{Math.round(andamento)}%</span>
+              <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+                <div className="rounded-lg border border-primary/40 bg-primary/5 px-4 py-2 text-sm">
+                  Andamento atual: <span className="font-semibold text-primary">{Math.round(andamento)}%</span>
+                </div>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={saveChanges}
+                  disabled={saving}
+                  aria-busy={saving}
+                >
+                  {saving ? "Salvando..." : "Salvar edição"}
+                </button>
               </div>
             </div>
 
