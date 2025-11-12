@@ -46,7 +46,8 @@ export default function DeleteServiceButton({
       }
 
       const idToken = await user.getIdToken();
-      const response = await fetch(`/api/pcm/servicos/${serviceId}`, {
+      const encodedId = encodeURIComponent(serviceId);
+      const response = await fetch(`/api/pcm/servicos/${encodedId}`, {
         method: "DELETE",
         headers: {
           Authorization: `Bearer ${idToken}`,

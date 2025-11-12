@@ -77,7 +77,7 @@ export default function NovoPacotePage() {
       };
       const ref = await addDoc(collection(firestore, "packages"), payload);
       toast.success("Pacote criado com sucesso.");
-      router.push(`/pacotes/${ref.id}`);
+      router.push(`/pacotes/${encodeURIComponent(ref.id)}`);
     } catch (error) {
       console.error("[pacotes/novo] Falha ao criar pacote", error);
       toast.error("Não foi possível criar o pacote.");

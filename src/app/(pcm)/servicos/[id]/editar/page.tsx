@@ -31,7 +31,7 @@ export default async function ServiceEditPage({ params }: { params: { id: string
             Atualize os dados gerais, checklist e histórico de medições do serviço.
           </p>
         </div>
-        <Link className="btn btn-secondary" href={`/servicos/${params.id}`}>
+        <Link className="btn btn-secondary" href={`/servicos/${encodeURIComponent(params.id)}`}>
           Voltar
         </Link>
       </div>
