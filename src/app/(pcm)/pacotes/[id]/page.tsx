@@ -213,9 +213,9 @@ export default async function PackageDetailPage({ params }: { params: { id: stri
     folders = await listPackageFolders(pkg.id);
   } catch (error) {
     registerWarning(
-      "Não foi possível carregar as pastas vinculadas a este pacote.",
+      "Não foi possível carregar os subpacotes vinculados a este pacote.",
       error,
-      "Falha ao listar pastas do pacote",
+      "Falha ao listar subpacotes do pacote",
     );
   }
 
@@ -229,7 +229,9 @@ export default async function PackageDetailPage({ params }: { params: { id: stri
     });
   });
 
-  const folderServiceOptions = services.map((service) => {
+  const assignableServices = services.filter((service) => normaliseStatus(service.status) === "Aberto");
+
+  const folderServiceOptions = assignableServices.map((service) => {
     const baseLabel = service.os || service.code || service.id;
     const companyLabel =
       service.assignedTo?.companyName ||
@@ -302,7 +304,7 @@ export default async function PackageDetailPage({ params }: { params: { id: stri
                     <span className="font-medium text-foreground">{pair.serviceLabel}</span>
                     <span className="text-xs text-muted-foreground">
                       {pair.companyLabel || "-"}
-                      {pair.folders.length ? ` • ${pair.folders.join(", ")}` : ""}
+                      {pair.folders.length ? ` • Subpacotes: ${pair.folders.join(", ")}` : ""}
                     </span>
                   </li>
                 ))}
@@ -337,7 +339,7 @@ export default async function PackageDetailPage({ params }: { params: { id: stri
                           {service.assignedTo?.companyName || service.assignedTo?.companyId
                             ? ` • ${service.assignedTo.companyName || service.assignedTo.companyId}`
                             : ""}
-                          {foldersForService.length ? ` • Pastas: ${foldersForService.join(", ")}` : ""}
+                          {foldersForService.length ? ` • Subpacotes: ${foldersForService.join(", ")}` : ""}
                         </p>
                       </div>
                       <span className="text-sm font-semibold text-primary">{progress}%</span>

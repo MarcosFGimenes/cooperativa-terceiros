@@ -25,7 +25,7 @@ export async function POST(
     const folder = await rotateFolderToken(folderId);
     return NextResponse.json({ ok: true, folder });
   } catch (error) {
-    console.error("[folders] Falha ao rotacionar token da pasta", error);
+    console.error("[folders] Falha ao rotacionar token do subpacote", error);
     const message = error instanceof Error ? error.message : "Não foi possível gerar um novo token.";
     return NextResponse.json({ ok: false, error: message }, { status: 500 });
   }
