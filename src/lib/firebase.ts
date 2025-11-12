@@ -13,6 +13,7 @@ type FirebaseClientGlobal = typeof globalThis & {
   __FIREBASE_CLIENT_ERROR__?: Error;
   __FIREBASE_CLIENT_FORCE_LONG_POLLING__?: boolean;
   __FIREBASE_CLIENT_USE_FETCH_STREAMS__?: boolean;
+  __FIREBASE_CLIENT_NETWORK_LOGGED__?: boolean;
 };
 
 const globalForFirebase = globalThis as FirebaseClientGlobal;
@@ -33,6 +34,34 @@ const forceLongPolling = envForceLongPolling ?? defaultForceLongPolling;
 const useFetchStreams = !forceLongPolling && (envUseFetchStreams ?? false);
 const usingDefaultLongPolling = defaultForceLongPolling && envForceLongPolling === null;
 
+const describeStrategy = () => {
+  if (forceLongPolling) {
+    return "long-polling forçado (experimentalForceLongPolling=true)";
+  }
+  if (useFetchStreams) {
+    return "fetch streams habilitado (useFetchStreams=true)";
+  }
+  return "transporte padrão (WebChannel)";
+};
+
+const logNetworkStrategy = () => {
+  if (globalForFirebase.__FIREBASE_CLIENT_NETWORK_LOGGED__) {
+    return;
+  }
+  const envSummary = `NEXT_PUBLIC_FIRESTORE_FORCE_LONG_POLLING=${
+    envForceLongPolling ?? "auto"
+  } | NEXT_PUBLIC_FIRESTORE_USE_FETCH_STREAMS=${envUseFetchStreams ?? "auto"}`;
+  console.info(
+    `[firebase] Firestore usando estratégia de rede: ${describeStrategy()} (${envSummary}).`,
+  );
+  if (usingDefaultLongPolling) {
+    console.info(
+      "[firebase] Long-polling habilitado automaticamente porque o deploy está sendo executado no Vercel.",
+    );
+  }
+  globalForFirebase.__FIREBASE_CLIENT_NETWORK_LOGGED__ = true;
+};
+
 if (!globalForFirebase.__FIREBASE_CLIENT_APP__ && !globalForFirebase.__FIREBASE_CLIENT_ERROR__) {
   try {
     const config = getFirebasePublicConfig();
@@ -45,19 +74,10 @@ if (!globalForFirebase.__FIREBASE_CLIENT_APP__ && !globalForFirebase.__FIREBASE_
       firestoreSettings.useFetchStreams = true;
     }
 
+    logNetworkStrategy();
+
     if (process.env.NODE_ENV !== "production") {
       setLogLevel("debug");
-      const strategy = forceLongPolling
-        ? "long-polling forçado"
-        : useFetchStreams
-          ? "fetch streams habilitado"
-          : "transporte padrão";
-      console.info(`[firebase] Firestore usando estratégia de rede: ${strategy}.`);
-      if (usingDefaultLongPolling) {
-        console.info(
-          "[firebase] Long-polling habilitado automaticamente porque o deploy está sendo executado no Vercel.",
-        );
-      }
     }
 
     const db = initializeFirestore(app, firestoreSettings);
@@ -86,6 +106,8 @@ const authCandidate = globalForFirebase.__FIREBASE_CLIENT_AUTH__ ?? null;
 const resolvedApp = appCandidate;
 const resolvedDb = firestoreCandidate;
 const resolvedAuth = authCandidate;
+
+logNetworkStrategy();
 
 export const db = resolvedDb;
 export const auth = resolvedAuth;

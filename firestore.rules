@@ -7,15 +7,32 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    function hasServiceTokenAccess(serviceId) {
+      return request.auth != null &&
+        (
+          request.auth.token.serviceId == serviceId ||
+          (request.auth.token.serviceIds is list && request.auth.token.serviceIds.hasAny([serviceId])) ||
+          (request.auth.token.allowedServices is list && request.auth.token.allowedServices.hasAny([serviceId])) ||
+          (request.auth.token.allowedServiceIds is list && request.auth.token.allowedServiceIds.hasAny([serviceId])) ||
+          (request.auth.token.serviceAccess is map && request.auth.token.serviceAccess[serviceId] == true)
+        );
+    }
+
+    function isServiceReader(serviceId) {
+      return isSignedIn() || hasServiceTokenAccess(serviceId);
+    }
+
     match /users/{userId}/{document=**} {
       allow read, write: if isSignedIn() && request.auth.uid == userId;
     }
 
     match /services/{serviceId} {
-      allow read, write: if isSignedIn();
+      allow read: if isServiceReader(serviceId);
+      allow write: if isSignedIn();
 
       match /{document=**} {
-        allow read, write: if isSignedIn();
+        allow read: if isServiceReader(serviceId);
+        allow write: if isSignedIn();
       }
     }
 

@@ -24,6 +24,13 @@ Configure the following variables before running the API routes that rely on Fir
 - `FIREBASE_CLIENT_EMAIL`
 - `FIREBASE_PRIVATE_KEY` (com `\n` escapados)
 
+### Rede do Firestore em produção
+
+- O arquivo `.env.production` define `NEXT_PUBLIC_FIRESTORE_FORCE_LONG_POLLING=true` e `NEXT_PUBLIC_FIRESTORE_USE_FETCH_STREAMS=false` para garantir que o Firestore use long-polling em ambientes onde WebSockets ou streams não são permitidos.
+- Garanta que o proxy/firewall da hospedagem libere tráfego de saída para `firestore.googleapis.com`, `identitytoolkit.googleapis.com`, `securetoken.googleapis.com` e demais domínios `*.googleapis.com`. Bloqueios nesses hosts geram erros `net::ERR_CONNECTION_RESET` e impedem a sincronização em tempo real.
+- Caso o proxy permita streaming HTTP (`useFetchStreams`), ajuste as variáveis de ambiente conforme necessário e reinicie a aplicação. A inicialização do Firebase registra no console qual estratégia está ativa para facilitar o diagnóstico.
+- Quando um `ERR_CONNECTION_RESET` ocorrer mesmo com o long-polling habilitado, a interface exibe um aviso amistoso e agenda novas tentativas de reconexão automaticamente.
+
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
@@ -37,6 +44,16 @@ This project uses [`next/font`](https://nextjs.org/docs/app/building-your-applic
 - A tela de pacotes foi reorganizada para priorizar a curva S e expor o pareamento Serviço × Empresa em um card dedicado.
 - Endpoints administrativos foram movidos de `/api/admin/*` para `/api/management/*` para evitar bloqueios falsos positivos de bloqueadores de anúncios (erro `ERR_BLOCKED_BY_CLIENT`).
 - As regras do Firestore autorizam usuários autenticados a criarem e carregarem pastas de pacotes (`packageFolders`), evitando o erro `FirebaseError: Missing or insufficient permissions` ao cadastrar serviços.
+- A tela de detalhes de serviço aguarda um `idToken` válido antes de iniciar os listeners do Firestore e, em caso de `permission-denied`, consulta `/api/pcm/servicos/[id]/fallback` (via Admin SDK) para exibir dados atualizados informando que a sincronização em tempo real está indisponível.
+
+### Regras de segurança do Firestore
+
+- `isSignedIn()` continua restringindo gravações a usuários autenticados.
+- `hasServiceTokenAccess(serviceId)` permite leitura a tokens com claims customizados, aceitando:
+  - `serviceId` direto (tokens emitidos por `claimAccessV2` com `role: "third"`),
+  - listas (`serviceIds`, `allowedServices`, `allowedServiceIds`) com o identificador do serviço,
+  - mapas (`serviceAccess`) em que a chave do serviço esteja marcada com `true` ou com o próprio ID.
+- `isServiceReader(serviceId)` reutiliza as verificações acima para liberar leitura em `services/{serviceId}` e subcoleções mesmo para acessos feitos via token, mantendo as operações de escrita restritas a `request.auth` autenticado.
 
 ### Feature flags e rollback
 

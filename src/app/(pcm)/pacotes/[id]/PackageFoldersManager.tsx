@@ -5,6 +5,7 @@ import { toast } from "sonner";
 
 import { tryGetAuth } from "@/lib/firebase";
 import { cn } from "@/lib/utils";
+import { formatDateTime } from "@/lib/formatDateTime";
 
 export type FolderSummary = {
   id: string;
@@ -45,14 +46,7 @@ function normaliseFolder(folder: FolderSummary): FolderState {
 
 function formatDate(value?: number | null) {
   if (!value || !Number.isFinite(value)) return "";
-  try {
-    return new Intl.DateTimeFormat("pt-BR", {
-      dateStyle: "short",
-      timeStyle: "short",
-    }).format(new Date(value));
-  } catch {
-    return "";
-  }
+  return formatDateTime(value, { timeZone: "America/Sao_Paulo", fallback: "" });
 }
 
 async function authorisedFetch(input: string, init?: RequestInit) {

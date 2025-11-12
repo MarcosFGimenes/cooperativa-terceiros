@@ -14,6 +14,7 @@ import {
 } from "recharts";
 
 import { cn } from "@/lib/utils";
+import { formatLongDate, formatShortMonthDate } from "@/lib/formatDateTime";
 
 type PlannedPoint = { date: string; percent: number; hoursAccum?: number };
 type CurvePoint = { date: string; percent: number };
@@ -49,29 +50,11 @@ function toDayIso(value: string) {
 }
 
 function formatShortDate(value: string) {
-  try {
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return value;
-    return new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "short", timeZone: "UTC" }).format(date);
-  } catch (error) {
-    console.error("[SCurve] Failed to format date", error);
-    return value;
-  }
+  return formatShortMonthDate(value, { timeZone: "UTC", fallback: value }) || value;
 }
 
 function formatFullDate(value: string) {
-  try {
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return value;
-    return new Intl.DateTimeFormat("pt-BR", {
-      day: "2-digit",
-      month: "long",
-      year: "numeric",
-      timeZone: "UTC",
-    }).format(date);
-  } catch {
-    return value;
-  }
+  return formatLongDate(value, { timeZone: "UTC", fallback: value }) || value;
 }
 
 function MetricCard({ label, value, tone }: { label: string; value: string; tone?: "neutral" | "positive" | "warning" }) {
