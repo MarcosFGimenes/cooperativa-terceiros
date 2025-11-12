@@ -12,11 +12,12 @@ import {
   query,
   type FirestoreError,
 } from "firebase/firestore";
+import { onAuthStateChanged } from "firebase/auth";
 
 import SCurve from "@/components/SCurve";
 import DeleteServiceButton from "@/components/DeleteServiceButton";
 import { plannedCurve } from "@/lib/curve";
-import { isFirestoreLongPollingForced, tryGetFirestore } from "@/lib/firebase";
+import { isFirestoreLongPollingForced, tryGetAuth, tryGetFirestore } from "@/lib/firebase";
 import type { ChecklistItem, ServiceUpdate } from "@/lib/types";
 import {
   ServiceRealtimeData,
@@ -70,10 +71,13 @@ export default function ServiceDetailClient({
   const [checklist, setChecklist] = useState<ChecklistItem[]>(toNewChecklist(initialChecklist));
   const [updates, setUpdates] = useState<ServiceUpdate[]>(toNewUpdates(initialUpdates));
   const [connectionIssue, setConnectionIssue] = useState<string | null>(null);
+  const [authIssue, setAuthIssue] = useState<string | null>(null);
   const [currentToken, setCurrentToken] = useState<ServiceDetailClientProps["latestToken"]>(latestToken);
   const [currentTokenLink, setCurrentTokenLink] = useState<string | null>(tokenLink);
   const normalizedInitialUpdates = useMemo(() => toNewUpdates(initialUpdates), [initialUpdates]);
   const longPollingForced = isFirestoreLongPollingForced;
+  const { auth: authInstance, error: authError } = tryGetAuth();
+  const [isAuthReady, setIsAuthReady] = useState<boolean>(() => Boolean(authInstance?.currentUser));
 
   useEffect(() => {
     setCurrentToken(latestToken);
@@ -81,8 +85,64 @@ export default function ServiceDetailClient({
   }, [latestToken, tokenLink]);
 
   useEffect(() => {
+    if (authError) {
+      setIsAuthReady(false);
+      setAuthIssue("Autenticação indisponível. Atualize a página ou contate o suporte.");
+      return;
+    }
+
+    if (!authInstance) {
+      setIsAuthReady(false);
+      setAuthIssue("Não foi possível inicializar a autenticação segura.");
+      return;
+    }
+
+    if (authInstance.currentUser) {
+      setIsAuthReady(true);
+      setAuthIssue(null);
+      return;
+    }
+
+    setIsAuthReady(false);
+    setAuthIssue("Sincronizando sessão segura. Aguarde...");
+
+    let isMounted = true;
+    const unsubscribe = onAuthStateChanged(authInstance, (user) => {
+      if (!isMounted) {
+        return;
+      }
+      if (user) {
+        setIsAuthReady(true);
+        setAuthIssue(null);
+      } else {
+        setIsAuthReady(false);
+        setAuthIssue("Sua sessão expirou. Faça login novamente.");
+      }
+    });
+
+    return () => {
+      isMounted = false;
+      unsubscribe();
+    };
+  }, [authInstance, authError]);
+
+  useEffect(() => {
     let cancelled = false;
     const unsubscribers: Array<() => void> = [];
+
+    if (!isAuthReady) {
+      setConnectionIssue(null);
+      return () => {
+        cancelled = true;
+        unsubscribers.forEach((unsubscribe) => {
+          try {
+            unsubscribe();
+          } catch (unsubscribeError) {
+            console.warn("[service-detail] Falha ao cancelar listener", unsubscribeError);
+          }
+        });
+      };
+    }
 
     const { db, error } = tryGetFirestore();
     if (!db) {
@@ -170,7 +230,7 @@ export default function ServiceDetailClient({
         }
       });
     };
-  }, [serviceId, longPollingForced]);
+  }, [serviceId, longPollingForced, isAuthReady]);
 
   const planned = useMemo(() => {
     const start = service.plannedStart ?? composedInitial.plannedStart;
@@ -291,9 +351,9 @@ export default function ServiceDetailClient({
         </div>
       </div>
 
-      {connectionIssue ? (
+      {authIssue || connectionIssue ? (
         <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-700">
-          {connectionIssue}
+          {authIssue ?? connectionIssue}
         </div>
       ) : null}
 
