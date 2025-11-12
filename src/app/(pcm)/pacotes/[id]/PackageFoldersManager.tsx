@@ -173,7 +173,7 @@ export default function PackageFoldersManager({ packageId, services, initialFold
 
   async function copyTokenLink(folder: FolderState) {
     if (!folder.tokenCode) {
-      toast.error("Esta pasta ainda não possui um token ativo.");
+      toast.error("Este subpacote ainda não possui um token ativo.");
       return;
     }
     try {
@@ -190,7 +190,7 @@ export default function PackageFoldersManager({ packageId, services, initialFold
     event.preventDefault();
     const name = newFolderName.trim();
     if (!name) {
-      toast.error("Informe o nome da pasta.");
+      toast.error("Informe o nome do subpacote.");
       return;
     }
     setCreatingFolder(true);
@@ -204,7 +204,8 @@ export default function PackageFoldersManager({ packageId, services, initialFold
       });
       const data = await response.json();
       if (!response.ok || !data?.ok) {
-        const message = typeof data?.error === "string" && data.error ? data.error : "Não foi possível criar a pasta.";
+        const message =
+          typeof data?.error === "string" && data.error ? data.error : "Não foi possível criar o subpacote.";
         throw new Error(message);
       }
       const createdFolder = normaliseFolder(data.folder as FolderSummary);
@@ -214,10 +215,10 @@ export default function PackageFoldersManager({ packageId, services, initialFold
       setServiceSelections((prev) => ({ ...prev, [createdFolder.id]: new Set(createdFolder.services) }));
       setNewFolderName("");
       setNewFolderCompany("");
-      toast.success("Pasta criada com sucesso.");
+      toast.success("Subpacote criado com sucesso.");
     } catch (error) {
-      console.error("[PackageFoldersManager] Falha ao criar pasta", error);
-      const message = error instanceof Error ? error.message : "Não foi possível criar a pasta.";
+      console.error("[PackageFoldersManager] Falha ao criar subpacote", error);
+      const message = error instanceof Error ? error.message : "Não foi possível criar o subpacote.";
       toast.error(message);
     } finally {
       setCreatingFolder(false);
@@ -240,7 +241,7 @@ export default function PackageFoldersManager({ packageId, services, initialFold
   async function saveFolderInfo(folderId: string) {
     const name = editName.trim();
     if (!name) {
-      toast.error("O nome da pasta não pode ficar vazio.");
+      toast.error("O nome do subpacote não pode ficar vazio.");
       return;
     }
     setSavingFolderInfo(true);
@@ -251,7 +252,8 @@ export default function PackageFoldersManager({ packageId, services, initialFold
       });
       const data = await response.json();
       if (!response.ok || !data?.ok) {
-        const message = typeof data?.error === "string" && data.error ? data.error : "Não foi possível atualizar a pasta.";
+        const message =
+          typeof data?.error === "string" && data.error ? data.error : "Não foi possível atualizar o subpacote.";
         throw new Error(message);
       }
       const updatedFolder = normaliseFolder(data.folder as FolderSummary);
@@ -261,10 +263,10 @@ export default function PackageFoldersManager({ packageId, services, initialFold
           .sort((a, b) => a.name.localeCompare(b.name, "pt-BR", { sensitivity: "base" })),
       );
       setEditingFolderId(null);
-      toast.success("Dados da pasta atualizados com sucesso.");
+      toast.success("Dados do subpacote atualizados com sucesso.");
     } catch (error) {
-      console.error("[PackageFoldersManager] Falha ao atualizar pasta", error);
-      const message = error instanceof Error ? error.message : "Não foi possível atualizar a pasta.";
+      console.error("[PackageFoldersManager] Falha ao atualizar subpacote", error);
+      const message = error instanceof Error ? error.message : "Não foi possível atualizar o subpacote.";
       toast.error(message);
     } finally {
       setSavingFolderInfo(false);
@@ -274,15 +276,15 @@ export default function PackageFoldersManager({ packageId, services, initialFold
   return (
     <div className="card space-y-6 p-4">
       <div className="space-y-1">
-        <h2 className="text-lg font-semibold">Pastas de acesso</h2>
+        <h2 className="text-lg font-semibold">Subpacotes</h2>
         <p className="text-sm text-muted-foreground">
-          Crie pastas por empresa para organizar os serviços e gerar tokens individuais de acompanhamento.
+          Crie subpacotes por empresa para organizar os serviços e gerar tokens individuais de acompanhamento.
         </p>
       </div>
 
       <form onSubmit={createFolder} className="grid gap-3 rounded-lg border border-dashed p-4 sm:grid-cols-[2fr_1.2fr_auto]">
         <div className="flex flex-col gap-1">
-          <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Nome da pasta</label>
+          <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Nome do subpacote</label>
           <input
             value={newFolderName}
             onChange={(event) => setNewFolderName(event.target.value)}
@@ -302,14 +304,14 @@ export default function PackageFoldersManager({ packageId, services, initialFold
         </div>
         <div className="flex items-end">
           <button type="submit" className="btn btn-primary w-full sm:w-auto" disabled={creatingFolder}>
-            {creatingFolder ? "Criando…" : "Criar pasta"}
+            {creatingFolder ? "Criando…" : "Criar subpacote"}
           </button>
         </div>
       </form>
 
       {folders.length === 0 ? (
         <div className="rounded-lg border border-dashed p-6 text-sm text-muted-foreground">
-          Nenhuma pasta criada ainda. Crie uma pasta para distribuir o acesso aos terceiros.
+          Nenhum subpacote criado ainda. Crie um subpacote para distribuir o acesso aos terceiros.
         </div>
       ) : (
         <div className="space-y-4">
@@ -406,10 +408,10 @@ export default function PackageFoldersManager({ packageId, services, initialFold
 
                 <div className="mt-4 space-y-3">
                   <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                    Serviços nesta pasta
+                    Serviços neste subpacote
                   </p>
                   {services.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">Nenhum serviço disponível para vincular.</p>
+                    <p className="text-sm text-muted-foreground">Nenhum serviço aberto disponível para vincular.</p>
                   ) : (
                     <div className="grid gap-2 sm:grid-cols-2">
                       {services.map((service) => {
