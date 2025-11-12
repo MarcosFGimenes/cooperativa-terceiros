@@ -609,41 +609,60 @@ export default function ServiceDetailsClient({ service, updates: initialUpdates,
   );
 
   return (
-    <div className="-mt-6 space-y-6 sm:-mt-10">
-      <div className="card space-y-4 p-4">
-        <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between lg:gap-10">
-          <div className="space-y-2">
+    <div className="space-y-8">
+      <div className="card overflow-hidden">
+        <div className="grid gap-6 bg-gradient-to-b from-primary/5 via-transparent to-transparent p-6 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start">
+          <div className="space-y-3">
             <p className="text-xs font-semibold uppercase tracking-widest text-primary">Portal do Terceiro</p>
-            <h1 className="text-3xl font-semibold text-foreground">OS: {serviceLabel}</h1>
-            <p className="text-sm text-muted-foreground">Formulário Único de Atualização diária.</p>
+            <div className="space-y-2">
+              <h1 className="text-3xl font-semibold text-foreground">OS: {serviceLabel}</h1>
+              <p className="text-sm text-muted-foreground">Formulário único para atualização diária do serviço.</p>
+            </div>
+            <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
+              <span className="rounded-full bg-muted px-3 py-1 font-medium text-foreground">{statusLabel}</span>
+              {companyLabel ? <span>Empresa: {companyLabel}</span> : null}
+              <span>Última atualização: {formatDateLabel(lastUpdateAt, true)}</span>
+            </div>
           </div>
-          <div className="min-w-[260px] rounded-lg border border-dashed p-4">
-            <dl className="grid gap-3 text-xs text-muted-foreground lg:grid-cols-3 lg:gap-4">
-              <div className="flex flex-col gap-1 lg:col-span-3">
-                <dt className="text-[0.7rem] font-medium uppercase tracking-wide">FO</dt>
-                <dd className="text-base font-semibold text-foreground">FO – xxxx xx xxxx</dd>
+          <div className="flex flex-col gap-4 rounded-xl border border-primary/20 bg-background/60 p-4 shadow-sm">
+            <div className="space-y-1">
+              <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Andamento registrado</span>
+              <div className="flex items-baseline gap-2">
+                <span className="text-3xl font-semibold text-foreground">{progress.toFixed(1)}%</span>
+                {Number.isFinite(suggestion ?? NaN) ? (
+                  <span className="text-xs text-muted-foreground">Sugestão do checklist: {Number(suggestion).toFixed(1)}%</span>
+                ) : null}
               </div>
-              <div className="flex flex-col gap-1">
-                <dt className="text-[0.7rem] font-medium uppercase tracking-wide">Emissão</dt>
-                <dd className="text-sm font-medium text-foreground">—</dd>
+            </div>
+            <div className="h-2 w-full rounded-full bg-muted">
+              <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${clampPercent(progress)}%` }} />
+            </div>
+            <dl className="grid gap-3 text-xs text-muted-foreground sm:grid-cols-2">
+              <div className="space-y-1">
+                <dt className="font-medium uppercase tracking-wide">Código</dt>
+                <dd className="text-sm font-semibold text-foreground">{service.code?.trim() || "—"}</dd>
               </div>
-              <div className="flex flex-col gap-1">
-                <dt className="text-[0.7rem] font-medium uppercase tracking-wide">Revisão</dt>
-                <dd className="text-sm font-medium text-foreground">—</dd>
+              <div className="space-y-1">
+                <dt className="font-medium uppercase tracking-wide">Tag</dt>
+                <dd className="text-sm font-semibold text-foreground">{service.tag?.trim() || "—"}</dd>
               </div>
-              <div className="flex flex-col gap-1">
-                <dt className="text-[0.7rem] font-medium uppercase tracking-wide">Número</dt>
-                <dd className="text-sm font-medium text-foreground">—</dd>
+              <div className="space-y-1">
+                <dt className="font-medium uppercase tracking-wide">Início planejado</dt>
+                <dd className="text-sm font-semibold text-foreground">{formatDateLabel(service.plannedStart)}</dd>
+              </div>
+              <div className="space-y-1">
+                <dt className="font-medium uppercase tracking-wide">Fim planejado</dt>
+                <dd className="text-sm font-semibold text-foreground">{formatDateLabel(service.plannedEnd)}</dd>
               </div>
             </dl>
           </div>
         </div>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-[1fr_minmax(320px,380px)]">
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(360px,460px)] xl:gap-8">
         <div className="card p-4">
           <h2 className="mb-4 text-lg font-semibold">Informações gerais</h2>
-          <dl className="grid grid-cols-1 gap-4 text-sm sm:grid-cols-2">
+          <dl className="grid grid-cols-1 gap-4 text-sm sm:grid-cols-2 xl:grid-cols-3">
             {detailItems.map((item) => (
               <div key={item.label}>
                 <dt className="text-muted-foreground">{item.label}</dt>
@@ -653,24 +672,13 @@ export default function ServiceDetailsClient({ service, updates: initialUpdates,
           </dl>
         </div>
 
-        <div className="card space-y-5 p-4">
+        <div className="card space-y-5 p-4 lg:sticky lg:top-24 lg:h-fit lg:self-start">
           <div className="space-y-2">
             <h2 className="text-lg font-semibold">Atualização diária</h2>
             <p className="text-sm text-muted-foreground">
               Preencha o registro do dia com horários, subatividade, recursos utilizados, mão de obra e condições de trabalho
               por turno.
             </p>
-          </div>
-
-          <div>
-            <div className="text-sm text-muted-foreground">Progresso atual</div>
-            <div className="mt-2 text-3xl font-semibold">{progress.toFixed(1)}%</div>
-            <div className="mt-3 h-2 w-full rounded-full bg-muted">
-              <div
-                className="h-full rounded-full bg-primary transition-all"
-                style={{ width: `${clampPercent(progress)}%` }}
-              />
-            </div>
           </div>
 
           {isServiceOpen ? (

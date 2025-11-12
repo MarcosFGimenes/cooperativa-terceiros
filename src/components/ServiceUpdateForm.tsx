@@ -412,7 +412,7 @@ export default function ServiceUpdateForm({
           <p className="text-xs text-muted-foreground">
             Informe o percentual atualizado para cada subatividade de acordo com o progresso realizado.
           </p>
-          <ul className="space-y-3 text-sm">
+          <ul className="grid gap-3 text-sm md:grid-cols-2">
             {checklist.map((item, index) => {
               const fieldError = extractFieldErrorMessage(errors.subactivities?.[index]?.progress);
               const currentValue =
@@ -476,7 +476,7 @@ export default function ServiceUpdateForm({
 
       <div className="space-y-3">
         <h3 className="text-sm font-semibold text-foreground">Recursos utilizados</h3>
-        <div className="grid gap-2 sm:grid-cols-2">
+        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {RESOURCE_OPTIONS.map((resource) => {
             const checked = selectedResources?.includes(resource.id) ?? false;
             return (
@@ -554,14 +554,14 @@ export default function ServiceUpdateForm({
 
       <div className="space-y-3">
         <h3 className="text-sm font-semibold text-foreground">Períodos trabalhados</h3>
-        <div className="flex flex-wrap gap-2">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
           {SHIFT_OPTIONS.map((option) => {
             const checked = selectedShifts.includes(option.id);
             const disabled = !checked && shiftArray.fields.length >= 2;
             return (
               <label
                 key={option.id}
-                className={`flex cursor-pointer items-center gap-2 rounded-full border px-3 py-1 text-sm ${
+                className={`flex cursor-pointer items-center gap-2 rounded-full border px-3 py-2 text-sm ${
                   checked ? "border-primary bg-primary/10 text-primary" : "border-muted bg-muted/40"
                 }`}
               >
@@ -587,7 +587,7 @@ export default function ServiceUpdateForm({
             })()
           : null}
         {shiftArray.fields.length > 0 ? (
-          <div className="space-y-3">
+          <div className="grid gap-3 md:grid-cols-2">
             {shiftArray.fields.map((field, index) => (
               <div key={field.id} className="rounded-lg border border-muted p-3">
                 <input type="hidden" value={field.shift} {...register(`shifts.${index}.shift` as const)} />
