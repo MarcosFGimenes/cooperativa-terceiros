@@ -6,6 +6,7 @@ import { notFound } from "next/navigation";
 
 import SCurve from "@/components/SCurve";
 import { plannedCurve } from "@/lib/curve";
+import { listServicesPCM } from "@/lib/data";
 import { getPackageById, listPackageServices } from "@/lib/repo/packages";
 import { listPackageFolders } from "@/lib/repo/folders";
 import { getServiceById } from "@/lib/repo/services";
@@ -13,6 +14,7 @@ import { formatDate as formatDisplayDate } from "@/lib/formatDateTime";
 import type { Package, PackageFolder, Service } from "@/types";
 
 import PackageFoldersManager from "./PackageFoldersManager";
+import type { ServiceInfo as FolderServiceInfo, ServiceOption as FolderServiceOption } from "./PackageFoldersManager";
 
 function normaliseStatus(status: Package["status"] | Service["status"]): string {
   const raw = String(status ?? "").toLowerCase();
@@ -213,31 +215,107 @@ export default async function PackageDetailPage({ params }: { params: { id: stri
     folders = await listPackageFolders(pkg.id);
   } catch (error) {
     registerWarning(
-      "Não foi possível carregar as pastas vinculadas a este pacote.",
+      "Não foi possível carregar os subpacotes vinculados a este pacote.",
       error,
-      "Falha ao listar pastas do pacote",
+      "Falha ao listar subpacotes do pacote",
     );
   }
 
   const serviceFoldersMap = new Map<string, string[]>();
+  const folderServiceIds = new Set<string>();
   folders.forEach((folder) => {
     folder.services.forEach((serviceId) => {
       if (!serviceId) return;
+      folderServiceIds.add(serviceId);
       const list = serviceFoldersMap.get(serviceId) ?? [];
       list.push(folder.name);
       serviceFoldersMap.set(serviceId, list);
     });
   });
 
-  const folderServiceOptions = services.map((service) => {
+  let availableRawServices: Awaited<ReturnType<typeof listServicesPCM>> = [];
+  try {
+    availableRawServices = await listServicesPCM();
+  } catch (error) {
+    registerWarning(
+      "Não foi possível carregar os serviços abertos disponíveis para novos subpacotes.",
+      error,
+      "Falha ao listar serviços disponíveis",
+    );
+  }
+
+  const availableOpenServices = availableRawServices.filter(
+    (service) => service.status === "Aberto" && !service.packageId,
+  );
+
+  const availableServiceOptions: FolderServiceOption[] = availableOpenServices
+    .filter((service) => !folderServiceIds.has(service.id))
+    .map((service) => {
+      const baseLabel = service.os || service.oc || service.tag || service.id;
+      const descriptionParts: string[] = [];
+      if (service.empresa) descriptionParts.push(`Empresa: ${service.empresa}`);
+      if (service.setor) descriptionParts.push(`Setor: ${service.setor}`);
+      return {
+        id: service.id,
+        label: baseLabel && baseLabel.length ? baseLabel : service.id,
+        description: descriptionParts.length ? descriptionParts.join(" • ") : undefined,
+      };
+    })
+    .sort((a, b) => a.label.localeCompare(b.label, "pt-BR", { sensitivity: "base" }));
+
+  const serviceDetails: Record<string, FolderServiceInfo> = {};
+
+  services.forEach((service) => {
     const baseLabel = service.os || service.code || service.id;
     const companyLabel =
       service.assignedTo?.companyName ||
       service.assignedTo?.companyId ||
       service.company ||
       service.empresa ||
-      "";
-    return { id: service.id, label: companyLabel ? `${baseLabel} — ${companyLabel}` : baseLabel };
+      assignedCompanies?.find((item) => item.companyId === service.assignedTo?.companyId)?.companyName ||
+      assignedCompanies?.find((item) => item.companyName)?.companyName ||
+      undefined;
+    const statusLabel = normaliseStatus(service.status);
+    serviceDetails[service.id] = {
+      id: service.id,
+      label: companyLabel ? `${baseLabel} — ${companyLabel}` : baseLabel,
+      status: statusLabel,
+      companyLabel: companyLabel,
+      isOpen: statusLabel === "Aberto",
+    };
+  });
+
+  availableOpenServices.forEach((service) => {
+    if (serviceDetails[service.id]) {
+      if (!serviceDetails[service.id].companyLabel && service.empresa) {
+        serviceDetails[service.id] = {
+          ...serviceDetails[service.id],
+          companyLabel: service.empresa ?? undefined,
+        };
+      }
+      return;
+    }
+    const baseLabel = service.os || service.oc || service.tag || service.id;
+    serviceDetails[service.id] = {
+      id: service.id,
+      label: service.empresa ? `${baseLabel} — ${service.empresa}` : baseLabel,
+      status: service.status ?? "Aberto",
+      companyLabel: service.empresa ?? undefined,
+      isOpen: true,
+    };
+  });
+
+  folders.forEach((folder) => {
+    folder.services.forEach((serviceId) => {
+      if (!serviceId || serviceDetails[serviceId]) return;
+      serviceDetails[serviceId] = {
+        id: serviceId,
+        label: serviceId,
+        status: "Desconhecido",
+        companyLabel: folder.companyId ?? undefined,
+        isOpen: false,
+      };
+    });
   });
 
   const serviceCompanyPairs = services.map((service) => {
@@ -302,7 +380,7 @@ export default async function PackageDetailPage({ params }: { params: { id: stri
                     <span className="font-medium text-foreground">{pair.serviceLabel}</span>
                     <span className="text-xs text-muted-foreground">
                       {pair.companyLabel || "-"}
-                      {pair.folders.length ? ` • ${pair.folders.join(", ")}` : ""}
+                      {pair.folders.length ? ` • Subpacotes: ${pair.folders.join(", ")}` : ""}
                     </span>
                   </li>
                 ))}
@@ -337,7 +415,7 @@ export default async function PackageDetailPage({ params }: { params: { id: stri
                           {service.assignedTo?.companyName || service.assignedTo?.companyId
                             ? ` • ${service.assignedTo.companyName || service.assignedTo.companyId}`
                             : ""}
-                          {foldersForService.length ? ` • Pastas: ${foldersForService.join(", ")}` : ""}
+                          {foldersForService.length ? ` • Subpacotes: ${foldersForService.join(", ")}` : ""}
                         </p>
                       </div>
                       <span className="text-sm font-semibold text-primary">{progress}%</span>
@@ -389,7 +467,8 @@ export default async function PackageDetailPage({ params }: { params: { id: stri
 
           <PackageFoldersManager
             packageId={pkg.id}
-            services={folderServiceOptions}
+            services={availableServiceOptions}
+            serviceDetails={serviceDetails}
             initialFolders={folders}
           />
         </div>
