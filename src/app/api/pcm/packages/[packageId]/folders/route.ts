@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server";
 
 import { requirePcmUser } from "@/app/api/management/tokens/_lib/auth";
+import { decodeRouteParam } from "@/lib/decodeRouteParam";
 import { createPackageFolder, listPackageFolders } from "@/lib/repo/folders";
 
 function normalisePackageId(params: Record<string, string | string[] | undefined>): string {
   const value = params.packageId;
-  if (typeof value === "string") return value.trim();
-  if (Array.isArray(value) && value.length > 0) return String(value[0] ?? "").trim();
+  if (typeof value === "string") return decodeRouteParam(value.trim());
+  if (Array.isArray(value) && value.length > 0) return decodeRouteParam(String(value[0] ?? "").trim());
   return "";
 }
 
