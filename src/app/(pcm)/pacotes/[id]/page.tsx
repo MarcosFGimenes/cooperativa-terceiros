@@ -16,7 +16,6 @@ import type { Package, PackageFolder, Service } from "@/types";
 import PackageFoldersManager from "./PackageFoldersManager";
 import type { ServiceInfo as FolderServiceInfo, ServiceOption as FolderServiceOption } from "./PackageFoldersManager";
 import ServicesCompaniesSection from "./ServicesCompaniesSection";
-import type { ServiceSummary } from "./ServicesCompaniesSection";
 
 function normaliseStatus(status: Package["status"] | Service["status"]): string {
   const raw = String(status ?? "").toLowerCase();
@@ -223,15 +222,11 @@ export default async function PackageDetailPage({ params }: { params: { id: stri
     );
   }
 
-  const serviceFoldersMap = new Map<string, string[]>();
   const folderServiceIds = new Set<string>();
   folders.forEach((folder) => {
     folder.services.forEach((serviceId) => {
       if (!serviceId) return;
       folderServiceIds.add(serviceId);
-      const list = serviceFoldersMap.get(serviceId) ?? [];
-      list.push(folder.name);
-      serviceFoldersMap.set(serviceId, list);
     });
   });
 
@@ -320,27 +315,6 @@ export default async function PackageDetailPage({ params }: { params: { id: stri
     });
   });
 
-  const serviceSummaries: ServiceSummary[] = services.map((service) => {
-    const serviceLabel = service.os || service.code || service.id;
-    const companyLabel =
-      service.assignedTo?.companyName ||
-      service.assignedTo?.companyId ||
-      service.company ||
-      service.empresa ||
-      assignedCompanies?.find((item) => item.companyId === service.assignedTo?.companyId)?.companyName ||
-      assignedCompanies?.find((item) => item.companyName)?.companyName ||
-      "-";
-    const foldersForService = serviceFoldersMap.get(service.id) ?? [];
-    return {
-      id: service.id,
-      label: serviceLabel,
-      companyLabel,
-      status: normaliseStatus(service.status),
-      progress: computeServiceRealized(service),
-      folders: foldersForService,
-    };
-  });
-
   const warningMessages = Array.from(warningSet);
 
   return (
@@ -376,19 +350,6 @@ export default async function PackageDetailPage({ params }: { params: { id: stri
             description="Planejado versus realizado considerando todos os serviços do pacote."
             headerAside={<span className="font-medium text-foreground">Realizado: {realized ?? 0}%</span>}
             chartHeight={360}
-          />
-
-          <PackageFoldersManager
-            packageId={pkg.id}
-            services={availableServiceOptions}
-            serviceDetails={serviceDetails}
-            initialFolders={folders}
-          />
-
-          <ServicesCompaniesSection
-            services={serviceSummaries}
-            folders={folders}
-            serviceDetails={serviceDetails}
           />
         </div>
 
@@ -428,6 +389,17 @@ export default async function PackageDetailPage({ params }: { params: { id: stri
           </div>
 
         </div>
+      </div>
+
+      <div className="space-y-4">
+        <PackageFoldersManager
+          packageId={pkg.id}
+          services={availableServiceOptions}
+          serviceDetails={serviceDetails}
+          initialFolders={folders}
+        />
+
+        <ServicesCompaniesSection folders={folders} serviceDetails={serviceDetails} />
       </div>
     </div>
   );

@@ -1,18 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 
 import { cn } from "@/lib/utils";
-
-export type ServiceSummary = {
-  id: string;
-  label: string;
-  companyLabel: string;
-  status: string;
-  progress: number | null;
-  folders: string[];
-};
 
 export type FolderDisplay = {
   id: string;
@@ -31,12 +21,11 @@ export type ServiceDetail = {
 export type ServiceDetailsMap = Record<string, ServiceDetail | undefined>;
 
 type Props = {
-  services: ServiceSummary[];
   folders: FolderDisplay[];
   serviceDetails: ServiceDetailsMap;
 };
 
-export default function ServicesCompaniesSection({ services, folders, serviceDetails }: Props) {
+export default function ServicesCompaniesSection({ folders, serviceDetails }: Props) {
   const [openFolderId, setOpenFolderId] = useState<string | null>(null);
 
   return (
@@ -119,40 +108,6 @@ export default function ServicesCompaniesSection({ services, folders, serviceDet
         )}
       </div>
 
-      <div className="space-y-3">
-        <div className="flex flex-wrap items-end justify-between gap-2">
-          <div>
-            <h3 className="text-sm font-semibold">Serviços do pacote</h3>
-            <p className="text-xs text-muted-foreground">{services.length} serviço{services.length === 1 ? "" : "s"} associados.</p>
-          </div>
-        </div>
-        {services.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Nenhum serviço vinculado ao pacote.</p>
-        ) : (
-          <ul className="space-y-2 text-sm">
-            {services.map((service) => (
-              <li key={service.id} className="flex flex-wrap items-center justify-between gap-3 rounded border p-3">
-                <div className="min-w-0 flex-1">
-                  <Link
-                    href={`/servicos/${service.id}`}
-                    className="font-medium text-foreground hover:underline"
-                  >
-                    {service.label}
-                  </Link>
-                  <p className="truncate text-xs text-muted-foreground">
-                    {service.status}
-                    {service.companyLabel ? ` • ${service.companyLabel}` : ""}
-                    {service.folders.length ? ` • Subpacotes: ${service.folders.join(", ")}` : ""}
-                  </p>
-                </div>
-                {typeof service.progress === "number" ? (
-                  <span className="text-sm font-semibold text-primary">{service.progress}%</span>
-                ) : null}
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
     </div>
   );
 }
