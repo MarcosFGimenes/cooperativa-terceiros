@@ -4,11 +4,11 @@
   "private": true,
   "scripts": {
     "preinstall": "node scripts/setup-patch-package-bin.cjs",
-    "postinstall": "patch-package",
+    "postinstall": "node scripts/shims/patch-package.cjs",
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
+    "lint": "node scripts/offline-lint.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run"
   },
@@ -29,8 +29,7 @@
     "react-to-print": "^3.1.1",
     "recharts": "^2.12.6",
     "sonner": "^1.4.0",
-    "zod": "^4.1.12",
-    "patch-package": "^8.0.0"
+    "zod": "^4.1.12"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",

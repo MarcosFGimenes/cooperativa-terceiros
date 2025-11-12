@@ -17,6 +17,7 @@ import {
 
 import { Field, FormRow } from "@/components/ui/form-controls";
 import { tryGetFirestore } from "@/lib/firebase";
+import { useFirebaseAuthSession } from "@/lib/useFirebaseAuthSession";
 import { recordTelemetry } from "@/lib/telemetry";
 import { resolveReopenedProgress, snapshotBeforeConclusion } from "@/lib/serviceProgress";
 
@@ -119,6 +120,7 @@ export default function ServiceEditorClient({ serviceId }: ServiceEditorClientPr
   const [updatesLoading, setUpdatesLoading] = useState(false);
   const [updates, setUpdates] = useState<UpdateHistoryItem[]>([]);
   const { db: firestore, error: firestoreError } = useMemo(() => tryGetFirestore(), []);
+  const { ready: isAuthReady, issue: authIssue } = useFirebaseAuthSession();
 
   useEffect(() => {
     if (firestoreError) {
@@ -138,7 +140,7 @@ export default function ServiceEditorClient({ serviceId }: ServiceEditorClientPr
   );
 
   useEffect(() => {
-    if (!firestore) return;
+    if (!firestore || !isAuthReady) return;
     setLoadingPackages(true);
     getDocs(query(collection(firestore, "packages"), orderBy("nome", "asc")))
       .then((snapshot) => {
@@ -161,11 +163,11 @@ export default function ServiceEditorClient({ serviceId }: ServiceEditorClientPr
         }
       })
       .finally(() => setLoadingPackages(false));
-  }, [firestore]);
+  }, [firestore, isAuthReady]);
 
   useEffect(() => {
     let cancelled = false;
-    if (!firestore) return;
+    if (!firestore || !isAuthReady) return;
 
     async function loadUpdates() {
       setUpdatesLoading(true);
@@ -243,7 +245,7 @@ export default function ServiceEditorClient({ serviceId }: ServiceEditorClientPr
     return () => {
       cancelled = true;
     };
-  }, [firestore, serviceId]);
+  }, [firestore, serviceId, isAuthReady]);
 
   function updateForm<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -288,6 +290,10 @@ export default function ServiceEditorClient({ serviceId }: ServiceEditorClientPr
       toast.error("Banco de dados indisponível.");
       return;
     }
+    if (!isAuthReady) {
+      toast.error("Sua sessão segura ainda não foi confirmada. Aguarde ou faça login novamente.");
+      return;
+    }
 
     setSaving(true);
     try {
@@ -329,6 +335,10 @@ export default function ServiceEditorClient({ serviceId }: ServiceEditorClientPr
   async function changeStatus(status: (typeof STATUS_OPTIONS)[number], progresso?: number) {
     if (!firestore) {
       toast.error("Banco de dados indisponível.");
+      return;
+    }
+    if (!isAuthReady) {
+      toast.error("Sua sessão segura ainda não foi confirmada. Aguarde ou faça login novamente.");
       return;
     }
     setSaving(true);
@@ -381,6 +391,16 @@ export default function ServiceEditorClient({ serviceId }: ServiceEditorClientPr
     } finally {
       setSaving(false);
     }
+  }
+
+  if (!isAuthReady) {
+    return (
+      <div className="grid gap-6">
+        <div className="rounded-2xl border bg-amber-50 p-6 text-sm text-amber-700 shadow-sm">
+          {authIssue ?? "Sincronizando sessão segura. Aguarde..."}
+        </div>
+      </div>
+    );
   }
 
   if (!firestore) {

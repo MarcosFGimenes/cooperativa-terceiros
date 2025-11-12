@@ -1,8 +1,10 @@
 "use client";
 
 import { FormEvent, useState } from "react";
-import type { ServiceStatus } from "@/lib/types";
 import { toast } from "sonner";
+
+import { managementFetch } from "@/lib/managementFetch";
+import type { ServiceStatus } from "@/lib/types";
 
 type Props = {
   serviceId: string;
@@ -43,9 +45,8 @@ export default function ServiceMetadataForm({ serviceId, initial }: Props) {
 
     try {
       setSaving(true);
-      const response = await fetch(`/api/admin/services/${serviceId}/update`, {
+      const response = await managementFetch(`/api/management/services/${serviceId}/update`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           os: form.os.trim(),
           oc: form.oc?.trim() || undefined,

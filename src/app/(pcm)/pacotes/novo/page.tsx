@@ -7,6 +7,7 @@ import { addDoc, collection, serverTimestamp } from "firebase/firestore";
 
 import { Field, FormRow } from "@/components/ui/form-controls";
 import { tryGetFirestore } from "@/lib/firebase";
+import { useFirebaseAuthSession } from "@/lib/useFirebaseAuthSession";
 import { dateOnlyToMillis, formatDateOnly, parseDateOnly } from "@/lib/dateOnly";
 
 export default function NovoPacotePage() {
@@ -14,6 +15,7 @@ export default function NovoPacotePage() {
   const [form, setForm] = useState({ nome: "", descricao: "", dataInicio: "", dataFim: "" });
   const [saving, setSaving] = useState(false);
   const { db: firestore, error: firestoreError } = useMemo(() => tryGetFirestore(), []);
+  const { ready: isAuthReady, issue: authIssue } = useFirebaseAuthSession();
 
   useEffect(() => {
     if (firestoreError) {
@@ -49,6 +51,10 @@ export default function NovoPacotePage() {
       toast.error("Banco de dados indisponível.");
       return;
     }
+    if (!isAuthReady) {
+      toast.error("Sua sessão segura ainda não foi confirmada. Aguarde ou faça login novamente.");
+      return;
+    }
     setSaving(true);
     try {
       const nome = form.nome.trim();
@@ -78,6 +84,16 @@ export default function NovoPacotePage() {
     } finally {
       setSaving(false);
     }
+  }
+
+  if (!isAuthReady) {
+    return (
+      <div className="container mx-auto max-w-3xl px-4 py-6">
+        <div className="rounded-2xl border bg-amber-50 p-6 text-sm text-amber-700 shadow-sm">
+          {authIssue ?? "Sincronizando sessão segura. Aguarde..."}
+        </div>
+      </div>
+    );
   }
 
   if (!firestore) {

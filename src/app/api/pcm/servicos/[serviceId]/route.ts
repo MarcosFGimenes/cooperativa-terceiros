@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { HttpError, requirePcmUser } from "@/app/api/admin/tokens/_lib/auth";
+import { HttpError, requirePcmUser } from "@/app/api/management/tokens/_lib/auth";
 import { deleteService } from "@/lib/repo/services";
 
 export async function DELETE(

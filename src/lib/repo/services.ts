@@ -513,7 +513,7 @@ export async function setChecklistItems(
   items: Array<{ description: string; weight: number }>,
 ): Promise<void> {
   const totalWeight = items.reduce((acc, item) => acc + (item.weight ?? 0), 0);
-  if (Math.round(totalWeight) !== 100) {
+  if (items.length > 0 && Math.round(totalWeight) !== 100) {
     throw new Error("A soma dos pesos do checklist deve ser igual a 100.");
   }
 
@@ -550,6 +550,66 @@ export async function setChecklistItems(
       updatedAt: FieldValue.serverTimestamp(),
     });
   });
+}
+
+type ServiceMetadataInput = {
+  os: string;
+  tag: string;
+  equipment: string;
+  oc?: string | null;
+  sector?: string | null;
+  company?: string | null;
+  plannedStart: string;
+  plannedEnd: string;
+  totalHours: number;
+  status: ServiceStatus;
+};
+
+function toDateOnlyTimestamp(value: string): Timestamp {
+  const date = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(date.getTime())) {
+    throw new Error("Data inválida.");
+  }
+  return Timestamp.fromDate(date);
+}
+
+export async function updateServiceMetadata(serviceId: string, input: ServiceMetadataInput): Promise<void> {
+  const ref = servicesCollection().doc(serviceId);
+  const snap = await ref.get();
+  if (!snap.exists) {
+    throw new Error("Serviço não encontrado");
+  }
+
+  const plannedStartTimestamp = toDateOnlyTimestamp(input.plannedStart);
+  const plannedEndTimestamp = toDateOnlyTimestamp(input.plannedEnd);
+
+  const payload: Record<string, unknown> = {
+    os: input.os,
+    tag: input.tag,
+    equipamento: input.equipment,
+    equipmentName: input.equipment,
+    updatedAt: FieldValue.serverTimestamp(),
+    inicioPrevisto: plannedStartTimestamp,
+    fimPrevisto: plannedEndTimestamp,
+    plannedStart: input.plannedStart,
+    plannedEnd: input.plannedEnd,
+    dataInicio: input.plannedStart,
+    dataFim: input.plannedEnd,
+    inicioPlanejado: input.plannedStart,
+    fimPlanejado: input.plannedEnd,
+    horasPrevistas: input.totalHours,
+    totalHours: input.totalHours,
+    totalHoras: input.totalHours,
+    status: input.status,
+  };
+
+  payload.oc = input.oc ?? null;
+  payload.sector = input.sector ?? null;
+  payload.setor = input.sector ?? null;
+  payload.empresaId = input.company ?? null;
+  payload.company = input.company ?? null;
+
+  await ref.update(payload);
 }
 
 export async function updateChecklistProgress(
