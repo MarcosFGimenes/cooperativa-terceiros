@@ -15,6 +15,8 @@ import type { Package, PackageFolder, Service } from "@/types";
 
 import PackageFoldersManager from "./PackageFoldersManager";
 import type { ServiceInfo as FolderServiceInfo, ServiceOption as FolderServiceOption } from "./PackageFoldersManager";
+import ServicesCompaniesSection from "./ServicesCompaniesSection";
+import type { ServiceSummary } from "./ServicesCompaniesSection";
 
 function normaliseStatus(status: Package["status"] | Service["status"]): string {
   const raw = String(status ?? "").toLowerCase();
@@ -318,7 +320,7 @@ export default async function PackageDetailPage({ params }: { params: { id: stri
     });
   });
 
-  const serviceCompanyPairs = services.map((service) => {
+  const serviceSummaries: ServiceSummary[] = services.map((service) => {
     const serviceLabel = service.os || service.code || service.id;
     const companyLabel =
       service.assignedTo?.companyName ||
@@ -329,7 +331,14 @@ export default async function PackageDetailPage({ params }: { params: { id: stri
       assignedCompanies?.find((item) => item.companyName)?.companyName ||
       "-";
     const foldersForService = serviceFoldersMap.get(service.id) ?? [];
-    return { id: service.id, serviceLabel, companyLabel, folders: foldersForService };
+    return {
+      id: service.id,
+      label: serviceLabel,
+      companyLabel,
+      status: normaliseStatus(service.status),
+      progress: computeServiceRealized(service),
+      folders: foldersForService,
+    };
   });
 
   const warningMessages = Array.from(warningSet);
@@ -369,65 +378,11 @@ export default async function PackageDetailPage({ params }: { params: { id: stri
             chartHeight={360}
           />
 
-          <div className="card p-4">
-            <h2 className="mb-4 text-lg font-semibold">Serviços e Empresas</h2>
-            {serviceCompanyPairs.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Nenhum serviço vinculado ao pacote.</p>
-            ) : (
-              <ul className="space-y-2 text-sm">
-                {serviceCompanyPairs.map((pair) => (
-                  <li key={pair.id} className="flex flex-wrap items-center justify-between gap-3 rounded border p-3">
-                    <span className="font-medium text-foreground">{pair.serviceLabel}</span>
-                    <span className="text-xs text-muted-foreground">
-                      {pair.companyLabel || "-"}
-                      {pair.folders.length ? ` • Subpacotes: ${pair.folders.join(", ")}` : ""}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-
-          <div className="card p-4">
-            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <h2 className="text-lg font-semibold">Serviços vinculados</h2>
-                <p className="text-xs text-muted-foreground">{services.length} serviços associados a este pacote.</p>
-              </div>
-            </div>
-            {services.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Nenhum serviço associado ao pacote.</p>
-            ) : (
-              <div className="space-y-2">
-                {services.map((service) => {
-                  const progress = computeServiceRealized(service);
-                  const foldersForService = serviceFoldersMap.get(service.id) ?? [];
-                  return (
-                    <Link
-                      key={service.id}
-                      className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-3 transition hover:border-primary/40 hover:bg-muted/40"
-                      href={`/servicos/${service.id}`}
-                    >
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-medium">{service.os || service.code || service.id}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {normaliseStatus(service.status)}
-                          {service.assignedTo?.companyName || service.assignedTo?.companyId
-                            ? ` • ${service.assignedTo.companyName || service.assignedTo.companyId}`
-                            : ""}
-                          {foldersForService.length ? ` • Subpacotes: ${foldersForService.join(", ")}` : ""}
-                        </p>
-                      </div>
-                      <span className="text-sm font-semibold text-primary">{progress}%</span>
-                    </Link>
-                  );
-                })}
-              </div>
-            )}
-            {realized === null && services.length > 0 ? (
-              <p className="mt-4 text-xs text-muted-foreground">Sem dados suficientes para calcular o realizado consolidado.</p>
-            ) : null}
-          </div>
+          <ServicesCompaniesSection
+            services={serviceSummaries}
+            folders={folders}
+            serviceDetails={serviceDetails}
+          />
         </div>
 
         <div className="space-y-4">
