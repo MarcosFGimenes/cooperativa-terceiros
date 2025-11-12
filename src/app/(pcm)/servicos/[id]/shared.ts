@@ -1,5 +1,10 @@
 import { realizedFromChecklist, realizedFromUpdates } from "@/lib/curve";
 import { dedupeUpdates, formatUpdateSummary, sanitiseResourceQuantities } from "@/lib/serviceUpdates";
+import {
+  formatDate as formatDateDisplay,
+  formatDateTime as formatDateTimeDisplay,
+  formatDayKey,
+} from "@/lib/formatDateTime";
 import type {
   ChecklistItem,
   Service,
@@ -468,41 +473,18 @@ export function normaliseStatus(value: unknown): "Aberto" | "Pendente" | "Conclu
   return "Aberto";
 }
 
-const dateFormatter = new Intl.DateTimeFormat("pt-BR", { timeZone: DEFAULT_TIME_ZONE });
-const dateTimeFormatter = new Intl.DateTimeFormat("pt-BR", {
-  dateStyle: "short",
-  timeStyle: "short",
-  timeZone: DEFAULT_TIME_ZONE,
-});
-const dayKeyFormatter = new Intl.DateTimeFormat("en-CA", {
-  year: "numeric",
-  month: "2-digit",
-  day: "2-digit",
-  timeZone: DEFAULT_TIME_ZONE,
-});
-
 export function formatDate(value?: number | string | Date | null): string {
   if (value === null || value === undefined) return "-";
   const date = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(date.getTime())) return "-";
-  try {
-    return dateFormatter.format(date);
-  } catch (error) {
-    console.warn("[service-shared] Falha ao formatar data", error);
-    return "-";
-  }
+  return formatDateDisplay(date, { timeZone: DEFAULT_TIME_ZONE, fallback: "-" }) || "-";
 }
 
 export function formatDateTime(value?: number | string | Date | null): string {
   if (value === null || value === undefined) return "-";
   const date = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(date.getTime())) return "-";
-  try {
-    return dateTimeFormatter.format(date);
-  } catch (error) {
-    console.warn("[service-shared] Falha ao formatar data/hora", error);
-    return "-";
-  }
+  return formatDateTimeDisplay(date, { timeZone: DEFAULT_TIME_ZONE, fallback: "-" }) || "-";
 }
 
 function toDayIso(value: unknown): string | null {
@@ -512,12 +494,8 @@ function toDayIso(value: unknown): string | null {
   }
   const millis = toMillis(value);
   if (millis === null) return null;
-  const date = new Date(millis);
-  if (Number.isNaN(date.getTime())) return null;
-  const year = date.getUTCFullYear();
-  const month = String(date.getUTCMonth() + 1).padStart(2, "0");
-  const day = String(date.getUTCDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
+  const formatted = formatDayKey(millis, { timeZone: DEFAULT_TIME_ZONE, fallback: "" });
+  return formatted || null;
 }
 
 export function computeTimeWindowHours(update: ServiceUpdate): number | null {

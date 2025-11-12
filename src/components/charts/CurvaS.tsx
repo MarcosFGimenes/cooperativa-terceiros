@@ -1,5 +1,7 @@
 import type { CSSProperties } from "react";
 
+import { formatDayMonth, formatLongDate } from "@/lib/formatDateTime";
+
 type CurvePoint = { d: string; pct: number };
 
 type CurvaSProps = {
@@ -17,24 +19,13 @@ const roundTwo = (value: number) => Math.round(value * 100) / 100;
 const UTC_TIME_ZONE = "UTC";
 
 const getDateLabel = (iso: string) => {
-  const date = new Date(`${iso}T00:00:00Z`);
-  if (Number.isNaN(date.getTime())) return iso;
-  return new Intl.DateTimeFormat("pt-BR", {
-    day: "2-digit",
-    month: "2-digit",
-    timeZone: UTC_TIME_ZONE,
-  }).format(date);
+  const value = iso.includes("T") ? iso : `${iso}T00:00:00Z`;
+  return formatDayMonth(value, { timeZone: UTC_TIME_ZONE, fallback: iso }) || iso;
 };
 
 const getLongDateLabel = (iso: string) => {
-  const date = new Date(`${iso}T00:00:00Z`);
-  if (Number.isNaN(date.getTime())) return iso;
-  return new Intl.DateTimeFormat("pt-BR", {
-    day: "2-digit",
-    month: "long",
-    year: "numeric",
-    timeZone: UTC_TIME_ZONE,
-  }).format(date);
+  const value = iso.includes("T") ? iso : `${iso}T00:00:00Z`;
+  return formatLongDate(value, { timeZone: UTC_TIME_ZONE, fallback: iso }) || iso;
 };
 
 type SeriesData = {

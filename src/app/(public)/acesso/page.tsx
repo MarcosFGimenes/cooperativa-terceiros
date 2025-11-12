@@ -105,13 +105,6 @@ export default function AcessoPorTokenPage() {
   );
 
   useEffect(() => {
-    setToken(initial);
-    if (initial) {
-      void validateToken(initial);
-    }
-  }, [initial, validateToken]);
-
-  useEffect(() => {
     if (!selectedService) {
       setManualPercent("");
       setChecklistValues({});
@@ -251,6 +244,13 @@ export default function AcessoPorTokenPage() {
     },
     [token, validateToken],
   );
+
+  useEffect(() => {
+    setToken(initial);
+    if (initial) {
+      void validateToken(initial);
+    }
+  }, [initial, validateToken]);
 
   function updateChecklistValue(id: string, value: number) {
     setChecklistValues((prev) => ({ ...prev, [id]: Math.max(0, Math.min(100, Math.round(value))) }));

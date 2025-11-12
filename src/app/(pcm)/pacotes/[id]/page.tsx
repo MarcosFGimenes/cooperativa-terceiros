@@ -9,6 +9,7 @@ import { plannedCurve } from "@/lib/curve";
 import { getPackageById, listPackageServices } from "@/lib/repo/packages";
 import { listPackageFolders } from "@/lib/repo/folders";
 import { getServiceById } from "@/lib/repo/services";
+import { formatDate as formatDisplayDate } from "@/lib/formatDateTime";
 import type { Package, PackageFolder, Service } from "@/types";
 
 import PackageFoldersManager from "./PackageFoldersManager";
@@ -35,7 +36,7 @@ function parseISO(value?: string | null) {
 function formatDate(value?: string | null) {
   const date = parseISO(value ?? undefined);
   if (!date) return "-";
-  return new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo" }).format(date);
+  return formatDisplayDate(date, { timeZone: "America/Sao_Paulo", fallback: "-" }) || "-";
 }
 
 function computeServiceRealized(service: Service) {

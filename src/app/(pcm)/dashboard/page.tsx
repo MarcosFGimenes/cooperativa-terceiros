@@ -5,6 +5,7 @@ import Link from "next/link";
 
 import { listRecentPackages } from "@/lib/repo/packages";
 import { listRecentServices } from "@/lib/repo/services";
+import { formatDateTime } from "@/lib/formatDateTime";
 import type { Service } from "@/types";
 
 function normaliseStatus(status: Service["status"]): "Aberto" | "Pendente" | "Concluído" {
@@ -16,17 +17,7 @@ function normaliseStatus(status: Service["status"]): "Aberto" | "Pendente" | "Co
 
 function formatDate(value?: number) {
   if (value === null || value === undefined) return "";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "";
-  try {
-    return new Intl.DateTimeFormat("pt-BR", {
-      dateStyle: "short",
-      timeStyle: "short",
-      timeZone: "America/Sao_Paulo",
-    }).format(date);
-  } catch {
-    return "";
-  }
+  return formatDateTime(value, { timeZone: "America/Sao_Paulo", fallback: "" });
 }
 
 export default async function DashboardPCM() {

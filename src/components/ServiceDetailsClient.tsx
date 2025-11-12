@@ -5,6 +5,7 @@ import { toast } from "sonner";
 
 import ServiceUpdateForm, { type ServiceUpdateFormPayload } from "@/components/ServiceUpdateForm";
 import { dedupeUpdates, formatResourcesLine, sanitiseResourceQuantities } from "@/lib/serviceUpdates";
+import { formatDate as formatDateOnly, formatDateTime } from "@/lib/formatDateTime";
 
 import type { ThirdChecklistItem, ThirdService, ThirdServiceUpdate } from "@/app/(third)/terceiro/servico/[id]/types";
 
@@ -25,15 +26,13 @@ function clampPercent(value: unknown): number {
   return Math.min(100, Math.max(0, numeric));
 }
 
-function formatDate(value?: number | string | null, withTime = false): string {
+function formatDateLabel(value?: number | string | null, withTime = false): string {
   if (value === null || value === undefined) return "-";
-  const date = typeof value === "number" ? new Date(value) : new Date(String(value));
-  if (Number.isNaN(date.getTime())) return "-";
-  return new Intl.DateTimeFormat("pt-BR", {
-    dateStyle: "short",
-    timeStyle: withTime ? "short" : undefined,
-    timeZone: DEFAULT_TIME_ZONE,
-  }).format(date);
+  const input = typeof value === "number" ? value : String(value);
+  if (withTime) {
+    return formatDateTime(input, { timeZone: DEFAULT_TIME_ZONE, fallback: "-" }) || "-";
+  }
+  return formatDateOnly(input, { timeZone: DEFAULT_TIME_ZONE, fallback: "-" }) || "-";
 }
 
 function normaliseStatus(value: string | null | undefined): string {
@@ -123,7 +122,7 @@ function computeTimeWindowHours(update: ThirdServiceUpdate): number | null {
 }
 
 function buildThirdUpdateSummary(update: ThirdServiceUpdate) {
-  const title = formatDate(update.timeWindow?.start ?? update.createdAt ?? null);
+  const title = formatDateLabel(update.timeWindow?.start ?? update.createdAt ?? null);
   const percentLabel = `${Math.round(update.percent)}%`;
   const description = update.description ? `Descrição do dia: ${update.description}` : null;
   const hours = computeTimeWindowHours(update);
@@ -415,10 +414,10 @@ export default function ServiceDetailsClient({ service, updates: initialUpdates,
             ? service.totalHours
             : "—",
       },
-      { label: "Início planejado", value: formatDate(service.plannedStart) },
-      { label: "Fim planejado", value: formatDate(service.plannedEnd) },
+      { label: "Início planejado", value: formatDateLabel(service.plannedStart) },
+      { label: "Fim planejado", value: formatDateLabel(service.plannedEnd) },
       { label: "Empresa atribuída", value: companyLabel || "—" },
-      { label: "Última atualização", value: formatDate(lastUpdateAt, true) },
+      { label: "Última atualização", value: formatDateLabel(lastUpdateAt, true) },
     ],
     [service, progress, lastUpdateAt, companyLabel, statusLabel],
   );
@@ -705,7 +704,7 @@ export default function ServiceDetailsClient({ service, updates: initialUpdates,
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <span className="font-medium text-foreground">{item.description}</span>
                     <span className="text-xs text-muted-foreground">
-                      {formatDate(item.updatedAt, true)}
+                      {formatDateLabel(item.updatedAt, true)}
                     </span>
                   </div>
                   <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
@@ -733,7 +732,7 @@ export default function ServiceDetailsClient({ service, updates: initialUpdates,
                       <span className="text-base font-semibold text-foreground">{summary.title}</span>
                       <span className="text-sm font-semibold text-primary">{summary.percentLabel}</span>
                     </div>
-                    <p className="text-xs text-muted-foreground">Atualizado em {formatDate(update.createdAt, true)}</p>
+                    <p className="text-xs text-muted-foreground">Atualizado em {formatDateLabel(update.createdAt, true)}</p>
                     {update.subactivity?.label ? (
                       <p className="text-xs text-muted-foreground">
                         Subatividade: <span className="font-medium text-foreground">{update.subactivity.label}</span>
@@ -748,7 +747,7 @@ export default function ServiceDetailsClient({ service, updates: initialUpdates,
                     ) : null}
                     {hours === null && update.timeWindow?.start && update.timeWindow?.end ? (
                       <p className="text-xs text-muted-foreground">
-                        Período: {formatDate(update.timeWindow.start, true)} → {formatDate(update.timeWindow.end, true)}
+                        Período: {formatDateLabel(update.timeWindow.start, true)} → {formatDateLabel(update.timeWindow.end, true)}
                       </p>
                     ) : null}
                     {update.impediments && update.impediments.length > 0 ? (
