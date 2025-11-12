@@ -254,30 +254,50 @@ export async function setFolderServices(folderId: string, serviceIds: string[]):
     collectServices(packageData.serviceIds);
 
     const siblingsSnap = await foldersCollection().where("packageId", "==", packageId).get();
-    const aggregatedSet = new Set<string>();
-    siblingsSnap.docs.forEach((doc) => {
-      const folder = mapFolderDoc(doc);
-      folder.services.forEach((serviceId) => {
+    const aggregatedBeforeSet = new Set<string>();
+    const aggregatedAfterSet = new Set<string>();
+
+    const addToSet = (set: Set<string>, values: string[]) => {
+      values.forEach((serviceId) => {
         const trimmed = serviceId.trim();
         if (trimmed) {
-          aggregatedSet.add(trimmed);
+          set.add(trimmed);
         }
       });
+    };
+
+    siblingsSnap.docs.forEach((doc) => {
+      const folder = mapFolderDoc(doc);
+      const beforeServices = doc.id === updatedFolder.id ? originalFolder.services : folder.services;
+      const afterServices = doc.id === updatedFolder.id ? updatedFolder.services : folder.services;
+
+      addToSet(aggregatedBeforeSet, beforeServices);
+      addToSet(aggregatedAfterSet, afterServices);
     });
 
-    const aggregatedServices = Array.from(aggregatedSet);
+    const newPackageServicesSet = new Set<string>();
+    aggregatedAfterSet.forEach((serviceId) => {
+      newPackageServicesSet.add(serviceId);
+    });
+    previousServices.forEach((serviceId) => {
+      if (!aggregatedBeforeSet.has(serviceId)) {
+        newPackageServicesSet.add(serviceId);
+      }
+    });
+
+    const newPackageServices = Array.from(newPackageServicesSet);
 
     await packageRef.set(
       {
-        services: aggregatedServices,
-        serviceIds: aggregatedServices,
+        services: newPackageServices,
+        serviceIds: newPackageServices,
         updatedAt: FieldValue.serverTimestamp(),
       },
       { merge: true },
     );
 
-    const added = aggregatedServices.filter((id) => !previousServices.has(id));
-    const removed = Array.from(previousServices).filter((id) => !aggregatedSet.has(id));
+    const added = Array.from(aggregatedAfterSet).filter((id) => !aggregatedBeforeSet.has(id));
+    const removed = Array.from(aggregatedBeforeSet).filter((id) => !aggregatedAfterSet.has(id));
 
     const serviceUpdates: Promise<unknown>[] = [];
 
