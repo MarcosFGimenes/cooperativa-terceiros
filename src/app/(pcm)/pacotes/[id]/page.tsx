@@ -6,6 +6,7 @@ import { notFound } from "next/navigation";
 
 import SCurve from "@/components/SCurve";
 import { plannedCurve } from "@/lib/curve";
+import { decodeRouteParam } from "@/lib/decodeRouteParam";
 import { listServicesPCM } from "@/lib/data";
 import { getPackageById, listPackageServices } from "@/lib/repo/packages";
 import { listPackageFolders } from "@/lib/repo/folders";
@@ -94,25 +95,43 @@ function buildPackageRealizedSeries(planned: ReturnType<typeof plannedCurve>, re
 }
 
 export default async function PackageDetailPage({ params }: { params: { id: string } }) {
+  const rawPackageId = params.id;
+  const decodedPackageId = decodeRouteParam(rawPackageId);
+  const packageIdCandidates = Array.from(
+    new Set([decodedPackageId, rawPackageId].filter((value) => typeof value === "string" && value.length > 0)),
+  );
+  if (packageIdCandidates.length === 0) {
+    return notFound();
+  }
   const warningSet = new Set<string>();
   const registerWarning = (message: string, error?: unknown, context?: string) => {
     if (error) {
-      console.error(`[PackageDetailPage:${params.id}] ${context ?? message}`, error);
+      console.error(`[PackageDetailPage:${rawPackageId}] ${context ?? message}`, error);
     }
     warningSet.add(message);
   };
 
   let pkg: Package | null = null;
+  let resolvedPackageId = packageIdCandidates[0];
 
-  try {
-    pkg = await getPackageById(params.id);
-  } catch (error) {
-    registerWarning(
-      "Não foi possível carregar as informações do pacote. Verifique a configuração do Firebase ou tente novamente.",
-      error,
-      "Falha ao buscar pacote",
-    );
+  for (const candidate of packageIdCandidates) {
+    try {
+      const result = await getPackageById(candidate);
+      if (result) {
+        pkg = result;
+        resolvedPackageId = result.id ?? candidate;
+        break;
+      }
+    } catch (error) {
+      registerWarning(
+        "Não foi possível carregar as informações do pacote. Verifique a configuração do Firebase ou tente novamente.",
+        error,
+        `Falha ao buscar pacote ${candidate}`,
+      );
+    }
   }
+
+  const displayPackageId = pkg?.id ?? decodedPackageId || rawPackageId;
 
   if (!pkg) {
     const fallbackWarnings = Array.from(warningSet);
@@ -124,7 +143,7 @@ export default async function PackageDetailPage({ params }: { params: { id: stri
       <div className="container mx-auto space-y-6 p-4">
         <div className="card mx-auto max-w-2xl space-y-4 p-6">
           <div>
-            <h1 className="text-2xl font-semibold tracking-tight">Pacote {params.id}</h1>
+            <h1 className="text-2xl font-semibold tracking-tight">Pacote {displayPackageId}</h1>
             <p className="text-sm text-muted-foreground">
               Não foi possível carregar as informações deste pacote no momento.
             </p>
@@ -162,7 +181,7 @@ export default async function PackageDetailPage({ params }: { params: { id: stri
 
   if (!services.length) {
     try {
-      const fallback = await listPackageServices(params.id);
+      const fallback = await listPackageServices(resolvedPackageId);
       if (fallback.length) {
         const enriched = await Promise.all(
           fallback.map((service) =>

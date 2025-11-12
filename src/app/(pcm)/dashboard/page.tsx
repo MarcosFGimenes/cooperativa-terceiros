@@ -93,12 +93,13 @@ export default async function DashboardPCM() {
                   service.progress ?? service.realPercent ?? service.andamento ?? 0,
                 );
                 const createdAt = formatDate(service.createdAt);
+                const serviceHref = `/servicos/${encodeURIComponent(service.id)}`;
                 return (
                   <div
                     key={service.id}
                     className="flex flex-wrap items-center gap-3 rounded-lg border p-3 transition hover:border-primary/40 hover:bg-muted/40"
                   >
-                    <Link className="min-w-0 flex-1" href={`/servicos/${service.id}`}>
+                    <Link className="min-w-0 flex-1" href={serviceHref}>
                       <p className="truncate text-sm font-medium">
                         {service.os || service.code || service.id}
                         {service.equipmentName
@@ -136,18 +137,21 @@ export default async function DashboardPCM() {
                 Nenhum pacote cadastrado.
               </div>
             ) : (
-              packages.slice(0, 5).map((pkg) => (
-                <Link
-                  key={pkg.id}
-                  className="flex items-center justify-between gap-3 rounded-lg border p-3 transition hover:border-primary/40 hover:bg-muted/40"
-                  href={`/pacotes/${pkg.id}`}
-                >
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium">{pkg.name || pkg.code || pkg.id}</p>
-                    <p className="text-xs text-muted-foreground">{normaliseStatus(pkg.status)}</p>
-                  </div>
-                </Link>
-              ))
+              packages.slice(0, 5).map((pkg) => {
+                const packageHref = `/pacotes/${encodeURIComponent(pkg.id)}`;
+                return (
+                  <Link
+                    key={pkg.id}
+                    className="flex items-center justify-between gap-3 rounded-lg border p-3 transition hover:border-primary/40 hover:bg-muted/40"
+                    href={packageHref}
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium">{pkg.name || pkg.code || pkg.id}</p>
+                      <p className="text-xs text-muted-foreground">{normaliseStatus(pkg.status)}</p>
+                    </div>
+                  </Link>
+                );
+              })
             )}
           </div>
         </div>

@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 
 import CurveSPageClient from "./CurveSPageClient";
 import { curvaRealizada, dateRangeInclusive, computePlannedUniformPercent, mapSeriesToDates } from "@/lib/curvaS";
+import { decodeRouteParam } from "@/lib/decodeRouteParam";
 import { getService } from "@/lib/repo/services";
 import type { Service } from "@/lib/types";
 import { formatDate as formatDateDisplay } from "@/lib/formatDateTime";
@@ -66,7 +67,28 @@ const sanitisePlannedDaily = (plannedDaily: Service["plannedDaily"]) => {
 };
 
 export default async function ServiceCurveSPage({ params }: { params: { id: string } }) {
-  const service = await getService(params.id);
+  const rawServiceId = params.id;
+  const decodedServiceId = decodeRouteParam(rawServiceId);
+  const serviceIdCandidates = Array.from(
+    new Set([decodedServiceId, rawServiceId].filter((value) => typeof value === "string" && value.length > 0)),
+  );
+
+  if (serviceIdCandidates.length === 0) {
+    return notFound();
+  }
+
+  let service: Awaited<ReturnType<typeof getService>> | null = null;
+  let resolvedServiceId = serviceIdCandidates[0];
+
+  for (const candidate of serviceIdCandidates) {
+    const candidateService = await getService(candidate);
+    if (candidateService) {
+      service = candidateService;
+      resolvedServiceId = candidateService.id ?? candidate;
+      break;
+    }
+  }
+
   if (!service) notFound();
 
   const start = toDate(service.plannedStart);
@@ -89,7 +111,7 @@ export default async function ServiceCurveSPage({ params }: { params: { id: stri
     }
   }
 
-  const actualPoints = await curvaRealizada(service.id);
+  const actualPoints = await curvaRealizada(service.id ?? resolvedServiceId);
   const actualLookup = mapActualPoints(actualPoints);
 
   const uniqueDates = new Set<string>();

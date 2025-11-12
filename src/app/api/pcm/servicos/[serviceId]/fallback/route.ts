@@ -3,6 +3,7 @@ import { getAuth } from "firebase-admin/auth";
 
 import { HttpError, requirePcmUser } from "@/app/api/management/tokens/_lib/auth";
 import { getAdminApp } from "@/lib/firebaseAdmin";
+import { decodeRouteParam } from "@/lib/decodeRouteParam";
 import { getLatestServiceToken } from "@/lib/repo/accessTokens";
 import { getChecklist, getService, getServiceById, listUpdates } from "@/lib/repo/services";
 import type { ChecklistItem, Service, ServiceUpdate } from "@/lib/types";
@@ -73,8 +74,12 @@ export async function GET(
   context: { params: Promise<{ serviceId: string }> },
 ): Promise<NextResponse<SuccessResponse | ErrorResponse>> {
   const { serviceId } = await context.params;
+  const decodedServiceId = decodeRouteParam(serviceId);
+  const serviceIdCandidates = Array.from(
+    new Set([decodedServiceId, serviceId].filter((value) => typeof value === "string" && value.length > 0)),
+  );
 
-  if (!serviceId) {
+  if (serviceIdCandidates.length === 0) {
     return NextResponse.json({ ok: false, error: "missing_service_id" }, { status: 400 });
   }
 
@@ -90,7 +95,10 @@ export async function GET(
     authorized = true;
   } catch (error) {
     if (error instanceof HttpError && (error.status === 401 || error.status === 403)) {
-      authorized = await ensureThirdPartyAccess(bearerToken, serviceId);
+      for (const candidate of serviceIdCandidates) {
+        authorized = await ensureThirdPartyAccess(bearerToken, candidate);
+        if (authorized) break;
+      }
       if (!authorized) {
         return NextResponse.json({ ok: false, error: "not_allowed" }, { status: 403 });
       }
@@ -107,10 +115,23 @@ export async function GET(
   }
 
   try {
-    const [service, legacyService] = await Promise.all([
-      getServiceById(serviceId),
-      getService(serviceId),
-    ]);
+    let service: Awaited<ReturnType<typeof getServiceById>> | null = null;
+    let legacyService: Awaited<ReturnType<typeof getService>> | null = null;
+    let resolvedServiceId = serviceIdCandidates[0];
+
+    for (const candidate of serviceIdCandidates) {
+      const [candidateService, candidateLegacy] = await Promise.all([
+        getServiceById(candidate),
+        getService(candidate),
+      ]);
+
+      if (candidateService || candidateLegacy) {
+        service = candidateService;
+        legacyService = candidateLegacy;
+        resolvedServiceId = candidateService?.id ?? candidateLegacy?.id ?? candidate;
+        break;
+      }
+    }
 
     const baseService = service ?? legacyService;
     if (!baseService) {
@@ -118,10 +139,10 @@ export async function GET(
     }
 
     const [checklist, updates, latestToken] = await Promise.all([
-      getChecklist(serviceId).catch(() => [] as ChecklistItem[]),
-      listUpdates(serviceId, 100).catch(() => [] as ServiceUpdate[]),
+      getChecklist(resolvedServiceId).catch(() => [] as ChecklistItem[]),
+      listUpdates(resolvedServiceId, 100).catch(() => [] as ServiceUpdate[]),
       getLatestServiceToken(baseService.id).catch((tokenError) => {
-        console.error(`[servicos/${serviceId}] Falha ao carregar token mais recente (fallback)`, tokenError);
+        console.error(`[servicos/${resolvedServiceId}] Falha ao carregar token mais recente (fallback)`, tokenError);
         return null;
       }),
     ]);
@@ -137,7 +158,7 @@ export async function GET(
         : null,
     });
   } catch (error) {
-    console.error(`[servicos/${serviceId}] Falha ao carregar fallback`, error);
+    console.error(`[servicos/${serviceIdCandidates[0]}] Falha ao carregar fallback`, error);
     return NextResponse.json({ ok: false, error: "fallback_failed" }, { status: 500 });
   }
 }

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { curvaPlanejada, curvaRealizada } from "@/lib/curvaS";
+import { decodeRouteParam } from "@/lib/decodeRouteParam";
 import { getService } from "@/lib/repo/services";
 
 const parseISODate = (value: string | null | undefined): Date | null => {
@@ -20,13 +21,28 @@ export async function GET(
   context: { params: Promise<{ serviceId: string }> },
 ): Promise<NextResponse> {
   const { serviceId } = await context.params;
+  const decodedServiceId = decodeRouteParam(serviceId);
+  const serviceIdCandidates = Array.from(
+    new Set([decodedServiceId, serviceId].filter((value) => typeof value === "string" && value.length > 0)),
+  );
 
-  if (!serviceId) {
+  if (serviceIdCandidates.length === 0) {
     return NextResponse.json({ ok: false, error: "serviceId ausente" }, { status: 400 });
   }
 
   try {
-    const service = await getService(serviceId);
+    let service: Awaited<ReturnType<typeof getService>> | null = null;
+    let resolvedServiceId = serviceIdCandidates[0];
+
+    for (const candidate of serviceIdCandidates) {
+      const candidateService = await getService(candidate);
+      if (candidateService) {
+        service = candidateService;
+        resolvedServiceId = candidateService.id ?? candidate;
+        break;
+      }
+    }
+
     if (!service) {
       return NextResponse.json({ ok: false, error: "Serviço não encontrado" }, { status: 404 });
     }
@@ -37,7 +53,7 @@ export async function GET(
     const planned = inicio || fim
       ? curvaPlanejada(inicio ?? fim ?? new Date(), fim ?? inicio ?? new Date(), service.totalHours ?? 0)
       : [];
-    const actual = await curvaRealizada(serviceId);
+    const actual = await curvaRealizada(service.id ?? resolvedServiceId);
 
     const plannedMap = new Map(planned.map((point) => [point.d, point.pct]));
     const actualMap = new Map(actual.map((point) => [point.d, point.pct]));

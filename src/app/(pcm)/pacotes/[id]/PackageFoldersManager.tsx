@@ -89,6 +89,7 @@ function sortServiceOptions(options: ServiceOption[]) {
 }
 
 export default function PackageFoldersManager({ packageId, services, serviceDetails, initialFolders }: Props) {
+  const encodedPackageId = useMemo(() => encodeURIComponent(packageId), [packageId]);
   const [folders, setFolders] = useState<FolderState[]>(() =>
     initialFolders.map(normaliseFolder).sort((a, b) => a.name.localeCompare(b.name, "pt-BR", { sensitivity: "base" })),
   );
@@ -155,7 +156,8 @@ export default function PackageFoldersManager({ packageId, services, serviceDeta
     const selected = Array.from(selectedSet);
     setSavingServices((prev) => ({ ...prev, [folderId]: true }));
     try {
-      const response = await authorisedFetch(`/api/pcm/packages/${packageId}/folders/${folderId}/services`, {
+      const encodedFolderId = encodeURIComponent(folderId);
+      const response = await authorisedFetch(`/api/pcm/packages/${encodedPackageId}/folders/${encodedFolderId}/services`, {
         method: "PUT",
         body: JSON.stringify({ services: selected }),
       });
@@ -204,7 +206,8 @@ export default function PackageFoldersManager({ packageId, services, serviceDeta
   async function rotateToken(folderId: string) {
     setRotatingToken((prev) => ({ ...prev, [folderId]: true }));
     try {
-      const response = await authorisedFetch(`/api/pcm/packages/${packageId}/folders/${folderId}/rotate-token`, {
+      const encodedFolderId = encodeURIComponent(folderId);
+      const response = await authorisedFetch(`/api/pcm/packages/${encodedPackageId}/folders/${encodedFolderId}/rotate-token`, {
         method: "POST",
       });
       const data = await response.json();
@@ -256,7 +259,7 @@ export default function PackageFoldersManager({ packageId, services, serviceDeta
       const payload: Record<string, unknown> = { name };
       const companyId = newFolderCompany.trim();
       if (companyId) payload.companyId = companyId;
-      const response = await authorisedFetch(`/api/pcm/packages/${packageId}/folders`, {
+      const response = await authorisedFetch(`/api/pcm/packages/${encodedPackageId}/folders`, {
         method: "POST",
         body: JSON.stringify(payload),
       });
@@ -308,7 +311,8 @@ export default function PackageFoldersManager({ packageId, services, serviceDeta
     }
     setSavingFolderInfo(true);
     try {
-      const response = await authorisedFetch(`/api/pcm/packages/${packageId}/folders/${folderId}`, {
+      const encodedFolderId = encodeURIComponent(folderId);
+      const response = await authorisedFetch(`/api/pcm/packages/${encodedPackageId}/folders/${encodedFolderId}`, {
         method: "PATCH",
         body: JSON.stringify({ name, companyId: editCompany.trim() }),
       });
