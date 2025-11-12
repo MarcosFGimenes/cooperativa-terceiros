@@ -522,15 +522,7 @@ export default function PackageFoldersManager({ packageId, services, serviceDeta
                 </div>
 
                 <div className="rounded-lg border p-4 shadow-sm">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                      <h4 className="text-base font-semibold text-foreground">Serviços vinculados</h4>
-                      <p className="text-xs text-muted-foreground">
-                        {activeSelection.length > 0
-                          ? `${activeSelection.length} serviço${activeSelection.length === 1 ? "" : "s"} neste subpacote.`
-                          : "Nenhum serviço vinculado até o momento."}
-                      </p>
-                    </div>
+                  <div className="flex flex-wrap items-center justify-end gap-3 border-b pb-3">
                     <button
                       type="button"
                       className="btn btn-secondary"
