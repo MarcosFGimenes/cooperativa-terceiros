@@ -1,12 +1,40 @@
-export const dynamic = "force-dynamic";
-export const revalidate = 0;
-
 import ServiceDetailsClient from "@/components/ServiceDetailsClient";
 import { fetchThirdService, fetchThirdServiceChecklist, fetchThirdServiceUpdates } from "@/lib/thirdServiceData";
 import { getTokenCookie } from "@/lib/tokenSession";
 import { getServicesForToken } from "@/lib/terceiroService";
 import { AdminDbUnavailableError } from "@/lib/serverDb";
 import { mapFirestoreError } from "@/lib/utils/firestoreErrors";
+import { unstable_cache } from "next/cache";
+
+const getThirdServiceBundle = unstable_cache(
+  async (serviceId: string) => {
+    const service = await fetchThirdService(serviceId);
+    if (!service) {
+      return null;
+    }
+
+    const [updates, checklist] = await Promise.all([
+      fetchThirdServiceUpdates(serviceId, 20).catch((error) => {
+        console.error(`[terceiro/${serviceId}] Falha ao carregar atualizações`, error);
+        return [];
+      }),
+      fetchThirdServiceChecklist(serviceId).catch((error) => {
+        console.error(`[terceiro/${serviceId}] Falha ao carregar checklist`, error);
+        return [];
+      }),
+    ]);
+
+    const hasChecklist = service.hasChecklist || checklist.length > 0;
+
+    return {
+      service: { ...service, hasChecklist },
+      updates,
+      checklist,
+    };
+  },
+  ["third-service-bundle"],
+  { revalidate: 30 },
+);
 
 export default async function TerceiroServicoPage({ params }: { params: { id: string } }) {
   const token = await getTokenCookie();
@@ -18,30 +46,16 @@ export default async function TerceiroServicoPage({ params }: { params: { id: st
       return <div className="card p-6">Acesso negado a este serviço.</div>;
     }
 
-    const service = await fetchThirdService(params.id);
-    if (!service) {
+    const bundle = await getThirdServiceBundle(params.id);
+    if (!bundle) {
       return <div className="card p-6">Serviço não encontrado.</div>;
     }
 
-    const [updates, checklist] = await Promise.all([
-      fetchThirdServiceUpdates(params.id, 20).catch((error) => {
-        console.error(`[terceiro/${params.id}] Falha ao carregar atualizações`, error);
-        return [];
-      }),
-      fetchThirdServiceChecklist(params.id).catch((error) => {
-        console.error(`[terceiro/${params.id}] Falha ao carregar checklist`, error);
-        return [];
-      }),
-    ]);
-
-    const hasChecklist = service.hasChecklist || checklist.length > 0;
-
     return (
       <ServiceDetailsClient
-        service={{ ...service, hasChecklist }}
-        updates={updates}
-        checklist={checklist}
-        token={token}
+        service={bundle.service}
+        updates={bundle.updates}
+        checklist={bundle.checklist}
       />
     );
   } catch (error) {

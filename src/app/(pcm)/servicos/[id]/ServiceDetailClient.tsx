@@ -111,11 +111,46 @@ export default function ServiceDetailClient({
   const { ready: isAuthReady, issue: authIssue, user } = useFirebaseAuthSession();
   const latestIdTokenRef = useRef<string | null>(null);
   const retryTimeoutRef = useRef<number | null>(null);
+  const [shouldListenToSecondaryRealtime, setShouldListenToSecondaryRealtime] = useState(false);
 
   useEffect(() => {
     setCurrentToken(latestToken);
     setCurrentTokenLink(tokenLink);
   }, [latestToken, tokenLink]);
+
+  useEffect(() => {
+    if (shouldListenToSecondaryRealtime) {
+      return;
+    }
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    let activated = false;
+    const activate = () => {
+      if (activated) {
+        return;
+      }
+      activated = true;
+      setShouldListenToSecondaryRealtime(true);
+    };
+
+    const timeoutId = window.setTimeout(activate, 1500);
+    const handlePointerDown = () => activate();
+    const handleKeyDown = () => activate();
+    const handleScroll = () => activate();
+
+    window.addEventListener("pointerdown", handlePointerDown, { once: true });
+    window.addEventListener("keydown", handleKeyDown, { once: true });
+    window.addEventListener("scroll", handleScroll, { once: true, passive: true });
+
+    return () => {
+      window.clearTimeout(timeoutId);
+      window.removeEventListener("pointerdown", handlePointerDown);
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("scroll", handleScroll);
+    };
+  }, [shouldListenToSecondaryRealtime]);
 
   useEffect(() => {
     let cancelled = false;
@@ -319,39 +354,41 @@ export default function ServiceDetailClient({
         ),
       );
 
-      unsubscribers.push(
-        onSnapshot(
-          query(collection(serviceRef, "updates"), orderBy("createdAt", "desc"), limit(100)),
-          (snapshot) => {
-            if (cancelled) return;
-            const mapped = snapshot.docs.map((docSnap) => mapUpdateSnapshot(docSnap));
-            setUpdates(toNewUpdates(mapped));
-            setConnectionIssue(null);
-            if (retryTimeoutRef.current !== null) {
-              clearTimeout(retryTimeoutRef.current);
-              retryTimeoutRef.current = null;
-            }
-          },
-          handleError,
-        ),
-      );
+      if (shouldListenToSecondaryRealtime) {
+        unsubscribers.push(
+          onSnapshot(
+            query(collection(serviceRef, "updates"), orderBy("createdAt", "desc"), limit(100)),
+            (snapshot) => {
+              if (cancelled) return;
+              const mapped = snapshot.docs.map((docSnap) => mapUpdateSnapshot(docSnap));
+              setUpdates(toNewUpdates(mapped));
+              setConnectionIssue(null);
+              if (retryTimeoutRef.current !== null) {
+                clearTimeout(retryTimeoutRef.current);
+                retryTimeoutRef.current = null;
+              }
+            },
+            handleError,
+          ),
+        );
 
-      unsubscribers.push(
-        onSnapshot(
-          query(collection(serviceRef, "checklist"), orderBy("description", "asc")),
-          (snapshot) => {
-            if (cancelled) return;
-            const mapped = snapshot.docs.map((docSnap) => mapChecklistSnapshot(docSnap));
-            setChecklist(toNewChecklist(mapped));
-            setConnectionIssue(null);
-            if (retryTimeoutRef.current !== null) {
-              clearTimeout(retryTimeoutRef.current);
-              retryTimeoutRef.current = null;
-            }
-          },
-          handleError,
-        ),
-      );
+        unsubscribers.push(
+          onSnapshot(
+            query(collection(serviceRef, "checklist"), orderBy("description", "asc")),
+            (snapshot) => {
+              if (cancelled) return;
+              const mapped = snapshot.docs.map((docSnap) => mapChecklistSnapshot(docSnap));
+              setChecklist(toNewChecklist(mapped));
+              setConnectionIssue(null);
+              if (retryTimeoutRef.current !== null) {
+                clearTimeout(retryTimeoutRef.current);
+                retryTimeoutRef.current = null;
+              }
+            },
+            handleError,
+          ),
+        );
+      }
     }
 
     void bootstrapRealtime();
@@ -364,7 +401,13 @@ export default function ServiceDetailClient({
         retryTimeoutRef.current = null;
       }
     };
-  }, [serviceId, longPollingForced, isAuthReady, user]);
+  }, [
+    serviceId,
+    longPollingForced,
+    isAuthReady,
+    user,
+    shouldListenToSecondaryRealtime,
+  ]);
 
   const planned = useMemo(() => {
     const start = service.plannedStart ?? composedInitial.plannedStart;
