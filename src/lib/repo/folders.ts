@@ -9,6 +9,8 @@ import type { PackageFolder } from "@/types";
 const getDb = () => getAdmin().db;
 const foldersCollection = () => getDb().collection("packageFolders");
 const accessTokensCollection = () => getDb().collection("accessTokens");
+const packagesCollection = () => getDb().collection("packages");
+const servicesCollection = () => getDb().collection("services");
 
 function toMillis(value: unknown): number | undefined {
   if (typeof value === "number" && Number.isFinite(value)) return value;
@@ -214,14 +216,105 @@ export async function setFolderServices(folderId: string, serviceIds: string[]):
     throw new Error("Pasta inválida.");
   }
   const unique = Array.from(new Set(serviceIds.map((value) => value.trim()).filter((value) => value.length > 0)));
-  await foldersCollection()
-    .doc(folderId)
-    .update({ services: unique, updatedAt: FieldValue.serverTimestamp() });
-  const snap = await foldersCollection().doc(folderId).get();
-  if (!snap.exists) {
+  const folderRef = foldersCollection().doc(folderId);
+  const folderSnap = await folderRef.get();
+  if (!folderSnap.exists) {
+    throw new Error("Pasta não encontrada.");
+  }
+  const originalFolder = mapFolderDoc(folderSnap);
+
+  await folderRef.update({ services: unique, updatedAt: FieldValue.serverTimestamp() });
+
+  const updatedSnap = await folderRef.get();
+  if (!updatedSnap.exists) {
     throw new Error("Pasta não encontrada após atualizar serviços.");
   }
-  return mapFolderDoc(snap);
+
+  const updatedFolder = mapFolderDoc(updatedSnap);
+  const packageId = updatedFolder.packageId || originalFolder.packageId;
+
+  if (packageId) {
+    const packageRef = packagesCollection().doc(packageId);
+    const packageSnap = await packageRef.get();
+    const packageData = (packageSnap.data() ?? {}) as Record<string, unknown>;
+    const previousServices = new Set<string>();
+
+    const collectServices = (input: unknown) => {
+      if (!Array.isArray(input)) return;
+      input.forEach((value) => {
+        if (typeof value !== "string") return;
+        const trimmed = value.trim();
+        if (trimmed) {
+          previousServices.add(trimmed);
+        }
+      });
+    };
+
+    collectServices(packageData.services);
+    collectServices(packageData.serviceIds);
+
+    const siblingsSnap = await foldersCollection().where("packageId", "==", packageId).get();
+    const aggregatedSet = new Set<string>();
+    siblingsSnap.docs.forEach((doc) => {
+      const folder = mapFolderDoc(doc);
+      folder.services.forEach((serviceId) => {
+        const trimmed = serviceId.trim();
+        if (trimmed) {
+          aggregatedSet.add(trimmed);
+        }
+      });
+    });
+
+    const aggregatedServices = Array.from(aggregatedSet);
+
+    await packageRef.set(
+      {
+        services: aggregatedServices,
+        serviceIds: aggregatedServices,
+        updatedAt: FieldValue.serverTimestamp(),
+      },
+      { merge: true },
+    );
+
+    const added = aggregatedServices.filter((id) => !previousServices.has(id));
+    const removed = Array.from(previousServices).filter((id) => !aggregatedSet.has(id));
+
+    const serviceUpdates: Promise<unknown>[] = [];
+
+    added.forEach((serviceId) => {
+      const ref = servicesCollection().doc(serviceId);
+      serviceUpdates.push(
+        ref.set(
+          {
+            packageId,
+            pacoteId: packageId,
+            updatedAt: FieldValue.serverTimestamp(),
+          },
+          { merge: true },
+        ),
+      );
+    });
+
+    removed.forEach((serviceId) => {
+      const ref = servicesCollection().doc(serviceId);
+      serviceUpdates.push(
+        ref.set(
+          {
+            packageId: FieldValue.delete(),
+            pacoteId: FieldValue.delete(),
+            updatedAt: FieldValue.serverTimestamp(),
+          },
+          { merge: true },
+        ),
+      );
+    });
+
+    if (serviceUpdates.length) {
+      await Promise.all(serviceUpdates);
+    }
+  }
+
+  return updatedFolder;
 }
 
 export async function rotateFolderToken(folderId: string): Promise<PackageFolder> {

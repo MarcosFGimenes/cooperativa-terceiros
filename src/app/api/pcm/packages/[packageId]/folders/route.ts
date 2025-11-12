@@ -21,8 +21,8 @@ export async function GET(req: Request, context: { params: Record<string, string
     const folders = await listPackageFolders(packageId);
     return NextResponse.json({ ok: true, folders });
   } catch (error) {
-    console.error("[folders] Falha ao listar pastas", error);
-    return NextResponse.json({ ok: false, error: "Não foi possível carregar as pastas." }, { status: 500 });
+    console.error("[folders] Falha ao listar subpacotes", error);
+    return NextResponse.json({ ok: false, error: "Não foi possível carregar os subpacotes." }, { status: 500 });
   }
 }
 
@@ -44,15 +44,15 @@ export async function POST(req: Request, context: { params: Record<string, strin
   const companyId = typeof payload.companyId === "string" ? payload.companyId.trim() : undefined;
 
   if (!name) {
-    return NextResponse.json({ ok: false, error: "Informe o nome da pasta." }, { status: 400 });
+    return NextResponse.json({ ok: false, error: "Informe o nome do subpacote." }, { status: 400 });
   }
 
   try {
     const folder = await createPackageFolder({ packageId, name, companyId });
     return NextResponse.json({ ok: true, folder });
   } catch (error) {
-    console.error("[folders] Falha ao criar pasta", error);
-    const message = error instanceof Error ? error.message : "Não foi possível criar a pasta.";
+    console.error("[folders] Falha ao criar subpacote", error);
+    const message = error instanceof Error ? error.message : "Não foi possível criar o subpacote.";
     return NextResponse.json({ ok: false, error: message }, { status: 500 });
   }
 }

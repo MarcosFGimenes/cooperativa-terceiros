@@ -47,8 +47,8 @@ export async function PATCH(
     const folder = await updatePackageFolder(folderId, updates);
     return NextResponse.json({ ok: true, folder });
   } catch (error) {
-    console.error("[folders] Falha ao atualizar pasta", error);
-    const message = error instanceof Error ? error.message : "Não foi possível atualizar a pasta.";
+    console.error("[folders] Falha ao atualizar subpacote", error);
+    const message = error instanceof Error ? error.message : "Não foi possível atualizar o subpacote.";
     return NextResponse.json({ ok: false, error: message }, { status: 500 });
   }
 }
