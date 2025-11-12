@@ -46,7 +46,7 @@ function createChecklistId(seed: number) {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
     return crypto.randomUUID();
   }
-  return `item-${seed}-${Date.now()}`;
+  return `item-${seed}`;
 }
 
 function normaliseChecklistEntry(entry: unknown, index: number): ChecklistDraft[number] {

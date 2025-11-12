@@ -1,5 +1,6 @@
 import type { ServiceUpdate } from "@/lib/types";
 
+import { formatDate as formatDateDisplay } from "./formatDateTime";
 import { recordTelemetry } from "./telemetry";
 
 type UpdateLike = {
@@ -209,12 +210,7 @@ function formatDateLabel(timestamp: number | null | undefined): string {
   }
   const date = new Date(timestamp);
   if (Number.isNaN(date.getTime())) return "-";
-  return new Intl.DateTimeFormat("pt-BR", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    timeZone: "America/Sao_Paulo",
-  }).format(date);
+  return formatDateDisplay(date, { timeZone: "America/Sao_Paulo", fallback: "-" }) || "-";
 }
 
 function computeHoursFromWindow(update: UpdateLike & { timeWindow?: { start?: number | null; end?: number | null; hours?: number | null } | null }): number | null {

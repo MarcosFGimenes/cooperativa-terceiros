@@ -4,6 +4,7 @@ import CurveSPageClient from "./CurveSPageClient";
 import { curvaRealizada, dateRangeInclusive, computePlannedUniformPercent, mapSeriesToDates } from "@/lib/curvaS";
 import { getService } from "@/lib/repo/services";
 import type { Service } from "@/lib/types";
+import { formatDate as formatDateDisplay } from "@/lib/formatDateTime";
 
 const clampPercent = (value: number) => {
   if (!Number.isFinite(value)) return 0;
@@ -34,12 +35,7 @@ const DEFAULT_TIME_ZONE = "America/Sao_Paulo";
 
 const formatDate = (date: Date | null) => {
   if (!date) return "";
-  return new Intl.DateTimeFormat("pt-BR", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    timeZone: DEFAULT_TIME_ZONE,
-  }).format(date);
+  return formatDateDisplay(date, { timeZone: DEFAULT_TIME_ZONE, fallback: "" }) || "";
 };
 
 const buildPeriodLabel = (start: Date | null, end: Date | null) => {

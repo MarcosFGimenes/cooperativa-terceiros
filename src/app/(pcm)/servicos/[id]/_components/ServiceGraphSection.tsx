@@ -4,6 +4,7 @@ import { useCallback, useMemo } from "react";
 
 import CurvaS from "@/components/charts/CurvaS";
 import type { Service } from "@/lib/types";
+import { formatDate } from "@/lib/formatDateTime";
 
 type CurvePoint = { d: string; pct: number };
 
@@ -27,14 +28,9 @@ const UTC_TIME_ZONE = "UTC";
 
 const toDateLabel = (iso: string | undefined | null) => {
   if (!iso) return "—";
-  const date = new Date(`${iso}T00:00:00Z`);
-  if (Number.isNaN(date.getTime())) return "—";
-  return new Intl.DateTimeFormat("pt-BR", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    timeZone: UTC_TIME_ZONE,
-  }).format(date);
+  const value = iso.includes("T") ? iso : `${iso}T00:00:00Z`;
+  const formatted = formatDate(value, { timeZone: UTC_TIME_ZONE, fallback: "—" });
+  return formatted || "—";
 };
 
 const unionDates = (planned: CurvePoint[], actual: CurvePoint[]) => {
