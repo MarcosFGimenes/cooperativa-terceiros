@@ -188,6 +188,11 @@ const formSchema = z
   .object({
     date: z.string().min(1, "Data obrigatória"),
     description: z.string().min(1, "Descreva o que foi realizado"),
+    manualPercent: z
+      .number({ invalid_type_error: "Informe o percentual" })
+      .min(0, "Mínimo 0%")
+      .max(100, "Máximo 100%")
+      .optional(),
     justification: z.string().max(1000).optional(),
     declarationAccepted: z.literal(true, {
       errorMap: () => ({ message: "É necessário aceitar a declaração" }),
@@ -241,6 +246,7 @@ export default function ServiceUpdateForm({
     defaultValues: {
       date: "",
       description: "",
+      manualPercent: undefined,
       resources: [],
       workforce: [{ role: "", quantity: 1 }],
       shifts: [],
@@ -266,10 +272,16 @@ export default function ServiceUpdateForm({
   const justification = watch("justification");
   const selectedResources = watch("resources");
   const subactivityValues = watch("subactivities");
+  const manualPercent = watch("manualPercent");
 
   const computedPercent = useMemo(
-    () => computeChecklistPercent(checklist, subactivityValues, lastProgress),
-    [checklist, subactivityValues, lastProgress],
+    () => {
+      if (typeof manualPercent === "number" && Number.isFinite(manualPercent)) {
+        return Math.max(0, Math.min(100, Math.round(manualPercent * 10) / 10));
+      }
+      return computeChecklistPercent(checklist, subactivityValues, lastProgress);
+    },
+    [checklist, manualPercent, subactivityValues, lastProgress],
   );
 
   const requiresJustification = useMemo(
@@ -369,6 +381,7 @@ export default function ServiceUpdateForm({
     reset({
       date: "",
       description: "",
+      manualPercent: undefined,
       resources: [],
       workforce: [{ role: "", quantity: 1 }],
       shifts: [],
@@ -390,12 +403,46 @@ export default function ServiceUpdateForm({
                 Sugerido: {Number(suggestedPercent).toFixed(1)}%
               </span>
             ) : null}
-            <span>Valor calculado automaticamente a partir das subatividades.</span>
+            <span>
+              Informe manualmente o percentual ou deixe em branco para usar o cálculo das subatividades.
+            </span>
           </div>
         </div>
         <div className="flex items-center gap-2 text-sm font-semibold text-primary">
           <span>{Number.isFinite(computedPercent) ? computedPercent.toFixed(1) : "-"}%</span>
         </div>
+      </div>
+
+      <div>
+        <label htmlFor={`${serviceId}-manual-percent`} className="text-sm font-medium text-foreground">
+          Percentual informado
+        </label>
+        <div className="mt-1 flex items-center gap-2">
+          <input
+            id={`${serviceId}-manual-percent`}
+            type="number"
+            min={0}
+            max={100}
+            step={0.1}
+            placeholder="0"
+            className="input w-32"
+            {...register("manualPercent", {
+              setValueAs: (value) => {
+                if (value === "" || value === null || typeof value === "undefined") {
+                  return undefined;
+                }
+                const numeric = Number(String(value).replace(",", "."));
+                if (!Number.isFinite(numeric)) return undefined;
+                const clamped = Math.max(0, Math.min(100, numeric));
+                return Math.round(clamped * 10) / 10;
+              },
+            })}
+          />
+          <span className="text-sm text-muted-foreground">%</span>
+        </div>
+        {errors.manualPercent ? (
+          <p className="mt-1 text-xs text-destructive">{errors.manualPercent.message}</p>
+        ) : null}
       </div>
 
       <div>
