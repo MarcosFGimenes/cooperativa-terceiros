@@ -378,6 +378,13 @@ export default async function PackageDetailPage({ params }: { params: { id: stri
             chartHeight={360}
           />
 
+          <PackageFoldersManager
+            packageId={pkg.id}
+            services={availableServiceOptions}
+            serviceDetails={serviceDetails}
+            initialFolders={folders}
+          />
+
           <ServicesCompaniesSection
             services={serviceSummaries}
             folders={folders}
@@ -420,12 +427,6 @@ export default async function PackageDetailPage({ params }: { params: { id: stri
             </dl>
           </div>
 
-          <PackageFoldersManager
-            packageId={pkg.id}
-            services={availableServiceOptions}
-            serviceDetails={serviceDetails}
-            initialFolders={folders}
-          />
         </div>
       </div>
     </div>
