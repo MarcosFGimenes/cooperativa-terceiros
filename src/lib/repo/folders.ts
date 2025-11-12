@@ -129,10 +129,14 @@ async function deactivateToken(tokenId: string | null | undefined) {
   await ref.update({ active: false, status: "revoked", revoked: true, updatedAt: FieldValue.serverTimestamp() });
 }
 
+const packageFolderCollator = new Intl.Collator("pt-BR", { sensitivity: "base" });
+
 export async function listPackageFolders(packageId: string): Promise<PackageFolder[]> {
   if (!packageId) return [];
-  const snap = await foldersCollection().where("packageId", "==", packageId).orderBy("name", "asc").get();
-  return snap.docs.map((doc) => mapFolderDoc(doc));
+  const snap = await foldersCollection().where("packageId", "==", packageId).get();
+  return snap.docs
+    .map((doc) => mapFolderDoc(doc))
+    .sort((a, b) => packageFolderCollator.compare(a.name, b.name));
 }
 
 export async function getPackageFolder(folderId: string): Promise<PackageFolder | null> {
