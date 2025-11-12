@@ -37,21 +37,24 @@ export default async function PackagesListPage() {
         <div className="card p-6 text-sm text-muted-foreground">Nenhum pacote encontrado.</div>
       ) : (
         <div className="card divide-y">
-          {packages.map((pkg) => (
-            <Link
-              key={pkg.id}
-              className="flex items-center justify-between gap-3 p-4 transition hover:bg-muted/40"
-              href={`/pacotes/${pkg.id}`}
-            >
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium">{pkg.name || pkg.code || pkg.id}</p>
-                <p className="text-xs text-muted-foreground">{normaliseStatus(pkg.status)}</p>
-              </div>
-              <span className="text-xs text-muted-foreground">
-                {pkg.services?.length ? `${pkg.services.length} serviços` : ""}
-              </span>
-            </Link>
-          ))}
+          {packages.map((pkg) => {
+            const packageHref = `/pacotes/${encodeURIComponent(pkg.id)}`;
+            return (
+              <Link
+                key={pkg.id}
+                className="flex items-center justify-between gap-3 p-4 transition hover:bg-muted/40"
+                href={packageHref}
+              >
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium">{pkg.name || pkg.code || pkg.id}</p>
+                  <p className="text-xs text-muted-foreground">{normaliseStatus(pkg.status)}</p>
+                </div>
+                <span className="text-xs text-muted-foreground">
+                  {pkg.services?.length ? `${pkg.services.length} serviços` : ""}
+                </span>
+              </Link>
+            );
+          })}
         </div>
       )}
     </div>

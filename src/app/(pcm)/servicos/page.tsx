@@ -41,11 +41,12 @@ export default async function ServicesListPage() {
             const progress = Math.round(
               service.progress ?? service.realPercent ?? service.andamento ?? 0,
             );
+            const serviceHref = `/servicos/${encodeURIComponent(service.id)}`;
             return (
               <Link
                 key={service.id}
                 className="flex items-center gap-3 p-4 transition hover:bg-muted/40"
-                href={`/servicos/${service.id}`}
+                href={serviceHref}
               >
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-medium">

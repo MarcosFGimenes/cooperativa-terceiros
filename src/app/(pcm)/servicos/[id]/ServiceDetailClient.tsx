@@ -99,6 +99,7 @@ export default function ServiceDetailClient({
     () => composeServiceRealtimeData(baseService, fallbackService ?? undefined),
     [baseService, fallbackService],
   );
+  const encodedServiceId = encodeURIComponent(serviceId);
 
   const [service, setService] = useState<ServiceRealtimeData>(composedInitial);
   const [checklist, setChecklist] = useState<ChecklistItem[]>(toNewChecklist(initialChecklist));
@@ -200,7 +201,7 @@ export default function ServiceDetailClient({
         const headers: HeadersInit = tokenCandidate
           ? { Authorization: `Bearer ${tokenCandidate}` }
           : {};
-        const response = await fetch(`/api/pcm/servicos/${serviceId}/fallback`, {
+        const response = await fetch(`/api/pcm/servicos/${encodedServiceId}/fallback`, {
           headers,
           cache: "no-store",
         });
@@ -227,7 +228,9 @@ export default function ServiceDetailClient({
         setChecklist(toNewChecklist(json.checklist ?? []));
         setUpdates(toNewUpdates(json.updates ?? []));
         setCurrentToken(json.latestToken ?? null);
-        setCurrentTokenLink(json.latestToken ? `/acesso?token=${json.latestToken.code}` : null);
+        setCurrentTokenLink(
+          json.latestToken ? `/acesso?token=${encodeURIComponent(json.latestToken.code)}` : null,
+        );
         setConnectionIssue(
           options?.message ??
             "Sincronização em tempo real não disponível; exibindo dados atualizados do servidor.",
@@ -520,7 +523,10 @@ export default function ServiceDetailClient({
             <ArrowLeft aria-hidden="true" className="h-4 w-4" />
             Voltar
           </Link>
-          <Link className="btn btn-primary" href={`/servicos/${service.id}/editar`}>
+          <Link
+            className="btn btn-primary"
+            href={`/servicos/${encodeURIComponent(service.id)}/editar`}
+          >
             <Pencil aria-hidden="true" className="h-4 w-4" />
             Editar
           </Link>
