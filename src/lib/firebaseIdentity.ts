@@ -1,4 +1,5 @@
 const IDENTITY_TOOLKIT_URL = "https://identitytoolkit.googleapis.com/v1/accounts:lookup";
+const PLACEHOLDER_PREFIX = "missing-";
 
 type IdentityToolkitUser = {
   localId: string;
@@ -29,13 +30,21 @@ export type FirebaseIdTokenVerification = {
   authTimeSeconds: number | null;
 };
 
+function normaliseEnvValue(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  if (trimmed.length > PLACEHOLDER_PREFIX.length && trimmed.toLowerCase().startsWith(PLACEHOLDER_PREFIX)) {
+    return null;
+  }
+  return trimmed;
+}
+
 function readEnvValue(names: string[]): string | null {
   for (const name of names) {
-    const raw = process.env[name];
-    if (typeof raw !== "string") continue;
-    const trimmed = raw.trim();
-    if (!trimmed) continue;
-    return trimmed;
+    const normalised = normaliseEnvValue(process.env[name]);
+    if (!normalised) continue;
+    return normalised;
   }
   return null;
 }
@@ -63,6 +72,15 @@ function getFirebaseProjectId() {
     "GCLOUD_PROJECT",
   ]);
   return cachedProjectId;
+}
+
+let missingIdentityToolkitWarningLogged = false;
+function warnIdentityToolkitMissingConfig() {
+  if (missingIdentityToolkitWarningLogged) return;
+  console.warn(
+    "[firebase-identity] Identity Toolkit não está configurado. Configure NEXT_PUBLIC_FIREBASE_API_KEY para habilitar o fallback.",
+  );
+  missingIdentityToolkitWarningLogged = true;
 }
 
 function base64UrlDecode(value: string): string {
@@ -100,9 +118,7 @@ async function fetchIdentityToolkitUser(
 ): Promise<IdentityToolkitUser | null> {
   const apiKey = getFirebaseApiKey();
   if (!apiKey) {
-    console.error(
-      "[firebase-identity] NEXT_PUBLIC_FIREBASE_API_KEY (ou FIREBASE_API_KEY) não está configurada.",
-    );
+    warnIdentityToolkitMissingConfig();
     return null;
   }
 
@@ -148,6 +164,11 @@ export async function verifyFirebaseIdToken(
   idToken: string,
 ): Promise<FirebaseIdTokenVerification | null> {
   if (typeof idToken !== "string" || !idToken.includes(".")) {
+    return null;
+  }
+
+  if (!isIdentityToolkitConfigured()) {
+    warnIdentityToolkitMissingConfig();
     return null;
   }
 
