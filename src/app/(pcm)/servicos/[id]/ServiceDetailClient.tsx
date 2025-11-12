@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, Pencil } from "lucide-react";
 import {
@@ -17,7 +17,7 @@ import DeleteServiceButton from "@/components/DeleteServiceButton";
 import { plannedCurve } from "@/lib/curve";
 import { isFirestoreLongPollingForced, tryGetFirestore } from "@/lib/firebase";
 import { useFirebaseAuthSession } from "@/lib/useFirebaseAuthSession";
-import type { ChecklistItem, ServiceUpdate } from "@/lib/types";
+import type { ChecklistItem, Service, ServiceUpdate } from "@/lib/types";
 import {
   ServiceRealtimeData,
   buildRealizedSeries,
@@ -49,6 +49,17 @@ type ServiceDetailClientProps = {
   tokenLink: string | null;
 };
 
+type ServiceFallbackSuccess = {
+  ok: true;
+  service: Service | null;
+  legacyService: Service | null;
+  checklist: ChecklistItem[];
+  updates: ServiceUpdate[];
+  latestToken: ServiceDetailClientProps["latestToken"];
+};
+
+type ServiceFallbackError = { ok: false; error?: string };
+
 export default function ServiceDetailClient({
   serviceId,
   baseService,
@@ -74,7 +85,8 @@ export default function ServiceDetailClient({
   const [currentTokenLink, setCurrentTokenLink] = useState<string | null>(tokenLink);
   const normalizedInitialUpdates = useMemo(() => toNewUpdates(initialUpdates), [initialUpdates]);
   const longPollingForced = isFirestoreLongPollingForced;
-  const { ready: isAuthReady, issue: authIssue } = useFirebaseAuthSession();
+  const { ready: isAuthReady, issue: authIssue, user } = useFirebaseAuthSession();
+  const latestIdTokenRef = useRef<string | null>(null);
 
   useEffect(() => {
     setCurrentToken(latestToken);
@@ -84,96 +96,165 @@ export default function ServiceDetailClient({
   useEffect(() => {
     let cancelled = false;
     const unsubscribers: Array<() => void> = [];
+    let fallbackRunning = false;
 
-    if (!isAuthReady) {
-      setConnectionIssue(null);
-      return () => {
-        cancelled = true;
-        unsubscribers.forEach((unsubscribe) => {
+    const fetchFallbackFromServer = async () => {
+      if (fallbackRunning) return;
+      fallbackRunning = true;
+      try {
+        let tokenCandidate = latestIdTokenRef.current;
+        if (!tokenCandidate && user) {
           try {
-            unsubscribe();
-          } catch (unsubscribeError) {
-            console.warn("[service-detail] Falha ao cancelar listener", unsubscribeError);
+            tokenCandidate = await user.getIdToken();
+            latestIdTokenRef.current = tokenCandidate;
+          } catch {
+            tokenCandidate = null;
           }
+        }
+        const headers: HeadersInit = tokenCandidate
+          ? { Authorization: `Bearer ${tokenCandidate}` }
+          : {};
+        const response = await fetch(`/api/pcm/servicos/${serviceId}/fallback`, {
+          headers,
+          cache: "no-store",
         });
-      };
-    }
+        const json = (await response.json().catch(() => null)) as
+          | ServiceFallbackSuccess
+          | ServiceFallbackError
+          | null;
 
-    const { db, error } = tryGetFirestore();
-    if (!db) {
-      if (error) {
-        console.warn("[service-detail] Firestore indisponível", error);
-      }
-      const hint = longPollingForced
-        ? "Conexão com o Firestore indisponível. Continuaremos tentando via long-polling."
-        : "Conexão indisponível. Considere ativar long-polling.";
-      setConnectionIssue(hint);
-      return () => {
-        cancelled = true;
-      };
-    }
+        if (cancelled) {
+          return;
+        }
 
-    const serviceRef = doc(db, "services", serviceId);
+        if (!response.ok || !json || json.ok !== true) {
+          const reason = json && json.ok === false ? json.error : response.statusText;
+          console.warn(`[service-detail] Fallback indisponível para ${serviceId}`, {
+            status: response.status,
+            reason,
+          });
+          return;
+        }
 
-    const handleError = (firestoreError: FirestoreError) => {
-      if (cancelled) return;
-      if (firestoreError.code === "permission-denied") {
-        console.warn(
-          `[service-detail] Usuário sem permissão para sincronização em tempo real do serviço ${serviceId}`,
-          firestoreError,
+        const composed = composeServiceRealtimeData(json.service, json.legacyService ?? undefined);
+        setService((current) => mergeServiceRealtime(current, composed));
+        setChecklist(toNewChecklist(json.checklist ?? []));
+        setUpdates(toNewUpdates(json.updates ?? []));
+        setCurrentToken(json.latestToken ?? null);
+        setCurrentTokenLink(json.latestToken ? `/acesso?token=${json.latestToken.code}` : null);
+        setConnectionIssue(
+          "Sincronização em tempo real não disponível; exibindo dados atualizados do servidor.",
         );
-        setConnectionIssue("Sincronização em tempo real não disponível para este usuário.");
+      } catch (error) {
+        if (cancelled) return;
+        console.error(
+          `[service-detail] Falha ao carregar fallback do serviço ${serviceId}`,
+          error,
+        );
+      } finally {
+        fallbackRunning = false;
+      }
+    };
+
+    const bootstrapRealtime = async () => {
+      if (!isAuthReady || !user) {
+        setConnectionIssue(null);
         return;
       }
 
-      const message =
-        firestoreError.code === "unavailable"
-          ? longPollingForced
-            ? "Conexão com o Firestore indisponível. Continuaremos tentando via long-polling."
-            : "Conexão indisponível. Considere ativar long-polling."
-          : "Não foi possível sincronizar com o Firestore. Tentaremos novamente.";
-      console.warn(`[service-detail] Falha na escuta do serviço ${serviceId}`, firestoreError);
-      setConnectionIssue(message);
+      try {
+        const token = await user.getIdToken();
+        if (cancelled) return;
+        latestIdTokenRef.current = token;
+      } catch (tokenError) {
+        if (cancelled) return;
+        console.error(
+          `[service-detail] Falha ao obter idToken antes de iniciar listeners do serviço ${serviceId}`,
+          tokenError,
+        );
+        setConnectionIssue(
+          "Não foi possível validar sua sessão segura. Atualize a página ou faça login novamente.",
+        );
+        return;
+      }
+
+      const { db, error } = tryGetFirestore();
+      if (!db) {
+        if (error) {
+          console.warn("[service-detail] Firestore indisponível", error);
+        }
+        const hint = longPollingForced
+          ? "Conexão com o Firestore indisponível. Continuaremos tentando via long-polling."
+          : "Conexão indisponível. Considere ativar long-polling.";
+        setConnectionIssue(hint);
+        return;
+      }
+
+      const serviceRef = doc(db, "services", serviceId);
+
+      const handleError = (firestoreError: FirestoreError) => {
+        if (cancelled) return;
+        if (firestoreError.code === "permission-denied") {
+          console.warn(
+            `[service-detail] Usuário sem permissão para sincronização em tempo real do serviço ${serviceId}`,
+            firestoreError,
+          );
+          setConnectionIssue("Sincronização em tempo real não disponível para este usuário.");
+          void fetchFallbackFromServer();
+          return;
+        }
+
+        const message =
+          firestoreError.code === "unavailable"
+            ? longPollingForced
+              ? "Conexão com o Firestore indisponível. Continuaremos tentando via long-polling."
+              : "Conexão indisponível. Considere ativar long-polling."
+            : "Não foi possível sincronizar com o Firestore. Tentaremos novamente.";
+        console.warn(`[service-detail] Falha na escuta do serviço ${serviceId}`, firestoreError);
+        setConnectionIssue(message);
+      };
+
+      unsubscribers.push(
+        onSnapshot(
+          serviceRef,
+          (snapshot) => {
+            if (cancelled) return;
+            const mapped = mapServiceSnapshot(snapshot);
+            setService((current) => mergeServiceRealtime(current, mapped));
+            setConnectionIssue(null);
+          },
+          handleError,
+        ),
+      );
+
+      unsubscribers.push(
+        onSnapshot(
+          query(collection(serviceRef, "updates"), orderBy("createdAt", "desc"), limit(100)),
+          (snapshot) => {
+            if (cancelled) return;
+            const mapped = snapshot.docs.map((docSnap) => mapUpdateSnapshot(docSnap));
+            setUpdates(toNewUpdates(mapped));
+            setConnectionIssue(null);
+          },
+          handleError,
+        ),
+      );
+
+      unsubscribers.push(
+        onSnapshot(
+          query(collection(serviceRef, "checklist"), orderBy("description", "asc")),
+          (snapshot) => {
+            if (cancelled) return;
+            const mapped = snapshot.docs.map((docSnap) => mapChecklistSnapshot(docSnap));
+            setChecklist(toNewChecklist(mapped));
+            setConnectionIssue(null);
+          },
+          handleError,
+        ),
+      );
     };
 
-    unsubscribers.push(
-      onSnapshot(
-        serviceRef,
-        (snapshot) => {
-          if (cancelled) return;
-          const mapped = mapServiceSnapshot(snapshot);
-          setService((current) => mergeServiceRealtime(current, mapped));
-          setConnectionIssue(null);
-        },
-        handleError,
-      ),
-    );
-
-    unsubscribers.push(
-      onSnapshot(
-        query(collection(serviceRef, "updates"), orderBy("createdAt", "desc"), limit(100)),
-        (snapshot) => {
-          if (cancelled) return;
-          const mapped = snapshot.docs.map((docSnap) => mapUpdateSnapshot(docSnap));
-          setUpdates(toNewUpdates(mapped));
-          setConnectionIssue(null);
-        },
-        handleError,
-      ),
-    );
-
-    unsubscribers.push(
-      onSnapshot(
-        query(collection(serviceRef, "checklist"), orderBy("description", "asc")),
-        (snapshot) => {
-          if (cancelled) return;
-          const mapped = snapshot.docs.map((docSnap) => mapChecklistSnapshot(docSnap));
-          setChecklist(toNewChecklist(mapped));
-          setConnectionIssue(null);
-        },
-        handleError,
-      ),
-    );
+    void bootstrapRealtime();
 
     return () => {
       cancelled = true;
@@ -185,7 +266,7 @@ export default function ServiceDetailClient({
         }
       });
     };
-  }, [serviceId, longPollingForced, isAuthReady]);
+  }, [serviceId, longPollingForced, isAuthReady, user]);
 
   const planned = useMemo(() => {
     const start = service.plannedStart ?? composedInitial.plannedStart;
