@@ -24,6 +24,13 @@ Configure the following variables before running the API routes that rely on Fir
 - `FIREBASE_CLIENT_EMAIL`
 - `FIREBASE_PRIVATE_KEY` (com `\n` escapados)
 
+### Rede do Firestore em produção
+
+- O arquivo `.env.production` define `NEXT_PUBLIC_FIRESTORE_FORCE_LONG_POLLING=true` e `NEXT_PUBLIC_FIRESTORE_USE_FETCH_STREAMS=false` para garantir que o Firestore use long-polling em ambientes onde WebSockets ou streams não são permitidos.
+- Garanta que o proxy/firewall da hospedagem libere tráfego de saída para `firestore.googleapis.com`, `identitytoolkit.googleapis.com`, `securetoken.googleapis.com` e demais domínios `*.googleapis.com`. Bloqueios nesses hosts geram erros `net::ERR_CONNECTION_RESET` e impedem a sincronização em tempo real.
+- Caso o proxy permita streaming HTTP (`useFetchStreams`), ajuste as variáveis de ambiente conforme necessário e reinicie a aplicação. A inicialização do Firebase registra no console qual estratégia está ativa para facilitar o diagnóstico.
+- Quando um `ERR_CONNECTION_RESET` ocorrer mesmo com o long-polling habilitado, a interface exibe um aviso amistoso e agenda novas tentativas de reconexão automaticamente.
+
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.

@@ -36,6 +36,29 @@ import {
   toNewUpdates,
 } from "./shared";
 
+const CONNECTION_RESET_FRIENDLY_MESSAGE =
+  "A conexão com os serviços do Firebase foi resetada. Tentaremos reconectar automaticamente. Caso o problema persista, libere o acesso a firestore.googleapis.com e identitytoolkit.googleapis.com no firewall/proxy.";
+
+function isConnectionResetError(error: unknown): boolean {
+  if (!error) return false;
+  if (typeof error === "string") {
+    return error.includes("ERR_CONNECTION_RESET");
+  }
+  if (error instanceof Error) {
+    if (typeof error.message === "string" && error.message.includes("ERR_CONNECTION_RESET")) {
+      return true;
+    }
+    if (typeof error.stack === "string" && error.stack.includes("ERR_CONNECTION_RESET")) {
+      return true;
+    }
+  }
+  const candidate = (error as { message?: unknown })?.message;
+  if (typeof candidate === "string") {
+    return candidate.includes("ERR_CONNECTION_RESET");
+  }
+  return false;
+}
+
 type ServiceDetailClientProps = {
   serviceId: string;
   baseService: ServiceRealtimeData;
@@ -87,6 +110,7 @@ export default function ServiceDetailClient({
   const longPollingForced = isFirestoreLongPollingForced;
   const { ready: isAuthReady, issue: authIssue, user } = useFirebaseAuthSession();
   const latestIdTokenRef = useRef<string | null>(null);
+  const retryTimeoutRef = useRef<number | null>(null);
 
   useEffect(() => {
     setCurrentToken(latestToken);
@@ -98,7 +122,34 @@ export default function ServiceDetailClient({
     const unsubscribers: Array<() => void> = [];
     let fallbackRunning = false;
 
-    const fetchFallbackFromServer = async () => {
+    const clearRealtimeListeners = () => {
+      while (unsubscribers.length) {
+        const unsubscribe = unsubscribers.pop();
+        if (!unsubscribe) continue;
+        try {
+          unsubscribe();
+        } catch (unsubscribeError) {
+          console.warn("[service-detail] Falha ao cancelar listener", unsubscribeError);
+        }
+      }
+    };
+
+    const scheduleReconnect = (reason: string) => {
+      if (cancelled) return;
+      if (retryTimeoutRef.current !== null) return;
+      const delayMs = 4000;
+      console.info(
+        `[service-detail] Tentando reconectar ao Firestore em ${delayMs}ms (motivo: ${reason}).`,
+      );
+      retryTimeoutRef.current = window.setTimeout(() => {
+        retryTimeoutRef.current = null;
+        if (cancelled) return;
+        clearRealtimeListeners();
+        void bootstrapRealtime(true);
+      }, delayMs);
+    };
+
+    const fetchFallbackFromServer = async (options?: { message?: string }) => {
       if (fallbackRunning) return;
       fallbackRunning = true;
       try {
@@ -143,20 +194,30 @@ export default function ServiceDetailClient({
         setCurrentToken(json.latestToken ?? null);
         setCurrentTokenLink(json.latestToken ? `/acesso?token=${json.latestToken.code}` : null);
         setConnectionIssue(
-          "Sincronização em tempo real não disponível; exibindo dados atualizados do servidor.",
+          options?.message ??
+            "Sincronização em tempo real não disponível; exibindo dados atualizados do servidor.",
         );
       } catch (error) {
         if (cancelled) return;
-        console.error(
-          `[service-detail] Falha ao carregar fallback do serviço ${serviceId}`,
-          error,
-        );
+        if (isConnectionResetError(error)) {
+          console.warn(
+            `[service-detail] Fallback indisponível devido a ERR_CONNECTION_RESET (${serviceId})`,
+            error,
+          );
+          setConnectionIssue(CONNECTION_RESET_FRIENDLY_MESSAGE);
+          scheduleReconnect("fallback-connection-reset");
+        } else {
+          console.error(
+            `[service-detail] Falha ao carregar fallback do serviço ${serviceId}`,
+            error,
+          );
+        }
       } finally {
         fallbackRunning = false;
       }
     };
 
-    const bootstrapRealtime = async () => {
+    async function bootstrapRealtime(isRetry = false) {
       if (!isAuthReady || !user) {
         setConnectionIssue(null);
         return;
@@ -168,13 +229,22 @@ export default function ServiceDetailClient({
         latestIdTokenRef.current = token;
       } catch (tokenError) {
         if (cancelled) return;
-        console.error(
-          `[service-detail] Falha ao obter idToken antes de iniciar listeners do serviço ${serviceId}`,
-          tokenError,
-        );
-        setConnectionIssue(
-          "Não foi possível validar sua sessão segura. Atualize a página ou faça login novamente.",
-        );
+        if (isConnectionResetError(tokenError)) {
+          console.warn(
+            `[service-detail] ERR_CONNECTION_RESET ao obter idToken para ${serviceId}`,
+            tokenError,
+          );
+          setConnectionIssue(CONNECTION_RESET_FRIENDLY_MESSAGE);
+          scheduleReconnect("auth-connection-reset");
+        } else {
+          console.error(
+            `[service-detail] Falha ao obter idToken antes de iniciar listeners do serviço ${serviceId}`,
+            tokenError,
+          );
+          setConnectionIssue(
+            "Não foi possível validar sua sessão segura. Atualize a página ou faça login novamente.",
+          );
+        }
         return;
       }
 
@@ -204,6 +274,17 @@ export default function ServiceDetailClient({
           return;
         }
 
+        if (isConnectionResetError(firestoreError)) {
+          console.warn(
+            `[service-detail] Listener interrompido por ERR_CONNECTION_RESET (${serviceId})`,
+            firestoreError,
+          );
+          setConnectionIssue(CONNECTION_RESET_FRIENDLY_MESSAGE);
+          void fetchFallbackFromServer({ message: CONNECTION_RESET_FRIENDLY_MESSAGE });
+          scheduleReconnect("firestore-connection-reset");
+          return;
+        }
+
         const message =
           firestoreError.code === "unavailable"
             ? longPollingForced
@@ -212,7 +293,14 @@ export default function ServiceDetailClient({
             : "Não foi possível sincronizar com o Firestore. Tentaremos novamente.";
         console.warn(`[service-detail] Falha na escuta do serviço ${serviceId}`, firestoreError);
         setConnectionIssue(message);
+        if (firestoreError.code === "unavailable") {
+          scheduleReconnect("firestore-unavailable");
+        }
       };
+
+      if (isRetry) {
+        clearRealtimeListeners();
+      }
 
       unsubscribers.push(
         onSnapshot(
@@ -222,6 +310,10 @@ export default function ServiceDetailClient({
             const mapped = mapServiceSnapshot(snapshot);
             setService((current) => mergeServiceRealtime(current, mapped));
             setConnectionIssue(null);
+            if (retryTimeoutRef.current !== null) {
+              clearTimeout(retryTimeoutRef.current);
+              retryTimeoutRef.current = null;
+            }
           },
           handleError,
         ),
@@ -235,6 +327,10 @@ export default function ServiceDetailClient({
             const mapped = snapshot.docs.map((docSnap) => mapUpdateSnapshot(docSnap));
             setUpdates(toNewUpdates(mapped));
             setConnectionIssue(null);
+            if (retryTimeoutRef.current !== null) {
+              clearTimeout(retryTimeoutRef.current);
+              retryTimeoutRef.current = null;
+            }
           },
           handleError,
         ),
@@ -248,23 +344,25 @@ export default function ServiceDetailClient({
             const mapped = snapshot.docs.map((docSnap) => mapChecklistSnapshot(docSnap));
             setChecklist(toNewChecklist(mapped));
             setConnectionIssue(null);
+            if (retryTimeoutRef.current !== null) {
+              clearTimeout(retryTimeoutRef.current);
+              retryTimeoutRef.current = null;
+            }
           },
           handleError,
         ),
       );
-    };
+    }
 
     void bootstrapRealtime();
 
     return () => {
       cancelled = true;
-      unsubscribers.forEach((unsubscribe) => {
-        try {
-          unsubscribe();
-        } catch (unsubscribeError) {
-          console.warn("[service-detail] Falha ao cancelar listener", unsubscribeError);
-        }
-      });
+      clearRealtimeListeners();
+      if (retryTimeoutRef.current !== null) {
+        clearTimeout(retryTimeoutRef.current);
+        retryTimeoutRef.current = null;
+      }
     };
   }, [serviceId, longPollingForced, isAuthReady, user]);
 
