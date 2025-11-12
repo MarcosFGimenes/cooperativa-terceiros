@@ -131,7 +131,8 @@ export default async function PackageDetailPage({ params }: { params: { id: stri
     }
   }
 
-  const displayPackageId = pkg?.id ?? decodedPackageId || rawPackageId;
+  const displayPackageId =
+    pkg?.id ?? (decodedPackageId && decodedPackageId.length > 0 ? decodedPackageId : rawPackageId);
 
   if (!pkg) {
     const fallbackWarnings = Array.from(warningSet);
