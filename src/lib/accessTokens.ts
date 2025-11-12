@@ -228,7 +228,7 @@ async function createTokenViaAdmin(scope: NormalisedScope): Promise<string> {
   }
 
   const idToken = await user.getIdToken();
-  const response = await fetch("/api/admin/tokens/create", {
+  const response = await fetch("/api/management/tokens/create", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

@@ -43,7 +43,7 @@ export default function ServiceMetadataForm({ serviceId, initial }: Props) {
 
     try {
       setSaving(true);
-      const response = await fetch(`/api/admin/services/${serviceId}/update`, {
+      const response = await fetch(`/api/management/services/${serviceId}/update`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

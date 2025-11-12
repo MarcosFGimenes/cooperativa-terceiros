@@ -39,7 +39,7 @@ describe("serviceUpdates helpers", () => {
     const [latest] = dedupeUpdates([
       {
         id: "firestore-1",
-        description: "Soldagem", 
+        description: "Soldagem",
         createdAt: 1700000000000,
         percent: 40,
       },

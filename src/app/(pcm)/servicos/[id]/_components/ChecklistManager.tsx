@@ -38,7 +38,7 @@ export default function ChecklistManager({ serviceId, initialItems }: Props) {
           .map((item) => ({ description: item.description.trim(), weight: Number(item.weight) || 0 })),
       };
 
-      const response = await fetch(`/api/admin/services/${serviceId}/checklist/set`, {
+      const response = await fetch(`/api/management/services/${serviceId}/checklist/set`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
