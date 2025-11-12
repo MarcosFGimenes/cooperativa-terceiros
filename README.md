@@ -36,6 +36,7 @@ This project uses [`next/font`](https://nextjs.org/docs/app/building-your-applic
 - O portal público grava o token validado no cookie de sessão e também em `sessionStorage` (`third_portal_token`). Erros de validação geram `token.validation.failure`; revalidações bem-sucedidas geram `token.validation.success`. Quando a sessão expira, `token.session.missing` e `token.session.expired` são emitidos.
 - A tela de pacotes foi reorganizada para priorizar a curva S e expor o pareamento Serviço × Empresa em um card dedicado.
 - Endpoints administrativos foram movidos de `/api/admin/*` para `/api/management/*` para evitar bloqueios falsos positivos de bloqueadores de anúncios (erro `ERR_BLOCKED_BY_CLIENT`).
+- As regras do Firestore autorizam usuários autenticados a criarem e carregarem pastas de pacotes (`packageFolders`), evitando o erro `FirebaseError: Missing or insufficient permissions` ao cadastrar serviços.
 
 ### Feature flags e rollback
 
@@ -59,3 +60,7 @@ npx playwright test   # E2E
 ```
 
 > **Observação:** o ambiente de CI local pode bloquear o download dessas bibliotecas (erro 403). Caso ocorra, habilite o acesso ao registry npm ou utilize um mirror interno antes de rodar os testes.
+
+### Lint
+
+Para contornar ambientes sem acesso ao registry npm, `npm run lint` utiliza `scripts/offline-lint.mjs`. O script é autossuficiente e aplica verificações básicas (console.log/debugger proibidos, remoção de espaços ao final da linha e quebra de linha ao final do arquivo) sobre arquivos `.ts`, `.tsx`, `.js` e `.jsx`.

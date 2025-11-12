@@ -20,6 +20,7 @@ import {
 import { Field, FormRow } from "@/components/ui/form-controls";
 import { createAccessToken } from "@/lib/accessTokens";
 import { tryGetFirestore } from "@/lib/firebase";
+import { useFirebaseAuthSession } from "@/lib/useFirebaseAuthSession";
 import { dateOnlyToMillis, parseDateOnly } from "@/lib/dateOnly";
 
 type ChecklistDraft = Array<{ id: string; descricao: string; peso: number | "" }>;
@@ -58,6 +59,7 @@ export default function NovoServico() {
   const [packages, setPackages] = useState<PackageOption[]>([]);
   const [loadingPackages, setLoadingPackages] = useState(false);
   const { db: firestore, error: firestoreError } = useMemo(() => tryGetFirestore(), []);
+  const { ready: isAuthReady, issue: authIssue } = useFirebaseAuthSession();
 
   useEffect(() => {
     if (firestoreError) {
@@ -77,7 +79,7 @@ export default function NovoServico() {
   );
 
   useEffect(() => {
-    if (!firestore) return;
+    if (!firestore || !isAuthReady) return;
     setLoadingPackages(true);
     getDocs(query(collection(firestore, "packages"), orderBy("nome", "asc")))
       .then((snapshot) => {
@@ -100,7 +102,7 @@ export default function NovoServico() {
         }
       })
       .finally(() => setLoadingPackages(false));
-  }, [firestore]);
+  }, [firestore, isAuthReady]);
 
   function updateForm<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -174,6 +176,10 @@ export default function NovoServico() {
 
     if (!firestore) {
       toast.error("Banco de dados indisponível.");
+      return;
+    }
+    if (!isAuthReady) {
+      toast.error("Sua sessão segura ainda não foi confirmada. Aguarde ou faça login novamente.");
       return;
     }
 
@@ -256,228 +262,241 @@ export default function NovoServico() {
     }
   }
 
-  return (
-    !firestore ? (
+  if (!isAuthReady) {
+    return (
+      <div className="container mx-auto max-w-4xl px-4 py-6">
+        <div className="rounded-2xl border bg-amber-50 p-6 text-sm text-amber-700 shadow-sm">
+          {authIssue ?? "Sincronizando sessão segura. Aguarde..."}
+        </div>
+      </div>
+    );
+  }
+
+  if (!firestore) {
+    return (
       <div className="container mx-auto max-w-4xl px-4 py-6">
         <div className="rounded-2xl border bg-card/80 p-6 text-sm text-amber-600 shadow-sm">
           Não foi possível carregar o banco de dados. Verifique a configuração do Firebase.
         </div>
       </div>
-    ) : (
-      <div className="container mx-auto max-w-4xl px-4 py-6">
-        <div className="mb-6 flex items-center justify-between gap-3">
-          <div>
-            <h1 className="text-2xl font-semibold">Novo serviço</h1>
-            <p className="text-sm text-muted-foreground">
-              Cadastre um novo serviço e, se necessário, já defina o checklist de execução.
-            </p>
-          </div>
-          <Link className="btn btn-secondary" href="/dashboard">
-            Voltar para o dashboard
-          </Link>
+    );
+  }
+
+  return (
+    <div className="container mx-auto max-w-4xl px-4 py-6">
+      <div className="mb-6 flex items-center justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold">Novo serviço</h1>
+          <p className="text-sm text-muted-foreground">
+            Cadastre um novo serviço e, se necessário, já defina o checklist de execução.
+          </p>
         </div>
+        <Link className="btn btn-secondary" href="/dashboard">
+          Voltar para o dashboard
+        </Link>
+      </div>
 
-        <form onSubmit={onSubmit} className="space-y-6 rounded-2xl border bg-card/80 p-6 shadow-sm">
-          <FormRow>
-            <Field label="O.S" value={form.os} onChange={(event) => updateForm("os", event.target.value)} required />
-            <Field label="O.C" value={form.oc} onChange={(event) => updateForm("oc", event.target.value)} />
-          </FormRow>
-          <FormRow>
-            <Field label="Tag" value={form.tag} onChange={(event) => updateForm("tag", event.target.value)} required />
-            <Field
-              label="Equipamento"
-              value={form.equipamento}
-              onChange={(event) => updateForm("equipamento", event.target.value)}
-              required
-            />
-          </FormRow>
-          <FormRow>
-            <Field label="Setor" value={form.setor} onChange={(event) => updateForm("setor", event.target.value)} />
-            <Field
-              label="Empresa"
-              value={form.empresaId}
-              onChange={(event) => updateForm("empresaId", event.target.value)}
-              placeholder="Identificador da empresa executora"
-            />
-          </FormRow>
-          <FormRow>
-            <Field
-              label="Data de início prevista"
-              type="date"
-              value={form.dataInicio}
-              onChange={(event) => updateForm("dataInicio", event.target.value)}
-              required
-            />
-            <Field
-              label="Data de término prevista"
-              type="date"
-              value={form.dataFim}
-              onChange={(event) => updateForm("dataFim", event.target.value)}
-              required
-            />
-          </FormRow>
-          <FormRow>
-            <Field
-              label="Horas previstas"
-              type="number"
-              min={0}
-              step="0.5"
-              value={form.horasPrevistas}
-              onChange={(event) => updateForm("horasPrevistas", event.target.value)}
-              required
-            />
-            <div className="space-y-1">
-              <label className="text-sm font-medium text-foreground/90" htmlFor="status">
-                Status
-              </label>
-              <select
-                id="status"
-                value={form.status}
-                onChange={(event) => updateForm("status", event.target.value as (typeof STATUS_OPTIONS)[number])}
-                className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm shadow-sm focus-visible:ring-2 focus-visible:ring-primary/40"
-              >
-                {STATUS_OPTIONS.map((option) => (
-                  <option key={option} value={option}>
-                    {option}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </FormRow>
-
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-foreground/90" htmlFor="pacote">
-              Pacote (opcional)
+      <form onSubmit={onSubmit} className="space-y-6 rounded-2xl border bg-card/80 p-6 shadow-sm">
+        <FormRow>
+          <Field label="O.S" value={form.os} onChange={(event) => updateForm("os", event.target.value)} required />
+          <Field label="O.C" value={form.oc} onChange={(event) => updateForm("oc", event.target.value)} />
+        </FormRow>
+        <FormRow>
+          <Field label="Tag" value={form.tag} onChange={(event) => updateForm("tag", event.target.value)} required />
+          <Field
+            label="Equipamento"
+            value={form.equipamento}
+            onChange={(event) => updateForm("equipamento", event.target.value)}
+            required
+          />
+        </FormRow>
+        <FormRow>
+          <Field label="Setor" value={form.setor} onChange={(event) => updateForm("setor", event.target.value)} />
+          <Field
+            label="Empresa"
+            value={form.empresaId}
+            onChange={(event) => updateForm("empresaId", event.target.value)}
+            placeholder="Identificador da empresa executora"
+          />
+        </FormRow>
+        <FormRow>
+          <Field
+            label="Data de início prevista"
+            type="date"
+            value={form.dataInicio}
+            onChange={(event) => updateForm("dataInicio", event.target.value)}
+            required
+          />
+          <Field
+            label="Data de término prevista"
+            type="date"
+            value={form.dataFim}
+            onChange={(event) => updateForm("dataFim", event.target.value)}
+            required
+          />
+        </FormRow>
+        <FormRow>
+          <Field
+            label="Horas previstas"
+            type="number"
+            min={0}
+            step="0.5"
+            value={form.horasPrevistas}
+            onChange={(event) => updateForm("horasPrevistas", event.target.value)}
+            required
+          />
+          <div className="space-y-1">
+            <label className="text-sm font-medium text-foreground/90" htmlFor="status">
+              Status
             </label>
             <select
-              id="pacote"
-              value={form.pacoteId}
-              onChange={(event) => updateForm("pacoteId", event.target.value)}
+              id="status"
+              value={form.status}
+              onChange={(event) => updateForm("status", event.target.value as (typeof STATUS_OPTIONS)[number])}
               className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm shadow-sm focus-visible:ring-2 focus-visible:ring-primary/40"
-              disabled={loadingPackages}
             >
-              <option value="">Nenhum pacote</option>
-              {packages.map((pkg) => (
-                <option key={pkg.id} value={pkg.id}>
-                  {pkg.nome || `Pacote ${pkg.id}`}
+              {STATUS_OPTIONS.map((option) => (
+                <option key={option} value={option}>
+                  {option}
                 </option>
               ))}
             </select>
-            {loadingPackages ? <p className="text-xs text-muted-foreground">Carregando pacotes...</p> : null}
           </div>
+        </FormRow>
 
-          <div className="rounded-xl border border-dashed bg-muted/20 p-4">
-            <label className="flex cursor-pointer items-center gap-2 text-sm font-medium text-foreground/90">
-              <input
-                type="checkbox"
-                checked={withChecklist}
-                onChange={(event) => setWithChecklist(event.target.checked)}
-                className="h-4 w-4 rounded border-border"
-              />
-              Definir checklist agora?
-            </label>
+        <div className="space-y-2">
+          <label className="text-sm font-medium text-foreground/90" htmlFor="pacote">
+            Pacote (opcional)
+          </label>
+          <select
+            id="pacote"
+            value={form.pacoteId}
+            onChange={(event) => updateForm("pacoteId", event.target.value)}
+            className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm shadow-sm focus-visible:ring-2 focus-visible:ring-primary/40"
+            disabled={loadingPackages}
+          >
+            <option value="">Nenhum pacote</option>
+            {packages.map((pkg) => (
+              <option key={pkg.id} value={pkg.id}>
+                {pkg.nome || `Pacote ${pkg.id}`}
+              </option>
+            ))}
+          </select>
+          {loadingPackages ? <p className="text-xs text-muted-foreground">Carregando pacotes...</p> : null}
+        </div>
 
-            {withChecklist ? (
-              <div className="mt-4 space-y-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-semibold text-muted-foreground">Itens do checklist</span>
-                  <button type="button" onClick={addChecklistItem} className="btn btn-secondary text-xs">
-                    Adicionar item
-                  </button>
+        <div className="rounded-xl border border-dashed bg-muted/20 p-4">
+          <label className="flex cursor-pointer items-center gap-2 text-sm font-medium text-foreground/90">
+            <input
+              type="checkbox"
+              checked={withChecklist}
+              onChange={(event) => setWithChecklist(event.target.checked)}
+              className="h-4 w-4 rounded border-border"
+            />
+            Definir checklist agora?
+          </label>
+
+          {withChecklist ? (
+            <div className="mt-4 space-y-4">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-semibold text-muted-foreground">Itens do checklist</span>
+                <button type="button" onClick={addChecklistItem} className="btn btn-secondary text-xs">
+                  Adicionar item
+                </button>
+              </div>
+              {checklist.length === 0 ? (
+                <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
+                  Nenhum item adicionado. Clique em &ldquo;Adicionar item&rdquo; para começar.
                 </div>
-                {checklist.length === 0 ? (
-                  <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
-                    Nenhum item adicionado. Clique em &ldquo;Adicionar item&rdquo; para começar.
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {checklist.map((item) => (
-                      <div key={item.id} className="rounded-lg border bg-background p-4 shadow-sm">
-                        <div className="flex flex-col gap-3 sm:flex-row">
-                          <div className="flex-1">
-                            <label
-                              className="text-xs font-semibold uppercase tracking-wide text-muted-foreground"
-                              htmlFor={`desc-${item.id}`}
-                            >
-                              Descrição
-                            </label>
-                            <textarea
-                              id={`desc-${item.id}`}
-                              value={item.descricao}
-                              onChange={(event) => updateChecklistItem(item.id, { descricao: event.target.value })}
-                              rows={2}
-                              className="mt-1 w-full rounded-md border border-border bg-background px-3 py-2 text-sm shadow-sm focus-visible:ring-2 focus-visible:ring-primary/40"
-                            />
-                          </div>
-                          <div className="w-full sm:w-40">
-                            <label
-                              className="text-xs font-semibold uppercase tracking-wide text-muted-foreground"
-                              htmlFor={`peso-${item.id}`}
-                            >
-                              Peso (%)
-                            </label>
-                            <input
-                              id={`peso-${item.id}`}
-                              type="number"
-                              min={0}
-                              max={100}
-                              step="0.5"
-                              value={item.peso === "" ? "" : item.peso}
-                              onChange={(event) => {
-                                const raw = event.target.value;
-                                if (raw === "") {
-                                  updateChecklistItem(item.id, { peso: "" });
-                                  return;
-                                }
-                                const parsed = Number(raw);
-                                if (!Number.isFinite(parsed)) return;
-                                const clamped = Math.max(0, Math.min(100, parsed));
-                                updateChecklistItem(item.id, { peso: clamped });
-                              }}
-                              className="mt-1 w-full rounded-md border border-border bg-background px-3 py-2 text-sm shadow-sm focus-visible:ring-2 focus-visible:ring-primary/40"
-                            />
-                          </div>
-                        </div>
-                        <div className="mt-3 text-right">
-                          <button
-                            type="button"
-                            onClick={() => removeChecklistItem(item.id)}
-                            className="text-xs font-medium text-destructive hover:underline"
+              ) : (
+                <div className="space-y-3">
+                  {checklist.map((item) => (
+                    <div key={item.id} className="rounded-lg border bg-background p-4 shadow-sm">
+                      <div className="flex flex-col gap-3 sm:flex-row">
+                        <div className="flex-1">
+                          <label
+                            className="text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+                            htmlFor={`desc-${item.id}`}
                           >
-                            Remover item
-                          </button>
+                            Descrição
+                          </label>
+                          <textarea
+                            id={`desc-${item.id}`}
+                            value={item.descricao}
+                            onChange={(event) => updateChecklistItem(item.id, { descricao: event.target.value })}
+                            rows={2}
+                            className="mt-1 w-full rounded-md border border-border bg-background px-3 py-2 text-sm shadow-sm focus-visible:ring-2 focus-visible:ring-primary/40"
+                          />
+                        </div>
+                        <div className="w-full sm:w-40">
+                          <label
+                            className="text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+                            htmlFor={`peso-${item.id}`}
+                          >
+                            Peso (%)
+                          </label>
+                          <input
+                            id={`peso-${item.id}`}
+                            type="number"
+                            min={0}
+                            max={100}
+                            step="0.5"
+                            value={item.peso === "" ? "" : item.peso}
+                            onChange={(event) => {
+                              const raw = event.target.value;
+                              if (raw === "") {
+                                updateChecklistItem(item.id, { peso: "" });
+                                return;
+                              }
+                              const parsed = Number(raw);
+                              if (!Number.isFinite(parsed)) return;
+                              const clamped = Math.max(0, Math.min(100, parsed));
+                              updateChecklistItem(item.id, { peso: clamped });
+                            }}
+                            className="mt-1 w-full rounded-md border border-border bg-background px-3 py-2 text-sm shadow-sm focus-visible:ring-2 focus-visible:ring-primary/40"
+                          />
                         </div>
                       </div>
-                    ))}
-                  </div>
-                )}
-
-                <div className="rounded-lg border bg-background/60 p-3 text-sm">
-                  <div className="flex items-center justify-between font-medium">
-                    <span>Soma dos pesos</span>
-                    <span className={Math.round(totalPeso) === 100 ? "text-primary" : "text-amber-600"}>
-                      {totalPeso.toFixed(1)}%
-                    </span>
-                  </div>
-                  {Math.round(totalPeso) !== 100 ? (
-                    <p className="mt-1 text-xs text-amber-600">A soma deve resultar em 100% para o checklist ser válido.</p>
-                  ) : null}
+                      <div className="mt-3 text-right">
+                        <button
+                          type="button"
+                          onClick={() => removeChecklistItem(item.id)}
+                          className="text-xs font-medium text-destructive hover:underline"
+                        >
+                          Remover item
+                        </button>
+                      </div>
+                    </div>
+                  ))}
                 </div>
+              )}
+
+              <div className="rounded-lg border bg-background/60 p-3 text-sm">
+                <div className="flex items-center justify-between font-medium">
+                  <span>Soma dos pesos</span>
+                  <span className={Math.round(totalPeso) === 100 ? "text-primary" : "text-amber-600"}>
+                    {totalPeso.toFixed(1)}%
+                  </span>
+                </div>
+                {Math.round(totalPeso) !== 100 ? (
+                  <p className="mt-1 text-xs text-amber-600">A soma deve resultar em 100% para o checklist ser válido.</p>
+                ) : null}
               </div>
-            ) : null}
-          </div>
+            </div>
+          ) : null}
+        </div>
 
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-sm text-muted-foreground">
-              Revise os dados antes de salvar. Você poderá editar o serviço depois.
-            </p>
-            <button type="submit" className="btn btn-primary" aria-busy={saving} disabled={saving}>
-              {saving ? "Salvando..." : "Salvar serviço"}
-            </button>
-          </div>
-        </form>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm text-muted-foreground">
+            Revise os dados antes de salvar. Você poderá editar o serviço depois.
+          </p>
+          <button type="submit" className="btn btn-primary" aria-busy={saving} disabled={saving}>
+            {saving ? "Salvando..." : "Salvar serviço"}
+          </button>
+        </div>
+      </form>
 
-      </div>
-    )
+    </div>
   );
 }
+

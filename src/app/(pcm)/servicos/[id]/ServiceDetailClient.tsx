@@ -12,11 +12,11 @@ import {
   query,
   type FirestoreError,
 } from "firebase/firestore";
-
 import SCurve from "@/components/SCurve";
 import DeleteServiceButton from "@/components/DeleteServiceButton";
 import { plannedCurve } from "@/lib/curve";
 import { isFirestoreLongPollingForced, tryGetFirestore } from "@/lib/firebase";
+import { useFirebaseAuthSession } from "@/lib/useFirebaseAuthSession";
 import type { ChecklistItem, ServiceUpdate } from "@/lib/types";
 import {
   ServiceRealtimeData,
@@ -74,6 +74,7 @@ export default function ServiceDetailClient({
   const [currentTokenLink, setCurrentTokenLink] = useState<string | null>(tokenLink);
   const normalizedInitialUpdates = useMemo(() => toNewUpdates(initialUpdates), [initialUpdates]);
   const longPollingForced = isFirestoreLongPollingForced;
+  const { ready: isAuthReady, issue: authIssue } = useFirebaseAuthSession();
 
   useEffect(() => {
     setCurrentToken(latestToken);
@@ -83,6 +84,20 @@ export default function ServiceDetailClient({
   useEffect(() => {
     let cancelled = false;
     const unsubscribers: Array<() => void> = [];
+
+    if (!isAuthReady) {
+      setConnectionIssue(null);
+      return () => {
+        cancelled = true;
+        unsubscribers.forEach((unsubscribe) => {
+          try {
+            unsubscribe();
+          } catch (unsubscribeError) {
+            console.warn("[service-detail] Falha ao cancelar listener", unsubscribeError);
+          }
+        });
+      };
+    }
 
     const { db, error } = tryGetFirestore();
     if (!db) {
@@ -170,7 +185,7 @@ export default function ServiceDetailClient({
         }
       });
     };
-  }, [serviceId, longPollingForced]);
+  }, [serviceId, longPollingForced, isAuthReady]);
 
   const planned = useMemo(() => {
     const start = service.plannedStart ?? composedInitial.plannedStart;
@@ -291,9 +306,9 @@ export default function ServiceDetailClient({
         </div>
       </div>
 
-      {connectionIssue ? (
+      {authIssue || connectionIssue ? (
         <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-700">
-          {connectionIssue}
+          {authIssue ?? connectionIssue}
         </div>
       ) : null}
 
