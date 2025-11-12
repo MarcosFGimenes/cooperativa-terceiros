@@ -16,6 +16,7 @@ import SCurve from "@/components/SCurve";
 import DeleteServiceButton from "@/components/DeleteServiceButton";
 import { plannedCurve } from "@/lib/curve";
 import { isFirestoreLongPollingForced, tryGetFirestore } from "@/lib/firebase";
+import { isConnectionResetError } from "@/lib/networkErrors";
 import { useFirebaseAuthSession } from "@/lib/useFirebaseAuthSession";
 import type { ChecklistItem, Service, ServiceUpdate } from "@/lib/types";
 import {
@@ -38,26 +39,6 @@ import {
 
 const CONNECTION_RESET_FRIENDLY_MESSAGE =
   "A conexão com os serviços do Firebase foi resetada. Tentaremos reconectar automaticamente. Caso o problema persista, libere o acesso a firestore.googleapis.com e identitytoolkit.googleapis.com no firewall/proxy.";
-
-function isConnectionResetError(error: unknown): boolean {
-  if (!error) return false;
-  if (typeof error === "string") {
-    return error.includes("ERR_CONNECTION_RESET");
-  }
-  if (error instanceof Error) {
-    if (typeof error.message === "string" && error.message.includes("ERR_CONNECTION_RESET")) {
-      return true;
-    }
-    if (typeof error.stack === "string" && error.stack.includes("ERR_CONNECTION_RESET")) {
-      return true;
-    }
-  }
-  const candidate = (error as { message?: unknown })?.message;
-  if (typeof candidate === "string") {
-    return candidate.includes("ERR_CONNECTION_RESET");
-  }
-  return false;
-}
 
 type ServiceDetailClientProps = {
   serviceId: string;
