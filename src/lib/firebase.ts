@@ -29,10 +29,12 @@ function parseBooleanEnv(value: string | undefined | null): boolean | null {
 const envForceLongPolling = parseBooleanEnv(process.env.NEXT_PUBLIC_FIRESTORE_FORCE_LONG_POLLING);
 const envUseFetchStreams = parseBooleanEnv(process.env.NEXT_PUBLIC_FIRESTORE_USE_FETCH_STREAMS);
 
-const defaultForceLongPolling = process.env.VERCEL === "1";
+const defaultForceLongPolling = false;
 const forceLongPolling = envForceLongPolling ?? defaultForceLongPolling;
-const useFetchStreams = !forceLongPolling && (envUseFetchStreams ?? false);
-const usingDefaultLongPolling = defaultForceLongPolling && envForceLongPolling === null;
+const defaultFetchStreams = envUseFetchStreams ?? true;
+const useFetchStreams = !forceLongPolling && defaultFetchStreams;
+const usingDefaultLongPolling = forceLongPolling && envForceLongPolling === null;
+const usingDefaultFetchStreams = useFetchStreams && envUseFetchStreams === null;
 
 const describeStrategy = () => {
   if (forceLongPolling) {
@@ -56,7 +58,12 @@ const logNetworkStrategy = () => {
   );
   if (usingDefaultLongPolling) {
     console.info(
-      "[firebase] Long-polling habilitado automaticamente porque o deploy está sendo executado no Vercel.",
+      "[firebase] Long-polling permanece habilitado porque NEXT_PUBLIC_FIRESTORE_FORCE_LONG_POLLING não foi definido.",
+    );
+  }
+  if (usingDefaultFetchStreams) {
+    console.info(
+      "[firebase] Fetch streams habilitado por padrão; defina NEXT_PUBLIC_FIRESTORE_USE_FETCH_STREAMS=false para desativar.",
     );
   }
   globalForFirebase.__FIREBASE_CLIENT_NETWORK_LOGGED__ = true;

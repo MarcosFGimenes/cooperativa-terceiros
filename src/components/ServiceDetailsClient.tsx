@@ -13,7 +13,6 @@ type ServiceDetailsClientProps = {
   service: ThirdService;
   updates: ThirdServiceUpdate[];
   checklist: ThirdChecklistItem[];
-  token?: string;
 };
 
 const MAX_UPDATES = 20;
@@ -338,7 +337,7 @@ function toThirdUpdate(update: unknown): ThirdServiceUpdate {
   };
 }
 
-export default function ServiceDetailsClient({ service, updates: initialUpdates, checklist, token }: ServiceDetailsClientProps) {
+export default function ServiceDetailsClient({ service, updates: initialUpdates, checklist }: ServiceDetailsClientProps) {
   const normalisedInitialUpdates = useMemo(
     () => dedupeUpdates(initialUpdates.map((item) => sanitiseResourceQuantities(item))).slice(0, MAX_UPDATES),
     [initialUpdates],
@@ -452,9 +451,6 @@ export default function ServiceDetailsClient({ service, updates: initialUpdates,
 
       const url = new URL(`/api/public/service/update-checklist`, window.location.origin);
       url.searchParams.set("serviceId", service.id);
-      if (token) {
-        url.searchParams.set("token", token);
-      }
 
       const response = await fetch(url.toString(), {
         method: "POST",
@@ -495,7 +491,7 @@ export default function ServiceDetailsClient({ service, updates: initialUpdates,
 
       return null;
     },
-    [service.hasChecklist, service.id, token],
+    [service.hasChecklist, service.id],
   );
 
   const handleUpdateSubmit = useCallback(
@@ -515,9 +511,6 @@ export default function ServiceDetailsClient({ service, updates: initialUpdates,
 
       const url = new URL(`/api/public/service/update-manual`, window.location.origin);
       url.searchParams.set("serviceId", service.id);
-      if (token) {
-        url.searchParams.set("token", token);
-      }
 
       const resourcesPayload = payload.resources.map((item) => ({
         name: item.name,
@@ -605,7 +598,7 @@ export default function ServiceDetailsClient({ service, updates: initialUpdates,
         throw error instanceof Error ? error : new Error(errorMessage);
       }
     },
-    [progress, service.id, submitChecklistUpdates, token],
+    [progress, service.id, submitChecklistUpdates],
   );
 
   return (
