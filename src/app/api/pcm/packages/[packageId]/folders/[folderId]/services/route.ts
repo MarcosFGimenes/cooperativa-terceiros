@@ -40,7 +40,7 @@ export async function PUT(
     const folder = await setFolderServices(folderId, services);
     return NextResponse.json({ ok: true, folder });
   } catch (error) {
-    console.error("[folders] Falha ao atualizar serviços da pasta", error);
+    console.error("[folders] Falha ao atualizar serviços do subpacote", error);
     const message = error instanceof Error ? error.message : "Não foi possível atualizar os serviços.";
     return NextResponse.json({ ok: false, error: message }, { status: 500 });
   }

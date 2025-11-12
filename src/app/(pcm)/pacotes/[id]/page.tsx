@@ -6,6 +6,7 @@ import { notFound } from "next/navigation";
 
 import SCurve from "@/components/SCurve";
 import { plannedCurve } from "@/lib/curve";
+import { listServicesPCM } from "@/lib/data";
 import { getPackageById, listPackageServices } from "@/lib/repo/packages";
 import { listPackageFolders } from "@/lib/repo/folders";
 import { getServiceById } from "@/lib/repo/services";
@@ -13,6 +14,9 @@ import { formatDate as formatDisplayDate } from "@/lib/formatDateTime";
 import type { Package, PackageFolder, Service } from "@/types";
 
 import PackageFoldersManager from "./PackageFoldersManager";
+import type { ServiceInfo as FolderServiceInfo, ServiceOption as FolderServiceOption } from "./PackageFoldersManager";
+import ServicesCompaniesSection from "./ServicesCompaniesSection";
+import type { ServiceSummary } from "./ServicesCompaniesSection";
 
 function normaliseStatus(status: Package["status"] | Service["status"]): string {
   const raw = String(status ?? "").toLowerCase();
@@ -213,34 +217,110 @@ export default async function PackageDetailPage({ params }: { params: { id: stri
     folders = await listPackageFolders(pkg.id);
   } catch (error) {
     registerWarning(
-      "Não foi possível carregar as pastas vinculadas a este pacote.",
+      "Não foi possível carregar os subpacotes vinculados a este pacote.",
       error,
-      "Falha ao listar pastas do pacote",
+      "Falha ao listar subpacotes do pacote",
     );
   }
 
   const serviceFoldersMap = new Map<string, string[]>();
+  const folderServiceIds = new Set<string>();
   folders.forEach((folder) => {
     folder.services.forEach((serviceId) => {
       if (!serviceId) return;
+      folderServiceIds.add(serviceId);
       const list = serviceFoldersMap.get(serviceId) ?? [];
       list.push(folder.name);
       serviceFoldersMap.set(serviceId, list);
     });
   });
 
-  const folderServiceOptions = services.map((service) => {
+  let availableRawServices: Awaited<ReturnType<typeof listServicesPCM>> = [];
+  try {
+    availableRawServices = await listServicesPCM();
+  } catch (error) {
+    registerWarning(
+      "Não foi possível carregar os serviços abertos disponíveis para novos subpacotes.",
+      error,
+      "Falha ao listar serviços disponíveis",
+    );
+  }
+
+  const availableOpenServices = availableRawServices.filter(
+    (service) => service.status === "Aberto" && !service.packageId,
+  );
+
+  const availableServiceOptions: FolderServiceOption[] = availableOpenServices
+    .filter((service) => !folderServiceIds.has(service.id))
+    .map((service) => {
+      const baseLabel = service.os || service.oc || service.tag || service.id;
+      const descriptionParts: string[] = [];
+      if (service.empresa) descriptionParts.push(`Empresa: ${service.empresa}`);
+      if (service.setor) descriptionParts.push(`Setor: ${service.setor}`);
+      return {
+        id: service.id,
+        label: baseLabel && baseLabel.length ? baseLabel : service.id,
+        description: descriptionParts.length ? descriptionParts.join(" • ") : undefined,
+      };
+    })
+    .sort((a, b) => a.label.localeCompare(b.label, "pt-BR", { sensitivity: "base" }));
+
+  const serviceDetails: Record<string, FolderServiceInfo> = {};
+
+  services.forEach((service) => {
     const baseLabel = service.os || service.code || service.id;
     const companyLabel =
       service.assignedTo?.companyName ||
       service.assignedTo?.companyId ||
       service.company ||
       service.empresa ||
-      "";
-    return { id: service.id, label: companyLabel ? `${baseLabel} — ${companyLabel}` : baseLabel };
+      assignedCompanies?.find((item) => item.companyId === service.assignedTo?.companyId)?.companyName ||
+      assignedCompanies?.find((item) => item.companyName)?.companyName ||
+      undefined;
+    const statusLabel = normaliseStatus(service.status);
+    serviceDetails[service.id] = {
+      id: service.id,
+      label: companyLabel ? `${baseLabel} — ${companyLabel}` : baseLabel,
+      status: statusLabel,
+      companyLabel: companyLabel,
+      isOpen: statusLabel === "Aberto",
+    };
   });
 
-  const serviceCompanyPairs = services.map((service) => {
+  availableOpenServices.forEach((service) => {
+    if (serviceDetails[service.id]) {
+      if (!serviceDetails[service.id].companyLabel && service.empresa) {
+        serviceDetails[service.id] = {
+          ...serviceDetails[service.id],
+          companyLabel: service.empresa ?? undefined,
+        };
+      }
+      return;
+    }
+    const baseLabel = service.os || service.oc || service.tag || service.id;
+    serviceDetails[service.id] = {
+      id: service.id,
+      label: service.empresa ? `${baseLabel} — ${service.empresa}` : baseLabel,
+      status: service.status ?? "Aberto",
+      companyLabel: service.empresa ?? undefined,
+      isOpen: true,
+    };
+  });
+
+  folders.forEach((folder) => {
+    folder.services.forEach((serviceId) => {
+      if (!serviceId || serviceDetails[serviceId]) return;
+      serviceDetails[serviceId] = {
+        id: serviceId,
+        label: serviceId,
+        status: "Desconhecido",
+        companyLabel: folder.companyId ?? undefined,
+        isOpen: false,
+      };
+    });
+  });
+
+  const serviceSummaries: ServiceSummary[] = services.map((service) => {
     const serviceLabel = service.os || service.code || service.id;
     const companyLabel =
       service.assignedTo?.companyName ||
@@ -251,7 +331,14 @@ export default async function PackageDetailPage({ params }: { params: { id: stri
       assignedCompanies?.find((item) => item.companyName)?.companyName ||
       "-";
     const foldersForService = serviceFoldersMap.get(service.id) ?? [];
-    return { id: service.id, serviceLabel, companyLabel, folders: foldersForService };
+    return {
+      id: service.id,
+      label: serviceLabel,
+      companyLabel,
+      status: normaliseStatus(service.status),
+      progress: computeServiceRealized(service),
+      folders: foldersForService,
+    };
   });
 
   const warningMessages = Array.from(warningSet);
@@ -291,65 +378,11 @@ export default async function PackageDetailPage({ params }: { params: { id: stri
             chartHeight={360}
           />
 
-          <div className="card p-4">
-            <h2 className="mb-4 text-lg font-semibold">Serviços e Empresas</h2>
-            {serviceCompanyPairs.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Nenhum serviço vinculado ao pacote.</p>
-            ) : (
-              <ul className="space-y-2 text-sm">
-                {serviceCompanyPairs.map((pair) => (
-                  <li key={pair.id} className="flex flex-wrap items-center justify-between gap-3 rounded border p-3">
-                    <span className="font-medium text-foreground">{pair.serviceLabel}</span>
-                    <span className="text-xs text-muted-foreground">
-                      {pair.companyLabel || "-"}
-                      {pair.folders.length ? ` • ${pair.folders.join(", ")}` : ""}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-
-          <div className="card p-4">
-            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <h2 className="text-lg font-semibold">Serviços vinculados</h2>
-                <p className="text-xs text-muted-foreground">{services.length} serviços associados a este pacote.</p>
-              </div>
-            </div>
-            {services.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Nenhum serviço associado ao pacote.</p>
-            ) : (
-              <div className="space-y-2">
-                {services.map((service) => {
-                  const progress = computeServiceRealized(service);
-                  const foldersForService = serviceFoldersMap.get(service.id) ?? [];
-                  return (
-                    <Link
-                      key={service.id}
-                      className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-3 transition hover:border-primary/40 hover:bg-muted/40"
-                      href={`/servicos/${service.id}`}
-                    >
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-medium">{service.os || service.code || service.id}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {normaliseStatus(service.status)}
-                          {service.assignedTo?.companyName || service.assignedTo?.companyId
-                            ? ` • ${service.assignedTo.companyName || service.assignedTo.companyId}`
-                            : ""}
-                          {foldersForService.length ? ` • Pastas: ${foldersForService.join(", ")}` : ""}
-                        </p>
-                      </div>
-                      <span className="text-sm font-semibold text-primary">{progress}%</span>
-                    </Link>
-                  );
-                })}
-              </div>
-            )}
-            {realized === null && services.length > 0 ? (
-              <p className="mt-4 text-xs text-muted-foreground">Sem dados suficientes para calcular o realizado consolidado.</p>
-            ) : null}
-          </div>
+          <ServicesCompaniesSection
+            services={serviceSummaries}
+            folders={folders}
+            serviceDetails={serviceDetails}
+          />
         </div>
 
         <div className="space-y-4">
@@ -389,7 +422,8 @@ export default async function PackageDetailPage({ params }: { params: { id: stri
 
           <PackageFoldersManager
             packageId={pkg.id}
-            services={folderServiceOptions}
+            services={availableServiceOptions}
+            serviceDetails={serviceDetails}
             initialFolders={folders}
           />
         </div>
