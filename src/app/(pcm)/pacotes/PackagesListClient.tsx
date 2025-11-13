@@ -3,11 +3,11 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 
-import type { Package } from "@/types";
+import type { PackageSummary } from "@/lib/repo/packages";
 
 const MAX_VISIBLE_PACKAGES = 5;
 
-function normaliseStatus(status: Package["status"]): string {
+function normaliseStatus(status: PackageSummary["status"]): string {
   const raw = String(status ?? "").toLowerCase();
   if (raw === "concluido" || raw === "concluído") return "Concluído";
   if (raw === "encerrado") return "Encerrado";
@@ -15,7 +15,7 @@ function normaliseStatus(status: Package["status"]): string {
 }
 
 type Props = {
-  packages: Package[];
+  packages: PackageSummary[];
 };
 
 export default function PackagesListClient({ packages }: Props) {
@@ -48,7 +48,9 @@ export default function PackagesListClient({ packages }: Props) {
                 <p className="text-xs text-muted-foreground">{normaliseStatus(pkg.status)}</p>
               </div>
               <span className="text-xs text-muted-foreground">
-                {pkg.services?.length ? `${pkg.services.length} serviço${pkg.services.length === 1 ? "" : "s"}` : ""}
+                {pkg.servicesCount
+                  ? `${pkg.servicesCount} serviço${pkg.servicesCount === 1 ? "" : "s"}`
+                  : ""}
               </span>
             </Link>
           );
