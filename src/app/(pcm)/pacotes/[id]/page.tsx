@@ -42,14 +42,6 @@ function normaliseStatus(status: Package["status"] | Service["status"]): string 
   return "Aberto";
 }
 
-function safeAsyncCall<T>(operation: () => Promise<T>): Promise<T> {
-  try {
-    return operation();
-  } catch (error) {
-    return Promise.reject(error);
-  }
-}
-
 function normaliseProgress(value?: number | null) {
   if (!Number.isFinite(value ?? NaN)) return 0;
   return Math.max(0, Math.min(100, Math.round(Number(value ?? 0))));
@@ -186,9 +178,6 @@ export default async function PackageDetailPage({ params }: { params: { id: stri
       </div>
     );
   }
-
-  const foldersPromise = safeAsyncCall(() => listPackageFolders(pkg.id));
-  const availableServicesPromise = safeAsyncCall(() => listAvailableOpenServices(200, { mode: "summary" }));
 
   let services: Service[] = [];
   let hasServiceOverflow = false;
@@ -352,27 +341,22 @@ export default async function PackageDetailPage({ params }: { params: { id: stri
   let folders: PackageFolder[] = [];
   let availableOpenServices: Service[] = [];
 
-  const [foldersResult, availableServicesResult] = await Promise.allSettled([
-    foldersPromise,
-    availableServicesPromise,
-  ]);
-
-  if (foldersResult.status === "fulfilled") {
-    folders = foldersResult.value;
-  } else {
+  try {
+    folders = await listPackageFolders(pkg.id);
+  } catch (error) {
     registerWarning(
       "Não foi possível carregar os subpacotes vinculados a este pacote.",
-      foldersResult.reason,
+      error,
       "Falha ao listar subpacotes do pacote",
     );
   }
 
-  if (availableServicesResult.status === "fulfilled") {
-    availableOpenServices = availableServicesResult.value;
-  } else {
+  try {
+    availableOpenServices = await listAvailableOpenServices(200, { mode: "summary" });
+  } catch (error) {
     registerWarning(
       "Não foi possível carregar os serviços abertos disponíveis para novos subpacotes.",
-      availableServicesResult.reason,
+      error,
       "Falha ao listar serviços disponíveis",
     );
   }
