@@ -32,7 +32,7 @@ export type ServiceInfo = {
 
 const MAX_VISIBLE_SERVICES = 5;
 
-type Props = {
+export type PackageFoldersManagerProps = {
   packageId: string;
   services: ServiceOption[];
   serviceDetails: Record<string, ServiceInfo>;
@@ -90,7 +90,12 @@ function sortServiceOptions(options: ServiceOption[]) {
   return [...options].sort((a, b) => a.label.localeCompare(b.label, "pt-BR", { sensitivity: "base" }));
 }
 
-export default function PackageFoldersManager({ packageId, services, serviceDetails, initialFolders }: Props) {
+export default function PackageFoldersManager({
+  packageId,
+  services,
+  serviceDetails,
+  initialFolders,
+}: PackageFoldersManagerProps) {
   const encodedPackageId = useMemo(() => encodeURIComponent(packageId), [packageId]);
   const [folders, setFolders] = useState<FolderState[]>(() =>
     initialFolders.map(normaliseFolder).sort((a, b) => a.name.localeCompare(b.name, "pt-BR", { sensitivity: "base" })),

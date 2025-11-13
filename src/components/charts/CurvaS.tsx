@@ -4,7 +4,7 @@ import { formatDayMonth, formatLongDate } from "@/lib/formatDateTime";
 
 type CurvePoint = { d: string; pct: number };
 
-type CurvaSProps = {
+export type CurvaSProps = {
   planned: CurvePoint[];
   actual: CurvePoint[];
 };
