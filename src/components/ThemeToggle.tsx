@@ -77,8 +77,11 @@ export default function ThemeToggle({ className }: ThemeToggleProps) {
     <button
       type="button"
       aria-label="Alternar tema"
-      className={cn("btn btn-ghost h-11 w-11 rounded-full", className)}
-      data-theme={theme}
+      aria-pressed={theme === "dark"}
+      className={cn(
+        "flex h-11 w-11 items-center justify-center rounded-full border border-base-300 bg-base-100 text-base-content transition-colors duration-200 hover:bg-base-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100 dark:hover:bg-neutral-800 dark:focus-visible:ring-offset-neutral-900",
+        className,
+      )}
       onClick={toggleTheme}
     >
       {theme === "dark" ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
