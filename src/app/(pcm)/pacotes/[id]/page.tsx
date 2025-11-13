@@ -5,6 +5,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import SCurve from "@/components/SCurve";
+import DeletePackageButton from "@/components/DeletePackageButton";
 import { plannedCurve } from "@/lib/curve";
 import { decodeRouteParam } from "@/lib/decodeRouteParam";
 import { getPackageById, listPackageServices } from "@/lib/repo/packages";
@@ -351,17 +352,25 @@ export default async function PackageDetailPage({ params }: { params: { id: stri
   });
 
   const warningMessages = Array.from(warningSet);
+  const encodedPackageId = encodeURIComponent(pkg.id);
+  const packageLabel = pkg.name || pkg.code || pkg.id;
 
   return (
     <div className="container mx-auto space-y-6 p-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Pacote {pkg.name || pkg.code || pkg.id}</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">Pacote {packageLabel}</h1>
           <p className="text-sm text-muted-foreground">Resumo do pacote, serviços vinculados e curva S consolidada.</p>
         </div>
-        <Link className="btn btn-secondary" href="/pacotes">
-          Voltar
-        </Link>
+        <div className="flex flex-wrap items-center gap-2">
+          <Link className="btn btn-secondary" href="/pacotes">
+            Voltar
+          </Link>
+          <Link className="btn btn-primary" href={`/pacotes/${encodedPackageId}/editar`}>
+            Editar
+          </Link>
+          <DeletePackageButton packageId={pkg.id} packageLabel={packageLabel} />
+        </div>
       </div>
 
       {warningMessages.length ? (
@@ -395,6 +404,12 @@ export default async function PackageDetailPage({ params }: { params: { id: stri
               <div>
                 <dt className="text-muted-foreground">Status</dt>
                 <dd className="font-medium">{normaliseStatus(pkg.status)}</dd>
+              </div>
+              <div>
+                <dt className="text-muted-foreground">Descrição</dt>
+                <dd className="whitespace-pre-wrap text-sm text-foreground/90">
+                  {pkg.description && pkg.description.trim() ? pkg.description : "-"}
+                </dd>
               </div>
               <div>
                 <dt className="text-muted-foreground">Código</dt>
