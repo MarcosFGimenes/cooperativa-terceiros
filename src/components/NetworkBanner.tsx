@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 
 import { isFirestoreLongPollingForced } from "@/lib/firebase";
 
+const shouldLogReconnects = process.env.NODE_ENV !== "production";
+
 export default function NetworkBanner() {
   const [online, setOnline] = useState(true);
 
@@ -18,7 +20,7 @@ export default function NetworkBanner() {
           :
               "[rede] Conexão perdida. Considere habilitar NEXT_PUBLIC_FIRESTORE_FORCE_LONG_POLLING=true se proxies ou firewalls bloquearem streams.";
         console.warn(hint);
-      } else {
+      } else if (shouldLogReconnects) {
         console.info("[rede] Conexão restabelecida com o Firestore/Internet.");
       }
     };

@@ -165,7 +165,7 @@ export default async function PackageDetailPage({ params }: { params: { id: stri
   }
 
   const foldersPromise = listPackageFolders(pkg.id);
-  const availableServicesPromise = listAvailableOpenServices();
+  const availableServicesPromise = listAvailableOpenServices(200, { mode: "summary" });
 
   let services: Service[] = [];
   let hasServiceOverflow = false;
@@ -189,7 +189,7 @@ export default async function PackageDetailPage({ params }: { params: { id: stri
 
   if (serviceIdsToFetch.length) {
     try {
-      const fetched = await getServicesByIds(serviceIdsToFetch);
+      const fetched = await getServicesByIds(serviceIdsToFetch, { mode: "summary" });
       services = fetched;
       const fetchedIds = new Set(fetched.map((service) => service.id));
       const missing = serviceIdsToFetch.filter((id) => !fetchedIds.has(id));
@@ -232,7 +232,7 @@ export default async function PackageDetailPage({ params }: { params: { id: stri
 
         let enriched: Service[] = [];
         try {
-          enriched = await getServicesByIds(fallbackSlice.map((service) => service.id));
+          enriched = await getServicesByIds(fallbackSlice.map((service) => service.id), { mode: "summary" });
         } catch (error) {
           registerWarning(
             "Alguns serviços foram carregados parcialmente.",
