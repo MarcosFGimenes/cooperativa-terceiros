@@ -11,6 +11,25 @@ const servicesCollection = () => getDb().collection("services");
 const foldersCollection = () => getDb().collection("packageFolders");
 const accessTokensCollection = () => getDb().collection("accessTokens");
 
+const PACKAGE_CACHE_TTL_SECONDS = 300;
+
+function withPackageCache<T>(
+  packageId: string,
+  scope: string,
+  loader: () => Promise<T>,
+): Promise<T> {
+  const key = ["packages", scope, packageId];
+  return unstable_cache(loader, key, {
+    revalidate: PACKAGE_CACHE_TTL_SECONDS,
+    tags: [`packages:detail:${packageId}`],
+  })();
+}
+
+function revalidatePackageDetailCache(packageId: string) {
+  if (!packageId) return;
+  revalidateTag(`packages:detail:${packageId}`);
+}
+
 function toMillis(value: unknown): number | undefined {
   if (typeof value === "number") return value;
   const maybeTimestamp = value as { toMillis?: () => number } | undefined;
@@ -32,9 +51,17 @@ function mapPackageDoc(
 }
 
 export async function getPackage(packageId: string): Promise<Package | null> {
-  const snap = await packagesCollection().doc(packageId).get();
-  if (!snap.exists) return null;
-  return mapPackageDoc(snap);
+  const trimmedId = typeof packageId === "string" ? packageId.trim() : "";
+  if (!trimmedId) return null;
+
+  return withPackageCache(trimmedId, "summary", async () => {
+    const snap = await packagesCollection()
+      .doc(trimmedId)
+      .select("name", "nome", "status", "serviceIds", "createdAt")
+      .get();
+    if (!snap.exists) return null;
+    return mapPackageDoc(snap);
+  });
 }
 
 function normaliseDateOnlyInput(value: string | null | undefined, label: string): string {
@@ -237,27 +264,32 @@ const PACKAGE_DETAIL_BASE_FIELDS = [
 ];
 
 export async function getPackageById(id: string): Promise<Package | null> {
-  const docRef = packagesCollection().doc(id);
-  const snap = await docRef.select(...PACKAGE_DETAIL_BASE_FIELDS).get();
-  if (!snap.exists) return null;
+  const trimmedId = typeof id === "string" ? id.trim() : "";
+  if (!trimmedId) return null;
 
-  const baseData = (snap.data() ?? {}) as Record<string, unknown>;
+  return withPackageCache(trimmedId, "detail", async () => {
+    const docRef = packagesCollection().doc(trimmedId);
+    const snap = await docRef.select(...PACKAGE_DETAIL_BASE_FIELDS).get();
+    if (!snap.exists) return null;
 
-  if (!Array.isArray(baseData.serviceIds) || baseData.serviceIds.length === 0) {
-    try {
-      const servicesSnap = await docRef.select("services").get();
-      if (servicesSnap.exists) {
-        const servicesData = servicesSnap.data() ?? {};
-        if (Array.isArray((servicesData as Record<string, unknown>).services)) {
-          baseData.services = (servicesData as Record<string, unknown>).services;
+    const baseData = (snap.data() ?? {}) as Record<string, unknown>;
+
+    if (!Array.isArray(baseData.serviceIds) || baseData.serviceIds.length === 0) {
+      try {
+        const servicesSnap = await docRef.select("services").get();
+        if (servicesSnap.exists) {
+          const servicesData = servicesSnap.data() ?? {};
+          if (Array.isArray((servicesData as Record<string, unknown>).services)) {
+            baseData.services = (servicesData as Record<string, unknown>).services;
+          }
         }
+      } catch (error) {
+        console.warn(`[packages:getPackageById] Failed to fetch legacy services for package ${trimmedId}`, error);
       }
-    } catch (error) {
-      console.warn(`[packages:getPackageById] Failed to fetch legacy services for package ${id}`, error);
     }
-  }
 
-  return mapPackageData(snap.id, baseData);
+    return mapPackageData(snap.id, baseData);
+  });
 }
 
 const listRecentPackagesCached = unstable_cache(
@@ -344,6 +376,7 @@ export async function createPackage(
 
   revalidateTag("packages:recent");
   revalidateTag("services:recent");
+  revalidatePackageDetailCache(packageId);
 
   return packageId;
 }
@@ -458,6 +491,7 @@ export async function updatePackageMetadata(
   const updated = mapPackageData(updatedSnap.id, (updatedSnap.data() ?? {}) as Record<string, unknown>);
 
   revalidateTag("packages:recent");
+  revalidatePackageDetailCache(trimmedId);
 
   return updated;
 }
@@ -534,6 +568,7 @@ export async function deletePackage(packageId: string): Promise<boolean> {
 
   revalidateTag("packages:recent");
   revalidateTag("services:recent");
+  revalidatePackageDetailCache(trimmedId);
 
   return true;
 }

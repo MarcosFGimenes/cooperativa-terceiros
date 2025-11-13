@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -22,8 +23,18 @@ export default function RootHeader() {
   return (
     <header className="sticky top-0 z-40 border-b border-border/70 bg-white/85 shadow-sm backdrop-blur-md supports-[backdrop-filter]:bg-white/70 dark:border-slate-800/70 dark:bg-[#0b1220]/85">
       <div className="mx-auto flex h-14 w-full max-w-screen-xl items-center justify-between gap-3 px-4 sm:h-16 sm:px-6">
-        <Link href="/" className="shrink-0 font-semibold tracking-tight">
-          PCM <span className="text-primary">Terceiros</span>
+        <Link href="/" className="flex shrink-0 items-center gap-2 font-semibold tracking-tight">
+          <Image
+            alt="PCM Terceiros"
+            src="/globe.svg"
+            width={28}
+            height={28}
+            priority
+            className="h-7 w-7"
+          />
+          <span>
+            PCM <span className="text-primary">Terceiros</span>
+          </span>
         </Link>
         <HeaderClientBoundary />
       </div>
