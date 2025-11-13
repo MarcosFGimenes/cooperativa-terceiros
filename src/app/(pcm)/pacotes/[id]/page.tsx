@@ -169,9 +169,19 @@ export default async function PackageDetailPage({ params }: { params: { id: stri
   let services: Service[] = [];
   let hasServiceOverflow = false;
 
+  const declaredServiceRefs = (() => {
+    if (Array.isArray(pkg.serviceIds) && pkg.serviceIds.length) {
+      return pkg.serviceIds;
+    }
+    if (Array.isArray(pkg.services) && pkg.services.length) {
+      return pkg.services;
+    }
+    return [];
+  })();
+
   const uniqueServiceIds = Array.from(
     new Set(
-      (pkg.services ?? [])
+      declaredServiceRefs
         .map((value) => {
           if (typeof value === "string") return value.trim();
           if (typeof value === "number" && Number.isFinite(value)) return String(value);
