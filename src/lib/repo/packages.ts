@@ -292,6 +292,34 @@ function toPackageSummary(id: string, data: Record<string, unknown>): PackageSum
   };
 }
 
+const PACKAGE_DETAIL_BASE_FIELDS = [
+  "name",
+  "nome",
+  "status",
+  "plannedStart",
+  "dataInicio",
+  "inicioPlanejado",
+  "startDate",
+  "plannedEnd",
+  "dataFim",
+  "fimPlanejado",
+  "endDate",
+  "totalHours",
+  "horasTotais",
+  "totalHoras",
+  "code",
+  "codigo",
+  "description",
+  "descricao",
+  "details",
+  "createdAt",
+  "created_at",
+  "criadoEm",
+  "createdAtMs",
+  "assignedCompanies",
+  "serviceIds",
+];
+
 export async function getPackageById(id: string): Promise<Package | null> {
   const trimmedId = typeof id === "string" ? id.trim() : "";
   if (!trimmedId) return null;
