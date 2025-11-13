@@ -18,6 +18,8 @@ import PackageFoldersManager from "./PackageFoldersManager";
 import type { ServiceInfo as FolderServiceInfo, ServiceOption as FolderServiceOption } from "./PackageFoldersManager";
 import ServicesCompaniesSection from "./ServicesCompaniesSection";
 
+const MAX_SERVICES_TO_LOAD = 400;
+
 function normaliseStatus(status: Package["status"] | Service["status"]): string {
   const raw = String(status ?? "").toLowerCase();
   if (raw === "concluido" || raw === "concluído") return "Concluído";
@@ -166,13 +168,31 @@ export default async function PackageDetailPage({ params }: { params: { id: stri
   const availableServicesPromise = listAvailableOpenServices();
 
   let services: Service[] = [];
+  let hasServiceOverflow = false;
 
-  if (pkg.services?.length) {
+  const uniqueServiceIds = Array.from(
+    new Set(
+      (pkg.services ?? [])
+        .map((value) => {
+          if (typeof value === "string") return value.trim();
+          if (typeof value === "number" && Number.isFinite(value)) return String(value);
+          return "";
+        })
+        .filter((value) => value.length > 0),
+    ),
+  );
+
+  const serviceIdsToFetch = uniqueServiceIds.slice(0, MAX_SERVICES_TO_LOAD);
+  if (uniqueServiceIds.length > serviceIdsToFetch.length) {
+    hasServiceOverflow = true;
+  }
+
+  if (serviceIdsToFetch.length) {
     try {
-      const fetched = await getServicesByIds(pkg.services);
+      const fetched = await getServicesByIds(serviceIdsToFetch);
       services = fetched;
       const fetchedIds = new Set(fetched.map((service) => service.id));
-      const missing = (pkg.services ?? []).filter((id) => !fetchedIds.has(id));
+      const missing = serviceIdsToFetch.filter((id) => !fetchedIds.has(id));
       if (missing.length) {
         registerWarning(
           "Alguns serviços vinculados ao pacote não puderam ser carregados completamente.",
@@ -189,13 +209,30 @@ export default async function PackageDetailPage({ params }: { params: { id: stri
     }
   }
 
+  let serviceCountReference = uniqueServiceIds.length;
+  let serviceCountIsExact = uniqueServiceIds.length > 0;
+
   if (!services.length) {
     try {
-      const fallback = await listPackageServices(resolvedPackageId);
+      const fallbackLimit = MAX_SERVICES_TO_LOAD + 1;
+      const fallback = await listPackageServices(resolvedPackageId, { limit: fallbackLimit });
       if (fallback.length) {
+        if (fallback.length > MAX_SERVICES_TO_LOAD) {
+          hasServiceOverflow = true;
+          if (serviceCountReference === 0) {
+            serviceCountIsExact = false;
+            serviceCountReference = MAX_SERVICES_TO_LOAD + 1;
+          }
+        } else if (serviceCountReference === 0) {
+          serviceCountReference = fallback.length;
+          serviceCountIsExact = fallback.length < fallbackLimit;
+        }
+
+        const fallbackSlice = fallback.slice(0, MAX_SERVICES_TO_LOAD);
+
         let enriched: Service[] = [];
         try {
-          enriched = await getServicesByIds(fallback.map((service) => service.id));
+          enriched = await getServicesByIds(fallbackSlice.map((service) => service.id));
         } catch (error) {
           registerWarning(
             "Alguns serviços foram carregados parcialmente.",
@@ -205,9 +242,9 @@ export default async function PackageDetailPage({ params }: { params: { id: stri
         }
         if (enriched.length) {
           const byId = new Map(enriched.map((service) => [service.id, service]));
-          services = fallback.map((service) => byId.get(service.id) ?? service);
+          services = fallbackSlice.map((service) => byId.get(service.id) ?? service);
         } else {
-          services = fallback;
+          services = fallbackSlice;
         }
       }
     } catch (error) {
@@ -219,13 +256,43 @@ export default async function PackageDetailPage({ params }: { params: { id: stri
     }
   }
 
+  if (hasServiceOverflow && services.length) {
+    const displayedCount = services.length;
+    const totalLabel = serviceCountIsExact
+      ? `${serviceCountReference} serviço${serviceCountReference === 1 ? "" : "s"}`
+      : `mais de ${Math.max(displayedCount, MAX_SERVICES_TO_LOAD)} serviço${
+          Math.max(displayedCount, MAX_SERVICES_TO_LOAD) === 1 ? "" : "s"
+        }`;
+    registerWarning(
+      `Este pacote possui ${totalLabel} vinculados. Exibimos apenas ${displayedCount} serviço${
+        displayedCount === 1 ? "" : "s"
+      } para evitar travamentos. Os dados agregados podem ficar incompletos.`,
+    );
+  } else if (hasServiceOverflow && services.length === 0) {
+    registerWarning(
+      "Este pacote possui muitos serviços vinculados. Os detalhes completos não puderam ser exibidos.",
+    );
+  }
+
   const hoursFromServices = services.reduce((acc, service) => {
     const hours = Number(service.totalHours ?? 0);
     return acc + (Number.isFinite(hours) ? hours : 0);
   }, 0);
 
   const { start, end } = choosePlanBounds(pkg, services);
-  const planned = plannedCurve(start, end, hoursFromServices > 0 ? hoursFromServices : pkg.totalHours || 1);
+  const totalHoursCandidate = (() => {
+    if (!hasServiceOverflow && hoursFromServices > 0) {
+      return hoursFromServices;
+    }
+    if (Number.isFinite(pkg.totalHours) && Number(pkg.totalHours) > 0) {
+      return Number(pkg.totalHours);
+    }
+    if (hoursFromServices > 0) {
+      return hoursFromServices;
+    }
+    return 1;
+  })();
+  const planned = plannedCurve(start, end, totalHoursCandidate);
 
   const contributions = services.map((service) => ({
     hours: Number(service.totalHours ?? 0) || 0,
@@ -233,13 +300,20 @@ export default async function PackageDetailPage({ params }: { params: { id: stri
   }));
 
   const totalWeight = contributions.reduce((acc, { hours }) => acc + (hours > 0 ? hours : 0), 0);
-  const realized = contributions.length
-    ? totalWeight > 0
-      ? Math.round(
-          contributions.reduce((acc, { hours, progress }) => acc + progress * (hours > 0 ? hours : 0), 0) / totalWeight,
-        )
-      : Math.round(contributions.reduce((acc, entry) => acc + entry.progress, 0) / contributions.length)
-    : null;
+  const realized =
+    contributions.length && !hasServiceOverflow
+      ? totalWeight > 0
+        ? Math.round(
+            contributions.reduce((acc, { hours, progress }) => acc + progress * (hours > 0 ? hours : 0), 0) /
+              totalWeight,
+          )
+        : Math.round(contributions.reduce((acc, entry) => acc + entry.progress, 0) / contributions.length)
+      : null;
+  const realizedSeriesData = hasServiceOverflow ? [] : buildPackageRealizedSeries(planned, realized ?? 0);
+  const realizedValueLabel = typeof realized === "number" ? `${realized}%` : "-";
+  const realizedHeaderLabel = hasServiceOverflow
+    ? `Realizado (parcial): ${realizedValueLabel}`
+    : `Realizado: ${realizedValueLabel}`;
 
   const assignedCompanies = pkg.assignedCompanies?.filter((item) => item.companyId);
   let folders: PackageFolder[] = [];
@@ -388,11 +462,11 @@ export default async function PackageDetailPage({ params }: { params: { id: stri
         <div className="space-y-4">
           <SCurve
             planned={planned}
-            realizedSeries={buildPackageRealizedSeries(planned, realized ?? 0)}
-            realizedPercent={realized ?? 0}
+            realizedSeries={realizedSeriesData}
+            realizedPercent={typeof realized === "number" ? realized : 0}
             title="Curva S consolidada"
             description="Planejado versus realizado considerando todos os serviços do pacote."
-            headerAside={<span className="font-medium text-foreground">Realizado: {realized ?? 0}%</span>}
+            headerAside={<span className="font-medium text-foreground">{realizedHeaderLabel}</span>}
             chartHeight={360}
           />
         </div>
@@ -425,7 +499,11 @@ export default async function PackageDetailPage({ params }: { params: { id: stri
               </div>
               <div>
                 <dt className="text-muted-foreground">Horas totais (serviços)</dt>
-                <dd className="font-medium">{hoursFromServices || pkg.totalHours || "-"}</dd>
+                <dd className="font-medium">
+                  {hasServiceOverflow
+                    ? pkg.totalHours || "-"
+                    : hoursFromServices || pkg.totalHours || "-"}
+                </dd>
               </div>
               <div>
                 <dt className="text-muted-foreground">Empresas atribuídas</dt>
