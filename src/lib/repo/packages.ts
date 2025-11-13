@@ -95,6 +95,46 @@ function toNumber(value: unknown): number | undefined {
   return undefined;
 }
 
+function extractServiceId(value: unknown): string {
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (trimmed.length > 0) return trimmed;
+  }
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return String(value);
+  }
+  if (value && typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    const candidates: unknown[] = [
+      record.id,
+      record.serviceId,
+      record.serviceID,
+      record.service,
+      record.code,
+      record.codigo,
+      record.os,
+      record.OS,
+    ];
+    for (const candidate of candidates) {
+      if (typeof candidate === "string" && candidate.trim().length > 0) {
+        return candidate.trim();
+      }
+      if (typeof candidate === "number" && Number.isFinite(candidate)) {
+        return String(candidate);
+      }
+    }
+  }
+  return "";
+}
+
+function normaliseServiceIds(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const entries = value
+    .map((item) => extractServiceId(item))
+    .filter((id) => id.length > 0);
+  return entries.length ? entries : undefined;
+}
+
 function mapPackageData(id: string, data: Record<string, unknown>): Package {
   const plannedStart = String(
     data.plannedStart ?? data.dataInicio ?? data.inicioPlanejado ?? data.startDate ?? "",
@@ -123,11 +163,10 @@ function mapPackageData(id: string, data: Record<string, unknown>): Package {
       }))
     : undefined;
 
-  const services = Array.isArray(data.services)
-    ? (data.services as unknown[])
-        .map((value) => String(value ?? ""))
-        .filter((value) => value.length > 0)
-    : undefined;
+  const normalisedServiceIds = normaliseServiceIds(data.serviceIds);
+  const normalisedLegacyServices = normaliseServiceIds(data.services);
+  const serviceIds = normalisedServiceIds ?? normalisedLegacyServices;
+  const services = serviceIds ?? normalisedLegacyServices;
 
   return {
     id,
@@ -141,19 +180,90 @@ function mapPackageData(id: string, data: Record<string, unknown>): Package {
     services,
     createdAt,
     assignedCompanies,
+    serviceIds,
   };
 }
 
+export type PackageSummary = Pick<Package, "id" | "name" | "status" | "code" | "createdAt"> & {
+  servicesCount: number;
+};
+
+function mapPackageSummary(id: string, data: Record<string, unknown>): PackageSummary {
+  const services = Array.isArray(data.services)
+    ? (data.services as unknown[])
+    : Array.isArray(data.serviceIds)
+      ? (data.serviceIds as unknown[])
+      : [];
+  const servicesCount = services.length;
+  const createdAt =
+    toNumber(data.createdAt ?? data.created_at ?? data.criadoEm ?? data.createdAtMs) ?? Date.now();
+
+  return {
+    id,
+    name: String(data.name ?? data.nome ?? `Pacote ${id}`),
+    status: normalisePackageStatus(data.status),
+    code: data.code ? String(data.code) : data.codigo ? String(data.codigo) : undefined,
+    createdAt,
+    servicesCount,
+  };
+}
+
+const PACKAGE_DETAIL_BASE_FIELDS = [
+  "name",
+  "nome",
+  "status",
+  "plannedStart",
+  "dataInicio",
+  "inicioPlanejado",
+  "startDate",
+  "plannedEnd",
+  "dataFim",
+  "fimPlanejado",
+  "endDate",
+  "totalHours",
+  "horasTotais",
+  "totalHoras",
+  "code",
+  "codigo",
+  "description",
+  "descricao",
+  "details",
+  "createdAt",
+  "created_at",
+  "criadoEm",
+  "createdAtMs",
+  "assignedCompanies",
+  "serviceIds",
+];
+
 export async function getPackageById(id: string): Promise<Package | null> {
-  const snap = await packagesCollection().doc(id).get();
+  const docRef = packagesCollection().doc(id);
+  const snap = await docRef.select(...PACKAGE_DETAIL_BASE_FIELDS).get();
   if (!snap.exists) return null;
-  return mapPackageData(snap.id, (snap.data() ?? {}) as Record<string, unknown>);
+
+  const baseData = (snap.data() ?? {}) as Record<string, unknown>;
+
+  if (!Array.isArray(baseData.serviceIds) || baseData.serviceIds.length === 0) {
+    try {
+      const servicesSnap = await docRef.select("services").get();
+      if (servicesSnap.exists) {
+        const servicesData = servicesSnap.data() ?? {};
+        if (Array.isArray((servicesData as Record<string, unknown>).services)) {
+          baseData.services = (servicesData as Record<string, unknown>).services;
+        }
+      }
+    } catch (error) {
+      console.warn(`[packages:getPackageById] Failed to fetch legacy services for package ${id}`, error);
+    }
+  }
+
+  return mapPackageData(snap.id, baseData);
 }
 
 const listRecentPackagesCached = unstable_cache(
   async () => {
     const snap = await packagesCollection().orderBy("createdAt", "desc").limit(20).get();
-    return snap.docs.map((doc) => mapPackageData(doc.id, (doc.data() ?? {}) as Record<string, unknown>));
+    return snap.docs.map((doc) => mapPackageSummary(doc.id, (doc.data() ?? {}) as Record<string, unknown>));
   },
   ["packages:listRecent"],
   {
@@ -162,7 +272,7 @@ const listRecentPackagesCached = unstable_cache(
   },
 );
 
-export async function listRecentPackages(): Promise<Package[]> {
+export async function listRecentPackages(): Promise<PackageSummary[]> {
   return listRecentPackagesCached();
 }
 
