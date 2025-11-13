@@ -41,30 +41,52 @@ const PACKAGE_DETAIL_BASE_FIELDS = [
   "serviceIds",
 ];
 
-const packageSummaryCache = unstable_cache(
-  async (packageId: string) => {
-    const snap = await packagesCollection()
-      .doc(packageId)
-      .select("name", "nome", "status", "serviceIds", "createdAt")
-      .get();
-    if (!snap.exists) return null;
-    return mapPackageDoc(snap);
-  },
-  ["packages", "summary"],
-  {
-    revalidate: PACKAGE_CACHE_TTL_SECONDS,
-    tags: ["packages:summary"],
-  },
-);
+const packageSummaryCache = (() => {
+  const cacheById = new Map<string, () => Promise<Package | null>>();
+  return async (packageId: string) => {
+    const cacheKey = packageId || "__empty__";
+    let cachedFetcher = cacheById.get(cacheKey);
+    if (!cachedFetcher) {
+      cachedFetcher = unstable_cache(
+        async () => {
+          const snap = await packagesCollection()
+            .doc(packageId)
+            .select("name", "nome", "status", "serviceIds", "createdAt")
+            .get();
+          if (!snap.exists) return null;
+          return mapPackageDoc(snap);
+        },
+        ["packages", "summary", cacheKey],
+        {
+          revalidate: PACKAGE_CACHE_TTL_SECONDS,
+          tags: ["packages:summary"],
+        },
+      );
+      cacheById.set(cacheKey, cachedFetcher);
+    }
+    return cachedFetcher();
+  };
+})();
 
-const packageDetailCache = unstable_cache(
-  async (packageId: string) => fetchPackageDetail(packageId),
-  ["packages", "detail"],
-  {
-    revalidate: PACKAGE_CACHE_TTL_SECONDS,
-    tags: ["packages:detail"],
-  },
-);
+const packageDetailCache = (() => {
+  const cacheById = new Map<string, () => Promise<Package | null>>();
+  return async (packageId: string) => {
+    const cacheKey = packageId || "__empty__";
+    let cachedFetcher = cacheById.get(cacheKey);
+    if (!cachedFetcher) {
+      cachedFetcher = unstable_cache(
+        () => fetchPackageDetail(packageId),
+        ["packages", "detail", cacheKey],
+        {
+          revalidate: PACKAGE_CACHE_TTL_SECONDS,
+          tags: ["packages:detail"],
+        },
+      );
+      cacheById.set(cacheKey, cachedFetcher);
+    }
+    return cachedFetcher();
+  };
+})();
 
 async function fetchPackageDetail(packageId: string): Promise<Package | null> {
   const docRef = packagesCollection().doc(packageId);
