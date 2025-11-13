@@ -21,7 +21,7 @@ import { Field, FormRow } from "@/components/ui/form-controls";
 import { createAccessToken } from "@/lib/accessTokens";
 import { tryGetFirestore } from "@/lib/firebase";
 import { useFirebaseAuthSession } from "@/lib/useFirebaseAuthSession";
-import { dateOnlyToMillis, parseDateOnly } from "@/lib/dateOnly";
+import { dateOnlyToMillis, maskDateOnlyInput, parseDateOnly } from "@/lib/dateOnly";
 
 type ChecklistDraft = Array<{ id: string; descricao: string; peso: number | "" }>;
 
@@ -322,16 +322,24 @@ export default function NovoServico() {
         <FormRow>
           <Field
             label="Data de início prevista"
-            type="date"
             value={form.dataInicio}
-            onChange={(event) => updateForm("dataInicio", event.target.value)}
+            onChange={(event) => updateForm("dataInicio", maskDateOnlyInput(event.target.value))}
+            onBlur={(event) => updateForm("dataInicio", maskDateOnlyInput(event.target.value))}
+            placeholder="dd/mm/aaaa"
+            inputMode="numeric"
+            maxLength={10}
+            pattern="\d{2}/\d{2}/\d{4}"
             required
           />
           <Field
             label="Data de término prevista"
-            type="date"
             value={form.dataFim}
-            onChange={(event) => updateForm("dataFim", event.target.value)}
+            onChange={(event) => updateForm("dataFim", maskDateOnlyInput(event.target.value))}
+            onBlur={(event) => updateForm("dataFim", maskDateOnlyInput(event.target.value))}
+            placeholder="dd/mm/aaaa"
+            inputMode="numeric"
+            maxLength={10}
+            pattern="\d{2}/\d{2}/\d{4}"
             required
           />
         </FormRow>

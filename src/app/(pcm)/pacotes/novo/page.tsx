@@ -8,7 +8,7 @@ import { addDoc, collection, serverTimestamp } from "firebase/firestore";
 import { Field, FormRow } from "@/components/ui/form-controls";
 import { tryGetFirestore } from "@/lib/firebase";
 import { useFirebaseAuthSession } from "@/lib/useFirebaseAuthSession";
-import { dateOnlyToMillis, formatDateOnly, parseDateOnly } from "@/lib/dateOnly";
+import { dateOnlyToMillis, formatDateOnly, maskDateOnlyInput, parseDateOnly } from "@/lib/dateOnly";
 
 export default function NovoPacotePage() {
   const router = useRouter();
@@ -124,17 +124,24 @@ export default function NovoPacotePage() {
         <FormRow>
           <Field
             label="Data inicial"
-            type="date"
             value={form.dataInicio}
-            onChange={(event) => updateForm("dataInicio", event.target.value)}
+            onChange={(event) => updateForm("dataInicio", maskDateOnlyInput(event.target.value))}
+            onBlur={(event) => updateForm("dataInicio", maskDateOnlyInput(event.target.value))}
+            placeholder="dd/mm/aaaa"
+            inputMode="numeric"
+            maxLength={10}
+            pattern="\d{2}/\d{2}/\d{4}"
             required
           />
           <Field
             label="Data final"
-            type="date"
             value={form.dataFim}
-            min={form.dataInicio || undefined}
-            onChange={(event) => updateForm("dataFim", event.target.value)}
+            onChange={(event) => updateForm("dataFim", maskDateOnlyInput(event.target.value))}
+            onBlur={(event) => updateForm("dataFim", maskDateOnlyInput(event.target.value))}
+            placeholder="dd/mm/aaaa"
+            inputMode="numeric"
+            maxLength={10}
+            pattern="\d{2}/\d{2}/\d{4}"
             required
           />
         </FormRow>

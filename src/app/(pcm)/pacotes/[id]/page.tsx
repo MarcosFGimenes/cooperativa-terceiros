@@ -468,6 +468,7 @@ export default async function PackageDetailPage({ params }: { params: { id: stri
             description="Planejado versus realizado considerando todos os serviços do pacote."
             headerAside={<span className="font-medium text-foreground">{realizedHeaderLabel}</span>}
             chartHeight={360}
+            deferRendering
           />
         </div>
 
