@@ -7,10 +7,9 @@ import { notFound } from "next/navigation";
 import SCurve from "@/components/SCurve";
 import { plannedCurve } from "@/lib/curve";
 import { decodeRouteParam } from "@/lib/decodeRouteParam";
-import { listServicesPCM } from "@/lib/data";
 import { getPackageById, listPackageServices } from "@/lib/repo/packages";
 import { listPackageFolders } from "@/lib/repo/folders";
-import { getServiceById } from "@/lib/repo/services";
+import { getServicesByIds, listAvailableOpenServices } from "@/lib/repo/services";
 import { formatDate as formatDisplayDate } from "@/lib/formatDateTime";
 import type { Package, PackageFolder, Service } from "@/types";
 
@@ -162,41 +161,53 @@ export default async function PackageDetailPage({ params }: { params: { id: stri
     );
   }
 
+  const foldersPromise = listPackageFolders(pkg.id);
+  const availableServicesPromise = listAvailableOpenServices();
+
   let services: Service[] = [];
 
   if (pkg.services?.length) {
-    const fetched = await Promise.all(
-      pkg.services.map((id) =>
-        getServiceById(id).catch((error) => {
-          registerWarning(
-            "Não foi possível carregar alguns serviços vinculados ao pacote.",
-            error,
-            `Falha ao buscar serviço ${id}`,
-          );
-          return null;
-        }),
-      ),
-    );
-    services = fetched.filter(Boolean) as Service[];
+    try {
+      const fetched = await getServicesByIds(pkg.services);
+      services = fetched;
+      const fetchedIds = new Set(fetched.map((service) => service.id));
+      const missing = (pkg.services ?? []).filter((id) => !fetchedIds.has(id));
+      if (missing.length) {
+        registerWarning(
+          "Alguns serviços vinculados ao pacote não puderam ser carregados completamente.",
+          undefined,
+          missing.join(", "),
+        );
+      }
+    } catch (error) {
+      registerWarning(
+        "Não foi possível carregar os serviços vinculados ao pacote.",
+        error,
+        "Falha ao buscar serviços do pacote",
+      );
+    }
   }
 
   if (!services.length) {
     try {
       const fallback = await listPackageServices(resolvedPackageId);
       if (fallback.length) {
-        const enriched = await Promise.all(
-          fallback.map((service) =>
-            getServiceById(service.id).catch((error) => {
-              registerWarning(
-                "Alguns serviços foram carregados parcialmente.",
-                error,
-                `Falha ao detalhar serviço ${service.id}`,
-              );
-              return service;
-            }),
-          ),
-        );
-        services = enriched.filter(Boolean) as Service[];
+        let enriched: Service[] = [];
+        try {
+          enriched = await getServicesByIds(fallback.map((service) => service.id));
+        } catch (error) {
+          registerWarning(
+            "Alguns serviços foram carregados parcialmente.",
+            error,
+            "Falha ao detalhar serviços do pacote",
+          );
+        }
+        if (enriched.length) {
+          const byId = new Map(enriched.map((service) => [service.id, service]));
+          services = fallback.map((service) => byId.get(service.id) ?? service);
+        } else {
+          services = fallback;
+        }
       }
     } catch (error) {
       registerWarning(
@@ -231,14 +242,30 @@ export default async function PackageDetailPage({ params }: { params: { id: stri
 
   const assignedCompanies = pkg.assignedCompanies?.filter((item) => item.companyId);
   let folders: PackageFolder[] = [];
+  let availableOpenServices: Service[] = [];
 
-  try {
-    folders = await listPackageFolders(pkg.id);
-  } catch (error) {
+  const [foldersResult, availableServicesResult] = await Promise.allSettled([
+    foldersPromise,
+    availableServicesPromise,
+  ]);
+
+  if (foldersResult.status === "fulfilled") {
+    folders = foldersResult.value;
+  } else {
     registerWarning(
       "Não foi possível carregar os subpacotes vinculados a este pacote.",
-      error,
+      foldersResult.reason,
       "Falha ao listar subpacotes do pacote",
+    );
+  }
+
+  if (availableServicesResult.status === "fulfilled") {
+    availableOpenServices = availableServicesResult.value;
+  } else {
+    registerWarning(
+      "Não foi possível carregar os serviços abertos disponíveis para novos subpacotes.",
+      availableServicesResult.reason,
+      "Falha ao listar serviços disponíveis",
     );
   }
 
@@ -250,27 +277,13 @@ export default async function PackageDetailPage({ params }: { params: { id: stri
     });
   });
 
-  let availableRawServices: Awaited<ReturnType<typeof listServicesPCM>> = [];
-  try {
-    availableRawServices = await listServicesPCM();
-  } catch (error) {
-    registerWarning(
-      "Não foi possível carregar os serviços abertos disponíveis para novos subpacotes.",
-      error,
-      "Falha ao listar serviços disponíveis",
-    );
-  }
-
-  const availableOpenServices = availableRawServices.filter(
-    (service) => service.status === "Aberto" && !service.packageId,
-  );
-
   const availableServiceOptions: FolderServiceOption[] = availableOpenServices
     .filter((service) => !folderServiceIds.has(service.id))
     .map((service) => {
       const baseLabel = service.os || service.oc || service.tag || service.id;
       const descriptionParts: string[] = [];
-      if (service.empresa) descriptionParts.push(`Empresa: ${service.empresa}`);
+      const companyLabel = service.empresa || service.company || service.assignedTo?.companyName;
+      if (companyLabel) descriptionParts.push(`Empresa: ${companyLabel}`);
       if (service.setor) descriptionParts.push(`Setor: ${service.setor}`);
       return {
         id: service.id,
@@ -303,11 +316,13 @@ export default async function PackageDetailPage({ params }: { params: { id: stri
   });
 
   availableOpenServices.forEach((service) => {
+    const companyLabel =
+      service.empresa || service.company || service.assignedTo?.companyName || service.assignedTo?.companyId || null;
     if (serviceDetails[service.id]) {
-      if (!serviceDetails[service.id].companyLabel && service.empresa) {
+      if (!serviceDetails[service.id].companyLabel && companyLabel) {
         serviceDetails[service.id] = {
           ...serviceDetails[service.id],
-          companyLabel: service.empresa ?? undefined,
+          companyLabel: companyLabel ?? undefined,
         };
       }
       return;
@@ -315,9 +330,9 @@ export default async function PackageDetailPage({ params }: { params: { id: stri
     const baseLabel = service.os || service.oc || service.tag || service.id;
     serviceDetails[service.id] = {
       id: service.id,
-      label: service.empresa ? `${baseLabel} — ${service.empresa}` : baseLabel,
+      label: companyLabel ? `${baseLabel} — ${companyLabel}` : baseLabel,
       status: service.status ?? "Aberto",
-      companyLabel: service.empresa ?? undefined,
+      companyLabel: companyLabel ?? undefined,
       isOpen: true,
     };
   });
