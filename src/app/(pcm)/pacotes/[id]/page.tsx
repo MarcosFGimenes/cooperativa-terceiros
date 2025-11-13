@@ -1,9 +1,7 @@
-export const dynamic = "force-dynamic";
-export const revalidate = 0;
-
 import Link from "next/link";
 import { isNotFoundError, notFound } from "next/navigation";
-import dynamic from "next/dynamic";
+import { isRedirectError } from "next/dist/client/components/redirect";
+import NextDynamic from "next/dynamic";
 import DeletePackageButton from "@/components/DeletePackageButton";
 import SCurveDeferred from "@/components/SCurveDeferred";
 import { plannedCurve } from "@/lib/curve";
@@ -21,7 +19,10 @@ import type {
 } from "./PackageFoldersManager";
 import ServicesCompaniesSection from "./ServicesCompaniesSection";
 
-const PackageFoldersManager = dynamic<PackageFoldersManagerProps>(
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
+const PackageFoldersManager = NextDynamic<PackageFoldersManagerProps>(
   () => import("./PackageFoldersManager"),
   {
     ssr: false,
@@ -345,7 +346,7 @@ async function renderPackageDetailPage(params: { id: string }) {
   const realizedValueLabel = typeof realized === "number" ? `${realized}%` : "-";
   const realizedHeaderLabel = hasServiceOverflow
     ? `Realizado (parcial): ${realizedValueLabel}`
-    : `Realizado: ${realizedValueLabel}`;
+    : `Realizado: ${realizadoValueLabel}`;
 
   const assignedCompanies = pkg.assignedCompanies?.filter((item) => item.companyId);
   let folders: PackageFolder[] = [];
