@@ -3,6 +3,7 @@ export const revalidate = 0;
 
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import dynamic from "next/dynamic";
 import DeletePackageButton from "@/components/DeletePackageButton";
 import SCurveDeferred from "@/components/SCurveDeferred";
 import { plannedCurve } from "@/lib/curve";
@@ -13,9 +14,24 @@ import { getServicesByIds, listAvailableOpenServices } from "@/lib/repo/services
 import { formatDate as formatDisplayDate } from "@/lib/formatDateTime";
 import type { Package, PackageFolder, Service } from "@/types";
 
-import PackageFoldersManager from "./PackageFoldersManager";
-import type { ServiceInfo as FolderServiceInfo, ServiceOption as FolderServiceOption } from "./PackageFoldersManager";
+import type {
+  PackageFoldersManagerProps,
+  ServiceInfo as FolderServiceInfo,
+  ServiceOption as FolderServiceOption,
+} from "./PackageFoldersManager";
 import ServicesCompaniesSection from "./ServicesCompaniesSection";
+
+const PackageFoldersManager = dynamic<PackageFoldersManagerProps>(
+  () => import("./PackageFoldersManager"),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="rounded-xl border border-dashed border-border/60 bg-muted/30 p-6 text-sm text-muted-foreground">
+        Carregando gerenciamento de pastas do pacote...
+      </div>
+    ),
+  },
+);
 
 const MAX_SERVICES_TO_LOAD = 400;
 
