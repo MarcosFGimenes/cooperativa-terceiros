@@ -53,6 +53,7 @@ const useFetchStreams = !shouldForceLongPolling && defaultFetchStreams;
 const usingDefaultLongPolling = shouldForceLongPolling && envForceLongPolling === null;
 const usingDefaultFetchStreams = useFetchStreams && envUseFetchStreams === null;
 const autoDetectLongPolling = !shouldForceLongPolling && !useFetchStreams;
+const shouldLogNetworkStrategy = process.env.NODE_ENV !== "production";
 
 const describeStrategy = () => {
   if (shouldForceLongPolling) {
@@ -66,6 +67,10 @@ const describeStrategy = () => {
 
 const logNetworkStrategy = () => {
   if (globalForFirebase.__FIREBASE_CLIENT_NETWORK_LOGGED__) {
+    return;
+  }
+  if (!shouldLogNetworkStrategy) {
+    globalForFirebase.__FIREBASE_CLIENT_NETWORK_LOGGED__ = true;
     return;
   }
   const envSummary = `NEXT_PUBLIC_FIRESTORE_FORCE_LONG_POLLING=${

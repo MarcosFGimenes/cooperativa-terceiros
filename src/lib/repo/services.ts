@@ -66,66 +66,13 @@ function sanitisePercent(value: number) {
   return Math.min(100, Math.max(0, value));
 }
 
-function mapServiceDoc(doc: FirebaseFirestore.DocumentSnapshot): Service {
-  const data = (doc.data() ?? {}) as Record<string, unknown>;
-  const plannedStart = pickDateField(data, [
-    "plannedStart",
-    "inicioPrevisto",
-    "inicioPlanejado",
-    "dataInicio",
-    "startDate",
-  ]);
-  const plannedEnd = pickDateField(data, [
-    "plannedEnd",
-    "fimPrevisto",
-    "fimPlanejado",
-    "dataFim",
-    "endDate",
-  ]);
-  const totalHours =
-    toNumber(
-      data.totalHours ??
-        data.totalHoras ??
-        data.horasTotais ??
-        data.horasPrevistas ??
-        data.hours,
-    ) ?? 0;
+type ServiceMapMode = "full" | "summary";
 
-  return {
-    id: doc.id,
-    os: String(data.os ?? ""),
-    oc: data.oc ? String(data.oc) : undefined,
-    tag: String(data.tag ?? ""),
-    equipmentName: String(data.equipmentName ?? data.equipamento ?? ""),
-    sector: String(data.sector ?? data.setor ?? ""),
-    plannedStart,
-    plannedEnd,
-    totalHours,
-    plannedDaily: Array.isArray(data.plannedDaily)
-      ? data.plannedDaily.map((value: unknown) => {
-          const numeric = typeof value === "number" ? value : Number(value);
-          return Number.isFinite(numeric) ? numeric : 0;
-        })
-      : undefined,
-    status: normaliseServiceStatus(data.status),
-    company:
-      data.company !== undefined && data.company !== null
-        ? String(data.company)
-        : data.empresaId !== undefined && data.empresaId !== null
-          ? String(data.empresaId)
-          : undefined,
-    createdAt: toMillis(data.createdAt),
-    updatedAt: toMillis(data.updatedAt),
-    hasChecklist: data.hasChecklist ?? Array.isArray(data.checklist),
-    realPercent: toNumber(data.realPercent ?? data.andamento) ?? 0,
-    previousProgress: toNumber((data as Record<string, unknown>).previousProgress) ?? null,
-    packageId:
-      data.packageId !== undefined && data.packageId !== null
-        ? String(data.packageId)
-        : data.pacoteId !== undefined && data.pacoteId !== null
-          ? String(data.pacoteId)
-          : undefined,
-  };
+function mapServiceDoc(
+  doc: FirebaseFirestore.DocumentSnapshot,
+  mode: ServiceMapMode = "full",
+): Service {
+  return mapServiceData(doc.id, (doc.data() ?? {}) as Record<string, unknown>, mode);
 }
 
 function normaliseServiceStatus(value: unknown): ServiceStatus {
@@ -184,7 +131,11 @@ function mapUpdateData(data: Record<string, unknown>): ServiceUpdate {
   };
 }
 
-function mapServiceData(id: string, data: Record<string, unknown>): Service {
+function mapServiceData(
+  id: string,
+  data: Record<string, unknown>,
+  mode: ServiceMapMode = "full",
+): Service {
   const plannedStart = pickDateField(data, [
     "plannedStart",
     "inicioPrevisto",
@@ -205,6 +156,7 @@ function mapServiceData(id: string, data: Record<string, unknown>): Service {
     ) ?? 0;
   const createdAt =
     toNumber(data.createdAt ?? data.created_at ?? data.criadoEm ?? data.createdAtMs) ?? Date.now();
+  const includeDetails = mode === "full";
 
   const assignedRaw = data.assignedTo;
   let assignedTo: Service["assignedTo"] | undefined;
@@ -230,13 +182,15 @@ function mapServiceData(id: string, data: Record<string, unknown>): Service {
     }
   }
 
-  const checklist = Array.isArray(data.checklist)
-    ? (data.checklist as Record<string, unknown>[]).map((item) => mapChecklistItemData(item))
-    : undefined;
+  const checklist =
+    includeDetails && Array.isArray(data.checklist)
+      ? (data.checklist as Record<string, unknown>[]).map((item) => mapChecklistItemData(item))
+      : undefined;
 
-  const updates = Array.isArray(data.updates)
-    ? (data.updates as Record<string, unknown>[]).map((item) => mapUpdateData(item))
-    : undefined;
+  const updates =
+    includeDetails && Array.isArray(data.updates)
+      ? (data.updates as Record<string, unknown>[]).map((item) => mapUpdateData(item))
+      : undefined;
 
   const progress = toNumber(
     data.progress ?? data.realPercent ?? data.andamento ?? data.percentual ?? data.percent,
@@ -253,6 +207,13 @@ function mapServiceData(id: string, data: Record<string, unknown>): Service {
     plannedStart,
     plannedEnd,
     totalHours,
+    plannedDaily:
+      includeDetails && Array.isArray(data.plannedDaily)
+        ? (data.plannedDaily as unknown[]).map((value) => {
+            const numeric = typeof value === "number" ? value : Number(value);
+            return Number.isFinite(numeric) ? numeric : 0;
+          })
+        : undefined,
     status: normaliseServiceStatus(data.status),
     code: data.code ? String(data.code) : data.codigo ? String(data.codigo) : undefined,
     assignedTo,
@@ -274,7 +235,10 @@ export async function getServiceById(id: string): Promise<Service | null> {
   return mapServiceData(snap.id, (snap.data() ?? {}) as Record<string, unknown>);
 }
 
-export async function getServicesByIds(ids: string[]): Promise<Service[]> {
+export async function getServicesByIds(
+  ids: string[],
+  options?: { mode?: ServiceMapMode },
+): Promise<Service[]> {
   const uniqueIds = Array.from(
     new Set(ids.filter((id) => typeof id === "string" && id.trim().length > 0)),
   );
@@ -303,6 +267,7 @@ export async function getServicesByIds(ids: string[]): Promise<Service[]> {
         const service = mapServiceData(
           snapshot.id,
           (snapshot.data() ?? {}) as Record<string, unknown>,
+          options?.mode,
         );
         const index = indexMap.get(service.id);
         if (index === undefined) return;
@@ -321,7 +286,10 @@ export async function listRecentServices(): Promise<Service[]> {
   return snap.docs.map((doc) => mapServiceData(doc.id, (doc.data() ?? {}) as Record<string, unknown>));
 }
 
-export async function listAvailableOpenServices(limit = 200): Promise<Service[]> {
+export async function listAvailableOpenServices(
+  limit = 200,
+  options?: { mode?: ServiceMapMode },
+): Promise<Service[]> {
   const safeLimit = Math.max(1, Math.min(limit, 500));
   const allowedStatuses: ServiceStatus[] = ["Aberto", "Pendente"];
   const allowedStatusSet = new Set<ServiceStatus>(allowedStatuses);
@@ -332,7 +300,11 @@ export async function listAvailableOpenServices(limit = 200): Promise<Service[]>
     for (const doc of docs) {
       if (results.length >= safeLimit) break;
       if (seen.has(doc.id)) continue;
-      const service = mapServiceData(doc.id, (doc.data() ?? {}) as Record<string, unknown>);
+      const service = mapServiceData(
+        doc.id,
+        (doc.data() ?? {}) as Record<string, unknown>,
+        options?.mode,
+      );
       if (!allowedStatusSet.has(service.status)) continue;
       if (service.packageId && service.packageId.trim().length > 0) continue;
       seen.add(service.id);
