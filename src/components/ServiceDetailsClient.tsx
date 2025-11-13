@@ -8,6 +8,7 @@ import { dedupeUpdates, formatResourcesLine, sanitiseResourceQuantities } from "
 import { formatDate as formatDateOnly, formatDateTime } from "@/lib/formatDateTime";
 
 import type { ThirdChecklistItem, ThirdService, ThirdServiceUpdate } from "@/app/(third)/terceiro/servico/[id]/types";
+import { cn } from "@/lib/utils";
 
 type ServiceDetailsClientProps = {
   service: ThirdService;
@@ -421,6 +422,17 @@ export default function ServiceDetailsClient({ service, updates: initialUpdates,
     [service, progress, lastUpdateAt, companyLabel, statusLabel],
   );
 
+  const documentMetaItems = useMemo(
+    () => [
+      { label: "FO 012 050 33", highlight: true },
+      { label: "Páginas 1/1" },
+      { label: "Emissão 08/04/2024" },
+      { label: "Revisão 05/07/2024" },
+      { label: "Nº 1" },
+    ],
+    [],
+  );
+
   const submitChecklistUpdates = useCallback(
     async (
       subactivities: ServiceUpdateFormPayload["subactivities"],
@@ -611,12 +623,20 @@ export default function ServiceDetailsClient({ service, updates: initialUpdates,
               <h1 className="text-3xl font-semibold text-foreground">OS: {serviceLabel}</h1>
               <p className="text-sm text-muted-foreground">Formulário único para atualização diária do serviço.</p>
             </div>
-            <div className="flex flex-wrap gap-x-6 gap-y-1 text-[0.7rem] uppercase tracking-[0.2em] text-muted-foreground">
-              <span className="font-semibold text-foreground">FO 012 050 33</span>
-              <span>Páginas 1/1</span>
-              <span>Emissão 08/04/2024</span>
-              <span>Revisão 05/07/2024</span>
-              <span>Nº 1</span>
+            <div className="flex flex-wrap gap-2 text-[0.65rem] uppercase tracking-[0.25em] text-muted-foreground">
+              {documentMetaItems.map((item) => (
+                <span
+                  key={item.label}
+                  className={cn(
+                    "rounded-full px-3 py-1 font-semibold shadow-sm ring-1 ring-inset",
+                    item.highlight
+                      ? "bg-primary/15 text-primary-foreground ring-primary/25"
+                      : "bg-muted/30 text-muted-foreground ring-white/10",
+                  )}
+                >
+                  {item.label}
+                </span>
+              ))}
             </div>
             <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
               <span className="rounded-full bg-muted px-3 py-1 font-medium text-foreground">{statusLabel}</span>
@@ -646,9 +666,9 @@ export default function ServiceDetailsClient({ service, updates: initialUpdates,
           <h2 className="mb-4 text-lg font-semibold">Informações gerais</h2>
           <dl className="grid grid-cols-1 gap-4 text-sm sm:grid-cols-2 xl:grid-cols-3">
             {detailItems.map((item) => (
-              <div key={item.label}>
-                <dt className="text-muted-foreground">{item.label}</dt>
-                <dd className="font-medium">{item.value}</dd>
+              <div key={item.label} className="space-y-1 rounded-xl border border-border/60 bg-muted/20 p-3 shadow-sm">
+                <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{item.label}</dt>
+                <dd className="text-base font-semibold text-foreground">{item.value}</dd>
               </div>
             ))}
           </dl>
