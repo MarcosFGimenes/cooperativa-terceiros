@@ -144,6 +144,30 @@ function mapPackageData(id: string, data: Record<string, unknown>): Package {
   };
 }
 
+export type PackageSummary = Pick<Package, "id" | "name" | "status" | "code" | "createdAt"> & {
+  servicesCount: number;
+};
+
+function mapPackageSummary(id: string, data: Record<string, unknown>): PackageSummary {
+  const services = Array.isArray(data.services)
+    ? (data.services as unknown[])
+    : Array.isArray(data.serviceIds)
+      ? (data.serviceIds as unknown[])
+      : [];
+  const servicesCount = services.length;
+  const createdAt =
+    toNumber(data.createdAt ?? data.created_at ?? data.criadoEm ?? data.createdAtMs) ?? Date.now();
+
+  return {
+    id,
+    name: String(data.name ?? data.nome ?? `Pacote ${id}`),
+    status: normalisePackageStatus(data.status),
+    code: data.code ? String(data.code) : data.codigo ? String(data.codigo) : undefined,
+    createdAt,
+    servicesCount,
+  };
+}
+
 export async function getPackageById(id: string): Promise<Package | null> {
   const snap = await packagesCollection().doc(id).get();
   if (!snap.exists) return null;
@@ -153,7 +177,7 @@ export async function getPackageById(id: string): Promise<Package | null> {
 const listRecentPackagesCached = unstable_cache(
   async () => {
     const snap = await packagesCollection().orderBy("createdAt", "desc").limit(20).get();
-    return snap.docs.map((doc) => mapPackageData(doc.id, (doc.data() ?? {}) as Record<string, unknown>));
+    return snap.docs.map((doc) => mapPackageSummary(doc.id, (doc.data() ?? {}) as Record<string, unknown>));
   },
   ["packages:listRecent"],
   {
@@ -162,7 +186,7 @@ const listRecentPackagesCached = unstable_cache(
   },
 );
 
-export async function listRecentPackages(): Promise<Package[]> {
+export async function listRecentPackages(): Promise<PackageSummary[]> {
   return listRecentPackagesCached();
 }
 
