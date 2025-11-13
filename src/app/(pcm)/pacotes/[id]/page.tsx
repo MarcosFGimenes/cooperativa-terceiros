@@ -2,7 +2,8 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { isNotFoundError, notFound } from "next/navigation";
+import { isRedirectError } from "next/dist/client/components/redirect";
 import dynamic from "next/dynamic";
 import DeletePackageButton from "@/components/DeletePackageButton";
 import SCurveDeferred from "@/components/SCurveDeferred";
@@ -34,6 +35,35 @@ const PackageFoldersManager = dynamic<PackageFoldersManagerProps>(
 );
 
 const MAX_SERVICES_TO_LOAD = 400;
+
+function renderPackageLoadFailure(packageLabel: string, warnings: string[] = []) {
+  const uniqueWarnings = Array.from(
+    new Set(warnings.filter((message) => typeof message === "string" && message.trim().length > 0)),
+  );
+
+  return (
+    <div className="container mx-auto space-y-6 p-4">
+      <div className="card mx-auto max-w-2xl space-y-4 p-6">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Pacote {packageLabel}</h1>
+          <p className="text-sm text-muted-foreground">
+            Não foi possível carregar as informações deste pacote no momento.
+          </p>
+        </div>
+        {uniqueWarnings.length ? (
+          <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
+            {uniqueWarnings.map((message) => (
+              <li key={message}>{message}</li>
+            ))}
+          </ul>
+        ) : null}
+        <Link className="btn btn-secondary w-fit" href="/pacotes">
+          Voltar
+        </Link>
+      </div>
+    </div>
+  );
+}
 
 function normaliseStatus(status: Package["status"] | Service["status"]): string {
   const raw = String(status ?? "").toLowerCase();
@@ -111,7 +141,7 @@ function buildPackageRealizedSeries(planned: ReturnType<typeof plannedCurve>, re
   ];
 }
 
-export default async function PackageDetailPage({ params }: { params: { id: string } }) {
+async function renderPackageDetailPage(params: { id: string }) {
   const rawPackageId = params.id;
   const decodedPackageId = decodeRouteParam(rawPackageId);
   const packageIdCandidates = Array.from(
@@ -157,30 +187,8 @@ export default async function PackageDetailPage({ params }: { params: { id: stri
       return notFound();
     }
 
-    return (
-      <div className="container mx-auto space-y-6 p-4">
-        <div className="card mx-auto max-w-2xl space-y-4 p-6">
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight">Pacote {displayPackageId}</h1>
-            <p className="text-sm text-muted-foreground">
-              Não foi possível carregar as informações deste pacote no momento.
-            </p>
-          </div>
-          <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
-            {fallbackWarnings.map((message) => (
-              <li key={message}>{message}</li>
-            ))}
-          </ul>
-          <Link className="btn btn-secondary w-fit" href="/pacotes">
-            Voltar
-          </Link>
-        </div>
-      </div>
-    );
+    return renderPackageLoadFailure(displayPackageId, fallbackWarnings);
   }
-
-  const foldersPromise = listPackageFolders(pkg.id);
-  const availableServicesPromise = listAvailableOpenServices(200, { mode: "summary" });
 
   let services: Service[] = [];
   let hasServiceOverflow = false;
@@ -344,27 +352,22 @@ export default async function PackageDetailPage({ params }: { params: { id: stri
   let folders: PackageFolder[] = [];
   let availableOpenServices: Service[] = [];
 
-  const [foldersResult, availableServicesResult] = await Promise.allSettled([
-    foldersPromise,
-    availableServicesPromise,
-  ]);
-
-  if (foldersResult.status === "fulfilled") {
-    folders = foldersResult.value;
-  } else {
+  try {
+    folders = await listPackageFolders(pkg.id);
+  } catch (error) {
     registerWarning(
       "Não foi possível carregar os subpacotes vinculados a este pacote.",
-      foldersResult.reason,
+      error,
       "Falha ao listar subpacotes do pacote",
     );
   }
 
-  if (availableServicesResult.status === "fulfilled") {
-    availableOpenServices = availableServicesResult.value;
-  } else {
+  try {
+    availableOpenServices = await listAvailableOpenServices(200, { mode: "summary" });
+  } catch (error) {
     registerWarning(
       "Não foi possível carregar os serviços abertos disponíveis para novos subpacotes.",
-      availableServicesResult.reason,
+      error,
       "Falha ao listar serviços disponíveis",
     );
   }
@@ -562,4 +565,28 @@ export default async function PackageDetailPage({ params }: { params: { id: stri
       </div>
     </div>
   );
+}
+
+export default async function PackageDetailPage({ params }: { params: { id: string } }) {
+  try {
+    return await renderPackageDetailPage(params);
+  } catch (error) {
+    if (isNotFoundError(error) || isRedirectError(error)) {
+      throw error;
+    }
+
+    const rawPackageId = params?.id ?? "";
+    const decodedPackageId = decodeRouteParam(rawPackageId);
+    const displayPackageId = decodedPackageId && decodedPackageId.length > 0 ? decodedPackageId : rawPackageId || "-";
+
+    console.error(
+      `[PackageDetailPage:${rawPackageId || "unknown"}] Erro inesperado ao renderizar os detalhes do pacote.`,
+      error,
+    );
+
+    return renderPackageLoadFailure(displayPackageId, [
+      "Ocorreu um erro inesperado ao carregar os detalhes do pacote.",
+      "Verifique as credenciais do Firebase e tente novamente.",
+    ]);
+  }
 }
