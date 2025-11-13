@@ -279,6 +279,72 @@ export async function listRecentServices(): Promise<Service[]> {
   return snap.docs.map((doc) => mapServiceData(doc.id, (doc.data() ?? {}) as Record<string, unknown>));
 }
 
+export async function listAvailableOpenServices(limit = 200): Promise<Service[]> {
+  const safeLimit = Math.max(1, Math.min(limit, 500));
+  const allowedStatuses: ServiceStatus[] = ["Aberto", "Pendente"];
+  const allowedStatusSet = new Set<ServiceStatus>(allowedStatuses);
+  const seen = new Set<string>();
+  const results: Service[] = [];
+
+  const pushDocs = (docs: FirebaseFirestore.QueryDocumentSnapshot[]) => {
+    for (const doc of docs) {
+      if (results.length >= safeLimit) break;
+      if (seen.has(doc.id)) continue;
+      const service = mapServiceData(doc.id, (doc.data() ?? {}) as Record<string, unknown>);
+      if (!allowedStatusSet.has(service.status)) continue;
+      if (service.packageId && service.packageId.trim().length > 0) continue;
+      seen.add(service.id);
+      results.push(service);
+      if (results.length >= safeLimit) break;
+    }
+  };
+
+  const baseLimit = safeLimit * 2;
+
+  const unassignedQueries: Array<Promise<FirebaseFirestore.QuerySnapshot>> = [
+    servicesCollection().where("packageId", "==", null).limit(baseLimit).get(),
+    servicesCollection().where("packageId", "==", "").limit(baseLimit).get(),
+  ];
+
+  let unassignedError: unknown = null;
+
+  for (const queryPromise of unassignedQueries) {
+    if (results.length >= safeLimit) break;
+    try {
+      const snapshot = await queryPromise;
+      pushDocs(snapshot.docs);
+    } catch (error) {
+      if (!unassignedError) {
+        unassignedError = error;
+      }
+    }
+  }
+
+  if (results.length === 0 && unassignedError) {
+    throw unassignedError;
+  }
+
+  if (results.length < safeLimit) {
+    const statusCandidates = ["Aberto", "aberto", "ABERTO", "Pendente", "pendente", "PENDENTE"];
+    for (const status of statusCandidates) {
+      if (results.length >= safeLimit) break;
+      try {
+        const snapshot = await servicesCollection().where("status", "==", status).limit(baseLimit).get();
+        pushDocs(snapshot.docs);
+      } catch (error) {
+        // Ignore status-specific query failures (e.g., missing indexes) and continue with remaining fallbacks.
+        if (results.length === 0) {
+          throw error;
+        }
+      }
+    }
+  }
+
+  results.sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0));
+
+  return results.slice(0, safeLimit);
+}
+
 function mapChecklistDoc(
   serviceId: string,
   doc: FirebaseFirestore.QueryDocumentSnapshot,
