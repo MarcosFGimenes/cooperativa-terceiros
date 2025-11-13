@@ -1,8 +1,9 @@
 "use client";
 
 import { useCallback, useMemo } from "react";
+import dynamic from "next/dynamic";
 
-import CurvaS from "@/components/charts/CurvaS";
+import type { CurvaSProps } from "@/components/charts/CurvaS";
 import type { Service } from "@/lib/types";
 import { formatDate } from "@/lib/formatDateTime";
 
@@ -39,6 +40,18 @@ const unionDates = (planned: CurvePoint[], actual: CurvePoint[]) => {
   actual.forEach((point) => set.add(point.d));
   return Array.from(set).sort((a, b) => a.localeCompare(b));
 };
+
+const LazyCurvaS = dynamic<CurvaSProps>(
+  () => import("@/components/charts/CurvaS"),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex min-h-[240px] w-full items-center justify-center rounded-lg border border-dashed border-border/60 bg-muted/30 text-sm text-muted-foreground">
+        Carregando gráfico da Curva S...
+      </div>
+    ),
+  },
+);
 
 export default function ServiceGraphSection({ service, planned, actual }: ServiceGraphSectionProps) {
   const rows = useMemo(() => {
@@ -146,7 +159,7 @@ export default function ServiceGraphSection({ service, planned, actual }: Servic
         </div>
       </div>
 
-      <CurvaS planned={planned} actual={actual} />
+      <LazyCurvaS planned={planned} actual={actual} />
 
       <div className="grid gap-4 rounded-lg border border-dashed border-border/70 bg-muted/20 p-4 text-sm text-muted-foreground sm:grid-cols-2 lg:grid-cols-3">
         <div>
