@@ -27,6 +27,8 @@ type Props = {
 
 export default function ServicesCompaniesSection({ folders, serviceDetails }: Props) {
   const [openFolderId, setOpenFolderId] = useState<string | null>(null);
+  const [expandedFolderServices, setExpandedFolderServices] = useState<Record<string, boolean>>({});
+  const MAX_VISIBLE_SERVICES = 5;
 
   return (
     <div className="card space-y-6 p-4">
@@ -64,6 +66,11 @@ export default function ServicesCompaniesSection({ folders, serviceDetails }: Pr
                 } satisfies ServiceDetail;
               });
               const isOpen = openFolderId === folder.id;
+              const isExpanded = expandedFolderServices[folder.id] ?? false;
+              const visibleServices = isExpanded
+                ? assignedServices
+                : assignedServices.slice(0, MAX_VISIBLE_SERVICES);
+              const hiddenCount = assignedServices.length - visibleServices.length;
               return (
                 <div key={folder.id} className="rounded-lg border">
                   <button
@@ -89,15 +96,52 @@ export default function ServicesCompaniesSection({ folders, serviceDetails }: Pr
                       {assignedServices.length === 0 ? (
                         <p className="text-muted-foreground">Nenhum serviço vinculado a este subpacote.</p>
                       ) : (
-                        assignedServices.map((detail) => (
-                          <div key={detail.id} className="rounded border bg-background px-3 py-2">
-                            <p className="font-medium text-foreground">{detail.label || detail.id}</p>
-                            <p className="text-xs text-muted-foreground">
-                              ID: {detail.id}
-                              {detail.status ? ` • ${detail.status}` : ""}
-                            </p>
-                          </div>
-                        ))
+                        <>
+                          {visibleServices.map((detail) => (
+                            <div key={detail.id} className="rounded border bg-background px-3 py-2">
+                              <p className="font-medium text-foreground">{detail.label || detail.id}</p>
+                              <p className="text-xs text-muted-foreground">
+                                ID: {detail.id}
+                                {detail.status ? ` • ${detail.status}` : ""}
+                              </p>
+                            </div>
+                          ))}
+                          {hiddenCount > 0 ? (
+                            <div className="flex flex-wrap items-center justify-between gap-2 rounded border border-dashed bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+                              <span>
+                                Mostrando {visibleServices.length} de {assignedServices.length} serviço
+                                {assignedServices.length === 1 ? "" : "s"}.
+                              </span>
+                              <button
+                                type="button"
+                                className="btn btn-ghost text-xs"
+                                onClick={() =>
+                                  setExpandedFolderServices((prev) => ({
+                                    ...prev,
+                                    [folder.id]: true,
+                                  }))
+                                }
+                              >
+                                Mostrar mais
+                              </button>
+                            </div>
+                          ) : assignedServices.length > MAX_VISIBLE_SERVICES ? (
+                            <div className="flex flex-wrap items-center justify-end gap-2">
+                              <button
+                                type="button"
+                                className="btn btn-ghost text-xs"
+                                onClick={() =>
+                                  setExpandedFolderServices((prev) => ({
+                                    ...prev,
+                                    [folder.id]: false,
+                                  }))
+                                }
+                              >
+                                Mostrar menos
+                              </button>
+                            </div>
+                          ) : null}
+                        </>
                       )}
                     </div>
                   ) : null}

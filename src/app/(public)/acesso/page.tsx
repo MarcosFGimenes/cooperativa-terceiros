@@ -60,6 +60,8 @@ function formatPercent(value: number | undefined) {
   return `${Math.round(Number(value ?? 0))}%`;
 }
 
+const MAX_VISIBLE_SERVICES = 5;
+
 export default function AcessoPorTokenPage() {
   const qp = useSearchParams();
   const initial = useMemo(() => (qp?.get("token") ?? "").trim().toUpperCase(), [qp]);
@@ -75,6 +77,7 @@ export default function AcessoPorTokenPage() {
   const [manualPercent, setManualPercent] = useState<string>("");
   const [checklistValues, setChecklistValues] = useState<Record<string, number>>({});
   const [savingUpdate, setSavingUpdate] = useState(false);
+  const [showAllServicesList, setShowAllServicesList] = useState(false);
   const tokenStorageKey = "third_portal_token";
 
   const persistTokenSession = useCallback(
@@ -172,12 +175,22 @@ export default function AcessoPorTokenPage() {
         } else {
           setSelectedServiceId(null);
         }
+        setShowAllServicesList(false);
       } finally {
         setLoadingServices(false);
       }
     },
     [fetchService],
   );
+
+  const visibleServices = useMemo(() => {
+    if (showAllServicesList) {
+      return services;
+    }
+    return services.slice(0, MAX_VISIBLE_SERVICES);
+  }, [services, showAllServicesList]);
+
+  const hasServiceToggle = services.length > MAX_VISIBLE_SERVICES;
 
   const validateToken = useCallback(
     async (rawCode: string) => {
@@ -187,6 +200,7 @@ export default function AcessoPorTokenPage() {
       setValidationError(null);
       setServices([]);
       setSelectedServiceId(null);
+      setShowAllServicesList(false);
       let didRedirect = false;
       try {
         const response = await fetch(`/api/validate-token?token=${encodeURIComponent(code)}`, {
@@ -371,28 +385,44 @@ export default function AcessoPorTokenPage() {
                   Nenhum serviço disponível no momento.
                 </div>
               ) : (
-                services.map((service) => {
-                  const isActive = service.id === selectedServiceId;
-                  return (
-                    <button
-                      key={service.id}
-                      type="button"
-                      onClick={() => setSelectedServiceId(service.id)}
-                      className={`btn btn-outline min-h-[44px] w-full flex flex-col items-start gap-1 text-left py-3 ${
-                        isActive ? "border-primary bg-primary/10" : ""
-                      }`}
-                    >
-                      <div className="flex w-full items-center justify-between text-sm font-semibold">
-                        <span>{service.os || "Sem O.S"}</span>
-                        <span className="text-xs font-medium text-muted-foreground">{formatPercent(service.andamento)}</span>
-                      </div>
-                      <div className="text-xs text-muted-foreground">
-                        <div>Tag: {service.tag || "—"}</div>
-                        <div>Equipamento: {service.equipamento || "—"}</div>
-                      </div>
-                    </button>
-                  );
-                })
+                <>
+                  {visibleServices.map((service) => {
+                    const isActive = service.id === selectedServiceId;
+                    return (
+                      <button
+                        key={service.id}
+                        type="button"
+                        onClick={() => setSelectedServiceId(service.id)}
+                        className={`btn btn-outline min-h-[44px] w-full flex flex-col items-start gap-1 text-left py-3 ${
+                          isActive ? "border-primary bg-primary/10" : ""
+                        }`}
+                      >
+                        <div className="flex w-full items-center justify-between text-sm font-semibold">
+                          <span>{service.os || "Sem O.S"}</span>
+                          <span className="text-xs font-medium text-muted-foreground">{formatPercent(service.andamento)}</span>
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          <div>Tag: {service.tag || "—"}</div>
+                          <div>Equipamento: {service.equipamento || "—"}</div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                  {hasServiceToggle ? (
+                    <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-dashed p-3 text-xs text-muted-foreground">
+                      <span>
+                        Mostrando {visibleServices.length} de {services.length} serviço{services.length === 1 ? "" : "s"}.
+                      </span>
+                      <button
+                        type="button"
+                        className="btn btn-secondary"
+                        onClick={() => setShowAllServicesList((prev) => !prev)}
+                      >
+                        {showAllServicesList ? "Mostrar menos" : "Mostrar mais"}
+                      </button>
+                    </div>
+                  ) : null}
+                </>
               )}
             </div>
           </div>
