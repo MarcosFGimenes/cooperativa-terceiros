@@ -16,6 +16,7 @@ import {
 } from "firebase/firestore";
 
 import { Field, FormRow } from "@/components/ui/form-controls";
+import { dateOnlyToMillis, formatDateOnlyBR, maskDateOnlyInput, parseDateOnly } from "@/lib/dateOnly";
 import { tryGetFirestore } from "@/lib/firebase";
 import { useFirebaseAuthSession } from "@/lib/useFirebaseAuthSession";
 import { recordTelemetry } from "@/lib/telemetry";
@@ -71,24 +72,43 @@ function toDateInput(value: unknown): string {
   if (value instanceof Timestamp) {
     const date = value.toDate();
     if (!date || Number.isNaN(date.getTime())) return "";
-    return date.toISOString().slice(0, 10);
+    return formatDateOnlyBR({
+      year: date.getUTCFullYear(),
+      month: date.getUTCMonth() + 1,
+      day: date.getUTCDate(),
+    });
   }
   if (typeof value === "string" && value) {
-    return value.slice(0, 10);
+    const parsed = parseDateOnly(value);
+    if (parsed) {
+      return formatDateOnlyBR(parsed);
+    }
+    const trimmed = value.trim();
+    if (trimmed.length >= 10) {
+      const fallback = parseDateOnly(trimmed.slice(0, 10));
+      if (fallback) {
+        return formatDateOnlyBR(fallback);
+      }
+    }
+  }
+  if (value instanceof Date) {
+    if (Number.isNaN(value.getTime())) return "";
+    return formatDateOnlyBR({
+      year: value.getUTCFullYear(),
+      month: value.getUTCMonth() + 1,
+      day: value.getUTCDate(),
+    });
   }
   if (value && typeof (value as { toDate?: () => Date }).toDate === "function") {
     const date = (value as { toDate: () => Date }).toDate();
     if (!date || Number.isNaN(date.getTime())) return "";
-    return date.toISOString().slice(0, 10);
+    return formatDateOnlyBR({
+      year: date.getUTCFullYear(),
+      month: date.getUTCMonth() + 1,
+      day: date.getUTCDate(),
+    });
   }
   return "";
-}
-
-function toTimestamp(value: string) {
-  if (!value) return null;
-  const date = new Date(`${value}T00:00:00`);
-  if (Number.isNaN(date.getTime())) return null;
-  return Timestamp.fromDate(date);
 }
 
 type ServiceEditorClientProps = {
@@ -272,8 +292,16 @@ export default function ServiceEditorClient({ serviceId }: ServiceEditorClientPr
       toast.error("Preencha os campos obrigatórios (O.S, Tag e Equipamento).");
       return;
     }
-    if (!form.dataInicio || !form.dataFim) {
-      toast.error("Informe as datas de início e término previstas.");
+    const inicioPrevisto = parseDateOnly(form.dataInicio);
+    const fimPrevisto = parseDateOnly(form.dataFim);
+    if (!inicioPrevisto || !fimPrevisto) {
+      toast.error("Datas inválidas. Utilize o formato dd/mm/aaaa.");
+      return;
+    }
+    const inicioMillis = dateOnlyToMillis(inicioPrevisto);
+    const fimMillis = dateOnlyToMillis(fimPrevisto);
+    if (inicioMillis > fimMillis) {
+      toast.error("A data de término prevista deve ser posterior ou igual à data de início.");
       return;
     }
     const horas = Number(form.horasPrevistas);
@@ -305,8 +333,8 @@ export default function ServiceEditorClient({ serviceId }: ServiceEditorClientPr
         equipamento: form.equipamento.trim(),
         equipmentName: form.equipamento.trim(),
         setor: form.setor.trim() || null,
-        inicioPrevisto: toTimestamp(form.dataInicio),
-        fimPrevisto: toTimestamp(form.dataFim),
+        inicioPrevisto: Timestamp.fromMillis(inicioMillis),
+        fimPrevisto: Timestamp.fromMillis(fimMillis),
         horasPrevistas: horas,
         empresaId: form.empresaId.trim() || null,
         company: form.empresaId.trim() || null,
@@ -470,16 +498,24 @@ export default function ServiceEditorClient({ serviceId }: ServiceEditorClientPr
             <FormRow>
               <Field
                 label="Data de início prevista"
-                type="date"
                 value={form.dataInicio}
-                onChange={(event) => updateForm("dataInicio", event.target.value)}
+                onChange={(event) => updateForm("dataInicio", maskDateOnlyInput(event.target.value))}
+                onBlur={(event) => updateForm("dataInicio", maskDateOnlyInput(event.target.value))}
+                placeholder="dd/mm/aaaa"
+                inputMode="numeric"
+                maxLength={10}
+                pattern="\d{2}/\d{2}/\d{4}"
                 required
               />
               <Field
                 label="Data de término prevista"
-                type="date"
                 value={form.dataFim}
-                onChange={(event) => updateForm("dataFim", event.target.value)}
+                onChange={(event) => updateForm("dataFim", maskDateOnlyInput(event.target.value))}
+                onBlur={(event) => updateForm("dataFim", maskDateOnlyInput(event.target.value))}
+                placeholder="dd/mm/aaaa"
+                inputMode="numeric"
+                maxLength={10}
+                pattern="\d{2}/\d{2}/\d{4}"
                 required
               />
             </FormRow>

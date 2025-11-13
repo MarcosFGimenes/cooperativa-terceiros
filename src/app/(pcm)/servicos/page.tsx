@@ -1,17 +1,10 @@
-export const dynamic = "force-dynamic";
-export const revalidate = 0;
+export const revalidate = 300;
 
 import Link from "next/link";
 
 import { listRecentServices } from "@/lib/repo/services";
-import type { Service } from "@/types";
 
-function normaliseStatus(status: Service["status"]): string {
-  const raw = String(status ?? "").toLowerCase();
-  if (raw === "concluido" || raw === "concluído" || raw === "encerrado") return "Concluído";
-  if (raw === "pendente") return "Pendente";
-  return "Aberto";
-}
+import ServicesListClient from "./ServicesListClient";
 
 export default async function ServicesListPage() {
   const services = await listRecentServices();
@@ -36,34 +29,7 @@ export default async function ServicesListPage() {
       {services.length === 0 ? (
         <div className="card p-6 text-sm text-muted-foreground">Nenhum serviço encontrado.</div>
       ) : (
-        <div className="card divide-y">
-          {services.map((service) => {
-            const progress = Math.round(
-              service.progress ?? service.realPercent ?? service.andamento ?? 0,
-            );
-            const serviceHref = `/servicos/${encodeURIComponent(service.id)}`;
-            return (
-              <Link
-                key={service.id}
-                className="flex items-center gap-3 p-4 transition hover:bg-muted/40"
-                href={serviceHref}
-              >
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium">
-                    {service.os || service.code || service.id}
-                    {service.equipmentName
-                      ? ` — ${service.equipmentName}`
-                      : service.tag
-                        ? ` — ${service.tag}`
-                        : ""}
-                  </p>
-                  <p className="text-xs text-muted-foreground">{normaliseStatus(service.status)}</p>
-                </div>
-                <span className="text-sm font-semibold text-primary">{progress}%</span>
-              </Link>
-            );
-          })}
-        </div>
+        <ServicesListClient services={services} />
       )}
     </div>
   );

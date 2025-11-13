@@ -4,6 +4,7 @@ import { FormEvent, useState } from "react";
 import { toast } from "sonner";
 
 import { managementFetch } from "@/lib/managementFetch";
+import { dateOnlyToMillis, formatDateOnly, formatDateOnlyBR, maskDateOnlyInput, parseDateOnly } from "@/lib/dateOnly";
 import type { ServiceStatus } from "@/lib/types";
 
 type Props = {
@@ -28,8 +29,37 @@ const STATUS_OPTIONS: { value: ServiceStatus; label: string }[] = [
   { value: "concluido", label: "Concluído" },
 ];
 
+function toDisplayDate(value?: string | null): string {
+  if (!value) return "";
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+  const parsed = parseDateOnly(trimmed);
+  if (parsed) {
+    return formatDateOnlyBR(parsed);
+  }
+  if (trimmed.length >= 10) {
+    const fallback = parseDateOnly(trimmed.slice(0, 10));
+    if (fallback) {
+      return formatDateOnlyBR(fallback);
+    }
+  }
+  const date = new Date(trimmed);
+  if (!Number.isNaN(date.getTime())) {
+    return formatDateOnlyBR({
+      year: date.getUTCFullYear(),
+      month: date.getUTCMonth() + 1,
+      day: date.getUTCDate(),
+    });
+  }
+  return maskDateOnlyInput(trimmed);
+}
+
 export default function ServiceMetadataForm({ serviceId, initial }: Props) {
-  const [form, setForm] = useState(initial);
+  const [form, setForm] = useState(() => ({
+    ...initial,
+    plannedStart: toDisplayDate(initial.plannedStart),
+    plannedEnd: toDisplayDate(initial.plannedEnd),
+  }));
   const [saving, setSaving] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -45,6 +75,16 @@ export default function ServiceMetadataForm({ serviceId, initial }: Props) {
 
     try {
       setSaving(true);
+      const plannedStartParts = parseDateOnly(form.plannedStart);
+      const plannedEndParts = parseDateOnly(form.plannedEnd);
+      if (!plannedStartParts || !plannedEndParts) {
+        throw new Error("Datas inválidas. Utilize o formato dd/mm/aaaa.");
+      }
+      const startMillis = dateOnlyToMillis(plannedStartParts);
+      const endMillis = dateOnlyToMillis(plannedEndParts);
+      if (startMillis > endMillis) {
+        throw new Error("A data de término prevista deve ser posterior ou igual à data de início.");
+      }
       const response = await managementFetch(`/api/management/services/${serviceId}/update`, {
         method: "POST",
         body: JSON.stringify({
@@ -53,8 +93,8 @@ export default function ServiceMetadataForm({ serviceId, initial }: Props) {
           tag: form.tag.trim(),
           equipmentName: form.equipmentName.trim(),
           sector: form.sector.trim(),
-          plannedStart: form.plannedStart,
-          plannedEnd: form.plannedEnd,
+          plannedStart: formatDateOnly(plannedStartParts),
+          plannedEnd: formatDateOnly(plannedEndParts),
           totalHours: Number(form.totalHours) || 0,
           company: form.company?.trim() || undefined,
           status: form.status,
@@ -125,20 +165,28 @@ export default function ServiceMetadataForm({ serviceId, initial }: Props) {
         <label className="label">
           Início previsto
           <input
-            type="date"
             className="input mt-1"
             value={form.plannedStart ?? ""}
-            onChange={(event) => updateField("plannedStart", event.target.value)}
+            onChange={(event) => updateField("plannedStart", maskDateOnlyInput(event.target.value))}
+            onBlur={(event) => updateField("plannedStart", maskDateOnlyInput(event.target.value))}
+            placeholder="dd/mm/aaaa"
+            inputMode="numeric"
+            maxLength={10}
+            pattern="\d{2}/\d{2}/\d{4}"
           />
         </label>
 
         <label className="label">
           Término previsto
           <input
-            type="date"
             className="input mt-1"
             value={form.plannedEnd ?? ""}
-            onChange={(event) => updateField("plannedEnd", event.target.value)}
+            onChange={(event) => updateField("plannedEnd", maskDateOnlyInput(event.target.value))}
+            onBlur={(event) => updateField("plannedEnd", maskDateOnlyInput(event.target.value))}
+            placeholder="dd/mm/aaaa"
+            inputMode="numeric"
+            maxLength={10}
+            pattern="\d{2}/\d{2}/\d{4}"
           />
         </label>
 

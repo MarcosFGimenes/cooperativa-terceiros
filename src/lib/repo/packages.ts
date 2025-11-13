@@ -3,6 +3,7 @@
 import { getAdmin } from "@/lib/firebaseAdmin";
 import type { Package, Service } from "@/lib/types";
 import { FieldValue } from "firebase-admin/firestore";
+import { revalidateTag, unstable_cache } from "next/cache";
 
 const getDb = () => getAdmin().db;
 const packagesCollection = () => getDb().collection("packages");
@@ -149,9 +150,20 @@ export async function getPackageById(id: string): Promise<Package | null> {
   return mapPackageData(snap.id, (snap.data() ?? {}) as Record<string, unknown>);
 }
 
+const listRecentPackagesCached = unstable_cache(
+  async () => {
+    const snap = await packagesCollection().orderBy("createdAt", "desc").limit(20).get();
+    return snap.docs.map((doc) => mapPackageData(doc.id, (doc.data() ?? {}) as Record<string, unknown>));
+  },
+  ["packages:listRecent"],
+  {
+    revalidate: 300,
+    tags: ["packages:recent"],
+  },
+);
+
 export async function listRecentPackages(): Promise<Package[]> {
-  const snap = await packagesCollection().orderBy("createdAt", "desc").limit(20).get();
-  return snap.docs.map((doc) => mapPackageData(doc.id, (doc.data() ?? {}) as Record<string, unknown>));
+  return listRecentPackagesCached();
 }
 
 export async function listPackageServices(
@@ -219,6 +231,9 @@ export async function createPackage(
 
     return packageRef.id;
   });
+
+  revalidateTag("packages:recent");
+  revalidateTag("services:recent");
 
   return packageId;
 }
@@ -330,7 +345,11 @@ export async function updatePackageMetadata(
   if (!updatedSnap.exists) {
     throw new Error("Pacote não encontrado após atualização.");
   }
-  return mapPackageData(updatedSnap.id, (updatedSnap.data() ?? {}) as Record<string, unknown>);
+  const updated = mapPackageData(updatedSnap.id, (updatedSnap.data() ?? {}) as Record<string, unknown>);
+
+  revalidateTag("packages:recent");
+
+  return updated;
 }
 
 export async function deletePackage(packageId: string): Promise<boolean> {
@@ -402,5 +421,9 @@ export async function deletePackage(packageId: string): Promise<boolean> {
   }
 
   await commitBatchOperations(operations);
+
+  revalidateTag("packages:recent");
+  revalidateTag("services:recent");
+
   return true;
 }
