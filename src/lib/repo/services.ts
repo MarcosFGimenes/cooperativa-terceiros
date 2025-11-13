@@ -11,6 +11,52 @@ import { revalidateTag, unstable_cache } from "next/cache";
 const getDb = () => getAdmin().db;
 const servicesCollection = () => getDb().collection("services");
 
+const SERVICE_CACHE_TTL_SECONDS = 180;
+
+const serviceDetailCache = unstable_cache(
+  async (serviceId: string) => {
+    const snap = await servicesCollection().doc(serviceId).get();
+    if (!snap.exists) return null;
+    return mapServiceData(snap.id, (snap.data() ?? {}) as Record<string, unknown>);
+  },
+  ["services", "detail"],
+  {
+    revalidate: SERVICE_CACHE_TTL_SECONDS,
+    tags: ["services:detail"],
+  },
+);
+
+const serviceChecklistCache = unstable_cache(
+  async (serviceId: string) => {
+    const col = servicesCollection().doc(serviceId).collection("checklist");
+    const snap = await col.orderBy("description", "asc").get();
+    return snap.docs.map((doc) => mapChecklistDoc(serviceId, doc));
+  },
+  ["services", "checklist"],
+  {
+    revalidate: SERVICE_CACHE_TTL_SECONDS,
+    tags: ["services:checklist"],
+  },
+);
+
+const serviceUpdatesCache = unstable_cache(
+  async (serviceId: string, limit: number) => {
+    const updatesCol = servicesCollection().doc(serviceId).collection("updates");
+    const snap = await updatesCol.orderBy("createdAt", "desc").limit(limit).get();
+    return snap.docs.map((doc) => mapUpdateDoc(serviceId, doc));
+  },
+  ["services", "updates"],
+  {
+    revalidate: SERVICE_CACHE_TTL_SECONDS,
+    tags: ["services:updates"],
+  },
+);
+
+function revalidateServiceDetailCache(serviceId: string) {
+  if (!serviceId) return;
+  revalidateTag("services:detail");
+}
+
 function toMillis(value: unknown | Timestamp | number | null | undefined) {
   if (typeof value === "number") return value;
   if (!value) return undefined;
@@ -231,9 +277,10 @@ function mapServiceData(
 }
 
 export async function getServiceById(id: string): Promise<Service | null> {
-  const snap = await servicesCollection().doc(id).get();
-  if (!snap.exists) return null;
-  return mapServiceData(snap.id, (snap.data() ?? {}) as Record<string, unknown>);
+  const trimmedId = typeof id === "string" ? id.trim() : "";
+  if (!trimmedId) return null;
+
+  return serviceDetailCache(trimmedId);
 }
 
 export async function getServicesByIds(
@@ -586,17 +633,20 @@ function mapUpdateDoc(
 }
 
 export async function getService(serviceId: string): Promise<Service | null> {
-  const snap = await servicesCollection().doc(serviceId).get();
-  if (!snap.exists) return null;
-  return mapServiceDoc(snap);
+  const trimmedId = typeof serviceId === "string" ? serviceId.trim() : "";
+  if (!trimmedId) return null;
+
+  return serviceDetailCache(trimmedId);
 }
 
 export async function getChecklist(
   serviceId: string,
 ): Promise<ChecklistItem[]> {
-  const col = servicesCollection().doc(serviceId).collection("checklist");
-  const snap = await col.orderBy("description", "asc").get();
-  return snap.docs.map((doc) => mapChecklistDoc(serviceId, doc));
+  const trimmedId = typeof serviceId === "string" ? serviceId.trim() : "";
+  if (!trimmedId) return [];
+
+  const checklist = await serviceChecklistCache(trimmedId);
+  return checklist ?? [];
 }
 
 export async function setChecklistItems(
@@ -641,6 +691,10 @@ export async function setChecklistItems(
       updatedAt: FieldValue.serverTimestamp(),
     });
   });
+
+  revalidateTag("services:recent");
+  revalidateTag("services:checklist");
+  revalidateServiceDetailCache(serviceId);
 }
 
 type ServiceMetadataInput = {
@@ -703,6 +757,7 @@ export async function updateServiceMetadata(serviceId: string, input: ServiceMet
   await ref.update(payload);
 
   revalidateTag("services:recent");
+  revalidateServiceDetailCache(serviceId);
 }
 
 export async function updateChecklistProgress(
@@ -770,6 +825,8 @@ export async function updateChecklistProgress(
   });
 
   revalidateTag("services:recent");
+  revalidateTag("services:checklist");
+  revalidateServiceDetailCache(serviceId);
 
   return newPercent;
 }
@@ -1022,6 +1079,8 @@ export async function addManualUpdate(
 
   const mapped = mapUpdateDoc(serviceId, updateSnap);
   revalidateTag("services:recent");
+  revalidateTag("services:updates");
+  revalidateServiceDetailCache(serviceId);
   return { realPercent: mapped.realPercentSnapshot ?? percent, update: mapped };
 }
 
@@ -1062,6 +1121,8 @@ export async function addComputedUpdate(
   });
 
   revalidateTag("services:recent");
+  revalidateTag("services:updates");
+  revalidateServiceDetailCache(serviceId);
 
   return updateId;
 }
@@ -1070,12 +1131,13 @@ export async function listUpdates(
   serviceId: string,
   limit = 50,
 ): Promise<ServiceUpdate[]> {
-  const updatesCol = servicesCollection().doc(serviceId).collection("updates");
-  const snap = await updatesCol
-    .orderBy("createdAt", "desc")
-    .limit(limit)
-    .get();
-  return snap.docs.map((doc) => mapUpdateDoc(serviceId, doc));
+  const trimmedId = typeof serviceId === "string" ? serviceId.trim() : "";
+  if (!trimmedId) return [];
+
+  const safeLimit = Number.isFinite(limit) && limit > 0 ? Math.min(Math.floor(limit), 200) : 50;
+
+  const updates = await serviceUpdatesCache(trimmedId, safeLimit);
+  return updates ?? [];
 }
 
 export async function listServices(filter?: {
@@ -1129,5 +1191,8 @@ export async function deleteService(serviceId: string): Promise<boolean> {
 
   await ref.delete();
   revalidateTag("services:recent");
+  revalidateTag("services:checklist");
+  revalidateTag("services:updates");
+  revalidateServiceDetailCache(serviceId);
   return true;
 }
