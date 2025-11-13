@@ -2,8 +2,11 @@
 
 import { useEffect, useMemo } from "react";
 import { useFieldArray, useForm } from "react-hook-form";
+import { Check } from "lucide-react";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
+
+import { cn } from "@/lib/utils";
 
 export type ServiceUpdateFormPayload = {
   percent: number;
@@ -523,21 +526,33 @@ export default function ServiceUpdateForm({
 
       <div className="space-y-3">
         <h3 className="text-sm font-semibold text-foreground">Recursos utilizados</h3>
-        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4">
           {RESOURCE_OPTIONS.map((resource) => {
             const checked = selectedResources?.includes(resource.id) ?? false;
             return (
-              <label
-                key={resource.id}
-                className="flex cursor-pointer items-start gap-3 rounded-lg border border-muted bg-muted/40 p-2 text-left text-sm"
-              >
+              <label key={resource.id} className="group relative block">
                 <input
                   type="checkbox"
-                  className="h-4 w-4"
+                  className="sr-only"
                   checked={checked}
                   onChange={() => toggleResource(resource.id)}
                 />
-                <span className="font-medium text-foreground break-words leading-snug">{resource.label}</span>
+                <div
+                  className={cn(
+                    "flex h-full items-center gap-3 rounded-2xl border border-border bg-background/80 p-3 text-left text-sm text-foreground shadow-sm transition duration-200 group-hover:border-primary/60 group-hover:shadow-md",
+                    checked && "border-primary bg-primary/10 shadow-md ring-1 ring-primary/30",
+                  )}
+                >
+                  <span
+                    className={cn(
+                      "flex h-5 w-5 items-center justify-center rounded-md border border-border bg-muted/40 text-muted-foreground transition",
+                      checked && "border-primary bg-primary/10 text-primary",
+                    )}
+                  >
+                    <Check className={cn("h-3 w-3 transition-opacity", checked ? "opacity-100" : "opacity-0")} />
+                  </span>
+                  <span className={cn("font-medium leading-snug text-foreground", checked && "text-primary")}>{resource.label}</span>
+                </div>
               </label>
             );
           })}
@@ -559,39 +574,58 @@ export default function ServiceUpdateForm({
         {workforceArray.fields.length === 0 ? (
           <p className="text-xs text-muted-foreground">Informe as funções e quantidades utilizadas.</p>
         ) : (
-          <div className="space-y-2">
-            {workforceArray.fields.map((field, index) => (
-              <div key={field.id} className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_140px_auto]">
-                <select className="input" {...register(`workforce.${index}.role` as const)}>
-                  <option value="">Selecione</option>
-                  {WORKFORCE_ROLES.map((role) => (
-                    <option key={role} value={role}>
-                      {role}
-                    </option>
-                  ))}
-                </select>
-                <input
-                  type="number"
-                  className="input"
-                  min={1}
-                  {...register(`workforce.${index}.quantity` as const, { valueAsNumber: true })}
-                />
-                <button
-                  type="button"
-                  className="btn btn-outline"
-                  onClick={() => workforceArray.remove(index)}
-                  disabled={workforceArray.fields.length === 1}
-                >
-                  Remover
-                </button>
-                {errors.workforce?.[index]?.role ? (
-                  <p className="text-xs text-destructive sm:col-span-3">{errors.workforce[index]?.role?.message}</p>
-                ) : null}
-                {errors.workforce?.[index]?.quantity ? (
-                  <p className="text-xs text-destructive sm:col-span-3">{errors.workforce[index]?.quantity?.message}</p>
-                ) : null}
-              </div>
-            ))}
+          <div className="space-y-3">
+            {workforceArray.fields.map((field, index) => {
+              const roleFieldId = `${serviceId}-workforce-role-${index}`;
+              const quantityFieldId = `${serviceId}-workforce-quantity-${index}`;
+              return (
+                <div key={field.id} className="rounded-2xl border border-border bg-background/80 p-3 shadow-sm">
+                  <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_140px_auto] sm:items-end">
+                    <div className="space-y-1">
+                      <label htmlFor={roleFieldId} className="text-xs font-medium text-muted-foreground">
+                        Função
+                      </label>
+                      <select id={roleFieldId} className="input" {...register(`workforce.${index}.role` as const)}>
+                        <option value="">Selecione</option>
+                        {WORKFORCE_ROLES.map((role) => (
+                          <option key={role} value={role}>
+                            {role}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="space-y-1">
+                      <label htmlFor={quantityFieldId} className="text-xs font-medium text-muted-foreground">
+                        Quantidade
+                      </label>
+                      <input
+                        id={quantityFieldId}
+                        type="number"
+                        className="input"
+                        min={1}
+                        {...register(`workforce.${index}.quantity` as const, { valueAsNumber: true })}
+                      />
+                    </div>
+                    <div className="flex items-end justify-end">
+                      <button
+                        type="button"
+                        className="btn btn-outline btn-sm"
+                        onClick={() => workforceArray.remove(index)}
+                        disabled={workforceArray.fields.length === 1}
+                      >
+                        Remover
+                      </button>
+                    </div>
+                  </div>
+                  {errors.workforce?.[index]?.role ? (
+                    <p className="mt-2 text-xs text-destructive">{errors.workforce[index]?.role?.message}</p>
+                  ) : null}
+                  {errors.workforce?.[index]?.quantity ? (
+                    <p className="mt-1 text-xs text-destructive">{errors.workforce[index]?.quantity?.message}</p>
+                  ) : null}
+                </div>
+              );
+            })}
           </div>
         )}
         {typeof errors.workforce?.message === "string" ? (
@@ -601,25 +635,41 @@ export default function ServiceUpdateForm({
 
       <div className="space-y-3">
         <h3 className="text-sm font-semibold text-foreground">Períodos trabalhados</h3>
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+        <div className="grid gap-3 sm:grid-cols-3">
           {SHIFT_OPTIONS.map((option) => {
             const checked = selectedShifts.includes(option.id);
             const disabled = !checked && shiftArray.fields.length >= 2;
             return (
               <label
                 key={option.id}
-                className={`flex cursor-pointer items-center gap-2 rounded-full border px-3 py-2 text-sm ${
-                  checked ? "border-primary bg-primary/10 text-primary" : "border-muted bg-muted/40"
-                }`}
+                className={cn(
+                  "group relative block",
+                  disabled && !checked && "cursor-not-allowed opacity-60",
+                )}
               >
                 <input
                   type="checkbox"
-                  className="h-4 w-4"
+                  className="sr-only"
                   checked={checked}
                   onChange={() => toggleShift(option.id)}
                   disabled={disabled}
                 />
-                {option.label}
+                <div
+                  className={cn(
+                    "flex h-full items-center justify-center gap-2 rounded-full border border-border bg-background/80 px-4 py-2 text-sm font-medium text-foreground shadow-sm transition duration-200 group-hover:border-primary/60 group-hover:shadow-md",
+                    checked && "border-primary bg-primary/10 text-primary shadow-md ring-1 ring-primary/30",
+                  )}
+                >
+                  <span
+                    className={cn(
+                      "flex h-5 w-5 items-center justify-center rounded-full border border-border bg-muted/40 text-muted-foreground transition",
+                      checked && "border-primary bg-primary/10 text-primary",
+                    )}
+                  >
+                    <Check className={cn("h-3 w-3 transition-opacity", checked ? "opacity-100" : "opacity-0")} />
+                  </span>
+                  {option.label}
+                </div>
               </label>
             );
           })}
@@ -636,10 +686,12 @@ export default function ServiceUpdateForm({
         {shiftArray.fields.length > 0 ? (
           <div className="grid gap-3 md:grid-cols-2">
             {shiftArray.fields.map((field, index) => (
-              <div key={field.id} className="rounded-lg border border-muted p-3">
+              <div key={field.id} className="rounded-2xl border border-border bg-background/80 p-4 shadow-sm">
                 <input type="hidden" value={field.shift} {...register(`shifts.${index}.shift` as const)} />
-                <div className="text-sm font-semibold text-foreground">
-                  {SHIFT_OPTIONS.find((option) => option.id === field.shift)?.label ?? field.shift}
+                <div className="flex items-center justify-between gap-2">
+                  <div className="text-sm font-semibold text-foreground">
+                    {SHIFT_OPTIONS.find((option) => option.id === field.shift)?.label ?? field.shift}
+                  </div>
                 </div>
                 <div className="mt-3 grid grid-cols-1 gap-3 [@media(min-width:360px)]:grid-cols-2">
                   <div className="space-y-1">
