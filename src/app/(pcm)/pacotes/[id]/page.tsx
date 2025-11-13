@@ -20,14 +20,20 @@ export const revalidate = 0;
 
 const MAX_SERVICES_TO_LOAD = 400;
 
+const PACKAGE_STATUS_TONE: Record<string, string> = {
+  Concluído: "bg-emerald-100 text-emerald-700 border-emerald-200",
+  Encerrado: "bg-slate-200 text-slate-700 border-slate-300",
+  Aberto: "bg-sky-100 text-sky-700 border-sky-200",
+};
+
 function renderPackageLoadFailure(packageLabel: string, warnings: string[] = []) {
   const uniqueWarnings = Array.from(
     new Set(warnings.filter((message) => typeof message === "string" && message.trim().length > 0)),
   );
 
   return (
-    <div className="container mx-auto space-y-6 p-4">
-      <div className="card mx-auto max-w-2xl space-y-4 p-6">
+    <div className="container mx-auto max-w-4xl space-y-6 px-4 py-6">
+      <div className="rounded-2xl border bg-card/80 p-6 shadow-sm">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Pacote {packageLabel}</h1>
           <p className="text-sm text-muted-foreground">
@@ -35,13 +41,13 @@ function renderPackageLoadFailure(packageLabel: string, warnings: string[] = [])
           </p>
         </div>
         {uniqueWarnings.length ? (
-          <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
+          <ul className="mt-3 list-disc space-y-1 pl-5 text-sm text-muted-foreground">
             {uniqueWarnings.map((message) => (
               <li key={message}>{message}</li>
             ))}
           </ul>
         ) : null}
-        <Link className="btn btn-secondary w-fit" href="/pacotes">
+        <Link className="btn btn-secondary mt-4 w-fit" href="/pacotes">
           Voltar
         </Link>
       </div>
@@ -336,22 +342,27 @@ async function renderPackageDetailPage(params: { id: string }) {
   let folders: PackageFolder[] = [];
   let availableOpenServices: Service[] = [];
 
-  try {
-    folders = await listPackageFolders(pkg.id);
-  } catch (error) {
+  const [foldersResult, availableServicesResult] = await Promise.allSettled([
+    listPackageFolders(pkg.id),
+    listAvailableOpenServices(200, { mode: "summary" }),
+  ]);
+
+  if (foldersResult.status === "fulfilled") {
+    folders = foldersResult.value;
+  } else {
     registerWarning(
       "Não foi possível carregar os subpacotes vinculados a este pacote.",
-      error,
+      foldersResult.reason,
       "Falha ao listar subpacotes do pacote",
     );
   }
 
-  try {
-    availableOpenServices = await listAvailableOpenServices(200, { mode: "summary" });
-  } catch (error) {
+  if (availableServicesResult.status === "fulfilled") {
+    availableOpenServices = availableServicesResult.value;
+  } else {
     registerWarning(
       "Não foi possível carregar os serviços abertos disponíveis para novos subpacotes.",
-      error,
+      availableServicesResult.reason,
       "Falha ao listar serviços disponíveis",
     );
   }
@@ -440,27 +451,72 @@ async function renderPackageDetailPage(params: { id: string }) {
   const warningMessages = Array.from(warningSet);
   const encodedPackageId = encodeURIComponent(pkg.id);
   const packageLabel = pkg.name || pkg.code || pkg.id;
+  const statusLabel = normaliseStatus(pkg.status);
+  const statusTone = PACKAGE_STATUS_TONE[statusLabel] ?? "border-border bg-muted text-foreground/80";
+  const plannedStartLabel = formatDate(pkg.plannedStart);
+  const plannedEndLabel = formatDate(pkg.plannedEnd);
+  const totalHoursLabel = hasServiceOverflow
+    ? pkg.totalHours || hoursFromServices || "-"
+    : hoursFromServices || pkg.totalHours || "-";
+  const totalServicesLabel = serviceCountReference
+    ? serviceCountIsExact
+      ? `${serviceCountReference} serviço${serviceCountReference === 1 ? "" : "s"}`
+      : `Mais de ${Math.max(serviceCountReference, services.length)} serviços`
+    : `${services.length} serviço${services.length === 1 ? "" : "s"}`;
 
   return (
-    <div className="container mx-auto space-y-6 p-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Pacote {packageLabel}</h1>
-          <p className="text-sm text-muted-foreground">Resumo do pacote, serviços vinculados e curva S consolidada.</p>
+    <div className="container mx-auto max-w-6xl space-y-6 px-4 py-6">
+      <section className="rounded-2xl border bg-card/80 p-5 shadow-sm">
+        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+          <div className="space-y-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className={`rounded-full border px-2 py-0.5 text-xs font-semibold ${statusTone}`}>
+                {statusLabel}
+              </span>
+              <span className="rounded-full border border-transparent bg-muted/60 px-2 py-0.5 text-xs text-muted-foreground">
+                {realizedHeaderLabel}
+              </span>
+            </div>
+            <div className="space-y-1">
+              <h1 className="text-2xl font-semibold tracking-tight">Pacote {packageLabel}</h1>
+              <p className="text-sm text-muted-foreground">
+                Resumo do pacote, serviços vinculados e curva S consolidada.
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2 md:justify-end">
+            <Link className="btn btn-secondary" href="/pacotes">
+              Voltar
+            </Link>
+            <Link className="btn btn-primary" href={`/pacotes/${encodedPackageId}/editar`}>
+              Editar
+            </Link>
+            <DeletePackageButton packageId={pkg.id} packageLabel={packageLabel} />
+          </div>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Link className="btn btn-secondary" href="/pacotes">
-            Voltar
-          </Link>
-          <Link className="btn btn-primary" href={`/pacotes/${encodedPackageId}/editar`}>
-            Editar
-          </Link>
-          <DeletePackageButton packageId={pkg.id} packageLabel={packageLabel} />
-        </div>
-      </div>
+
+        <dl className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="space-y-1 rounded-xl border border-dashed border-border/70 bg-muted/20 p-4">
+            <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Início planejado</dt>
+            <dd className="text-base font-semibold text-foreground">{plannedStartLabel}</dd>
+          </div>
+          <div className="space-y-1 rounded-xl border border-dashed border-border/70 bg-muted/20 p-4">
+            <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Fim planejado</dt>
+            <dd className="text-base font-semibold text-foreground">{plannedEndLabel}</dd>
+          </div>
+          <div className="space-y-1 rounded-xl border border-dashed border-border/70 bg-muted/20 p-4">
+            <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Serviços vinculados</dt>
+            <dd className="text-base font-semibold text-foreground">{totalServicesLabel}</dd>
+          </div>
+          <div className="space-y-1 rounded-xl border border-dashed border-border/70 bg-muted/20 p-4">
+            <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Horas totais</dt>
+            <dd className="text-base font-semibold text-foreground">{totalHoursLabel}</dd>
+          </div>
+        </dl>
+      </section>
 
       {warningMessages.length ? (
-        <div className="rounded-md border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+        <div className="rounded-2xl border border-amber-200 bg-amber-50/90 p-4 text-sm text-amber-900 shadow-sm">
           <p className="font-medium">Nem todas as informações foram carregadas.</p>
           <ul className="mt-2 list-disc space-y-1 pl-5">
             {warningMessages.map((message) => (
@@ -470,8 +526,8 @@ async function renderPackageDetailPage(params: { id: string }) {
         </div>
       ) : null}
 
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.6fr)_minmax(320px,1fr)]">
-        <div className="space-y-4">
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.7fr)_minmax(320px,1fr)]">
+        <section className="rounded-2xl border bg-card/80 p-5 shadow-sm">
           <SCurveDeferred
             planned={planned}
             realizedSeries={realizedSeriesData}
@@ -482,62 +538,55 @@ async function renderPackageDetailPage(params: { id: string }) {
             chartHeight={360}
             deferRendering
             fallback={
-              <div className="flex h-[360px] w-full items-center justify-center rounded-xl border border-dashed bg-muted/40">
+              <div className="flex h-[360px] w-full items-center justify-center rounded-xl border border-dashed border-border/70 bg-muted/40">
                 <span className="text-sm text-muted-foreground">Carregando gráfico...</span>
               </div>
             }
           />
-        </div>
+        </section>
 
-        <div className="space-y-4">
-          <div className="card p-4">
-            <h2 className="mb-4 text-lg font-semibold">Informações do pacote</h2>
-            <dl className="grid grid-cols-1 gap-4 text-sm">
-              <div>
-                <dt className="text-muted-foreground">Status</dt>
-                <dd className="font-medium">{normaliseStatus(pkg.status)}</dd>
-              </div>
-              <div>
-                <dt className="text-muted-foreground">Descrição</dt>
-                <dd className="whitespace-pre-wrap text-sm text-foreground/90">
-                  {pkg.description && pkg.description.trim() ? pkg.description : "-"}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-muted-foreground">Código</dt>
-                <dd className="font-medium">{pkg.code || "-"}</dd>
-              </div>
-              <div>
-                <dt className="text-muted-foreground">Início planejado</dt>
-                <dd className="font-medium">{formatDate(pkg.plannedStart)}</dd>
-              </div>
-              <div>
-                <dt className="text-muted-foreground">Fim planejado</dt>
-                <dd className="font-medium">{formatDate(pkg.plannedEnd)}</dd>
-              </div>
-              <div>
-                <dt className="text-muted-foreground">Horas totais (serviços)</dt>
-                <dd className="font-medium">
-                  {hasServiceOverflow
-                    ? pkg.totalHours || "-"
-                    : hoursFromServices || pkg.totalHours || "-"}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-muted-foreground">Empresas atribuídas</dt>
-                <dd className="font-medium">
-                  {assignedCompanies && assignedCompanies.length
-                    ? assignedCompanies.map((item) => item.companyName || item.companyId).join(", ")
-                    : "-"}
-                </dd>
-              </div>
-            </dl>
-          </div>
-
-        </div>
+        <section className="rounded-2xl border bg-card/80 p-5 shadow-sm">
+          <h2 className="mb-4 text-lg font-semibold">Informações do pacote</h2>
+          <dl className="grid gap-4 text-sm sm:grid-cols-2">
+            <div className="space-y-1">
+              <dt className="text-muted-foreground">Status</dt>
+              <dd className="font-medium">{statusLabel}</dd>
+            </div>
+            <div className="space-y-1">
+              <dt className="text-muted-foreground">Código</dt>
+              <dd className="font-medium">{pkg.code || "-"}</dd>
+            </div>
+            <div className="space-y-1 sm:col-span-2">
+              <dt className="text-muted-foreground">Descrição</dt>
+              <dd className="whitespace-pre-wrap text-sm text-foreground/90">
+                {pkg.description && pkg.description.trim() ? pkg.description : "-"}
+              </dd>
+            </div>
+            <div className="space-y-1">
+              <dt className="text-muted-foreground">Início planejado</dt>
+              <dd className="font-medium">{plannedStartLabel}</dd>
+            </div>
+            <div className="space-y-1">
+              <dt className="text-muted-foreground">Fim planejado</dt>
+              <dd className="font-medium">{plannedEndLabel}</dd>
+            </div>
+            <div className="space-y-1">
+              <dt className="text-muted-foreground">Horas totais (serviços)</dt>
+              <dd className="font-medium">{totalHoursLabel}</dd>
+            </div>
+            <div className="space-y-1 sm:col-span-2">
+              <dt className="text-muted-foreground">Empresas atribuídas</dt>
+              <dd className="font-medium">
+                {assignedCompanies && assignedCompanies.length
+                  ? assignedCompanies.map((item) => item.companyName || item.companyId).join(", ")
+                  : "-"}
+              </dd>
+            </div>
+          </dl>
+        </section>
       </div>
 
-      <div className="space-y-4">
+      <div className="space-y-6">
         <PackageFoldersManagerClient
           packageId={pkg.id}
           services={availableServiceOptions}
