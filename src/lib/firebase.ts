@@ -27,23 +27,41 @@ function parseBooleanEnv(value: string | undefined | null): boolean | null {
 }
 
 const envForceLongPolling = parseBooleanEnv(process.env.NEXT_PUBLIC_FIRESTORE_FORCE_LONG_POLLING);
+const envForceLongPollingStrict = parseBooleanEnv(process.env.NEXT_PUBLIC_FIRESTORE_FORCE_LONG_POLLING_STRICT);
 const envUseFetchStreams = parseBooleanEnv(process.env.NEXT_PUBLIC_FIRESTORE_USE_FETCH_STREAMS);
 
-const defaultForceLongPolling = false;
-const forceLongPolling = envForceLongPolling ?? defaultForceLongPolling;
-const defaultFetchStreams = envUseFetchStreams ?? true;
-const useFetchStreams = !forceLongPolling && defaultFetchStreams;
-const usingDefaultLongPolling = forceLongPolling && envForceLongPolling === null;
+const streamingSupported = (() => {
+  if (typeof globalThis.ReadableStream === "undefined") {
+    return false;
+  }
+  if (typeof globalThis.Response === "undefined") {
+    return true;
+  }
+  try {
+    return typeof (globalThis.Response.prototype as Response).body !== "undefined";
+  } catch {
+    return true;
+  }
+})();
+
+const defaultForceLongPolling = envForceLongPolling ?? false;
+const defaultFetchStreams = envUseFetchStreams ?? streamingSupported;
+const strictForce = envForceLongPollingStrict === true;
+const shouldForceLongPolling = defaultForceLongPolling && !(streamingSupported && !strictForce);
+const bypassedForceLongPolling = defaultForceLongPolling && !shouldForceLongPolling;
+const useFetchStreams = !shouldForceLongPolling && defaultFetchStreams;
+const usingDefaultLongPolling = shouldForceLongPolling && envForceLongPolling === null;
 const usingDefaultFetchStreams = useFetchStreams && envUseFetchStreams === null;
+const autoDetectLongPolling = !shouldForceLongPolling && !useFetchStreams;
 
 const describeStrategy = () => {
-  if (forceLongPolling) {
+  if (shouldForceLongPolling) {
     return "long-polling forçado (experimentalForceLongPolling=true)";
   }
   if (useFetchStreams) {
     return "fetch streams habilitado (useFetchStreams=true)";
   }
-  return "transporte padrão (WebChannel)";
+  return "transporte padrão com detecção automática";
 };
 
 const logNetworkStrategy = () => {
@@ -52,11 +70,15 @@ const logNetworkStrategy = () => {
   }
   const envSummary = `NEXT_PUBLIC_FIRESTORE_FORCE_LONG_POLLING=${
     envForceLongPolling ?? "auto"
-  } | NEXT_PUBLIC_FIRESTORE_USE_FETCH_STREAMS=${envUseFetchStreams ?? "auto"}`;
+  } | NEXT_PUBLIC_FIRESTORE_USE_FETCH_STREAMS=${envUseFetchStreams ?? (streamingSupported ? "auto" : "off")} | NEXT_PUBLIC_FIRESTORE_FORCE_LONG_POLLING_STRICT=${envForceLongPollingStrict ?? "auto"}`;
   console.info(
     `[firebase] Firestore usando estratégia de rede: ${describeStrategy()} (${envSummary}).`,
   );
-  if (usingDefaultLongPolling) {
+  if (bypassedForceLongPolling) {
+    console.info(
+      "[firebase] Long-polling forçado foi ignorado porque o navegador suporta streams e NEXT_PUBLIC_FIRESTORE_FORCE_LONG_POLLING_STRICT não está habilitado.",
+    );
+  } else if (usingDefaultLongPolling) {
     console.info(
       "[firebase] Long-polling permanece habilitado porque NEXT_PUBLIC_FIRESTORE_FORCE_LONG_POLLING não foi definido.",
     );
@@ -75,10 +97,12 @@ if (!globalForFirebase.__FIREBASE_CLIENT_APP__ && !globalForFirebase.__FIREBASE_
     const app = getApps().length ? getApp() : initializeApp(config);
 
     const firestoreSettings: Parameters<typeof initializeFirestore>[1] = {};
-    if (forceLongPolling) {
+    if (shouldForceLongPolling) {
       firestoreSettings.experimentalForceLongPolling = true;
     } else if (useFetchStreams) {
       firestoreSettings.useFetchStreams = true;
+    } else if (autoDetectLongPolling) {
+      firestoreSettings.experimentalAutoDetectLongPolling = true;
     }
 
     logNetworkStrategy();
@@ -94,7 +118,7 @@ if (!globalForFirebase.__FIREBASE_CLIENT_APP__ && !globalForFirebase.__FIREBASE_
     globalForFirebase.__FIREBASE_CLIENT_APP__ = app;
     globalForFirebase.__FIREBASE_CLIENT_DB__ = db;
     globalForFirebase.__FIREBASE_CLIENT_AUTH__ = auth;
-    globalForFirebase.__FIREBASE_CLIENT_FORCE_LONG_POLLING__ = forceLongPolling;
+    globalForFirebase.__FIREBASE_CLIENT_FORCE_LONG_POLLING__ = shouldForceLongPolling;
     globalForFirebase.__FIREBASE_CLIENT_USE_FETCH_STREAMS__ = useFetchStreams;
   } catch (error) {
     const err = error instanceof Error ? error : new Error(String(error));
@@ -121,7 +145,7 @@ export const auth = resolvedAuth;
 export default resolvedApp;
 
 export const isFirestoreLongPollingForced =
-  globalForFirebase.__FIREBASE_CLIENT_FORCE_LONG_POLLING__ ?? forceLongPolling;
+  globalForFirebase.__FIREBASE_CLIENT_FORCE_LONG_POLLING__ ?? shouldForceLongPolling;
 export const isFirestoreFetchStreamsEnabled =
   globalForFirebase.__FIREBASE_CLIENT_USE_FETCH_STREAMS__ ?? useFetchStreams;
 

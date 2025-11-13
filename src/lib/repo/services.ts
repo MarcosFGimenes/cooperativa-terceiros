@@ -274,6 +274,48 @@ export async function getServiceById(id: string): Promise<Service | null> {
   return mapServiceData(snap.id, (snap.data() ?? {}) as Record<string, unknown>);
 }
 
+export async function getServicesByIds(ids: string[]): Promise<Service[]> {
+  const uniqueIds = Array.from(
+    new Set(ids.filter((id) => typeof id === "string" && id.trim().length > 0)),
+  );
+  if (!uniqueIds.length) return [];
+
+  const db = getDb();
+  const indexMap = new Map<string, number>();
+  uniqueIds.forEach((id, index) => {
+    indexMap.set(id, index);
+  });
+
+  const chunkSize = 50;
+  const chunks: string[][] = [];
+  for (let i = 0; i < uniqueIds.length; i += chunkSize) {
+    chunks.push(uniqueIds.slice(i, i + chunkSize));
+  }
+
+  const collected: Array<{ index: number; service: Service }> = [];
+
+  await Promise.all(
+    chunks.map(async (chunk) => {
+      const refs = chunk.map((id) => servicesCollection().doc(id));
+      const snapshots = await db.getAll(...refs);
+      snapshots.forEach((snapshot, idx) => {
+        if (!snapshot.exists) return;
+        const service = mapServiceData(
+          snapshot.id,
+          (snapshot.data() ?? {}) as Record<string, unknown>,
+        );
+        const index = indexMap.get(service.id);
+        if (index === undefined) return;
+        collected.push({ index, service });
+      });
+    }),
+  );
+
+  collected.sort((a, b) => a.index - b.index);
+
+  return collected.map((entry) => entry.service);
+}
+
 export async function listRecentServices(): Promise<Service[]> {
   const snap = await servicesCollection().orderBy("createdAt", "desc").limit(20).get();
   return snap.docs.map((doc) => mapServiceData(doc.id, (doc.data() ?? {}) as Record<string, unknown>));
@@ -332,7 +374,6 @@ export async function listAvailableOpenServices(limit = 200): Promise<Service[]>
         const snapshot = await servicesCollection().where("status", "==", status).limit(baseLimit).get();
         pushDocs(snapshot.docs);
       } catch (error) {
-        // Ignore status-specific query failures (e.g., missing indexes) and continue with remaining fallbacks.
         if (results.length === 0) {
           throw error;
         }

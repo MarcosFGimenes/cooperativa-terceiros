@@ -145,6 +145,7 @@ export type Package = {
   plannedEnd: string;
   totalHours: number;
   code?: string;
+  description?: string | null;
   services?: string[];
   createdAt: number;
   assignedCompanies?: { companyId: string; companyName?: string }[];
