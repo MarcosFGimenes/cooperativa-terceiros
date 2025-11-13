@@ -3,8 +3,8 @@ export const revalidate = 0;
 
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import dynamic from "next/dynamic";
 import DeletePackageButton from "@/components/DeletePackageButton";
+import SCurveDeferred from "@/components/SCurveDeferred";
 import { plannedCurve } from "@/lib/curve";
 import { decodeRouteParam } from "@/lib/decodeRouteParam";
 import { getPackageById, listPackageServices } from "@/lib/repo/packages";
@@ -16,15 +16,6 @@ import type { Package, PackageFolder, Service } from "@/types";
 import PackageFoldersManager from "./PackageFoldersManager";
 import type { ServiceInfo as FolderServiceInfo, ServiceOption as FolderServiceOption } from "./PackageFoldersManager";
 import ServicesCompaniesSection from "./ServicesCompaniesSection";
-
-const SCurve = dynamic(() => import("@/components/SCurve"), {
-  ssr: false,
-  loading: () => (
-    <div className="flex h-[360px] w-full items-center justify-center rounded-xl border border-dashed bg-muted/40">
-      <span className="text-sm text-muted-foreground">Carregando gráfico...</span>
-    </div>
-  ),
-});
 
 const MAX_SERVICES_TO_LOAD = 400;
 
@@ -468,7 +459,7 @@ export default async function PackageDetailPage({ params }: { params: { id: stri
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.6fr)_minmax(320px,1fr)]">
         <div className="space-y-4">
-          <SCurve
+          <SCurveDeferred
             planned={planned}
             realizedSeries={realizedSeriesData}
             realizedPercent={typeof realized === "number" ? realized : 0}
@@ -477,6 +468,11 @@ export default async function PackageDetailPage({ params }: { params: { id: stri
             headerAside={<span className="font-medium text-foreground">{realizedHeaderLabel}</span>}
             chartHeight={360}
             deferRendering
+            fallback={
+              <div className="flex h-[360px] w-full items-center justify-center rounded-xl border border-dashed bg-muted/40">
+                <span className="text-sm text-muted-foreground">Carregando gráfico...</span>
+              </div>
+            }
           />
         </div>
 

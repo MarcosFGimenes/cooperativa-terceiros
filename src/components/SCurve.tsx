@@ -19,7 +19,7 @@ import { formatLongDate, formatShortMonthDate } from "@/lib/formatDateTime";
 type PlannedPoint = { date: string; percent: number; hoursAccum?: number };
 type CurvePoint = { date: string; percent: number };
 
-type Props = {
+export type SCurveProps = {
   planned: PlannedPoint[];
   realizedSeries: CurvePoint[];
   realizedPercent: number;

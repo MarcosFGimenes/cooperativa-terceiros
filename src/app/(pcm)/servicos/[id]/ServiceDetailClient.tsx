@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import dynamic from "next/dynamic";
 import { ArrowLeft, Pencil } from "lucide-react";
 import {
   collection,
@@ -14,6 +13,7 @@ import {
   type FirestoreError,
 } from "firebase/firestore";
 import DeleteServiceButton from "@/components/DeleteServiceButton";
+import SCurveDeferred from "@/components/SCurveDeferred";
 import { plannedCurve } from "@/lib/curve";
 import { isFirestoreLongPollingForced, tryGetFirestore } from "@/lib/firebase";
 import { isConnectionResetError } from "@/lib/networkErrors";
@@ -36,15 +36,6 @@ import {
   toNewChecklist,
   toNewUpdates,
 } from "./shared";
-
-const SCurve = dynamic(() => import("@/components/SCurve"), {
-  ssr: false,
-  loading: () => (
-    <div className="flex h-[288px] w-full items-center justify-center rounded-xl border border-dashed bg-muted/40">
-      <span className="text-sm text-muted-foreground">Carregando gráfico...</span>
-    </div>
-  ),
-});
 
 const CONNECTION_RESET_FRIENDLY_MESSAGE =
   "A conexão com os serviços do Firebase foi resetada. Tentaremos reconectar automaticamente. Caso o problema persista, libere o acesso a firestore.googleapis.com e identitytoolkit.googleapis.com no firewall/proxy.";
@@ -611,7 +602,21 @@ export default function ServiceDetailClient({
             </div>
           </dl>
         </div>
-        <SCurve planned={planned} realizedSeries={realizedSeries} realizedPercent={realizedPercent} />
+        <SCurveDeferred
+          planned={planned}
+          realizedSeries={realizedSeries}
+          realizedPercent={realizedPercent}
+          title="Curva S do serviço"
+          description="Evolução planejada versus realizado para este serviço."
+          headerAside={<span className="font-medium text-foreground">Realizado: {realizedPercent}%</span>}
+          chartHeight={288}
+          deferRendering
+          fallback={
+            <div className="flex h-[288px] w-full items-center justify-center rounded-xl border border-dashed bg-muted/40">
+              <span className="text-sm text-muted-foreground">Carregando gráfico...</span>
+            </div>
+          }
+        />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
