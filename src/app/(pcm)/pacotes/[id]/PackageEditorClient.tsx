@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 import { Field, FormRow } from "@/components/ui/form-controls";
-import { parseDateOnly, dateOnlyToMillis, formatDateOnly } from "@/lib/dateOnly";
+import { parseDateOnly, dateOnlyToMillis, formatDateOnly, formatDateOnlyBR, maskDateOnlyInput } from "@/lib/dateOnly";
 import { tryGetAuth } from "@/lib/firebase";
 import { useFirebaseAuthSession } from "@/lib/useFirebaseAuthSession";
 import type { Package } from "@/types";
@@ -24,17 +24,18 @@ function toDateInput(value?: string | null): string {
   if (!trimmed) return "";
   const parsed = parseDateOnly(trimmed);
   if (parsed) {
-    return formatDateOnly(parsed);
+    return formatDateOnlyBR(parsed);
   }
   if (/^\d{4}-\d{2}-\d{2}/.test(trimmed)) {
-    return trimmed.slice(0, 10);
+    const fallback = parseDateOnly(trimmed.slice(0, 10));
+    return fallback ? formatDateOnlyBR(fallback) : "";
   }
   const date = new Date(trimmed);
   if (!Number.isNaN(date.getTime())) {
     const year = date.getUTCFullYear();
     const month = String(date.getUTCMonth() + 1).padStart(2, "0");
     const day = String(date.getUTCDate()).padStart(2, "0");
-    return `${year}-${month}-${day}`;
+    return `${day}/${month}/${year}`;
   }
   return "";
 }
@@ -188,17 +189,24 @@ export default function PackageEditorClient({ packageId, initialPackage }: Packa
       <FormRow>
         <Field
           label="Data inicial"
-          type="date"
           value={form.startDate}
-          onChange={(event) => updateForm("startDate", event.target.value)}
+          onChange={(event) => updateForm("startDate", maskDateOnlyInput(event.target.value))}
+          onBlur={(event) => updateForm("startDate", maskDateOnlyInput(event.target.value))}
+          placeholder="dd/mm/aaaa"
+          inputMode="numeric"
+          maxLength={10}
+          pattern="\d{2}/\d{2}/\d{4}"
           required
         />
         <Field
           label="Data final"
-          type="date"
           value={form.endDate}
-          min={form.startDate || undefined}
-          onChange={(event) => updateForm("endDate", event.target.value)}
+          onChange={(event) => updateForm("endDate", maskDateOnlyInput(event.target.value))}
+          onBlur={(event) => updateForm("endDate", maskDateOnlyInput(event.target.value))}
+          placeholder="dd/mm/aaaa"
+          inputMode="numeric"
+          maxLength={10}
+          pattern="\d{2}/\d{2}/\d{4}"
           required
         />
       </FormRow>
