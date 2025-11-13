@@ -13,38 +13,48 @@ const servicesCollection = () => getDb().collection("services");
 
 const SERVICE_CACHE_TTL_SECONDS = 180;
 
-type ServiceCacheEntry<T> = () => Promise<T>;
-type ServiceScopeCache<T> = Map<string, ServiceCacheEntry<T>>;
+const serviceDetailCache = unstable_cache(
+  async (serviceId: string) => {
+    const snap = await servicesCollection().doc(serviceId).get();
+    if (!snap.exists) return null;
+    return mapServiceData(snap.id, (snap.data() ?? {}) as Record<string, unknown>);
+  },
+  ["services", "detail"],
+  {
+    revalidate: SERVICE_CACHE_TTL_SECONDS,
+    tags: ["services:detail"],
+  },
+);
 
-const serviceCacheRegistry: Map<string, ServiceScopeCache<unknown>> = new Map();
+const serviceChecklistCache = unstable_cache(
+  async (serviceId: string) => {
+    const col = servicesCollection().doc(serviceId).collection("checklist");
+    const snap = await col.orderBy("description", "asc").get();
+    return snap.docs.map((doc) => mapChecklistDoc(serviceId, doc));
+  },
+  ["services", "checklist"],
+  {
+    revalidate: SERVICE_CACHE_TTL_SECONDS,
+    tags: ["services:checklist"],
+  },
+);
 
-function withServiceCache<T>(serviceId: string, scope: string, loader: () => Promise<T>): Promise<T> {
-  const key = serviceId.trim();
-  if (!key) {
-    return loader();
-  }
-
-  let scopeCache = serviceCacheRegistry.get(scope) as ServiceScopeCache<T> | undefined;
-  if (!scopeCache) {
-    scopeCache = new Map<string, ServiceCacheEntry<T>>();
-    serviceCacheRegistry.set(scope, scopeCache as ServiceScopeCache<unknown>);
-  }
-
-  let cached = scopeCache.get(key);
-  if (!cached) {
-    cached = unstable_cache(loader, ["services", scope, key], {
-      revalidate: SERVICE_CACHE_TTL_SECONDS,
-      tags: [`services:detail:${key}`],
-    });
-    scopeCache.set(key, cached);
-  }
-
-  return cached();
-}
+const serviceUpdatesCache = unstable_cache(
+  async (serviceId: string, limit: number) => {
+    const updatesCol = servicesCollection().doc(serviceId).collection("updates");
+    const snap = await updatesCol.orderBy("createdAt", "desc").limit(limit).get();
+    return snap.docs.map((doc) => mapUpdateDoc(serviceId, doc));
+  },
+  ["services", "updates"],
+  {
+    revalidate: SERVICE_CACHE_TTL_SECONDS,
+    tags: ["services:updates"],
+  },
+);
 
 function revalidateServiceDetailCache(serviceId: string) {
   if (!serviceId) return;
-  revalidateTag(`services:detail:${serviceId}`);
+  revalidateTag("services:detail");
 }
 
 function toMillis(value: unknown | Timestamp | number | null | undefined) {
@@ -270,11 +280,7 @@ export async function getServiceById(id: string): Promise<Service | null> {
   const trimmedId = typeof id === "string" ? id.trim() : "";
   if (!trimmedId) return null;
 
-  return withServiceCache(trimmedId, "detail", async () => {
-    const snap = await servicesCollection().doc(trimmedId).get();
-    if (!snap.exists) return null;
-    return mapServiceData(snap.id, (snap.data() ?? {}) as Record<string, unknown>);
-  });
+  return serviceDetailCache(trimmedId);
 }
 
 export async function getServicesByIds(
@@ -630,11 +636,7 @@ export async function getService(serviceId: string): Promise<Service | null> {
   const trimmedId = typeof serviceId === "string" ? serviceId.trim() : "";
   if (!trimmedId) return null;
 
-  return withServiceCache(trimmedId, "legacy", async () => {
-    const snap = await servicesCollection().doc(trimmedId).get();
-    if (!snap.exists) return null;
-    return mapServiceDoc(snap);
-  });
+  return serviceDetailCache(trimmedId);
 }
 
 export async function getChecklist(
@@ -643,11 +645,8 @@ export async function getChecklist(
   const trimmedId = typeof serviceId === "string" ? serviceId.trim() : "";
   if (!trimmedId) return [];
 
-  return withServiceCache(trimmedId, "checklist", async () => {
-    const col = servicesCollection().doc(trimmedId).collection("checklist");
-    const snap = await col.orderBy("description", "asc").get();
-    return snap.docs.map((doc) => mapChecklistDoc(trimmedId, doc));
-  });
+  const checklist = await serviceChecklistCache(trimmedId);
+  return checklist ?? [];
 }
 
 export async function setChecklistItems(
@@ -694,6 +693,7 @@ export async function setChecklistItems(
   });
 
   revalidateTag("services:recent");
+  revalidateTag("services:checklist");
   revalidateServiceDetailCache(serviceId);
 }
 
@@ -825,6 +825,7 @@ export async function updateChecklistProgress(
   });
 
   revalidateTag("services:recent");
+  revalidateTag("services:checklist");
   revalidateServiceDetailCache(serviceId);
 
   return newPercent;
@@ -1078,6 +1079,7 @@ export async function addManualUpdate(
 
   const mapped = mapUpdateDoc(serviceId, updateSnap);
   revalidateTag("services:recent");
+  revalidateTag("services:updates");
   revalidateServiceDetailCache(serviceId);
   return { realPercent: mapped.realPercentSnapshot ?? percent, update: mapped };
 }
@@ -1119,6 +1121,7 @@ export async function addComputedUpdate(
   });
 
   revalidateTag("services:recent");
+  revalidateTag("services:updates");
   revalidateServiceDetailCache(serviceId);
 
   return updateId;
@@ -1133,11 +1136,8 @@ export async function listUpdates(
 
   const safeLimit = Number.isFinite(limit) && limit > 0 ? Math.min(Math.floor(limit), 200) : 50;
 
-  return withServiceCache(trimmedId, `updates:${safeLimit}`, async () => {
-    const updatesCol = servicesCollection().doc(trimmedId).collection("updates");
-    const snap = await updatesCol.orderBy("createdAt", "desc").limit(safeLimit).get();
-    return snap.docs.map((doc) => mapUpdateDoc(trimmedId, doc));
-  });
+  const updates = await serviceUpdatesCache(trimmedId, safeLimit);
+  return updates ?? [];
 }
 
 export async function listServices(filter?: {
@@ -1191,6 +1191,8 @@ export async function deleteService(serviceId: string): Promise<boolean> {
 
   await ref.delete();
   revalidateTag("services:recent");
+  revalidateTag("services:checklist");
+  revalidateTag("services:updates");
   revalidateServiceDetailCache(serviceId);
   return true;
 }

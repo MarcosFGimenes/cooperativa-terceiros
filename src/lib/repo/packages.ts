@@ -13,38 +13,85 @@ const accessTokensCollection = () => getDb().collection("accessTokens");
 
 const PACKAGE_CACHE_TTL_SECONDS = 300;
 
-type PackageCacheEntry<T> = () => Promise<T>;
-type PackageScopeCache<T> = Map<string, PackageCacheEntry<T>>;
+const PACKAGE_DETAIL_BASE_FIELDS = [
+  "name",
+  "nome",
+  "status",
+  "plannedStart",
+  "dataInicio",
+  "inicioPlanejado",
+  "startDate",
+  "plannedEnd",
+  "dataFim",
+  "fimPlanejado",
+  "endDate",
+  "totalHours",
+  "horasTotais",
+  "totalHoras",
+  "code",
+  "codigo",
+  "description",
+  "descricao",
+  "details",
+  "createdAt",
+  "created_at",
+  "criadoEm",
+  "createdAtMs",
+  "assignedCompanies",
+  "serviceIds",
+];
 
-const packageCacheRegistry: Map<string, PackageScopeCache<unknown>> = new Map();
+const packageSummaryCache = unstable_cache(
+  async (packageId: string) => {
+    const snap = await packagesCollection()
+      .doc(packageId)
+      .select("name", "nome", "status", "serviceIds", "createdAt")
+      .get();
+    if (!snap.exists) return null;
+    return mapPackageDoc(snap);
+  },
+  ["packages", "summary"],
+  {
+    revalidate: PACKAGE_CACHE_TTL_SECONDS,
+    tags: ["packages:summary"],
+  },
+);
 
-function withPackageCache<T>(packageId: string, scope: string, loader: () => Promise<T>): Promise<T> {
-  const key = packageId.trim();
-  if (!key) {
-    return loader();
-  }
+const packageDetailCache = unstable_cache(
+  async (packageId: string) => {
+    const docRef = packagesCollection().doc(packageId);
+    const snap = await docRef.select(...PACKAGE_DETAIL_BASE_FIELDS).get();
+    if (!snap.exists) return null;
 
-  let scopeCache = packageCacheRegistry.get(scope) as PackageScopeCache<T> | undefined;
-  if (!scopeCache) {
-    scopeCache = new Map<string, PackageCacheEntry<T>>();
-    packageCacheRegistry.set(scope, scopeCache as PackageScopeCache<unknown>);
-  }
+    const baseData = (snap.data() ?? {}) as Record<string, unknown>;
 
-  let cached = scopeCache.get(key);
-  if (!cached) {
-    cached = unstable_cache(loader, ["packages", scope, key], {
-      revalidate: PACKAGE_CACHE_TTL_SECONDS,
-      tags: [`packages:detail:${key}`],
-    });
-    scopeCache.set(key, cached);
-  }
+    if (!Array.isArray(baseData.serviceIds) || baseData.serviceIds.length === 0) {
+      try {
+        const servicesSnap = await docRef.select("services").get();
+        if (servicesSnap.exists) {
+          const servicesData = servicesSnap.data() ?? {};
+          if (Array.isArray((servicesData as Record<string, unknown>).services)) {
+            baseData.services = (servicesData as Record<string, unknown>).services;
+          }
+        }
+      } catch (error) {
+        console.warn(`[packages:getPackageById] Failed to fetch legacy services for package ${packageId}`, error);
+      }
+    }
 
-  return cached();
-}
+    return mapPackageData(snap.id, baseData);
+  },
+  ["packages", "detail"],
+  {
+    revalidate: PACKAGE_CACHE_TTL_SECONDS,
+    tags: ["packages:detail"],
+  },
+);
 
 function revalidatePackageDetailCache(packageId: string) {
   if (!packageId) return;
-  revalidateTag(`packages:detail:${packageId}`);
+  revalidateTag("packages:detail");
+  revalidateTag("packages:summary");
 }
 
 function toMillis(value: unknown): number | undefined {
@@ -71,14 +118,7 @@ export async function getPackage(packageId: string): Promise<Package | null> {
   const trimmedId = typeof packageId === "string" ? packageId.trim() : "";
   if (!trimmedId) return null;
 
-  return withPackageCache(trimmedId, "summary", async () => {
-    const snap = await packagesCollection()
-      .doc(trimmedId)
-      .select("name", "nome", "status", "serviceIds", "createdAt")
-      .get();
-    if (!snap.exists) return null;
-    return mapPackageDoc(snap);
-  });
+  return packageSummaryCache(trimmedId);
 }
 
 function normaliseDateOnlyInput(value: string | null | undefined, label: string): string {
@@ -252,6 +292,30 @@ function mapPackageSummary(id: string, data: Record<string, unknown>): PackageSu
   };
 }
 
+export type PackageSummary = Pick<Package, "id" | "name" | "status" | "code" | "createdAt"> & {
+  servicesCount: number;
+};
+
+function mapPackageSummary(id: string, data: Record<string, unknown>): PackageSummary {
+  const services = Array.isArray(data.services)
+    ? (data.services as unknown[])
+    : Array.isArray(data.serviceIds)
+      ? (data.serviceIds as unknown[])
+      : [];
+  const servicesCount = services.length;
+  const createdAt =
+    toNumber(data.createdAt ?? data.created_at ?? data.criadoEm ?? data.createdAtMs) ?? Date.now();
+
+  return {
+    id,
+    name: String(data.name ?? data.nome ?? `Pacote ${id}`),
+    status: normalisePackageStatus(data.status),
+    code: data.code ? String(data.code) : data.codigo ? String(data.codigo) : undefined,
+    createdAt,
+    servicesCount,
+  };
+}
+
 const PACKAGE_DETAIL_BASE_FIELDS = [
   "name",
   "nome",
@@ -284,29 +348,7 @@ export async function getPackageById(id: string): Promise<Package | null> {
   const trimmedId = typeof id === "string" ? id.trim() : "";
   if (!trimmedId) return null;
 
-  return withPackageCache(trimmedId, "detail", async () => {
-    const docRef = packagesCollection().doc(trimmedId);
-    const snap = await docRef.select(...PACKAGE_DETAIL_BASE_FIELDS).get();
-    if (!snap.exists) return null;
-
-    const baseData = (snap.data() ?? {}) as Record<string, unknown>;
-
-    if (!Array.isArray(baseData.serviceIds) || baseData.serviceIds.length === 0) {
-      try {
-        const servicesSnap = await docRef.select("services").get();
-        if (servicesSnap.exists) {
-          const servicesData = servicesSnap.data() ?? {};
-          if (Array.isArray((servicesData as Record<string, unknown>).services)) {
-            baseData.services = (servicesData as Record<string, unknown>).services;
-          }
-        }
-      } catch (error) {
-        console.warn(`[packages:getPackageById] Failed to fetch legacy services for package ${trimmedId}`, error);
-      }
-    }
-
-    return mapPackageData(snap.id, baseData);
-  });
+  return packageDetailCache(trimmedId);
 }
 
 const listRecentPackagesCached = unstable_cache(
