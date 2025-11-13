@@ -12,8 +12,8 @@ import {
   query,
   type FirestoreError,
 } from "firebase/firestore";
-import SCurve from "@/components/SCurve";
 import DeleteServiceButton from "@/components/DeleteServiceButton";
+import SCurveDeferred from "@/components/SCurveDeferred";
 import { plannedCurve } from "@/lib/curve";
 import { isFirestoreLongPollingForced, tryGetFirestore } from "@/lib/firebase";
 import { isConnectionResetError } from "@/lib/networkErrors";
@@ -602,7 +602,21 @@ export default function ServiceDetailClient({
             </div>
           </dl>
         </div>
-        <SCurve planned={planned} realizedSeries={realizedSeries} realizedPercent={realizedPercent} />
+        <SCurveDeferred
+          planned={planned}
+          realizedSeries={realizedSeries}
+          realizedPercent={realizedPercent}
+          title="Curva S do serviço"
+          description="Evolução planejada versus realizado para este serviço."
+          headerAside={<span className="font-medium text-foreground">Realizado: {realizedPercent}%</span>}
+          chartHeight={288}
+          deferRendering
+          fallback={
+            <div className="flex h-[288px] w-full items-center justify-center rounded-xl border border-dashed bg-muted/40">
+              <span className="text-sm text-muted-foreground">Carregando gráfico...</span>
+            </div>
+          }
+        />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">

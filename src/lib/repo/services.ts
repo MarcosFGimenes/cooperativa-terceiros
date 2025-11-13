@@ -6,6 +6,7 @@ import type {
   ServiceUpdate,
 } from "@/lib/types";
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
+import { revalidateTag, unstable_cache } from "next/cache";
 
 const getDb = () => getAdmin().db;
 const servicesCollection = () => getDb().collection("services");
@@ -281,9 +282,20 @@ export async function getServicesByIds(
   return collected.map((entry) => entry.service);
 }
 
+const listRecentServicesCached = unstable_cache(
+  async () => {
+    const snap = await servicesCollection().orderBy("createdAt", "desc").limit(20).get();
+    return snap.docs.map((doc) => mapServiceData(doc.id, (doc.data() ?? {}) as Record<string, unknown>));
+  },
+  ["services:listRecent"],
+  {
+    revalidate: 300,
+    tags: ["services:recent"],
+  },
+);
+
 export async function listRecentServices(): Promise<Service[]> {
-  const snap = await servicesCollection().orderBy("createdAt", "desc").limit(20).get();
-  return snap.docs.map((doc) => mapServiceData(doc.id, (doc.data() ?? {}) as Record<string, unknown>));
+  return listRecentServicesCached();
 }
 
 export async function listAvailableOpenServices(
@@ -689,6 +701,8 @@ export async function updateServiceMetadata(serviceId: string, input: ServiceMet
   payload.company = input.company ?? null;
 
   await ref.update(payload);
+
+  revalidateTag("services:recent");
 }
 
 export async function updateChecklistProgress(
@@ -754,6 +768,8 @@ export async function updateChecklistProgress(
 
     return realPercent;
   });
+
+  revalidateTag("services:recent");
 
   return newPercent;
 }
@@ -1005,6 +1021,7 @@ export async function addManualUpdate(
     .get();
 
   const mapped = mapUpdateDoc(serviceId, updateSnap);
+  revalidateTag("services:recent");
   return { realPercent: mapped.realPercentSnapshot ?? percent, update: mapped };
 }
 
@@ -1043,6 +1060,8 @@ export async function addComputedUpdate(
 
     return updateRef.id;
   });
+
+  revalidateTag("services:recent");
 
   return updateId;
 }
@@ -1109,5 +1128,6 @@ export async function deleteService(serviceId: string): Promise<boolean> {
   });
 
   await ref.delete();
+  revalidateTag("services:recent");
   return true;
 }
