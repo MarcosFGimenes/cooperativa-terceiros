@@ -30,6 +30,8 @@ export type ServiceInfo = {
   isOpen: boolean;
 };
 
+const MAX_VISIBLE_SERVICES = 5;
+
 type Props = {
   packageId: string;
   services: ServiceOption[];
@@ -114,6 +116,8 @@ export default function PackageFoldersManager({ packageId, services, serviceDeta
   const [savingFolderInfo, setSavingFolderInfo] = useState(false);
   const [addingServicesFor, setAddingServicesFor] = useState<string | null>(null);
   const [serviceSearch, setServiceSearch] = useState("");
+  const [expandedSelection, setExpandedSelection] = useState<Record<string, boolean>>({});
+  const [expandedAssignable, setExpandedAssignable] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     if (!folders.length) {
@@ -545,32 +549,60 @@ export default function PackageFoldersManager({ packageId, services, serviceDeta
                         Selecione serviços disponíveis para este subpacote.
                       </div>
                     ) : (
-                      activeSelection.map((serviceId) => {
-                        const info = serviceDetails[serviceId];
-                        const label = info?.label ?? serviceId;
-                        const company = info?.companyLabel ? ` • ${info.companyLabel}` : "";
-                        return (
-                          <div
-                            key={serviceId}
-                            className="flex flex-wrap items-center justify-between gap-3 rounded border p-3 text-sm"
-                          >
-                            <div className="min-w-0 flex-1">
-                              <p className="font-medium text-foreground">{label}</p>
-                              <p className="text-xs text-muted-foreground">
-                                ID: {serviceId}
-                                {company}
-                              </p>
+                      <>
+                        {(expandedSelection[activeFolder.id] ?? false
+                          ? activeSelection
+                          : activeSelection.slice(0, MAX_VISIBLE_SERVICES)
+                        ).map((serviceId) => {
+                          const info = serviceDetails[serviceId];
+                          const label = info?.label ?? serviceId;
+                          const company = info?.companyLabel ? ` • ${info.companyLabel}` : "";
+                          return (
+                            <div
+                              key={serviceId}
+                              className="flex flex-wrap items-center justify-between gap-3 rounded border p-3 text-sm"
+                            >
+                              <div className="min-w-0 flex-1">
+                                <p className="font-medium text-foreground">{label}</p>
+                                <p className="text-xs text-muted-foreground">
+                                  ID: {serviceId}
+                                  {company}
+                                </p>
+                              </div>
+                              <button
+                                type="button"
+                                className="btn btn-ghost text-xs text-destructive"
+                                onClick={() => updateServiceSelection(activeFolder.id, serviceId, false)}
+                              >
+                                Remover
+                              </button>
                             </div>
+                          );
+                        })}
+                        {activeSelection.length > MAX_VISIBLE_SERVICES ? (
+                          <div className="flex flex-wrap items-center justify-between gap-2 rounded border border-dashed bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+                            <span>
+                              Mostrando
+                              {expandedSelection[activeFolder.id]
+                                ? ` ${activeSelection.length}`
+                                : ` ${Math.min(activeSelection.length, MAX_VISIBLE_SERVICES)}`}
+                              {` de ${activeSelection.length} serviço${activeSelection.length === 1 ? "" : "s"}.`}
+                            </span>
                             <button
                               type="button"
-                              className="btn btn-ghost text-xs text-destructive"
-                              onClick={() => updateServiceSelection(activeFolder.id, serviceId, false)}
+                              className="btn btn-ghost text-xs"
+                              onClick={() =>
+                                setExpandedSelection((prev) => ({
+                                  ...prev,
+                                  [activeFolder.id]: !(prev[activeFolder.id] ?? false),
+                                }))
+                              }
                             >
-                              Remover
+                              {expandedSelection[activeFolder.id] ? "Mostrar menos" : "Mostrar mais"}
                             </button>
                           </div>
-                        );
-                      })
+                        ) : null}
+                      </>
                     )}
                   </div>
 
@@ -611,27 +643,55 @@ export default function PackageFoldersManager({ packageId, services, serviceDeta
                           Nenhum serviço aberto disponível com os filtros atuais.
                         </p>
                       ) : (
-                        <div className="grid max-h-64 gap-2 overflow-y-auto sm:grid-cols-2">
-                          {filteredAssignable.map((service) => (
-                            <label
-                              key={service.id}
-                              className="flex cursor-pointer items-start gap-2 rounded border p-3 text-sm hover:border-primary/40 hover:bg-muted/40"
-                            >
-                              <input
-                                type="checkbox"
-                                className="mt-1"
-                                checked={serviceSelections[activeFolder.id]?.has(service.id) ?? false}
-                                onChange={(event) => updateServiceSelection(activeFolder.id, service.id, event.target.checked)}
-                              />
+                        <>
+                          <div className="grid max-h-64 gap-2 overflow-y-auto sm:grid-cols-2">
+                            {(expandedAssignable[activeFolder.id] ?? false
+                              ? filteredAssignable
+                              : filteredAssignable.slice(0, MAX_VISIBLE_SERVICES)
+                            ).map((service) => (
+                              <label
+                                key={service.id}
+                                className="flex cursor-pointer items-start gap-2 rounded border p-3 text-sm hover:border-primary/40 hover:bg-muted/40"
+                              >
+                                <input
+                                  type="checkbox"
+                                  className="mt-1"
+                                  checked={serviceSelections[activeFolder.id]?.has(service.id) ?? false}
+                                  onChange={(event) => updateServiceSelection(activeFolder.id, service.id, event.target.checked)}
+                                />
+                                <span>
+                                  <span className="font-medium text-foreground">{service.label}</span>
+                                  {service.description ? (
+                                    <span className="block text-xs text-muted-foreground">{service.description}</span>
+                                  ) : null}
+                                </span>
+                              </label>
+                            ))}
+                          </div>
+                          {filteredAssignable.length > MAX_VISIBLE_SERVICES ? (
+                            <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
                               <span>
-                                <span className="font-medium text-foreground">{service.label}</span>
-                                {service.description ? (
-                                  <span className="block text-xs text-muted-foreground">{service.description}</span>
-                                ) : null}
+                                Mostrando
+                                {expandedAssignable[activeFolder.id]
+                                  ? ` ${filteredAssignable.length}`
+                                  : ` ${Math.min(filteredAssignable.length, MAX_VISIBLE_SERVICES)}`}
+                                {` de ${filteredAssignable.length} serviço${filteredAssignable.length === 1 ? "" : "s"} disponíveis.`}
                               </span>
-                            </label>
-                          ))}
-                        </div>
+                              <button
+                                type="button"
+                                className="btn btn-ghost text-xs"
+                                onClick={() =>
+                                  setExpandedAssignable((prev) => ({
+                                    ...prev,
+                                    [activeFolder.id]: !(prev[activeFolder.id] ?? false),
+                                  }))
+                                }
+                              >
+                                {expandedAssignable[activeFolder.id] ? "Mostrar menos" : "Mostrar mais"}
+                              </button>
+                            </div>
+                          ) : null}
+                        </>
                       )}
                     </div>
                   ) : null}
