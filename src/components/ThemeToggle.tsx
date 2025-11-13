@@ -2,9 +2,15 @@
 import { Moon, Sun } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
+import { cn } from "@/lib/utils";
+
 type Mode = "light" | "dark";
 
-export default function ThemeToggle() {
+type ThemeToggleProps = {
+  className?: string;
+};
+
+export default function ThemeToggle({ className }: ThemeToggleProps) {
   const getPreferredTheme = useMemo(() => {
     return (): Mode => {
       if (typeof window === "undefined") return "light";
@@ -71,7 +77,7 @@ export default function ThemeToggle() {
     <button
       type="button"
       aria-label="Alternar tema"
-      className="btn btn-ghost h-11 w-11 rounded-full"
+      className={cn("btn btn-ghost h-11 w-11 rounded-full", className)}
       data-theme={theme}
       onClick={toggleTheme}
     >

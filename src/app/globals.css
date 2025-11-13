@@ -4,6 +4,7 @@
 
 /* Tema claro (default) */
 :root {
+  color-scheme: light dark;
   --background: 212 55% 97%;
   --foreground: 223 35% 12%;
 
@@ -68,7 +69,18 @@
 /* Base */
 @layer base {
   * { @apply border-border; }
-  html, body, #__next { height: 100%; }
+
+  html {
+    height: 100%;
+    scroll-behavior: smooth;
+    text-size-adjust: 100%;
+  }
+
+  body,
+  #__next {
+    min-height: 100%;
+  }
+
   body {
     @apply bg-background text-foreground antialiased;
     background-color: hsl(var(--background));
@@ -76,7 +88,22 @@
       radial-gradient(circle at -10% -20%, hsl(var(--primary) / 0.18), transparent 55%),
       radial-gradient(circle at 110% -10%, hsl(var(--accent) / 0.25), transparent 55%),
       linear-gradient(180deg, hsl(var(--surface)) 0%, hsl(var(--background)) 45%, hsl(var(--background)) 100%);
-    background-attachment: fixed;
+    background-attachment: scroll;
+  }
+
+  @media (min-width: 768px) {
+    body {
+      background-attachment: fixed;
+    }
+  }
+
+  img,
+  svg,
+  video,
+  canvas {
+    display: block;
+    height: auto;
+    max-width: 100%;
   }
 }
 
@@ -85,9 +112,18 @@
 
 /* Tipografia rápida */
 h1,h2,h3 { @apply tracking-tight; }
-h1 { @apply text-2xl sm:text-3xl font-semibold; }
-h2 { @apply text-xl sm:text-2xl font-semibold; }
-h3 { @apply text-lg sm:text-xl font-medium; }
+h1 {
+  font-size: clamp(1.75rem, 1.25rem + 1.6vw, 2.6rem);
+  @apply font-semibold leading-tight;
+}
+h2 {
+  font-size: clamp(1.45rem, 1.15rem + 1vw, 2.1rem);
+  @apply font-semibold leading-tight;
+}
+h3 {
+  font-size: clamp(1.2rem, 1.05rem + 0.6vw, 1.6rem);
+  @apply font-medium leading-snug;
+}
 
 /* Focus */
 :focus-visible { @apply outline-none ring-2 ring-primary/40 ring-offset-2 ring-offset-background; }
@@ -167,7 +203,17 @@ input:-webkit-autofill:focus {
 /* ---------- Controls: buttons/inputs (comfort sizing) ---------- */
 
 /* Links que se comportam como botões */
-.link-btn { @apply inline-flex items-center gap-2 h-11 px-4 rounded-lg hover:bg-muted; }
+.link-btn {
+  @apply inline-flex items-center justify-center gap-2 rounded-lg px-3 py-2 font-medium transition-colors hover:bg-muted;
+  min-height: 2.5rem;
+}
+
+@media (min-width: 640px) {
+  .link-btn {
+    min-height: 2.75rem;
+    @apply px-4;
+  }
+}
 
 /* Inputs e selects maiores */
 .select, .textarea { @apply block w-full rounded-lg border border-input bg-background px-4 text-[15px] placeholder:text-muted-foreground focus:ring-2 focus:ring-primary/40 focus:outline-none; }
@@ -208,9 +254,13 @@ input:-webkit-autofill:focus {
   @apply bg-transparent text-primary underline-offset-4 hover:underline hover:text-primary/80;
 }
 .input { @apply h-11 w-full rounded-md border border-input bg-background px-3 text-sm placeholder:text-muted-foreground/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30; }
-.card { @apply rounded-3xl border border-border/70 bg-card/95 text-card-foreground shadow-lg shadow-primary/5 backdrop-blur-sm dark:border-slate-800/70 dark:bg-card/70; }
+.card {
+  @apply rounded-3xl border border-border/70 bg-card/95 text-card-foreground shadow-lg shadow-primary/5 backdrop-blur-sm dark:border-slate-800/70 dark:bg-card/70;
+  content-visibility: auto;
+  contain: layout paint style;
+}
 .link { @apply font-medium text-primary underline-offset-4 transition-colors hover:text-primary/80 hover:underline; }
-.container-page { @apply container mx-auto px-4 py-8; }
+.container-page { @apply mx-auto w-full max-w-screen-xl px-4 py-8 sm:px-6 lg:px-8; }
 .table { @apply w-full text-sm; }
 .table th { @apply text-left font-medium text-muted-foreground border-b py-2; }
 .table td { @apply border-b py-2; }

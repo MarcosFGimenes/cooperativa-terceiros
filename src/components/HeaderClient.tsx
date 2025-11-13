@@ -26,31 +26,31 @@ export default function HeaderClient() {
   }
 
   return (
-    <nav className="flex items-center gap-2 text-sm text-muted-foreground">
+    <nav className="flex min-w-0 flex-wrap items-center justify-end gap-2 text-sm text-muted-foreground sm:gap-3">
       {user ? (
         <>
-          <Link className="link-btn" href="/dashboard">
+          <Link className="link-btn whitespace-nowrap" href="/dashboard">
             Dashboard
           </Link>
           <button
             type="button"
             onClick={doLogout}
-            className="btn btn-ghost"
+            className="btn btn-ghost whitespace-nowrap"
           >
             Sair
           </button>
         </>
       ) : (
         <>
-          <Link className="link-btn" href="/login">
+          <Link className="link-btn whitespace-nowrap" href="/login">
             Login
           </Link>
-          <Link className="link-btn" href="/acesso">
+          <Link className="link-btn whitespace-nowrap" href="/acesso">
             Acesso por token
           </Link>
         </>
       )}
-      <ThemeToggle />
+      <ThemeToggle className="shrink-0" />
     </nav>
   );
 }
