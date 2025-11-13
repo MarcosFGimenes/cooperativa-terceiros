@@ -611,6 +611,13 @@ export default function ServiceDetailsClient({ service, updates: initialUpdates,
               <h1 className="text-3xl font-semibold text-foreground">OS: {serviceLabel}</h1>
               <p className="text-sm text-muted-foreground">Formulário único para atualização diária do serviço.</p>
             </div>
+            <div className="flex flex-wrap gap-x-6 gap-y-1 text-[0.7rem] uppercase tracking-[0.2em] text-muted-foreground">
+              <span className="font-semibold text-foreground">FO 012 050 33</span>
+              <span>Páginas 1/1</span>
+              <span>Emissão 08/04/2024</span>
+              <span>Revisão 05/07/2024</span>
+              <span>Nº 1</span>
+            </div>
             <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
               <span className="rounded-full bg-muted px-3 py-1 font-medium text-foreground">{statusLabel}</span>
               {companyLabel ? <span>Empresa: {companyLabel}</span> : null}
@@ -630,24 +637,6 @@ export default function ServiceDetailsClient({ service, updates: initialUpdates,
             <div className="h-2 w-full rounded-full bg-muted">
               <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${clampPercent(progress)}%` }} />
             </div>
-            <dl className="grid gap-3 text-xs text-muted-foreground sm:grid-cols-2">
-              <div className="space-y-1">
-                <dt className="font-medium uppercase tracking-wide">Código</dt>
-                <dd className="text-sm font-semibold text-foreground">{service.code?.trim() || "—"}</dd>
-              </div>
-              <div className="space-y-1">
-                <dt className="font-medium uppercase tracking-wide">Tag</dt>
-                <dd className="text-sm font-semibold text-foreground">{service.tag?.trim() || "—"}</dd>
-              </div>
-              <div className="space-y-1">
-                <dt className="font-medium uppercase tracking-wide">Início planejado</dt>
-                <dd className="text-sm font-semibold text-foreground">{formatDateLabel(service.plannedStart)}</dd>
-              </div>
-              <div className="space-y-1">
-                <dt className="font-medium uppercase tracking-wide">Fim planejado</dt>
-                <dd className="text-sm font-semibold text-foreground">{formatDateLabel(service.plannedEnd)}</dd>
-              </div>
-            </dl>
           </div>
         </div>
       </div>

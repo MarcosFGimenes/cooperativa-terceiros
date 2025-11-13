@@ -58,35 +58,37 @@ const packageSummaryCache = unstable_cache(
 );
 
 const packageDetailCache = unstable_cache(
-  async (packageId: string) => {
-    const docRef = packagesCollection().doc(packageId);
-    const snap = await docRef.select(...PACKAGE_DETAIL_BASE_FIELDS).get();
-    if (!snap.exists) return null;
-
-    const baseData = (snap.data() ?? {}) as Record<string, unknown>;
-
-    if (!Array.isArray(baseData.serviceIds) || baseData.serviceIds.length === 0) {
-      try {
-        const servicesSnap = await docRef.select("services").get();
-        if (servicesSnap.exists) {
-          const servicesData = servicesSnap.data() ?? {};
-          if (Array.isArray((servicesData as Record<string, unknown>).services)) {
-            baseData.services = (servicesData as Record<string, unknown>).services;
-          }
-        }
-      } catch (error) {
-        console.warn(`[packages:getPackageById] Failed to fetch legacy services for package ${packageId}`, error);
-      }
-    }
-
-    return mapPackageData(snap.id, baseData);
-  },
+  async (packageId: string) => fetchPackageDetail(packageId),
   ["packages", "detail"],
   {
     revalidate: PACKAGE_CACHE_TTL_SECONDS,
     tags: ["packages:detail"],
   },
 );
+
+async function fetchPackageDetail(packageId: string): Promise<Package | null> {
+  const docRef = packagesCollection().doc(packageId);
+  const snap = await docRef.select(...PACKAGE_DETAIL_BASE_FIELDS).get();
+  if (!snap.exists) return null;
+
+  const baseData = (snap.data() ?? {}) as Record<string, unknown>;
+
+  if (!Array.isArray(baseData.serviceIds) || baseData.serviceIds.length === 0) {
+    try {
+      const servicesSnap = await docRef.select("services").get();
+      if (servicesSnap.exists) {
+        const servicesData = servicesSnap.data() ?? {};
+        if (Array.isArray((servicesData as Record<string, unknown>).services)) {
+          baseData.services = (servicesData as Record<string, unknown>).services;
+        }
+      }
+    } catch (error) {
+      console.warn(`[packages:getPackageById] Failed to fetch legacy services for package ${packageId}`, error);
+    }
+  }
+
+  return mapPackageData(snap.id, baseData);
+}
 
 function revalidatePackageDetailCache(packageId: string) {
   if (!packageId) return;
@@ -296,7 +298,19 @@ export async function getPackageById(id: string): Promise<Package | null> {
   const trimmedId = typeof id === "string" ? id.trim() : "";
   if (!trimmedId) return null;
 
-  return packageDetailCache(trimmedId);
+  const cached = await packageDetailCache(trimmedId);
+  if (cached) return cached;
+
+  try {
+    const fresh = await fetchPackageDetail(trimmedId);
+    if (fresh) {
+      return fresh;
+    }
+  } catch (error) {
+    console.warn(`[packages:getPackageById] Failed to fetch fresh package ${trimmedId}`, error);
+  }
+
+  return null;
 }
 
 const listRecentPackagesCached = unstable_cache(

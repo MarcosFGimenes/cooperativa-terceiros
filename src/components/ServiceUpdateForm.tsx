@@ -529,7 +529,7 @@ export default function ServiceUpdateForm({
             return (
               <label
                 key={resource.id}
-                className="flex cursor-pointer items-center gap-2 rounded-lg border border-muted bg-muted/40 p-2 text-sm"
+                className="flex cursor-pointer items-start gap-3 rounded-lg border border-muted bg-muted/40 p-2 text-left text-sm"
               >
                 <input
                   type="checkbox"
@@ -537,7 +537,7 @@ export default function ServiceUpdateForm({
                   checked={checked}
                   onChange={() => toggleResource(resource.id)}
                 />
-                <span className="font-medium text-foreground">{resource.label}</span>
+                <span className="font-medium text-foreground break-words leading-snug">{resource.label}</span>
               </label>
             );
           })}
@@ -641,10 +641,10 @@ export default function ServiceUpdateForm({
                 <div className="text-sm font-semibold text-foreground">
                   {SHIFT_OPTIONS.find((option) => option.id === field.shift)?.label ?? field.shift}
                 </div>
-                <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                  <div>
+                <div className="mt-3 grid grid-cols-1 gap-3 [@media(min-width:360px)]:grid-cols-2">
+                  <div className="space-y-1">
                     <label className="text-xs font-medium text-muted-foreground">Tempo</label>
-                    <select className="input mt-1" {...register(`shifts.${index}.weather` as const)}>
+                    <select className="input" {...register(`shifts.${index}.weather` as const)}>
                       {WEATHER_OPTIONS.map((option) => (
                         <option key={option.id} value={option.id}>
                           {option.label}
@@ -652,9 +652,9 @@ export default function ServiceUpdateForm({
                       ))}
                     </select>
                   </div>
-                  <div>
+                  <div className="space-y-1">
                     <label className="text-xs font-medium text-muted-foreground">Condição de trabalho</label>
-                    <select className="input mt-1" {...register(`shifts.${index}.condition` as const)}>
+                    <select className="input" {...register(`shifts.${index}.condition` as const)}>
                       {CONDITION_OPTIONS.map((option) => (
                         <option key={option.id} value={option.id}>
                           {option.label}
