@@ -3,7 +3,6 @@ export const revalidate = 0;
 
 import Link from "next/link";
 import { isNotFoundError, notFound } from "next/navigation";
-import { isRedirectError } from "next/dist/client/components/redirect";
 import dynamic from "next/dynamic";
 import DeletePackageButton from "@/components/DeletePackageButton";
 import SCurveDeferred from "@/components/SCurveDeferred";
@@ -567,11 +566,17 @@ async function renderPackageDetailPage(params: { id: string }) {
   );
 }
 
+function isRedirectDigestError(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const possible = error as { digest?: unknown };
+  return typeof possible.digest === "string" && possible.digest.startsWith("NEXT_REDIRECT");
+}
+
 export default async function PackageDetailPage({ params }: { params: { id: string } }) {
   try {
     return await renderPackageDetailPage(params);
   } catch (error) {
-    if (isNotFoundError(error) || isRedirectError(error)) {
+    if (isNotFoundError(error) || isRedirectDigestError(error)) {
       throw error;
     }
 
