@@ -42,6 +42,14 @@ function normaliseStatus(status: Package["status"] | Service["status"]): string 
   return "Aberto";
 }
 
+function safeAsyncCall<T>(operation: () => Promise<T>): Promise<T> {
+  try {
+    return operation();
+  } catch (error) {
+    return Promise.reject(error);
+  }
+}
+
 function normaliseProgress(value?: number | null) {
   if (!Number.isFinite(value ?? NaN)) return 0;
   return Math.max(0, Math.min(100, Math.round(Number(value ?? 0))));
@@ -179,8 +187,8 @@ export default async function PackageDetailPage({ params }: { params: { id: stri
     );
   }
 
-  const foldersPromise = listPackageFolders(pkg.id);
-  const availableServicesPromise = listAvailableOpenServices(200, { mode: "summary" });
+  const foldersPromise = safeAsyncCall(() => listPackageFolders(pkg.id));
+  const availableServicesPromise = safeAsyncCall(() => listAvailableOpenServices(200, { mode: "summary" }));
 
   let services: Service[] = [];
   let hasServiceOverflow = false;

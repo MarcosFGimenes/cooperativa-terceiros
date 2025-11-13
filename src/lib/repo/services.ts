@@ -1,3 +1,5 @@
+"use server";
+
 import { getAdmin } from "@/lib/firebaseAdmin";
 import type {
   ChecklistItem,
@@ -345,6 +347,18 @@ export async function listRecentServices(): Promise<Service[]> {
   return listRecentServicesCached();
 }
 
+function isMissingAdminError(error: unknown) {
+  if (error instanceof Error) {
+    if (error.message === "FIREBASE_ADMIN_NOT_CONFIGURED") {
+      return true;
+    }
+    if (error.cause && typeof error.cause === "object") {
+      return isMissingAdminError(error.cause);
+    }
+  }
+  return false;
+}
+
 export async function listAvailableOpenServices(
   limit = 200,
   options?: { mode?: ServiceMapMode },
@@ -354,6 +368,25 @@ export async function listAvailableOpenServices(
   const allowedStatusSet = new Set<ServiceStatus>(allowedStatuses);
   const seen = new Set<string>();
   const results: Service[] = [];
+
+  let collection: FirebaseFirestore.CollectionReference | null = null;
+
+  try {
+    collection = servicesCollection();
+  } catch (error) {
+    if (isMissingAdminError(error)) {
+      console.warn(
+        "[services:listAvailableOpenServices] Firebase Admin não está configurado. Retornando lista vazia.",
+        error,
+      );
+      return [];
+    }
+    throw error;
+  }
+
+  if (!collection) {
+    return [];
+  }
 
   const pushDocs = (docs: FirebaseFirestore.QueryDocumentSnapshot[]) => {
     for (const doc of docs) {
@@ -375,8 +408,8 @@ export async function listAvailableOpenServices(
   const baseLimit = safeLimit * 2;
 
   const unassignedQueries: Array<Promise<FirebaseFirestore.QuerySnapshot>> = [
-    servicesCollection().where("packageId", "==", null).limit(baseLimit).get(),
-    servicesCollection().where("packageId", "==", "").limit(baseLimit).get(),
+    collection.where("packageId", "==", null).limit(baseLimit).get(),
+    collection.where("packageId", "==", "").limit(baseLimit).get(),
   ];
 
   let unassignedError: unknown = null;
@@ -402,7 +435,7 @@ export async function listAvailableOpenServices(
     for (const status of statusCandidates) {
       if (results.length >= safeLimit) break;
       try {
-        const snapshot = await servicesCollection().where("status", "==", status).limit(baseLimit).get();
+        const snapshot = await collection.where("status", "==", status).limit(baseLimit).get();
         pushDocs(snapshot.docs);
       } catch (error) {
         if (results.length === 0) {
