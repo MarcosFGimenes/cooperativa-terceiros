@@ -274,9 +274,116 @@ export async function getServiceById(id: string): Promise<Service | null> {
   return mapServiceData(snap.id, (snap.data() ?? {}) as Record<string, unknown>);
 }
 
+export async function getServicesByIds(ids: string[]): Promise<Service[]> {
+  const uniqueIds = Array.from(
+    new Set(ids.filter((id) => typeof id === "string" && id.trim().length > 0)),
+  );
+  if (!uniqueIds.length) return [];
+
+  const db = getDb();
+  const indexMap = new Map<string, number>();
+  uniqueIds.forEach((id, index) => {
+    indexMap.set(id, index);
+  });
+
+  const chunkSize = 50;
+  const chunks: string[][] = [];
+  for (let i = 0; i < uniqueIds.length; i += chunkSize) {
+    chunks.push(uniqueIds.slice(i, i + chunkSize));
+  }
+
+  const collected: Array<{ index: number; service: Service }> = [];
+
+  await Promise.all(
+    chunks.map(async (chunk) => {
+      const refs = chunk.map((id) => servicesCollection().doc(id));
+      const snapshots = await db.getAll(...refs);
+      snapshots.forEach((snapshot, idx) => {
+        if (!snapshot.exists) return;
+        const service = mapServiceData(
+          snapshot.id,
+          (snapshot.data() ?? {}) as Record<string, unknown>,
+        );
+        const index = indexMap.get(service.id);
+        if (index === undefined) return;
+        collected.push({ index, service });
+      });
+    }),
+  );
+
+  collected.sort((a, b) => a.index - b.index);
+
+  return collected.map((entry) => entry.service);
+}
+
 export async function listRecentServices(): Promise<Service[]> {
   const snap = await servicesCollection().orderBy("createdAt", "desc").limit(20).get();
   return snap.docs.map((doc) => mapServiceData(doc.id, (doc.data() ?? {}) as Record<string, unknown>));
+}
+
+export async function listAvailableOpenServices(limit = 200): Promise<Service[]> {
+  const safeLimit = Math.max(1, Math.min(limit, 500));
+  const allowedStatuses: ServiceStatus[] = ["Aberto", "Pendente"];
+  const allowedStatusSet = new Set<ServiceStatus>(allowedStatuses);
+  const seen = new Set<string>();
+  const results: Service[] = [];
+
+  const pushDocs = (docs: FirebaseFirestore.QueryDocumentSnapshot[]) => {
+    for (const doc of docs) {
+      if (results.length >= safeLimit) break;
+      if (seen.has(doc.id)) continue;
+      const service = mapServiceData(doc.id, (doc.data() ?? {}) as Record<string, unknown>);
+      if (!allowedStatusSet.has(service.status)) continue;
+      if (service.packageId && service.packageId.trim().length > 0) continue;
+      seen.add(service.id);
+      results.push(service);
+      if (results.length >= safeLimit) break;
+    }
+  };
+
+  const baseLimit = safeLimit * 2;
+
+  const unassignedQueries: Array<Promise<FirebaseFirestore.QuerySnapshot>> = [
+    servicesCollection().where("packageId", "==", null).limit(baseLimit).get(),
+    servicesCollection().where("packageId", "==", "").limit(baseLimit).get(),
+  ];
+
+  let unassignedError: unknown = null;
+
+  for (const queryPromise of unassignedQueries) {
+    if (results.length >= safeLimit) break;
+    try {
+      const snapshot = await queryPromise;
+      pushDocs(snapshot.docs);
+    } catch (error) {
+      if (!unassignedError) {
+        unassignedError = error;
+      }
+    }
+  }
+
+  if (results.length === 0 && unassignedError) {
+    throw unassignedError;
+  }
+
+  if (results.length < safeLimit) {
+    const statusCandidates = ["Aberto", "aberto", "ABERTO", "Pendente", "pendente", "PENDENTE"];
+    for (const status of statusCandidates) {
+      if (results.length >= safeLimit) break;
+      try {
+        const snapshot = await servicesCollection().where("status", "==", status).limit(baseLimit).get();
+        pushDocs(snapshot.docs);
+      } catch (error) {
+        if (results.length === 0) {
+          throw error;
+        }
+      }
+    }
+  }
+
+  results.sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0));
+
+  return results.slice(0, safeLimit);
 }
 
 function mapChecklistDoc(

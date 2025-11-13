@@ -7,6 +7,8 @@ import { FieldValue } from "firebase-admin/firestore";
 const getDb = () => getAdmin().db;
 const packagesCollection = () => getDb().collection("packages");
 const servicesCollection = () => getDb().collection("services");
+const foldersCollection = () => getDb().collection("packageFolders");
+const accessTokensCollection = () => getDb().collection("accessTokens");
 
 function toMillis(value: unknown): number | undefined {
   if (typeof value === "number") return value;
@@ -32,6 +34,44 @@ export async function getPackage(packageId: string): Promise<Package | null> {
   const snap = await packagesCollection().doc(packageId).get();
   if (!snap.exists) return null;
   return mapPackageDoc(snap);
+}
+
+function normaliseDateOnlyInput(value: string | null | undefined, label: string): string {
+  if (value === undefined) {
+    throw new Error(`Informe a data ${label} do pacote.`);
+  }
+  if (value === null) {
+    return "";
+  }
+  const trimmed = String(value).trim();
+  if (!trimmed) {
+    return "";
+  }
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+    return trimmed;
+  }
+  const date = new Date(trimmed);
+  if (Number.isNaN(date.getTime())) {
+    throw new Error(`Data ${label} inválida.`);
+  }
+  return date.toISOString().slice(0, 10);
+}
+
+async function commitBatchOperations(
+  operations: Array<(batch: FirebaseFirestore.WriteBatch) => void>,
+  chunkSize = 400,
+): Promise<void> {
+  if (!operations.length) {
+    return;
+  }
+  const db = getDb();
+  for (let index = 0; index < operations.length; index += chunkSize) {
+    const batch = db.batch();
+    operations.slice(index, index + chunkSize).forEach((operation) => {
+      operation(batch);
+    });
+    await batch.commit();
+  }
 }
 
 function normalisePackageStatus(value: unknown): Package["status"] {
@@ -65,6 +105,16 @@ function mapPackageData(id: string, data: Record<string, unknown>): Package {
   const createdAt =
     toNumber(data.createdAt ?? data.created_at ?? data.criadoEm ?? data.createdAtMs) ?? Date.now();
 
+  const descriptionRaw =
+    typeof data.description === "string"
+      ? data.description
+      : typeof data.descricao === "string"
+        ? data.descricao
+        : typeof data.details === "string"
+          ? data.details
+          : undefined;
+  const description = typeof descriptionRaw === "string" ? descriptionRaw.trim() : "";
+
   const assignedCompanies = Array.isArray(data.assignedCompanies)
     ? (data.assignedCompanies as Record<string, unknown>[]).map((entry) => ({
         companyId: String(entry.companyId ?? entry.id ?? ""),
@@ -86,6 +136,7 @@ function mapPackageData(id: string, data: Record<string, unknown>): Package {
     plannedEnd,
     totalHours,
     code: data.code ? String(data.code) : data.codigo ? String(data.codigo) : undefined,
+    description: description ? description : null,
     services,
     createdAt,
     assignedCompanies,
@@ -160,4 +211,186 @@ export async function createPackage(
   });
 
   return packageId;
+}
+
+export async function updatePackageMetadata(
+  packageId: string,
+  data: {
+    name?: string;
+    description?: string | null;
+    plannedStart?: string;
+    plannedEnd?: string;
+    status?: Package["status"];
+    code?: string | null;
+  },
+): Promise<Package> {
+  const trimmedId = typeof packageId === "string" ? packageId.trim() : "";
+  if (!trimmedId) {
+    throw new Error("Pacote inválido.");
+  }
+
+  const ref = packagesCollection().doc(trimmedId);
+  const snap = await ref.get();
+  if (!snap.exists) {
+    throw new Error("Pacote não encontrado.");
+  }
+
+  const existing = mapPackageData(trimmedId, (snap.data() ?? {}) as Record<string, unknown>);
+  const updates: Record<string, unknown> = { updatedAt: FieldValue.serverTimestamp() };
+
+  if (data.name !== undefined) {
+    const trimmedName = typeof data.name === "string" ? data.name.trim() : "";
+    if (!trimmedName) {
+      throw new Error("Informe o nome do pacote.");
+    }
+    updates.name = trimmedName;
+    updates.nome = trimmedName;
+  }
+
+  let nextStart = existing.plannedStart?.trim() ?? "";
+  if (data.plannedStart !== undefined) {
+    if (typeof data.plannedStart !== "string") {
+      throw new Error("Data inicial inválida.");
+    }
+    const normalised = normaliseDateOnlyInput(data.plannedStart, "inicial");
+    if (!normalised) {
+      throw new Error("Informe a data inicial do pacote.");
+    }
+    nextStart = normalised;
+    updates.plannedStart = normalised;
+    updates.dataInicio = normalised;
+    updates.inicioPlanejado = normalised;
+    updates.startDate = normalised;
+  }
+
+  let nextEnd = existing.plannedEnd?.trim() ?? "";
+  if (data.plannedEnd !== undefined) {
+    if (typeof data.plannedEnd !== "string") {
+      throw new Error("Data final inválida.");
+    }
+    const normalised = normaliseDateOnlyInput(data.plannedEnd, "final");
+    if (!normalised) {
+      throw new Error("Informe a data final do pacote.");
+    }
+    nextEnd = normalised;
+    updates.plannedEnd = normalised;
+    updates.dataFim = normalised;
+    updates.fimPlanejado = normalised;
+    updates.endDate = normalised;
+  }
+
+  if (nextStart && nextEnd) {
+    const startDate = new Date(nextStart);
+    const endDate = new Date(nextEnd);
+    if (
+      !Number.isNaN(startDate.getTime()) &&
+      !Number.isNaN(endDate.getTime()) &&
+      startDate.getTime() > endDate.getTime()
+    ) {
+      throw new Error("A data final deve ser posterior ou igual à data inicial.");
+    }
+  }
+
+  if (data.description !== undefined) {
+    const trimmedDescription =
+      typeof data.description === "string" ? data.description.trim() : "";
+    const value = trimmedDescription ? trimmedDescription : null;
+    updates.description = value;
+    updates.descricao = value;
+    updates.details = value;
+  }
+
+  if (data.status !== undefined) {
+    updates.status = normalisePackageStatus(data.status);
+  }
+
+  if (data.code !== undefined) {
+    const trimmedCode = typeof data.code === "string" ? data.code.trim() : "";
+    const value = trimmedCode ? trimmedCode : null;
+    updates.code = value;
+    updates.codigo = value;
+  }
+
+  if (Object.keys(updates).length === 1) {
+    return existing;
+  }
+
+  await ref.set(updates, { merge: true });
+  const updatedSnap = await ref.get();
+  if (!updatedSnap.exists) {
+    throw new Error("Pacote não encontrado após atualização.");
+  }
+  return mapPackageData(updatedSnap.id, (updatedSnap.data() ?? {}) as Record<string, unknown>);
+}
+
+export async function deletePackage(packageId: string): Promise<boolean> {
+  const trimmedId = typeof packageId === "string" ? packageId.trim() : "";
+  if (!trimmedId) {
+    throw new Error("Pacote inválido.");
+  }
+
+  const ref = packagesCollection().doc(trimmedId);
+  const snap = await ref.get();
+  if (!snap.exists) {
+    return false;
+  }
+
+  const operations: Array<(batch: FirebaseFirestore.WriteBatch) => void> = [
+    (batch) => batch.delete(ref),
+  ];
+
+  const servicesSnap = await servicesCollection().where("packageId", "==", trimmedId).get();
+  servicesSnap.docs.forEach((doc) => {
+    operations.push((batch) => {
+      batch.set(
+        doc.ref,
+        {
+          packageId: FieldValue.delete(),
+          pacoteId: FieldValue.delete(),
+          updatedAt: FieldValue.serverTimestamp(),
+        },
+        { merge: true },
+      );
+    });
+  });
+
+  const foldersSnap = await foldersCollection().where("packageId", "==", trimmedId).get();
+  const tokenUpdates: Promise<unknown>[] = [];
+  foldersSnap.docs.forEach((doc) => {
+    const data = doc.data() ?? {};
+    const rawTokenId = typeof data.tokenId === "string" ? data.tokenId.trim() : "";
+    const rawTokenCode = typeof data.tokenCode === "string" ? data.tokenCode.trim() : "";
+    const tokenId = rawTokenId || rawTokenCode;
+    if (tokenId) {
+      tokenUpdates.push(
+        accessTokensCollection()
+          .doc(tokenId)
+          .set(
+            {
+              active: false,
+              status: "revoked",
+              revoked: true,
+              updatedAt: FieldValue.serverTimestamp(),
+            },
+            { merge: true },
+          )
+          .catch((error) => {
+            console.error(
+              `[packages] Falha ao revogar token ${tokenId} da pasta ${doc.id}`,
+              error,
+            );
+          }),
+      );
+    }
+    operations.push((batch) => {
+      batch.delete(doc.ref);
+    });
+  });
+
+  if (tokenUpdates.length) {
+    await Promise.all(tokenUpdates);
+  }
+
+  await commitBatchOperations(operations);
+  return true;
 }
