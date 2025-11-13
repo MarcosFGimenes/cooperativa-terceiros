@@ -156,10 +156,20 @@ export async function listRecentPackages(): Promise<Package[]> {
 
 export async function listPackageServices(
   packageId: string,
+  options?: { limit?: number },
 ): Promise<Service[]> {
-  const servicesSnap = await servicesCollection()
-    .where("packageId", "==", packageId)
-    .get();
+  if (!packageId) return [];
+  const baseQuery = servicesCollection().where("packageId", "==", packageId);
+  const { limit } = options ?? {};
+  const query = (() => {
+    if (typeof limit !== "number" || !Number.isFinite(limit) || limit <= 0) {
+      return baseQuery;
+    }
+    const safeLimit = Math.max(1, Math.min(Math.floor(limit), 2000));
+    return baseQuery.limit(safeLimit);
+  })();
+
+  const servicesSnap = await query.get();
   return servicesSnap.docs.map((doc) => {
     const data = doc.data() ?? {};
     return {
