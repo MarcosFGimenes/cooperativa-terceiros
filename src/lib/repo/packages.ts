@@ -50,7 +50,8 @@ function packagesCollectionOptional(): FirebaseFirestore.CollectionReference | n
     if (isMissingAdminError(error)) {
       return null;
     }
-    throw error;
+    console.warn("[packages] Falha ao acessar a coleção de pacotes.", error);
+    return null;
   }
 }
 
@@ -61,7 +62,8 @@ function servicesCollectionOptional(): FirebaseFirestore.CollectionReference | n
     if (isMissingAdminError(error)) {
       return null;
     }
-    throw error;
+    console.warn("[packages] Falha ao acessar a coleção de serviços.", error);
+    return null;
   }
 }
 
@@ -120,7 +122,11 @@ const packageSummaryCache = (() => {
               logMissingAdmin("summary:fetch", error);
               return null;
             }
-            throw error;
+            console.warn(
+              `[packages:summary:fetch] Falha ao carregar pacote ${packageId}. Retornando dados vazios.`,
+              error,
+            );
+            return null;
           }
         },
         ["packages", "summary", cacheKey],
@@ -183,7 +189,11 @@ async function fetchPackageDetail(packageId: string): Promise<Package | null> {
         logMissingAdmin("detail:fallback", fallbackError);
         return null;
       }
-      throw fallbackError;
+      console.warn(
+        `[packages:fetchPackageDetail] Falha ao carregar pacote ${packageId} com fallback completo. Retornando dados vazios.`,
+        fallbackError,
+      );
+      return null;
     }
   }
   if (!snap.exists) return null;
@@ -452,7 +462,8 @@ const listRecentPackagesCached = unstable_cache(
         logMissingAdmin("recent:fetch", error);
         return [];
       }
-      throw error;
+      console.warn("[packages:listRecent] Falha ao carregar pacotes recentes. Retornando lista vazia.", error);
+      return [];
     }
   },
   ["packages:listRecent"],
@@ -514,7 +525,11 @@ export async function listPackageServices(
       logMissingAdmin("services:fetch", error);
       return [];
     }
-    throw error;
+    console.warn(
+      `[packages:listPackageServices] Falha ao listar serviços do pacote ${packageId}. Retornando lista vazia.`,
+      error,
+    );
+    return [];
   }
 }
 

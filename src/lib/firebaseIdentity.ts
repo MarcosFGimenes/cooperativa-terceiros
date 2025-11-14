@@ -78,7 +78,7 @@ let missingIdentityToolkitWarningLogged = false;
 function warnIdentityToolkitMissingConfig() {
   if (missingIdentityToolkitWarningLogged) return;
   console.warn(
-    "[firebase-identity] Identity Toolkit não está configurado. Configure NEXT_PUBLIC_FIREBASE_API_KEY para habilitar o fallback.",
+    "[firebase-identity] Identity Toolkit não está configurado. Configure NEXT_PUBLIC_FIREBASE_API_KEY e NEXT_PUBLIC_FIREBASE_PROJECT_ID para habilitar o fallback.",
   );
   missingIdentityToolkitWarningLogged = true;
 }

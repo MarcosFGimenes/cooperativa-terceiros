@@ -294,7 +294,24 @@ export async function getServicesByIds(
   );
   if (!uniqueIds.length) return [];
 
-  const db = getDb();
+  let db: FirebaseFirestore.Firestore;
+  try {
+    db = getDb();
+  } catch (error) {
+    if (isMissingAdminError(error)) {
+      console.warn(
+        "[services:getServicesByIds] Firebase Admin não está configurado. Retornando lista vazia.",
+        error,
+      );
+      return [];
+    }
+    console.warn(
+      "[services:getServicesByIds] Falha ao acessar o Firestore para buscar serviços. Retornando lista vazia.",
+      error,
+    );
+    return [];
+  }
+  const collection = db.collection("services");
   const indexMap = new Map<string, number>();
   uniqueIds.forEach((id, index) => {
     indexMap.set(id, index);
@@ -308,23 +325,37 @@ export async function getServicesByIds(
 
   const collected: Array<{ index: number; service: Service }> = [];
 
-  await Promise.all(
-    chunks.map(async (chunk) => {
-      const refs = chunk.map((id) => servicesCollection().doc(id));
-      const snapshots = await db.getAll(...refs);
-      snapshots.forEach((snapshot, idx) => {
-        if (!snapshot.exists) return;
-        const service = mapServiceData(
-          snapshot.id,
-          (snapshot.data() ?? {}) as Record<string, unknown>,
-          options?.mode,
-        );
-        const index = indexMap.get(service.id);
-        if (index === undefined) return;
-        collected.push({ index, service });
-      });
-    }),
-  );
+  try {
+    await Promise.all(
+      chunks.map(async (chunk) => {
+        const refs = chunk.map((id) => collection.doc(id));
+        const snapshots = await db.getAll(...refs);
+        snapshots.forEach((snapshot) => {
+          if (!snapshot.exists) return;
+          const service = mapServiceData(
+            snapshot.id,
+            (snapshot.data() ?? {}) as Record<string, unknown>,
+            options?.mode,
+          );
+          const index = indexMap.get(service.id);
+          if (index === undefined) return;
+          collected.push({ index, service });
+        });
+      }),
+    );
+  } catch (error) {
+    if (isMissingAdminError(error)) {
+      console.warn(
+        "[services:getServicesByIds] Firebase Admin não está configurado. Retornando lista vazia.",
+        error,
+      );
+      return [];
+    }
+    console.warn(
+      "[services:getServicesByIds] Falha ao buscar serviços por ID. Retornando lista parcial.",
+      error,
+    );
+  }
 
   collected.sort((a, b) => a.index - b.index);
 
@@ -381,7 +412,11 @@ export async function listAvailableOpenServices(
       );
       return [];
     }
-    throw error;
+    console.warn(
+      "[services:listAvailableOpenServices] Falha ao acessar o Firestore. Retornando lista vazia.",
+      error,
+    );
+    return [];
   }
 
   if (!collection) {
@@ -412,7 +447,7 @@ export async function listAvailableOpenServices(
     collection.where("packageId", "==", "").limit(baseLimit).get(),
   ];
 
-  let unassignedError: unknown = null;
+  const errors: Array<{ scope: string; error: unknown }> = [];
 
   for (const queryPromise of unassignedQueries) {
     if (results.length >= safeLimit) break;
@@ -420,14 +455,12 @@ export async function listAvailableOpenServices(
       const snapshot = await queryPromise;
       pushDocs(snapshot.docs);
     } catch (error) {
-      if (!unassignedError) {
-        unassignedError = error;
-      }
+      errors.push({ scope: "packageId", error });
+      console.warn(
+        "[services:listAvailableOpenServices] Falha ao listar serviços sem pacote associado. Continuando com resultado parcial.",
+        error,
+      );
     }
-  }
-
-  if (results.length === 0 && unassignedError) {
-    throw unassignedError;
   }
 
   if (results.length < safeLimit) {
@@ -438,11 +471,22 @@ export async function listAvailableOpenServices(
         const snapshot = await collection.where("status", "==", status).limit(baseLimit).get();
         pushDocs(snapshot.docs);
       } catch (error) {
-        if (results.length === 0) {
-          throw error;
-        }
+        errors.push({ scope: `status:${status}`, error });
+        console.warn(
+          `[services:listAvailableOpenServices] Falha ao listar serviços com status ${status}. Continuando com resultado parcial.`,
+          error,
+        );
       }
     }
+  }
+
+  if (results.length === 0 && errors.length > 0) {
+    const firstError = errors[0];
+    console.warn(
+      "[services:listAvailableOpenServices] Não foi possível carregar serviços disponíveis. Retornando lista vazia.",
+      firstError.error,
+    );
+    return [];
   }
 
   results.sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0));
