@@ -365,6 +365,11 @@ export default function PackageFoldersManager({
     if (!activeFolderId) return null;
     return folders.find((folder) => folder.id === activeFolderId) ?? null;
   }, [activeFolderId, folders]);
+  const activeFolderToken = activeFolder?.tokenCode ?? "";
+  const activeFolderLink = useMemo(
+    () => (activeFolderToken ? buildAccessLink(activeFolderToken) : ""),
+    [activeFolderToken],
+  );
 
   const activeSelection = useMemo(() => {
     if (!activeFolder) return [];
@@ -479,6 +484,19 @@ export default function PackageFoldersManager({
                         Token atual: <span className="font-mono text-foreground">{activeFolder.tokenCode ?? "Sem token ativo"}</span>
                         {activeFolder.tokenCreatedAt ? (
                           <span className="text-muted-foreground"> • gerado em {formatDate(activeFolder.tokenCreatedAt)}</span>
+                        ) : null}
+                        {activeFolderLink ? (
+                          <>
+                            {" "}•{" "}
+                            <a
+                              href={activeFolderLink}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="font-medium text-primary underline underline-offset-2"
+                            >
+                              Link público
+                            </a>
+                          </>
                         ) : null}
                       </p>
                     </div>
