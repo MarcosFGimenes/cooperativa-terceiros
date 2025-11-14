@@ -386,20 +386,9 @@ export async function getServicesByIds(
   return collected.map((entry) => entry.service);
 }
 
-const listRecentServicesCached = unstable_cache(
-  async () => {
-    const snap = await servicesCollection().orderBy("createdAt", "desc").limit(20).get();
-    return snap.docs.map((doc) => mapServiceData(doc.id, (doc.data() ?? {}) as Record<string, unknown>));
-  },
-  ["services:listRecent"],
-  {
-    revalidate: 300,
-    tags: ["services:recent"],
-  },
-);
-
 export async function listRecentServices(): Promise<Service[]> {
-  return listRecentServicesCached();
+  const snap = await servicesCollection().orderBy("createdAt", "desc").limit(20).get();
+  return snap.docs.map((doc) => mapServiceData(doc.id, (doc.data() ?? {}) as Record<string, unknown>));
 }
 
 function isMissingAdminError(error: unknown) {
