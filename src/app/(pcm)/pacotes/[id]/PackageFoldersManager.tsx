@@ -20,6 +20,7 @@ export type ServiceOption = {
   id: string;
   label: string;
   description?: string;
+  status?: string;
 };
 
 export type ServiceInfo = {
@@ -31,6 +32,13 @@ export type ServiceInfo = {
 };
 
 const MAX_VISIBLE_SERVICES = 5;
+
+const STATUS_TONE: Record<string, string> = {
+  Aberto: "bg-sky-100 text-sky-700 border-sky-200",
+  Pendente: "bg-amber-100 text-amber-700 border-amber-200",
+  Concluído: "bg-emerald-100 text-emerald-700 border-emerald-200",
+  Encerrado: "bg-slate-200 text-slate-700 border-slate-300",
+};
 
 export type PackageFoldersManagerProps = {
   packageId: string;
@@ -188,7 +196,12 @@ export default function PackageFoldersManager({
           const restored = removed
             .map((id) => serviceDetails[id])
             .filter((info): info is ServiceInfo => Boolean(info) && info.isOpen)
-            .map((info) => ({ id: info.id, label: info.label, description: info.companyLabel }));
+            .map((info) => ({
+              id: info.id,
+              label: info.label,
+              description: info.companyLabel,
+              status: info.status,
+            }));
           const merged = [...withoutAdded];
           restored.forEach((option) => {
             if (!merged.some((existing) => existing.id === option.id)) {
@@ -352,6 +365,11 @@ export default function PackageFoldersManager({
     if (!activeFolderId) return null;
     return folders.find((folder) => folder.id === activeFolderId) ?? null;
   }, [activeFolderId, folders]);
+  const activeFolderToken = activeFolder?.tokenCode ?? "";
+  const activeFolderLink = useMemo(
+    () => (activeFolderToken ? buildAccessLink(activeFolderToken) : ""),
+    [activeFolderToken],
+  );
 
   const activeSelection = useMemo(() => {
     if (!activeFolder) return [];
@@ -467,6 +485,19 @@ export default function PackageFoldersManager({
                         {activeFolder.tokenCreatedAt ? (
                           <span className="text-muted-foreground"> • gerado em {formatDate(activeFolder.tokenCreatedAt)}</span>
                         ) : null}
+                        {activeFolderLink ? (
+                          <>
+                            {" "}•{" "}
+                            <a
+                              href={activeFolderLink}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="font-medium text-primary underline underline-offset-2"
+                            >
+                              Link público
+                            </a>
+                          </>
+                        ) : null}
                       </p>
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
@@ -561,14 +592,23 @@ export default function PackageFoldersManager({
                         ).map((serviceId) => {
                           const info = serviceDetails[serviceId];
                           const label = info?.label ?? serviceId;
+                          const statusLabel = info?.status ?? "Desconhecido";
+                          const statusTone = STATUS_TONE[statusLabel] ?? "border-border bg-muted text-foreground/80";
                           const company = info?.companyLabel ? ` • ${info.companyLabel}` : "";
                           return (
                             <div
                               key={serviceId}
                               className="flex flex-wrap items-center justify-between gap-3 rounded border p-3 text-sm"
                             >
-                              <div className="min-w-0 flex-1">
-                                <p className="font-medium text-foreground">{label}</p>
+                              <div className="min-w-0 flex-1 space-y-1">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <p className="font-medium text-foreground">{label}</p>
+                                  <span
+                                    className={`rounded-full border px-2 py-0.5 text-xs font-semibold ${statusTone}`}
+                                  >
+                                    {statusLabel}
+                                  </span>
+                                </div>
                                 <p className="text-xs text-muted-foreground">
                                   ID: {serviceId}
                                   {company}
@@ -633,7 +673,8 @@ export default function PackageFoldersManager({
                         <div>
                           <h5 className="text-sm font-semibold">Serviços disponíveis</h5>
                           <p className="text-xs text-muted-foreground">
-                            Apenas serviços abertos e sem vínculo com outros pacotes ou subpacotes aparecem nesta lista.
+                            Apenas serviços abertos ou pendentes e sem vínculo com outros pacotes ou subpacotes aparecem
+                            nesta lista.
                           </p>
                         </div>
                         <input
@@ -645,7 +686,7 @@ export default function PackageFoldersManager({
                       </div>
                       {filteredAssignable.length === 0 ? (
                         <p className="text-sm text-muted-foreground">
-                          Nenhum serviço aberto disponível com os filtros atuais.
+                          Nenhum serviço aberto ou pendente disponível com os filtros atuais.
                         </p>
                       ) : (
                         <>
@@ -653,25 +694,36 @@ export default function PackageFoldersManager({
                             {(expandedAssignable[activeFolder.id] ?? false
                               ? filteredAssignable
                               : filteredAssignable.slice(0, MAX_VISIBLE_SERVICES)
-                            ).map((service) => (
-                              <label
-                                key={service.id}
-                                className="flex cursor-pointer items-start gap-2 rounded border p-3 text-sm hover:border-primary/40 hover:bg-muted/40"
-                              >
-                                <input
-                                  type="checkbox"
-                                  className="mt-1"
-                                  checked={serviceSelections[activeFolder.id]?.has(service.id) ?? false}
-                                  onChange={(event) => updateServiceSelection(activeFolder.id, service.id, event.target.checked)}
-                                />
-                                <span>
-                                  <span className="font-medium text-foreground">{service.label}</span>
-                                  {service.description ? (
-                                    <span className="block text-xs text-muted-foreground">{service.description}</span>
-                                  ) : null}
-                                </span>
-                              </label>
-                            ))}
+                            ).map((service) => {
+                              const statusLabel = service.status ?? "Aberto";
+                              const statusTone = STATUS_TONE[statusLabel] ?? "border-border bg-muted text-foreground/80";
+                              return (
+                                <label
+                                  key={service.id}
+                                  className="flex cursor-pointer items-start gap-2 rounded border p-3 text-sm hover:border-primary/40 hover:bg-muted/40"
+                                >
+                                  <input
+                                    type="checkbox"
+                                    className="mt-1"
+                                    checked={serviceSelections[activeFolder.id]?.has(service.id) ?? false}
+                                    onChange={(event) => updateServiceSelection(activeFolder.id, service.id, event.target.checked)}
+                                  />
+                                  <span className="space-y-1">
+                                    <span className="flex flex-wrap items-center gap-2">
+                                      <span className="font-medium text-foreground">{service.label}</span>
+                                      <span
+                                        className={`rounded-full border px-2 py-0.5 text-xs font-semibold ${statusTone}`}
+                                      >
+                                        {statusLabel}
+                                      </span>
+                                    </span>
+                                    {service.description ? (
+                                      <span className="block text-xs text-muted-foreground">{service.description}</span>
+                                    ) : null}
+                                  </span>
+                                </label>
+                              );
+                            })}
                           </div>
                           {filteredAssignable.length > MAX_VISIBLE_SERVICES ? (
                             <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">

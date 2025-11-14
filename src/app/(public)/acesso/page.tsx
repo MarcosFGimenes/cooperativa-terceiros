@@ -60,6 +60,14 @@ function formatPercent(value: number | undefined) {
   return `${Math.round(Number(value ?? 0))}%`;
 }
 
+function normaliseStatus(value: string | undefined) {
+  const raw = (value ?? "").trim().toLowerCase();
+  if (raw === "pendente") return "Pendente";
+  if (raw === "aberta") return "Aberto";
+  if (raw === "aberto") return "Aberto";
+  return value && value.trim() ? value.trim() : "-";
+}
+
 const MAX_VISIBLE_SERVICES = 5;
 
 export default function AcessoPorTokenPage() {
@@ -166,12 +174,13 @@ export default function AcessoPorTokenPage() {
       setLoadingServices(true);
       try {
         const entries = await Promise.all(serviceIds.map((id) => fetchService(tokenValue, id)));
-        const onlyOpen = entries
+        const allowedStatuses = new Set(["aberto", "aberta", "pendente"]);
+        const openOrPending = entries
           .filter((service): service is ServiceSummary => Boolean(service))
-          .filter((service) => (service.status || "").toLowerCase() === "aberto");
-        setServices(onlyOpen);
-        if (onlyOpen.length > 0) {
-          setSelectedServiceId(onlyOpen[0].id);
+          .filter((service) => allowedStatuses.has((service.status || "").trim().toLowerCase()));
+        setServices(openOrPending);
+        if (openOrPending.length > 0) {
+          setSelectedServiceId(openOrPending[0].id);
         } else {
           setSelectedServiceId(null);
         }
@@ -226,8 +235,8 @@ export default function AcessoPorTokenPage() {
 
         if (!json.found || ("serviceIds" in json && json.serviceIds.length === 0)) {
           setValidatedToken(code);
-          toast.info("Token válido, mas nenhum serviço aberto foi encontrado.");
-          setValidationError("Nenhum serviço aberto encontrado para este token.");
+          toast.info("Token válido, mas nenhum serviço aberto ou pendente foi encontrado.");
+          setValidationError("Nenhum serviço aberto ou pendente encontrado para este token.");
           recordTelemetry("token.validation.success", { services: 0 });
           return;
         }
@@ -376,18 +385,27 @@ export default function AcessoPorTokenPage() {
 
         <div className="mt-8 grid gap-6 lg:grid-cols-[minmax(0,280px)_1fr]">
           <div className="space-y-3">
-            <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Serviços abertos</h2>
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+              Serviços abertos ou pendentes
+            </h2>
             <div className="space-y-2">
               {loadingServices ? (
                 <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">Carregando serviços...</div>
               ) : services.length === 0 ? (
                 <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
-                  Nenhum serviço disponível no momento.
+                  Nenhum serviço aberto ou pendente disponível no momento.
                 </div>
               ) : (
                 <>
                   {visibleServices.map((service) => {
                     const isActive = service.id === selectedServiceId;
+                    const statusLabel = normaliseStatus(service.status);
+                    let statusNote = "Status aberto — disponível para atualização";
+                    if (statusLabel === "Pendente") {
+                      statusNote = "Status pendente — aguardando liberação";
+                    } else if (statusLabel && statusLabel !== "Aberto") {
+                      statusNote = `Status ${statusLabel}`;
+                    }
                     return (
                       <button
                         key={service.id}
@@ -404,6 +422,7 @@ export default function AcessoPorTokenPage() {
                         <div className="text-xs text-muted-foreground">
                           <div>Tag: {service.tag || "—"}</div>
                           <div>Equipamento: {service.equipamento || "—"}</div>
+                          <div>{statusNote}</div>
                         </div>
                       </button>
                     );
