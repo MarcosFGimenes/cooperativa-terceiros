@@ -5,11 +5,67 @@ import type { Package, Service } from "@/lib/types";
 import { FieldValue } from "firebase-admin/firestore";
 import { revalidateTag, unstable_cache } from "next/cache";
 
+const FIREBASE_ADMIN_NOT_CONFIGURED = "FIREBASE_ADMIN_NOT_CONFIGURED";
+
+const missingAdminWarnings = new Set<string>();
+
+function isMissingAdminError(error: unknown): boolean {
+  if (error instanceof Error) {
+    if (error.message === FIREBASE_ADMIN_NOT_CONFIGURED) {
+      return true;
+    }
+    const cause = (error as { cause?: unknown }).cause;
+    if (cause) {
+      return isMissingAdminError(cause);
+    }
+  }
+  return false;
+}
+
+function logMissingAdmin(scope: string, error?: unknown) {
+  if (missingAdminWarnings.has(scope)) return;
+  const message = `[packages:${scope}] Firebase Admin não está configurado.`;
+  if (process.env.NODE_ENV !== "production") {
+    if (error) {
+      console.warn(message, error);
+    } else {
+      console.warn(message);
+    }
+  } else {
+    console.warn(message);
+  }
+  missingAdminWarnings.add(scope);
+}
+
 const getDb = () => getAdmin().db;
 const packagesCollection = () => getDb().collection("packages");
 const servicesCollection = () => getDb().collection("services");
 const foldersCollection = () => getDb().collection("packageFolders");
 const accessTokensCollection = () => getDb().collection("accessTokens");
+
+function packagesCollectionOptional(): FirebaseFirestore.CollectionReference | null {
+  try {
+    return packagesCollection();
+  } catch (error) {
+    if (isMissingAdminError(error)) {
+      return null;
+    }
+    console.warn("[packages] Falha ao acessar a coleção de pacotes.", error);
+    return null;
+  }
+}
+
+function servicesCollectionOptional(): FirebaseFirestore.CollectionReference | null {
+  try {
+    return servicesCollection();
+  } catch (error) {
+    if (isMissingAdminError(error)) {
+      return null;
+    }
+    console.warn("[packages] Falha ao acessar a coleção de serviços.", error);
+    return null;
+  }
+}
 
 const PACKAGE_CACHE_TTL_SECONDS = 300;
 
@@ -49,12 +105,29 @@ const packageSummaryCache = (() => {
     if (!cachedFetcher) {
       cachedFetcher = unstable_cache(
         async () => {
-          const snap = await packagesCollection()
-            .doc(packageId)
-            .select("name", "nome", "status", "serviceIds", "createdAt")
-            .get();
-          if (!snap.exists) return null;
-          return mapPackageDoc(snap);
+          const collection = packagesCollectionOptional();
+          if (!collection) {
+            logMissingAdmin("summary:collection");
+            return null;
+          }
+          try {
+            const snap = await collection
+              .doc(packageId)
+              .select("name", "nome", "status", "serviceIds", "createdAt")
+              .get();
+            if (!snap.exists) return null;
+            return mapPackageDoc(snap);
+          } catch (error) {
+            if (isMissingAdminError(error)) {
+              logMissingAdmin("summary:fetch", error);
+              return null;
+            }
+            console.warn(
+              `[packages:summary:fetch] Falha ao carregar pacote ${packageId}. Retornando dados vazios.`,
+              error,
+            );
+            return null;
+          }
         },
         ["packages", "summary", cacheKey],
         {
@@ -89,8 +162,40 @@ const packageDetailCache = (() => {
 })();
 
 async function fetchPackageDetail(packageId: string): Promise<Package | null> {
-  const docRef = packagesCollection().doc(packageId);
-  const snap = await docRef.select(...PACKAGE_DETAIL_BASE_FIELDS).get();
+  const collection = packagesCollectionOptional();
+  if (!collection) {
+    logMissingAdmin("detail:collection");
+    return null;
+  }
+
+  const docRef = collection.doc(packageId);
+  let snap: FirebaseFirestore.DocumentSnapshot;
+
+  try {
+    snap = await docRef.select(...PACKAGE_DETAIL_BASE_FIELDS).get();
+  } catch (error) {
+    if (isMissingAdminError(error)) {
+      logMissingAdmin("detail:fetch", error);
+      return null;
+    }
+    console.warn(
+      `[packages:fetchPackageDetail] Failed to fetch projected fields for package ${packageId}`,
+      error,
+    );
+    try {
+      snap = await docRef.get();
+    } catch (fallbackError) {
+      if (isMissingAdminError(fallbackError)) {
+        logMissingAdmin("detail:fallback", fallbackError);
+        return null;
+      }
+      console.warn(
+        `[packages:fetchPackageDetail] Falha ao carregar pacote ${packageId} com fallback completo. Retornando dados vazios.`,
+        fallbackError,
+      );
+      return null;
+    }
+  }
   if (!snap.exists) return null;
 
   const baseData = (snap.data() ?? {}) as Record<string, unknown>;
@@ -320,7 +425,12 @@ export async function getPackageById(id: string): Promise<Package | null> {
   const trimmedId = typeof id === "string" ? id.trim() : "";
   if (!trimmedId) return null;
 
-  const cached = await packageDetailCache(trimmedId);
+  let cached: Package | null = null;
+  try {
+    cached = await packageDetailCache(trimmedId);
+  } catch (error) {
+    console.warn(`[packages:getPackageById] Failed to read cached package ${trimmedId}`, error);
+  }
   if (cached) return cached;
 
   try {
@@ -337,8 +447,24 @@ export async function getPackageById(id: string): Promise<Package | null> {
 
 const listRecentPackagesCached = unstable_cache(
   async () => {
-    const snap = await packagesCollection().orderBy("createdAt", "desc").limit(20).get();
-    return snap.docs.map((doc) => toPackageSummary(doc.id, (doc.data() ?? {}) as Record<string, unknown>));
+    const collection = packagesCollectionOptional();
+    if (!collection) {
+      logMissingAdmin("recent:collection");
+      return [];
+    }
+    try {
+      const snap = await collection.orderBy("createdAt", "desc").limit(20).get();
+      return snap.docs.map((doc) =>
+        toPackageSummary(doc.id, (doc.data() ?? {}) as Record<string, unknown>),
+      );
+    } catch (error) {
+      if (isMissingAdminError(error)) {
+        logMissingAdmin("recent:fetch", error);
+        return [];
+      }
+      console.warn("[packages:listRecent] Falha ao carregar pacotes recentes. Retornando lista vazia.", error);
+      return [];
+    }
   },
   ["packages:listRecent"],
   {
@@ -356,7 +482,12 @@ export async function listPackageServices(
   options?: { limit?: number },
 ): Promise<Service[]> {
   if (!packageId) return [];
-  const baseQuery = servicesCollection().where("packageId", "==", packageId);
+  const collection = servicesCollectionOptional();
+  if (!collection) {
+    logMissingAdmin("services:list");
+    return [];
+  }
+  const baseQuery = collection.where("packageId", "==", packageId);
   const { limit } = options ?? {};
   const query = (() => {
     if (typeof limit !== "number" || !Number.isFinite(limit) || limit <= 0) {
@@ -366,28 +497,40 @@ export async function listPackageServices(
     return baseQuery.limit(safeLimit);
   })();
 
-  const servicesSnap = await query.get();
-  return servicesSnap.docs.map((doc) => {
-    const data = doc.data() ?? {};
-    return {
-      id: doc.id,
-      os: data.os ?? "",
-      oc: data.oc ?? undefined,
-      tag: data.tag ?? "",
-      equipmentName: data.equipmentName ?? "",
-      sector: data.sector ?? "",
-      plannedStart: data.plannedStart ?? "",
-      plannedEnd: data.plannedEnd ?? "",
-      totalHours: data.totalHours ?? 0,
-      status: data.status ?? "aberto",
-      company: data.company ?? undefined,
-      createdAt: toMillis(data.createdAt),
-      updatedAt: toMillis(data.updatedAt),
-      hasChecklist: data.hasChecklist ?? false,
-      realPercent: data.realPercent ?? 0,
-      packageId: data.packageId ?? undefined,
-    };
-  });
+  try {
+    const servicesSnap = await query.get();
+    return servicesSnap.docs.map((doc) => {
+      const data = doc.data() ?? {};
+      return {
+        id: doc.id,
+        os: data.os ?? "",
+        oc: data.oc ?? undefined,
+        tag: data.tag ?? "",
+        equipmentName: data.equipmentName ?? "",
+        sector: data.sector ?? "",
+        plannedStart: data.plannedStart ?? "",
+        plannedEnd: data.plannedEnd ?? "",
+        totalHours: data.totalHours ?? 0,
+        status: data.status ?? "aberto",
+        company: data.company ?? undefined,
+        createdAt: toMillis(data.createdAt),
+        updatedAt: toMillis(data.updatedAt),
+        hasChecklist: data.hasChecklist ?? false,
+        realPercent: data.realPercent ?? 0,
+        packageId: data.packageId ?? undefined,
+      };
+    });
+  } catch (error) {
+    if (isMissingAdminError(error)) {
+      logMissingAdmin("services:fetch", error);
+      return [];
+    }
+    console.warn(
+      `[packages:listPackageServices] Falha ao listar serviços do pacote ${packageId}. Retornando lista vazia.`,
+      error,
+    );
+    return [];
+  }
 }
 
 export async function createPackage(
