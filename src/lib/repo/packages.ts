@@ -69,6 +69,14 @@ function servicesCollectionOptional(): FirebaseFirestore.CollectionReference | n
 
 const PACKAGE_CACHE_TTL_SECONDS = 300;
 
+function normalisePackageServiceLimit(limit: number | undefined): number {
+  if (typeof limit !== "number" || !Number.isFinite(limit) || limit <= 0) {
+    return 0;
+  }
+  const safeLimit = Math.floor(limit);
+  return Math.max(1, Math.min(safeLimit, 2000));
+}
+
 const PACKAGE_DETAIL_BASE_FIELDS = [
   "name",
   "nome",
@@ -161,6 +169,15 @@ const packageDetailCache = (() => {
   };
 })();
 
+const listPackageServicesCache = unstable_cache(
+  async (packageId: string, limit: number) => fetchPackageServices(packageId, limit),
+  ["packages", "services", "by-package"],
+  {
+    revalidate: PACKAGE_CACHE_TTL_SECONDS,
+    tags: ["packages:services"],
+  },
+);
+
 async function fetchPackageDetail(packageId: string): Promise<Package | null> {
   const collection = packagesCollectionOptional();
   if (!collection) {
@@ -221,6 +238,8 @@ function revalidatePackageDetailCache(packageId: string) {
   if (!packageId) return;
   revalidateTag("packages:detail");
   revalidateTag("packages:summary");
+  revalidateTag("packages:services");
+  revalidateTag("services:available");
 }
 
 function toMillis(value: unknown): number | undefined {
@@ -421,13 +440,19 @@ function toPackageSummary(id: string, data: Record<string, unknown>): PackageSum
   };
 }
 
+export async function getPackageByIdCached(id: string): Promise<Package | null> {
+  const trimmedId = typeof id === "string" ? id.trim() : "";
+  if (!trimmedId) return null;
+  return packageDetailCache(trimmedId);
+}
+
 export async function getPackageById(id: string): Promise<Package | null> {
   const trimmedId = typeof id === "string" ? id.trim() : "";
   if (!trimmedId) return null;
 
   let cached: Package | null = null;
   try {
-    cached = await packageDetailCache(trimmedId);
+    cached = await getPackageByIdCached(trimmedId);
   } catch (error) {
     console.warn(`[packages:getPackageById] Failed to read cached package ${trimmedId}`, error);
   }
@@ -477,10 +502,7 @@ export async function listRecentPackages(): Promise<PackageSummary[]> {
   return listRecentPackagesCached();
 }
 
-export async function listPackageServices(
-  packageId: string,
-  options?: { limit?: number },
-): Promise<Service[]> {
+async function fetchPackageServices(packageId: string, limit: number): Promise<Service[]> {
   if (!packageId) return [];
   const collection = servicesCollectionOptional();
   if (!collection) {
@@ -488,14 +510,7 @@ export async function listPackageServices(
     return [];
   }
   const baseQuery = collection.where("packageId", "==", packageId);
-  const { limit } = options ?? {};
-  const query = (() => {
-    if (typeof limit !== "number" || !Number.isFinite(limit) || limit <= 0) {
-      return baseQuery;
-    }
-    const safeLimit = Math.max(1, Math.min(Math.floor(limit), 2000));
-    return baseQuery.limit(safeLimit);
-  })();
+  const query = limit > 0 ? baseQuery.limit(limit) : baseQuery;
 
   try {
     const servicesSnap = await query.get();
@@ -533,6 +548,16 @@ export async function listPackageServices(
   }
 }
 
+export async function listPackageServices(
+  packageId: string,
+  options?: { limit?: number },
+): Promise<Service[]> {
+  const trimmedId = typeof packageId === "string" ? packageId.trim() : "";
+  if (!trimmedId) return [];
+  const safeLimit = normalisePackageServiceLimit(options?.limit);
+  return listPackageServicesCache(trimmedId, safeLimit);
+}
+
 export async function createPackage(
   name: string,
   serviceIds: string[],
@@ -562,6 +587,7 @@ export async function createPackage(
 
   revalidateTag("packages:recent");
   revalidateTag("services:recent");
+  revalidateTag("packages:services");
   revalidatePackageDetailCache(packageId);
 
   return packageId;
@@ -677,6 +703,7 @@ export async function updatePackageMetadata(
   const updated = mapPackageData(updatedSnap.id, (updatedSnap.data() ?? {}) as Record<string, unknown>);
 
   revalidateTag("packages:recent");
+  revalidateTag("packages:services");
   revalidatePackageDetailCache(trimmedId);
 
   return updated;
@@ -754,6 +781,7 @@ export async function deletePackage(packageId: string): Promise<boolean> {
 
   revalidateTag("packages:recent");
   revalidateTag("services:recent");
+  revalidateTag("packages:services");
   revalidatePackageDetailCache(trimmedId);
 
   return true;
