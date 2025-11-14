@@ -131,6 +131,8 @@ export default function PackageFoldersManager({
   const [serviceSearch, setServiceSearch] = useState("");
   const [expandedSelection, setExpandedSelection] = useState<Record<string, boolean>>({});
   const [expandedAssignable, setExpandedAssignable] = useState<Record<string, boolean>>({});
+  const [generatingShare, setGeneratingShare] = useState(false);
+  const [shareUrl, setShareUrl] = useState("");
 
   useEffect(() => {
     if (!folders.length) {
@@ -269,6 +271,73 @@ export default function PackageFoldersManager({
     }
   }
 
+  async function generateShareLink() {
+    if (!activeFolder) {
+      toast.error("Selecione um subpacote para gerar o link público.");
+      return;
+    }
+
+    const selected = Array.from(serviceSelections[activeFolder.id] ?? new Set<string>());
+    if (!selected.length) {
+      toast.error("Selecione pelo menos um serviço para compartilhar.");
+      return;
+    }
+
+    setGeneratingShare(true);
+    setShareUrl("");
+
+    try {
+      const response = await authorisedFetch(`/api/pcm/packages/${encodedPackageId}/share`, {
+        method: "POST",
+        body: JSON.stringify({ serviceIds: selected }),
+      });
+
+      let data: unknown = null;
+      try {
+        data = await response.json();
+      } catch {
+        data = null;
+      }
+
+      if (!response.ok || !data || typeof (data as { url?: unknown }).url !== "string") {
+        const message =
+          data &&
+          typeof data === "object" &&
+          data &&
+          "error" in data &&
+          typeof (data as { error?: unknown }).error === "string"
+            ? ((data as { error?: string }).error ?? "")
+            : "Não foi possível gerar o link público.";
+        throw new Error(message || "Não foi possível gerar o link público.");
+      }
+
+      const url = ((data as { url: string }).url ?? "").trim();
+      if (!url) {
+        throw new Error("Não foi possível gerar o link público.");
+      }
+
+      setShareUrl(url);
+      toast.success("Link público gerado com sucesso.");
+    } catch (error) {
+      console.error("[PackageFoldersManager] Falha ao gerar link público", error);
+      const message = error instanceof Error ? error.message : "Não foi possível gerar o link público.";
+      toast.error(message);
+    } finally {
+      setGeneratingShare(false);
+    }
+  }
+
+  async function copyShareLink(url: string) {
+    if (!url) return;
+    try {
+      await navigator.clipboard.writeText(url);
+      toast.success("Link copiado para a área de transferência.");
+    } catch (error) {
+      console.error("[PackageFoldersManager] Falha ao copiar link público", error);
+      toast.error("Não foi possível copiar o link automaticamente.");
+    }
+  }
+
   async function createFolder(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const name = newFolderName.trim();
@@ -389,6 +458,12 @@ export default function PackageFoldersManager({
       `${service.label} ${service.description ?? ""}`.toLowerCase().includes(query),
     );
   }, [assignableServices, serviceSearch]);
+
+  const activeSelectionKey = useMemo(() => activeSelection.join("|"), [activeSelection]);
+
+  useEffect(() => {
+    setShareUrl("");
+  }, [activeFolderId, activeSelectionKey]);
 
   return (
     <div className="card space-y-6 p-4">
@@ -666,6 +741,43 @@ export default function PackageFoldersManager({
                       {savingServices[activeFolder.id] ? "Salvando…" : "Salvar alterações"}
                     </button>
                   </div>
+
+                  {activeSelection.length > 0 ? (
+                    <div className="mt-4 space-y-3 rounded-lg border border-dashed p-4">
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                          <h5 className="text-sm font-semibold">Compartilhamento público</h5>
+                          <p className="text-xs text-muted-foreground">
+                            Gere um link público temporário com os serviços selecionados para compartilhar com terceiros.
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          className="btn btn-outline whitespace-nowrap"
+                          onClick={generateShareLink}
+                          disabled={generatingShare}
+                        >
+                          {generatingShare ? "Gerando…" : "Gerar link público"}
+                        </button>
+                      </div>
+                      {shareUrl ? (
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                          <input
+                            readOnly
+                            value={shareUrl}
+                            className="input w-full text-xs"
+                          />
+                          <button
+                            type="button"
+                            className="btn btn-secondary whitespace-nowrap"
+                            onClick={() => copyShareLink(shareUrl)}
+                          >
+                            Copiar
+                          </button>
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
 
                   {addingServicesFor === activeFolder.id ? (
                     <div className="mt-4 space-y-3 rounded-lg border border-dashed p-4">
