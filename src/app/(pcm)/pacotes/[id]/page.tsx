@@ -1,11 +1,11 @@
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { isNotFoundError, notFound } from "next/navigation";
 import { isRedirectError } from "next/dist/client/components/redirect";
-import DeletePackageButton from "@/components/DeletePackageButton";
 import SCurveDeferred from "@/components/SCurveDeferred";
 import { plannedCurve } from "@/lib/curve";
 import { decodeRouteParam } from "@/lib/decodeRouteParam";
-import { getPackageById, listPackageServices } from "@/lib/repo/packages";
+import { getPackageByIdCached, listPackageServices } from "@/lib/repo/packages";
 import { listPackageFolders } from "@/lib/repo/folders";
 import { getServicesByIds, listAvailableOpenServices } from "@/lib/repo/services";
 import { formatDate as formatDisplayDate } from "@/lib/formatDateTime";
@@ -14,6 +14,13 @@ import type { Package, PackageFolder, Service } from "@/types";
 import type { ServiceInfo as FolderServiceInfo, ServiceOption as FolderServiceOption } from "./PackageFoldersManager";
 import ServicesCompaniesSection from "./ServicesCompaniesSection";
 import PackageFoldersManagerClient from "./PackageFoldersManager.client";
+
+const DeletePackageButton = dynamic(() => import("@/components/DeletePackageButton"), {
+  ssr: false,
+  loading: () => (
+    <span className="text-sm text-muted-foreground">Carregando…</span>
+  ),
+});
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -153,7 +160,7 @@ async function renderPackageDetailPage(params: { id: string }) {
 
   for (const candidate of packageIdCandidates) {
     try {
-      const result = await getPackageById(candidate);
+      const result = await getPackageByIdCached(candidate);
       if (result) {
         pkg = result;
         resolvedPackageId = result.id ?? candidate;

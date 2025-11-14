@@ -1,6 +1,7 @@
 "use server";
 
 import { FieldValue } from "firebase-admin/firestore";
+import { revalidateTag, unstable_cache } from "next/cache";
 
 import { getAdmin } from "@/lib/firebaseAdmin";
 import { randomToken } from "@/lib/accessTokens";
@@ -11,6 +12,8 @@ const foldersCollection = () => getDb().collection("packageFolders");
 const accessTokensCollection = () => getDb().collection("accessTokens");
 const packagesCollection = () => getDb().collection("packages");
 const servicesCollection = () => getDb().collection("services");
+
+const FOLDER_CACHE_TTL_SECONDS = 300;
 
 function toMillis(value: unknown): number | undefined {
   if (typeof value === "number" && Number.isFinite(value)) return value;
@@ -131,7 +134,25 @@ async function deactivateToken(tokenId: string | null | undefined) {
 
 const packageFolderCollator = new Intl.Collator("pt-BR", { sensitivity: "base" });
 
-export async function listPackageFolders(packageId: string): Promise<PackageFolder[]> {
+const listPackageFoldersCache = unstable_cache(
+  async (packageId: string) => fetchPackageFolders(packageId),
+  ["folders", "by-package"],
+  {
+    revalidate: FOLDER_CACHE_TTL_SECONDS,
+    tags: ["folders:by-package"],
+  },
+);
+
+const getPackageFolderCache = unstable_cache(
+  async (folderId: string) => fetchPackageFolder(folderId),
+  ["folders", "detail"],
+  {
+    revalidate: FOLDER_CACHE_TTL_SECONDS,
+    tags: ["folders:detail"],
+  },
+);
+
+async function fetchPackageFolders(packageId: string): Promise<PackageFolder[]> {
   if (!packageId) return [];
   const snap = await foldersCollection().where("packageId", "==", packageId).get();
   return snap.docs
@@ -139,11 +160,28 @@ export async function listPackageFolders(packageId: string): Promise<PackageFold
     .sort((a, b) => packageFolderCollator.compare(a.name, b.name));
 }
 
-export async function getPackageFolder(folderId: string): Promise<PackageFolder | null> {
+async function fetchPackageFolder(folderId: string): Promise<PackageFolder | null> {
   if (!folderId) return null;
   const snap = await foldersCollection().doc(folderId).get();
   if (!snap.exists) return null;
   return mapFolderDoc(snap);
+}
+
+function revalidateFolderCaches() {
+  revalidateTag("folders:by-package");
+  revalidateTag("folders:detail");
+}
+
+export async function listPackageFolders(packageId: string): Promise<PackageFolder[]> {
+  const trimmedId = typeof packageId === "string" ? packageId.trim() : "";
+  if (!trimmedId) return [];
+  return listPackageFoldersCache(trimmedId);
+}
+
+export async function getPackageFolder(folderId: string): Promise<PackageFolder | null> {
+  const trimmedId = typeof folderId === "string" ? folderId.trim() : "";
+  if (!trimmedId) return null;
+  return getPackageFolderCache(trimmedId);
 }
 
 export async function createPackageFolder({
@@ -184,7 +222,9 @@ export async function createPackageFolder({
   });
 
   const snap = await folderRef.get();
-  return mapFolderDoc(snap);
+  const folder = mapFolderDoc(snap);
+  revalidateFolderCaches();
+  return folder;
 }
 
 export async function updatePackageFolder(
@@ -212,7 +252,9 @@ export async function updatePackageFolder(
   if (!snap.exists) {
     throw new Error("Pasta não encontrada após atualização.");
   }
-  return mapFolderDoc(snap);
+  const folder = mapFolderDoc(snap);
+  revalidateFolderCaches();
+  return folder;
 }
 
 export async function setFolderServices(folderId: string, serviceIds: string[]): Promise<PackageFolder> {
@@ -318,6 +360,14 @@ export async function setFolderServices(folderId: string, serviceIds: string[]):
     }
   }
 
+  revalidateFolderCaches();
+  revalidateTag("packages:detail");
+  revalidateTag("packages:summary");
+  revalidateTag("packages:services");
+  revalidateTag("services:recent");
+  revalidateTag("services:detail");
+  revalidateTag("services:available");
+
   return updatedFolder;
 }
 
@@ -352,5 +402,7 @@ export async function rotateFolderToken(folderId: string): Promise<PackageFolder
   if (!updated.exists) {
     throw new Error("Pasta não encontrada após rotação de token.");
   }
-  return mapFolderDoc(updated);
+  const updatedFolder = mapFolderDoc(updated);
+  revalidateFolderCaches();
+  return updatedFolder;
 }
