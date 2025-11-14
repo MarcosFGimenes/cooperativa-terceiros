@@ -121,8 +121,7 @@ const packageSummaryCache = (() => {
           try {
             const snap = await collection
               .doc(packageId)
-              .select("name", "nome", "status", "serviceIds", "createdAt")
-              .get();
+              .get({ fieldMask: ["name", "nome", "status", "serviceIds", "createdAt"] });
             if (!snap.exists) return null;
             return mapPackageDoc(snap);
           } catch (error) {
@@ -189,7 +188,7 @@ async function fetchPackageDetail(packageId: string): Promise<Package | null> {
   let snap: FirebaseFirestore.DocumentSnapshot;
 
   try {
-    snap = await docRef.select(...PACKAGE_DETAIL_BASE_FIELDS).get();
+    snap = await docRef.get({ fieldMask: PACKAGE_DETAIL_BASE_FIELDS });
   } catch (error) {
     if (isMissingAdminError(error)) {
       logMissingAdmin("detail:fetch", error);
@@ -219,7 +218,7 @@ async function fetchPackageDetail(packageId: string): Promise<Package | null> {
 
   if (!Array.isArray(baseData.serviceIds) || baseData.serviceIds.length === 0) {
     try {
-      const servicesSnap = await docRef.select("services").get();
+      const servicesSnap = await docRef.get({ fieldMask: ["services"] });
       if (servicesSnap.exists) {
         const servicesData = servicesSnap.data() ?? {};
         if (Array.isArray((servicesData as Record<string, unknown>).services)) {
