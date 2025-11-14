@@ -156,15 +156,27 @@ export async function GET(req: Request) {
 
     const { serviceId, folderId, empresa } = extractTokenData(data, doc.id);
     if (serviceId) {
-      return NextResponse.json({ ok: true, found: true, serviceIds: [serviceId] });
+      return NextResponse.json({
+        ok: true,
+        found: true,
+        serviceIds: [serviceId],
+        targetType: "service",
+        targetId: serviceId,
+      });
     }
 
     if (folderId) {
       const serviceIds = await fetchFolderServicesAdmin(adminDb, folderId, empresa);
-      return NextResponse.json({ ok: true, found: serviceIds.length > 0, serviceIds });
+      return NextResponse.json({
+        ok: true,
+        found: serviceIds.length > 0,
+        serviceIds,
+        targetType: "folder",
+        targetId: folderId,
+      });
     }
 
-    return NextResponse.json({ ok: true, found: false, serviceIds: [] });
+    return NextResponse.json({ ok: true, found: false, serviceIds: [], targetType: undefined, targetId: null });
   } catch (error) {
     if (error instanceof AdminDbUnavailableError || (error instanceof Error && error.message === "FIREBASE_ADMIN_NOT_CONFIGURED")) {
       console.error("[validate-token] Firebase Admin não configurado", error);
