@@ -14,6 +14,20 @@ const getDb = () => getAdmin().db;
 const servicesCollection = () => getDb().collection("services");
 
 const SERVICE_CACHE_TTL_SECONDS = 180;
+const SERVICE_LIST_CACHE_TTL_SECONDS = 300;
+const DEFAULT_AVAILABLE_SERVICES_LIMIT = 200;
+
+function normaliseAvailableServicesLimit(limit: number | undefined): number {
+  if (typeof limit !== "number" || !Number.isFinite(limit)) {
+    return DEFAULT_AVAILABLE_SERVICES_LIMIT;
+  }
+  const safeLimit = Math.floor(limit);
+  return Math.max(1, Math.min(safeLimit, 500));
+}
+
+function normaliseServiceMode(mode: ServiceMapMode | undefined): ServiceMapMode {
+  return mode === "summary" ? "summary" : "full";
+}
 
 const serviceDetailCache = unstable_cache(
   async (serviceId: string) => {
@@ -54,9 +68,19 @@ const serviceUpdatesCache = unstable_cache(
   },
 );
 
+const listAvailableOpenServicesCache = unstable_cache(
+  async (limit: number, mode: ServiceMapMode) => fetchAvailableOpenServices(limit, mode),
+  ["services", "available"],
+  {
+    revalidate: SERVICE_LIST_CACHE_TTL_SECONDS,
+    tags: ["services:available"],
+  },
+);
+
 function revalidateServiceDetailCache(serviceId: string) {
   if (!serviceId) return;
   revalidateTag("services:detail");
+  revalidateTag("services:available");
 }
 
 function toMillis(value: unknown | Timestamp | number | null | undefined) {
@@ -390,11 +414,7 @@ function isMissingAdminError(error: unknown) {
   return false;
 }
 
-export async function listAvailableOpenServices(
-  limit = 200,
-  options?: { mode?: ServiceMapMode },
-): Promise<Service[]> {
-  const safeLimit = Math.max(1, Math.min(limit, 500));
+async function fetchAvailableOpenServices(limit: number, mode: ServiceMapMode): Promise<Service[]> {
   const allowedStatuses: ServiceStatus[] = ["Aberto", "Pendente"];
   const allowedStatusSet = new Set<ServiceStatus>(allowedStatuses);
   const seen = new Set<string>();
@@ -425,22 +445,22 @@ export async function listAvailableOpenServices(
 
   const pushDocs = (docs: FirebaseFirestore.QueryDocumentSnapshot[]) => {
     for (const doc of docs) {
-      if (results.length >= safeLimit) break;
+      if (results.length >= limit) break;
       if (seen.has(doc.id)) continue;
       const service = mapServiceData(
         doc.id,
         (doc.data() ?? {}) as Record<string, unknown>,
-        options?.mode,
+        mode,
       );
       if (!allowedStatusSet.has(service.status)) continue;
       if (service.packageId && service.packageId.trim().length > 0) continue;
       seen.add(service.id);
       results.push(service);
-      if (results.length >= safeLimit) break;
+      if (results.length >= limit) break;
     }
   };
 
-  const baseLimit = safeLimit * 2;
+  const baseLimit = limit * 2;
 
   const unassignedQueries: Array<Promise<FirebaseFirestore.QuerySnapshot>> = [
     collection.where("packageId", "==", null).limit(baseLimit).get(),
@@ -450,7 +470,7 @@ export async function listAvailableOpenServices(
   const errors: Array<{ scope: string; error: unknown }> = [];
 
   for (const queryPromise of unassignedQueries) {
-    if (results.length >= safeLimit) break;
+    if (results.length >= limit) break;
     try {
       const snapshot = await queryPromise;
       pushDocs(snapshot.docs);
@@ -463,10 +483,10 @@ export async function listAvailableOpenServices(
     }
   }
 
-  if (results.length < safeLimit) {
+  if (results.length < limit) {
     const statusCandidates = ["Aberto", "aberto", "ABERTO", "Pendente", "pendente", "PENDENTE"];
     for (const status of statusCandidates) {
-      if (results.length >= safeLimit) break;
+      if (results.length >= limit) break;
       try {
         const snapshot = await collection.where("status", "==", status).limit(baseLimit).get();
         pushDocs(snapshot.docs);
@@ -491,7 +511,16 @@ export async function listAvailableOpenServices(
 
   results.sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0));
 
-  return results.slice(0, safeLimit);
+  return results.slice(0, limit);
+}
+
+export async function listAvailableOpenServices(
+  limit = DEFAULT_AVAILABLE_SERVICES_LIMIT,
+  options?: { mode?: ServiceMapMode },
+): Promise<Service[]> {
+  const safeLimit = normaliseAvailableServicesLimit(limit);
+  const mode = normaliseServiceMode(options?.mode);
+  return listAvailableOpenServicesCache(safeLimit, mode);
 }
 
 function mapChecklistDoc(

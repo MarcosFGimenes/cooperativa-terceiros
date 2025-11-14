@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { ArrowLeft, Pencil } from "lucide-react";
 import {
   collection,
@@ -12,7 +13,6 @@ import {
   query,
   type FirestoreError,
 } from "firebase/firestore";
-import DeleteServiceButton from "@/components/DeleteServiceButton";
 import SCurveDeferred from "@/components/SCurveDeferred";
 import { plannedCurve } from "@/lib/curve";
 import { isFirestoreLongPollingForced, tryGetFirestore } from "@/lib/firebase";
@@ -36,6 +36,15 @@ import {
   toNewChecklist,
   toNewUpdates,
 } from "./shared";
+
+const DeleteServiceButton = dynamic(() => import("@/components/DeleteServiceButton"), {
+  ssr: false,
+  loading: () => (
+    <button type="button" className="btn btn-destructive" disabled>
+      Carregando...
+    </button>
+  ),
+});
 
 const CONNECTION_RESET_FRIENDLY_MESSAGE =
   "A conexão com os serviços do Firebase foi resetada. Tentaremos reconectar automaticamente. Caso o problema persista, libere o acesso a firestore.googleapis.com e identitytoolkit.googleapis.com no firewall/proxy.";
