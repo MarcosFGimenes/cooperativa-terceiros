@@ -1,7 +1,7 @@
 import Link from "next/link";
-import dynamic from "next/dynamic";
 import { isNotFoundError, notFound } from "next/navigation";
 import { isRedirectError } from "next/dist/client/components/redirect";
+import DeletePackageButton from "@/components/DeletePackageButton.dynamic";
 import SCurveDeferred from "@/components/SCurveDeferred";
 import { plannedCurve } from "@/lib/curve";
 import { decodeRouteParam } from "@/lib/decodeRouteParam";
@@ -14,13 +14,6 @@ import type { Package, PackageFolder, Service } from "@/types";
 import type { ServiceInfo as FolderServiceInfo, ServiceOption as FolderServiceOption } from "./PackageFoldersManager";
 import ServicesCompaniesSection from "./ServicesCompaniesSection";
 import PackageFoldersManagerClient from "./PackageFoldersManager.client";
-
-const DeletePackageButton = dynamic(() => import("@/components/DeletePackageButton"), {
-  ssr: false,
-  loading: () => (
-    <span className="text-sm text-muted-foreground">Carregando…</span>
-  ),
-});
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
