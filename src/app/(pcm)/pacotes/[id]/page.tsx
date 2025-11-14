@@ -338,7 +338,7 @@ async function renderPackageDetailPage(params: { id: string }) {
   const realizedValueLabel = typeof realized === "number" ? `${realized}%` : "-";
   const realizedHeaderLabel = hasServiceOverflow
     ? `Realizado (parcial): ${realizedValueLabel}`
-    : `Realizado: ${realizadoValueLabel}`;
+    : `Realizado: ${realizedValueLabel}`;
 
   const assignedCompanies = pkg.assignedCompanies?.filter((item) => item.companyId);
   let folders: PackageFolder[] = [];
