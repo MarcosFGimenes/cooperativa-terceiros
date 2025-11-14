@@ -1,6 +1,15 @@
 "use client";
 
-import CurveSChart from "@/components/CurveSChart";
+import dynamic from "next/dynamic";
+
+const CurveSChart = dynamic(() => import("@/components/CurveSChart"), {
+  ssr: false,
+  loading: () => (
+    <div className="flex h-[420px] w-full items-center justify-center rounded-lg border border-dashed border-border/60 bg-muted/20 text-sm text-muted-foreground">
+      Carregando gráfico...
+    </div>
+  ),
+});
 import { toCsv } from "@/lib/curvaSShared";
 
 type CombinedPoint = { date: string; planned: number; actual: number };

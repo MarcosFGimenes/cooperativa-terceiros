@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { isNotFoundError, notFound } from "next/navigation";
 import { isRedirectError } from "next/dist/client/components/redirect";
-import DeletePackageButton from "@/components/DeletePackageButton";
+import DeletePackageButton from "@/components/DeletePackageButton.dynamic";
 import SCurveDeferred from "@/components/SCurveDeferred";
 import { plannedCurve } from "@/lib/curve";
 import { decodeRouteParam } from "@/lib/decodeRouteParam";
