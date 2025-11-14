@@ -17,7 +17,7 @@ import {
 import { tryGetAuth } from "@/lib/firebase";
 import { cn } from "@/lib/utils";
 
-type DeletePackageButtonProps = {
+export type DeletePackageButtonProps = {
   packageId: string;
   packageLabel: string;
   triggerClassName?: string;

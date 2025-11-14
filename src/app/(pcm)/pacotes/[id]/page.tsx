@@ -1,11 +1,11 @@
 import Link from "next/link";
-import { isNotFoundError, notFound } from "next/navigation";
+import * as Navigation from "next/navigation";
 import { isRedirectError } from "next/dist/client/components/redirect";
-import DeletePackageButton from "@/components/DeletePackageButton";
+import DeletePackageButton from "@/components/DeletePackageButton.dynamic";
 import SCurveDeferred from "@/components/SCurveDeferred";
 import { plannedCurve } from "@/lib/curve";
 import { decodeRouteParam } from "@/lib/decodeRouteParam";
-import { getPackageById, listPackageServices } from "@/lib/repo/packages";
+import { getPackageByIdCached, listPackageServices } from "@/lib/repo/packages";
 import { listPackageFolders } from "@/lib/repo/folders";
 import { getServicesByIds, listAvailableOpenServices } from "@/lib/repo/services";
 import { formatDate as formatDisplayDate } from "@/lib/formatDateTime";
@@ -14,6 +14,8 @@ import type { Package, PackageFolder, Service } from "@/types";
 import type { ServiceInfo as FolderServiceInfo, ServiceOption as FolderServiceOption } from "./PackageFoldersManager";
 import ServicesCompaniesSection from "./ServicesCompaniesSection";
 import PackageFoldersManagerClient from "./PackageFoldersManager.client";
+
+const { notFound } = Navigation;
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -153,7 +155,7 @@ async function renderPackageDetailPage(params: { id: string }) {
 
   for (const candidate of packageIdCandidates) {
     try {
-      const result = await getPackageById(candidate);
+      const result = await getPackageByIdCached(candidate);
       if (result) {
         pkg = result;
         resolvedPackageId = result.id ?? candidate;
@@ -606,11 +608,26 @@ function isRedirectDigestError(error: unknown): boolean {
   return typeof possible.digest === "string" && possible.digest.startsWith("NEXT_REDIRECT");
 }
 
+function isNotFoundLikeError(error: unknown): boolean {
+  if (typeof (Navigation as { isNotFoundError?: unknown }).isNotFoundError === "function") {
+    if ((Navigation as { isNotFoundError: (error: unknown) => boolean }).isNotFoundError(error)) {
+      return true;
+    }
+  }
+
+  if (!error || typeof error !== "object") return false;
+  const digest = (error as { digest?: unknown }).digest;
+  if (typeof digest === "string") {
+    return digest === "NEXT_NOT_FOUND" || digest.startsWith("NEXT_NOT_FOUND");
+  }
+  return false;
+}
+
 export default async function PackageDetailPage({ params }: { params: { id: string } }) {
   try {
     return await renderPackageDetailPage(params);
   } catch (error) {
-    if (isNotFoundError(error) || isRedirectDigestError(error)) {
+    if (isNotFoundLikeError(error) || isRedirectDigestError(error)) {
       throw error;
     }
 

@@ -7,6 +7,7 @@
     "postinstall": "node scripts/shims/patch-package.cjs",
     "dev": "next dev",
     "build": "next build",
+    "analyze": "ANALYZE=true next build",
     "start": "next start",
     "lint": "node scripts/offline-lint.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
@@ -30,6 +31,7 @@
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
+    "@next/bundle-analyzer": "^15.5.4",
     "@types/node": "^20.12.12",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
