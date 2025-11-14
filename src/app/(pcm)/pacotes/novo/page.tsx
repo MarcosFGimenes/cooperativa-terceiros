@@ -1,12 +1,11 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { addDoc, collection, serverTimestamp } from "firebase/firestore";
 
 import { Field, FormRow } from "@/components/ui/form-controls";
-import { tryGetFirestore } from "@/lib/firebase";
+import { tryGetAuth } from "@/lib/firebase";
 import { useFirebaseAuthSession } from "@/lib/useFirebaseAuthSession";
 import { dateOnlyToMillis, formatDateOnly, maskDateOnlyInput, parseDateOnly } from "@/lib/dateOnly";
 
@@ -14,15 +13,7 @@ export default function NovoPacotePage() {
   const router = useRouter();
   const [form, setForm] = useState({ nome: "", descricao: "", dataInicio: "", dataFim: "" });
   const [saving, setSaving] = useState(false);
-  const { db: firestore, error: firestoreError } = useMemo(() => tryGetFirestore(), []);
   const { ready: isAuthReady, issue: authIssue } = useFirebaseAuthSession();
-
-  useEffect(() => {
-    if (firestoreError) {
-      console.error("[pacotes/novo] Firestore indisponível", firestoreError);
-      toast.error("Configuração de banco de dados indisponível.");
-    }
-  }, [firestoreError]);
 
   function updateForm<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -47,16 +38,18 @@ export default function NovoPacotePage() {
       toast.error("A data final deve ser posterior ou igual à data inicial.");
       return;
     }
-    if (!firestore) {
-      toast.error("Banco de dados indisponível.");
-      return;
-    }
     if (!isAuthReady) {
       toast.error("Sua sessão segura ainda não foi confirmada. Aguarde ou faça login novamente.");
       return;
     }
     setSaving(true);
     try {
+      const { auth, error } = tryGetAuth();
+      const user = auth?.currentUser;
+      if (!user) {
+        throw error ?? new Error("Sessão expirada. Faça login novamente para criar pacotes.");
+      }
+      const idToken = await user.getIdToken();
       const nome = form.nome.trim();
       const descricao = form.descricao.trim();
       const inicio = formatDateOnly(startDate);
@@ -73,11 +66,23 @@ export default function NovoPacotePage() {
         dataFim: fim,
         inicioPlanejado: inicio,
         fimPlanejado: fim,
-        createdAt: serverTimestamp(),
       };
-      const ref = await addDoc(collection(firestore, "packages"), payload);
+      const response = await fetch("/api/pcm/packages", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${idToken}`,
+        },
+        body: JSON.stringify(payload),
+      });
+      const data = await response.json();
+      if (!response.ok || !data?.ok) {
+        const message =
+          typeof data?.error === "string" && data.error ? data.error : "Não foi possível criar o pacote.";
+        throw new Error(message);
+      }
       toast.success("Pacote criado com sucesso.");
-      router.push(`/pacotes/${encodeURIComponent(ref.id)}`);
+      router.push(`/pacotes/${encodeURIComponent(String(data.id))}`);
     } catch (error) {
       console.error("[pacotes/novo] Falha ao criar pacote", error);
       toast.error("Não foi possível criar o pacote.");
@@ -91,16 +96,6 @@ export default function NovoPacotePage() {
       <div className="container mx-auto max-w-3xl px-4 py-6">
         <div className="rounded-2xl border bg-amber-50 p-6 text-sm text-amber-700 shadow-sm">
           {authIssue ?? "Sincronizando sessão segura. Aguarde..."}
-        </div>
-      </div>
-    );
-  }
-
-  if (!firestore) {
-    return (
-      <div className="container mx-auto max-w-3xl px-4 py-6">
-        <div className="rounded-2xl border bg-card/80 p-6 text-sm text-amber-600 shadow-sm">
-          Não foi possível carregar o banco de dados. Verifique a configuração do Firebase.
         </div>
       </div>
     );

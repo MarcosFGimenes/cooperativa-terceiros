@@ -391,7 +391,7 @@ export default function ServiceDetailsClient({ service, updates: initialUpdates,
 
   const isServiceOpen = useMemo(() => {
     const rawStatus = String(service.status ?? "").toLowerCase();
-    return rawStatus === "aberto";
+    return rawStatus === "aberto" || rawStatus === "pendente";
   }, [service.status]);
 
   useEffect(() => {

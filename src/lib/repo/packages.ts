@@ -592,6 +592,73 @@ export async function createPackage(
   return packageId;
 }
 
+export async function createPackageMetadata(data: {
+  name: string;
+  plannedStart: string;
+  plannedEnd: string;
+  description?: string | null;
+  code?: string | null;
+  status?: Package["status"];
+}): Promise<string> {
+  const trimmedName = typeof data.name === "string" ? data.name.trim() : "";
+  if (!trimmedName) {
+    throw new Error("Informe o nome do pacote.");
+  }
+
+  const plannedStart = normaliseDateOnlyInput(data.plannedStart, "inicial");
+  if (!plannedStart) {
+    throw new Error("Informe a data inicial do pacote.");
+  }
+
+  const plannedEnd = normaliseDateOnlyInput(data.plannedEnd, "final");
+  if (!plannedEnd) {
+    throw new Error("Informe a data final do pacote.");
+  }
+
+  const startDate = new Date(plannedStart);
+  const endDate = new Date(plannedEnd);
+  if (!Number.isNaN(startDate.getTime()) && !Number.isNaN(endDate.getTime()) && startDate > endDate) {
+    throw new Error("A data final deve ser posterior ou igual à data inicial.");
+  }
+
+  const trimmedDescription = typeof data.description === "string" ? data.description.trim() : "";
+  const description = trimmedDescription ? trimmedDescription : null;
+
+  const trimmedCode = typeof data.code === "string" ? data.code.trim() : "";
+  const code = trimmedCode ? trimmedCode : null;
+
+  const status = normalisePackageStatus(data.status);
+  const now = FieldValue.serverTimestamp();
+
+  const docRef = packagesCollection().doc();
+  await docRef.set({
+    name: trimmedName,
+    nome: trimmedName,
+    status,
+    plannedStart,
+    plannedEnd,
+    dataInicio: plannedStart,
+    dataFim: plannedEnd,
+    inicioPlanejado: plannedStart,
+    fimPlanejado: plannedEnd,
+    description,
+    descricao: description,
+    details: description,
+    code,
+    codigo: code,
+    createdAt: now,
+    updatedAt: now,
+    services: [],
+    serviceIds: [],
+  });
+
+  revalidateTag("packages:recent");
+  revalidateTag("packages:services");
+  revalidatePackageDetailCache(docRef.id);
+
+  return docRef.id;
+}
+
 export async function updatePackageMetadata(
   packageId: string,
   data: {

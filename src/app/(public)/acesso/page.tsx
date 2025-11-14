@@ -168,7 +168,10 @@ export default function AcessoPorTokenPage() {
         const entries = await Promise.all(serviceIds.map((id) => fetchService(tokenValue, id)));
         const onlyOpen = entries
           .filter((service): service is ServiceSummary => Boolean(service))
-          .filter((service) => (service.status || "").toLowerCase() === "aberto");
+          .filter((service) => {
+            const status = (service.status || "").toLowerCase();
+            return status === "aberto" || status === "pendente";
+          });
         setServices(onlyOpen);
         if (onlyOpen.length > 0) {
           setSelectedServiceId(onlyOpen[0].id);

@@ -59,6 +59,7 @@ function renderPackageLoadFailure(packageLabel: string, warnings: string[] = [])
 
 function normaliseStatus(status: Package["status"] | Service["status"]): string {
   const raw = String(status ?? "").toLowerCase();
+  if (raw === "pendente") return "Pendente";
   if (raw === "concluido" || raw === "concluído") return "Concluído";
   if (raw === "encerrado") return "Encerrado";
   return "Aberto";
@@ -377,22 +378,6 @@ async function renderPackageDetailPage(params: { id: string }) {
     });
   });
 
-  const availableServiceOptions: FolderServiceOption[] = availableOpenServices
-    .filter((service) => !folderServiceIds.has(service.id))
-    .map((service) => {
-      const baseLabel = service.os || service.oc || service.tag || service.id;
-      const descriptionParts: string[] = [];
-      const companyLabel = service.empresa || service.company || service.assignedTo?.companyName;
-      if (companyLabel) descriptionParts.push(`Empresa: ${companyLabel}`);
-      if (service.setor) descriptionParts.push(`Setor: ${service.setor}`);
-      return {
-        id: service.id,
-        label: baseLabel && baseLabel.length ? baseLabel : service.id,
-        description: descriptionParts.length ? descriptionParts.join(" • ") : undefined,
-      };
-    })
-    .sort((a, b) => a.label.localeCompare(b.label, "pt-BR", { sensitivity: "base" }));
-
   const serviceDetails: Record<string, FolderServiceInfo> = {};
 
   services.forEach((service) => {
@@ -411,7 +396,7 @@ async function renderPackageDetailPage(params: { id: string }) {
       label: companyLabel ? `${baseLabel} — ${companyLabel}` : baseLabel,
       status: statusLabel,
       companyLabel: companyLabel,
-      isOpen: statusLabel === "Aberto",
+      isOpen: statusLabel === "Aberto" || statusLabel === "Pendente",
     };
   });
 
@@ -449,6 +434,52 @@ async function renderPackageDetailPage(params: { id: string }) {
       };
     });
   });
+
+  const availableServiceOptionsMap = new Map<string, FolderServiceOption>();
+
+  const registerOption = (option: FolderServiceOption) => {
+    if (!option.id || folderServiceIds.has(option.id) || availableServiceOptionsMap.has(option.id)) {
+      return;
+    }
+    availableServiceOptionsMap.set(option.id, option);
+  };
+
+  services.forEach((service) => {
+    const detail = serviceDetails[service.id];
+    if (!detail || !detail.isOpen || folderServiceIds.has(service.id)) {
+      return;
+    }
+    const descriptionParts: string[] = [];
+    if (detail.companyLabel) {
+      descriptionParts.push(`Empresa: ${detail.companyLabel}`);
+    }
+    const sector = service.sector || service.setor;
+    if (sector) {
+      descriptionParts.push(`Setor: ${sector}`);
+    }
+    registerOption({
+      id: service.id,
+      label: detail.label,
+      description: descriptionParts.length ? descriptionParts.join(" • ") : undefined,
+    });
+  });
+
+  availableOpenServices.forEach((service) => {
+    const baseLabel = service.os || service.oc || service.tag || service.id;
+    const descriptionParts: string[] = [];
+    const companyLabel = service.empresa || service.company || service.assignedTo?.companyName;
+    if (companyLabel) descriptionParts.push(`Empresa: ${companyLabel}`);
+    if (service.setor) descriptionParts.push(`Setor: ${service.setor}`);
+    registerOption({
+      id: service.id,
+      label: baseLabel && baseLabel.length ? baseLabel : service.id,
+      description: descriptionParts.length ? descriptionParts.join(" • ") : undefined,
+    });
+  });
+
+  const availableServiceOptions = Array.from(availableServiceOptionsMap.values()).sort((a, b) =>
+    a.label.localeCompare(b.label, "pt-BR", { sensitivity: "base" }),
+  );
 
   const warningMessages = Array.from(warningSet);
   const encodedPackageId = encodeURIComponent(pkg.id);
