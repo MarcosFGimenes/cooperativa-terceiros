@@ -147,6 +147,146 @@ function extractFolderId(token: AccessTokenData): string | undefined {
   return undefined;
 }
 
+type FolderAccessResult = {
+  token: AccessTokenData;
+  folder: {
+    id: string;
+    name: string | null;
+    company: string | null;
+    packageId?: string;
+    services: string[];
+  };
+  services: Service[];
+  unavailableServices: string[];
+};
+
+function ensureFolderMatchesToken(token: AccessTokenData, folder: FolderDoc, folderId: string) {
+  const tokenCompany = getTokenCompany(token)?.toLowerCase();
+  const folderCompany =
+    (typeof folder.companyId === "string" && folder.companyId.trim().toLowerCase()) ||
+    (typeof folder.company === "string" && folder.company.trim().toLowerCase()) ||
+    undefined;
+
+  if (tokenCompany && folderCompany && tokenCompany !== folderCompany) {
+    throw new PublicAccessError(403, "Token não possui acesso a esta pasta");
+  }
+
+  const packageId =
+    (typeof folder.packageId === "string" && folder.packageId.trim()) ||
+    (typeof folder.pacoteId === "string" && folder.pacoteId.trim()) ||
+    undefined;
+
+  if (packageId && typeof token.packageId === "string" && token.packageId.trim()) {
+    if (token.packageId.trim() !== packageId) {
+      throw new PublicAccessError(403, "Token não corresponde ao pacote do subpacote");
+    }
+  }
+
+  if (packageId && typeof token.pacoteId === "string" && token.pacoteId.trim()) {
+    if (token.pacoteId.trim() !== packageId) {
+      throw new PublicAccessError(403, "Token não corresponde ao pacote do subpacote");
+    }
+  }
+
+  const folderServices = Array.isArray(folder.services)
+    ? folder.services
+        .map((value) => (typeof value === "string" ? value.trim() : ""))
+        .filter((value) => value.length > 0)
+    : [];
+
+  return { tokenCompany, folderCompany, packageId, services: [...new Set(folderServices)], folderId };
+}
+
+async function fetchFolderServicesForToken(
+  token: AccessTokenData,
+  folderContext: ReturnType<typeof ensureFolderMatchesToken>,
+): Promise<{ services: Service[]; unavailable: string[] }> {
+  const unavailable: string[] = [];
+  const promises = folderContext.services.map(async (serviceId) => {
+    try {
+      const snap = await servicesCollection().doc(serviceId).get();
+      if (!snap.exists) {
+        unavailable.push(serviceId);
+        return null;
+      }
+
+      const data = snap.data() ?? {};
+      ensureCompanyMatch(token, data);
+
+      if (folderContext.packageId) {
+        const record = data as Record<string, unknown>;
+        const servicePackageId =
+          (typeof record.packageId === "string" && record.packageId.trim()) ||
+          (typeof record.pacoteId === "string" && record.pacoteId.trim()) ||
+          undefined;
+        if (servicePackageId && servicePackageId !== folderContext.packageId) {
+          unavailable.push(serviceId);
+          return null;
+        }
+      }
+
+      return mapServiceDoc(snap);
+    } catch (error) {
+      console.warn(
+        `[public-access] Falha ao carregar serviço ${serviceId} do subpacote ${folderContext.folderId}`,
+        error,
+      );
+      unavailable.push(serviceId);
+      return null;
+    }
+  });
+
+  const resolved = await Promise.all(promises);
+  const services = resolved.filter((service): service is Service => Boolean(service));
+  return { services, unavailable };
+}
+
+export async function requireFolderAccess(tokenId: string, folderId: string): Promise<FolderAccessResult> {
+  if (!tokenId) throw new PublicAccessError(400, "Token ausente");
+  if (!folderId) throw new PublicAccessError(400, "folderId ausente");
+
+  const trimmedFolderId = folderId.trim();
+  const token = await fetchToken(tokenId);
+
+  if (token.targetType !== "folder") {
+    throw new PublicAccessError(403, "Token não corresponde a um subpacote");
+  }
+
+  const expectedFolderId = extractFolderId(token);
+  if (expectedFolderId && expectedFolderId !== trimmedFolderId) {
+    throw new PublicAccessError(403, "Token não possui acesso a este subpacote");
+  }
+
+  const effectiveFolderId = expectedFolderId ?? trimmedFolderId;
+  const snap = await foldersCollection().doc(effectiveFolderId).get();
+  if (!snap.exists) {
+    throw new PublicAccessError(404, "Subpacote não encontrado");
+  }
+
+  const folderData = (snap.data() ?? {}) as FolderDoc;
+  const context = ensureFolderMatchesToken(token, folderData, snap.id);
+  const { services, unavailable } = await fetchFolderServicesForToken(token, context);
+
+  const folderName = typeof folderData.name === "string" ? folderData.name.trim() : "";
+  const companyLabel =
+    (typeof folderData.company === "string" && folderData.company.trim()) ||
+    (typeof folderData.companyId === "string" && folderData.companyId.trim()) ||
+    null;
+
+  return {
+    token,
+    folder: {
+      id: snap.id,
+      name: folderName || null,
+      company: companyLabel,
+      packageId: context.packageId,
+      services: context.services,
+    },
+    services,
+    unavailableServices: unavailable,
+  };
+}
+
 async function ensureServiceAllowedByFolder(token: AccessTokenData, serviceId: string) {
   const folderId = extractFolderId(token);
   if (!folderId) {
@@ -288,7 +428,7 @@ export async function resolvePublicAccessRedirect(tokenId: string): Promise<{
       throw new PublicAccessError(404, "Pasta não encontrada");
     }
     return {
-      redirectPath: `/terceiro`,
+      redirectPath: `/subpacotes/${folderId}`,
       targetType: "folder",
       targetId: folderId,
     };

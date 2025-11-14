@@ -58,12 +58,6 @@ function extractTokenData(data: unknown, docId?: string | null) {
   };
 }
 
-function isServiceOpenRecord(data: Record<string, unknown>): boolean {
-  const status = typeof data.status === "string" ? data.status.trim().toLowerCase() : "";
-  if (!status) return true;
-  return status === "aberto" || status === "aberta" || status === "open" || status === "pendente";
-}
-
 function extractServiceCompany(data: Record<string, unknown>): string {
   const candidates = [data.company, data.companyId, data.empresa, data.empresaId];
   for (const value of candidates) {
@@ -97,7 +91,6 @@ async function fetchFolderServicesAdmin(db: Firestore, folderId: string, empresa
     const docSnap = await db.collection("services").doc(serviceId).get();
     if (!docSnap.exists) continue;
     const serviceData = (docSnap.data() ?? {}) as Record<string, unknown>;
-    if (!isServiceOpenRecord(serviceData)) continue;
     if (normalizedEmpresa) {
       const serviceCompany = extractServiceCompany(serviceData);
       if (serviceCompany && serviceCompany !== normalizedEmpresa) continue;
@@ -156,15 +149,27 @@ export async function GET(req: Request) {
 
     const { serviceId, folderId, empresa } = extractTokenData(data, doc.id);
     if (serviceId) {
-      return NextResponse.json({ ok: true, found: true, serviceIds: [serviceId] });
+      return NextResponse.json({
+        ok: true,
+        found: true,
+        serviceIds: [serviceId],
+        targetType: "service",
+        targetId: serviceId,
+      });
     }
 
     if (folderId) {
       const serviceIds = await fetchFolderServicesAdmin(adminDb, folderId, empresa);
-      return NextResponse.json({ ok: true, found: serviceIds.length > 0, serviceIds });
+      return NextResponse.json({
+        ok: true,
+        found: serviceIds.length > 0,
+        serviceIds,
+        targetType: "folder",
+        targetId: folderId,
+      });
     }
 
-    return NextResponse.json({ ok: true, found: false, serviceIds: [] });
+    return NextResponse.json({ ok: true, found: false, serviceIds: [], targetType: undefined, targetId: null });
   } catch (error) {
     if (error instanceof AdminDbUnavailableError || (error instanceof Error && error.message === "FIREBASE_ADMIN_NOT_CONFIGURED")) {
       console.error("[validate-token] Firebase Admin não configurado", error);
