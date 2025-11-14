@@ -147,16 +147,6 @@ function extractFolderId(token: AccessTokenData): string | undefined {
   return undefined;
 }
 
-function normaliseServiceStatus(value: unknown): string {
-  const raw = String(value ?? "").trim().toLowerCase();
-  if (!raw) return "";
-  if (raw === "aberto" || raw === "open") return "aberto";
-  if (raw === "pendente") return "pendente";
-  if (raw.includes("andamento")) return "pendente";
-  if (raw === "concluido" || raw === "concluído" || raw === "encerrado") return "concluido";
-  return raw;
-}
-
 type FolderAccessResult = {
   token: AccessTokenData;
   folder: {
@@ -233,12 +223,6 @@ async function fetchFolderServicesForToken(
           unavailable.push(serviceId);
           return null;
         }
-      }
-
-      const status = normaliseServiceStatus((data as Record<string, unknown>).status);
-      if (status && status !== "aberto" && status !== "pendente") {
-        unavailable.push(serviceId);
-        return null;
       }
 
       return mapServiceDoc(snap);

@@ -58,12 +58,6 @@ function extractTokenData(data: unknown, docId?: string | null) {
   };
 }
 
-function isServiceOpenRecord(data: Record<string, unknown>): boolean {
-  const status = typeof data.status === "string" ? data.status.trim().toLowerCase() : "";
-  if (!status) return true;
-  return status === "aberto" || status === "aberta" || status === "open" || status === "pendente";
-}
-
 function extractServiceCompany(data: Record<string, unknown>): string {
   const candidates = [data.company, data.companyId, data.empresa, data.empresaId];
   for (const value of candidates) {
@@ -97,7 +91,6 @@ async function fetchFolderServicesAdmin(db: Firestore, folderId: string, empresa
     const docSnap = await db.collection("services").doc(serviceId).get();
     if (!docSnap.exists) continue;
     const serviceData = (docSnap.data() ?? {}) as Record<string, unknown>;
-    if (!isServiceOpenRecord(serviceData)) continue;
     if (normalizedEmpresa) {
       const serviceCompany = extractServiceCompany(serviceData);
       if (serviceCompany && serviceCompany !== normalizedEmpresa) continue;
