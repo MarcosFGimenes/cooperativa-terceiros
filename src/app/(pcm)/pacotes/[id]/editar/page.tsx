@@ -6,7 +6,7 @@ import { notFound } from "next/navigation";
 
 import PackageEditorClient from "../PackageEditorClient";
 import { decodeRouteParam } from "@/lib/decodeRouteParam";
-import { getPackageById } from "@/lib/repo/packages";
+import { getPackageByIdCached } from "@/lib/repo/packages";
 
 export default async function PackageEditPage({ params }: { params: { id: string } }) {
   const rawPackageId = params.id;
@@ -19,12 +19,12 @@ export default async function PackageEditPage({ params }: { params: { id: string
     return notFound();
   }
 
-  let pkg: Awaited<ReturnType<typeof getPackageById>> | null = null;
+  let pkg: Awaited<ReturnType<typeof getPackageByIdCached>> | null = null;
   let resolvedPackageId = packageIdCandidates[0];
 
   for (const candidate of packageIdCandidates) {
     try {
-      const result = await getPackageById(candidate);
+      const result = await getPackageByIdCached(candidate);
       if (result) {
         pkg = result;
         resolvedPackageId = result.id ?? candidate;
