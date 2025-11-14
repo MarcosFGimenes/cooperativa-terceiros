@@ -90,7 +90,17 @@ const packageDetailCache = (() => {
 
 async function fetchPackageDetail(packageId: string): Promise<Package | null> {
   const docRef = packagesCollection().doc(packageId);
-  const snap = await docRef.select(...PACKAGE_DETAIL_BASE_FIELDS).get();
+  let snap: FirebaseFirestore.DocumentSnapshot;
+
+  try {
+    snap = await docRef.select(...PACKAGE_DETAIL_BASE_FIELDS).get();
+  } catch (error) {
+    console.warn(
+      `[packages:fetchPackageDetail] Failed to fetch projected fields for package ${packageId}`,
+      error,
+    );
+    snap = await docRef.get();
+  }
   if (!snap.exists) return null;
 
   const baseData = (snap.data() ?? {}) as Record<string, unknown>;
@@ -320,7 +330,12 @@ export async function getPackageById(id: string): Promise<Package | null> {
   const trimmedId = typeof id === "string" ? id.trim() : "";
   if (!trimmedId) return null;
 
-  const cached = await packageDetailCache(trimmedId);
+  let cached: Package | null = null;
+  try {
+    cached = await packageDetailCache(trimmedId);
+  } catch (error) {
+    console.warn(`[packages:getPackageById] Failed to read cached package ${trimmedId}`, error);
+  }
   if (cached) return cached;
 
   try {
