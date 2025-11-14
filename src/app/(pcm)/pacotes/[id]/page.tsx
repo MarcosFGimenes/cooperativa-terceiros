@@ -61,6 +61,7 @@ function normaliseStatus(status: Package["status"] | Service["status"]): string 
   const raw = String(status ?? "").toLowerCase();
   if (raw === "concluido" || raw === "concluído") return "Concluído";
   if (raw === "encerrado") return "Encerrado";
+  if (raw === "pendente") return "Pendente";
   return "Aberto";
 }
 
@@ -385,10 +386,12 @@ async function renderPackageDetailPage(params: { id: string }) {
       const companyLabel = service.empresa || service.company || service.assignedTo?.companyName;
       if (companyLabel) descriptionParts.push(`Empresa: ${companyLabel}`);
       if (service.setor) descriptionParts.push(`Setor: ${service.setor}`);
+      const statusLabel = normaliseStatus(service.status);
       return {
         id: service.id,
         label: baseLabel && baseLabel.length ? baseLabel : service.id,
         description: descriptionParts.length ? descriptionParts.join(" • ") : undefined,
+        status: statusLabel,
       };
     })
     .sort((a, b) => a.label.localeCompare(b.label, "pt-BR", { sensitivity: "base" }));
@@ -411,7 +414,7 @@ async function renderPackageDetailPage(params: { id: string }) {
       label: companyLabel ? `${baseLabel} — ${companyLabel}` : baseLabel,
       status: statusLabel,
       companyLabel: companyLabel,
-      isOpen: statusLabel === "Aberto",
+      isOpen: statusLabel === "Aberto" || statusLabel === "Pendente",
     };
   });
 
@@ -428,12 +431,13 @@ async function renderPackageDetailPage(params: { id: string }) {
       return;
     }
     const baseLabel = service.os || service.oc || service.tag || service.id;
+    const statusLabel = normaliseStatus(service.status);
     serviceDetails[service.id] = {
       id: service.id,
       label: companyLabel ? `${baseLabel} — ${companyLabel}` : baseLabel,
-      status: service.status ?? "Aberto",
+      status: statusLabel,
       companyLabel: companyLabel ?? undefined,
-      isOpen: true,
+      isOpen: statusLabel === "Aberto" || statusLabel === "Pendente",
     };
   });
 
