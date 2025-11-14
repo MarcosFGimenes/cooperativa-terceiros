@@ -12,11 +12,16 @@ type ValidateSuccess =
   | {
       ok: true;
       found: false;
+      serviceIds: string[];
+      targetType?: "service" | "folder";
+      targetId?: string | null;
     }
   | {
       ok: true;
       found: true;
       serviceIds: string[];
+      targetType: "service" | "folder";
+      targetId: string;
     };
 
 type ValidateError = { ok: false; error: string };
@@ -218,9 +223,20 @@ export default function AcessoPorTokenPage() {
         if (json.ok && json.found) {
           await persistTokenSession(code);
           recordTelemetry("token.validation.success", { services: json.serviceIds?.length ?? 0 });
+          const targetType = json.targetType;
+          const targetId = json.targetId ?? null;
+          const redirectPath = (() => {
+            if (targetType === "folder" && targetId) {
+              return `/subpacotes/${encodeURIComponent(targetId)}?token=${encodeURIComponent(code)}`;
+            }
+            if (targetType === "service" && targetId) {
+              return `/s/${encodeURIComponent(targetId)}?token=${encodeURIComponent(code)}`;
+            }
+            return "/terceiro";
+          })();
           toast.success("Token válido! Redirecionando…");
           didRedirect = true;
-          router.replace("/terceiro");
+          router.replace(redirectPath);
           return;
         }
 
