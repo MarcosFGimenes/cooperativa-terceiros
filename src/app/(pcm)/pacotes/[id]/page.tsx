@@ -377,21 +377,42 @@ async function renderPackageDetailPage(params: { id: string }) {
     });
   });
 
-  const availableServiceOptions: FolderServiceOption[] = availableOpenServices
-    .filter((service) => !folderServiceIds.has(service.id))
-    .map((service) => {
-      const baseLabel = service.os || service.oc || service.tag || service.id;
-      const descriptionParts: string[] = [];
-      const companyLabel = service.empresa || service.company || service.assignedTo?.companyName;
-      if (companyLabel) descriptionParts.push(`Empresa: ${companyLabel}`);
-      if (service.setor) descriptionParts.push(`Setor: ${service.setor}`);
-      return {
-        id: service.id,
-        label: baseLabel && baseLabel.length ? baseLabel : service.id,
-        description: descriptionParts.length ? descriptionParts.join(" • ") : undefined,
-      };
-    })
-    .sort((a, b) => a.label.localeCompare(b.label, "pt-BR", { sensitivity: "base" }));
+  const buildOption = (service: Service): FolderServiceOption => {
+    const baseLabel = service.os || service.oc || service.tag || service.id;
+    const descriptionParts: string[] = [];
+    const companyLabel = service.empresa || service.company || service.assignedTo?.companyName;
+    if (companyLabel) descriptionParts.push(`Empresa: ${companyLabel}`);
+    if (service.setor) descriptionParts.push(`Setor: ${service.setor}`);
+    return {
+      id: service.id,
+      label: baseLabel && baseLabel.length ? baseLabel : service.id,
+      description: descriptionParts.length ? descriptionParts.join(" • ") : undefined,
+    };
+  };
+
+  const availableOptionsMap = new Map<string, FolderServiceOption>();
+
+  const addAvailableService = (service: Service) => {
+    if (!service?.id || folderServiceIds.has(service.id)) return;
+    const statusLabel = normaliseStatus(service.status);
+    if (statusLabel !== "Aberto") return;
+    const option = buildOption(service);
+    const existing = availableOptionsMap.get(option.id);
+    if (existing) {
+      if (!existing.description && option.description) {
+        availableOptionsMap.set(option.id, { ...existing, description: option.description });
+      }
+      return;
+    }
+    availableOptionsMap.set(option.id, option);
+  };
+
+  services.forEach(addAvailableService);
+  availableOpenServices.forEach(addAvailableService);
+
+  const availableServiceOptions: FolderServiceOption[] = Array.from(availableOptionsMap.values()).sort((a, b) =>
+    a.label.localeCompare(b.label, "pt-BR", { sensitivity: "base" }),
+  );
 
   const serviceDetails: Record<string, FolderServiceInfo> = {};
 

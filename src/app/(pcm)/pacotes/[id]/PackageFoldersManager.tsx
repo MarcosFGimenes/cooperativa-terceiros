@@ -633,7 +633,8 @@ export default function PackageFoldersManager({
                         <div>
                           <h5 className="text-sm font-semibold">Serviços disponíveis</h5>
                           <p className="text-xs text-muted-foreground">
-                            Apenas serviços abertos e sem vínculo com outros pacotes ou subpacotes aparecem nesta lista.
+                            Apenas serviços abertos ou pendentes disponíveis para este pacote e sem vínculo com outros
+                            subpacotes aparecem nesta lista.
                           </p>
                         </div>
                         <input
