@@ -469,36 +469,23 @@ export async function getPackageById(id: string): Promise<Package | null> {
   return null;
 }
 
-const listRecentPackagesCached = unstable_cache(
-  async () => {
-    const collection = packagesCollectionOptional();
-    if (!collection) {
-      logMissingAdmin("recent:collection");
-      return [];
-    }
-    try {
-      const snap = await collection.orderBy("createdAt", "desc").limit(20).get();
-      return snap.docs.map((doc) =>
-        toPackageSummary(doc.id, (doc.data() ?? {}) as Record<string, unknown>),
-      );
-    } catch (error) {
-      if (isMissingAdminError(error)) {
-        logMissingAdmin("recent:fetch", error);
-        return [];
-      }
-      console.warn("[packages:listRecent] Falha ao carregar pacotes recentes. Retornando lista vazia.", error);
-      return [];
-    }
-  },
-  ["packages:listRecent"],
-  {
-    revalidate: 300,
-    tags: ["packages:recent"],
-  },
-);
-
 export async function listRecentPackages(): Promise<PackageSummary[]> {
-  return listRecentPackagesCached();
+  const collection = packagesCollectionOptional();
+  if (!collection) {
+    logMissingAdmin("recent:collection");
+    return [];
+  }
+  try {
+    const snap = await collection.orderBy("createdAt", "desc").limit(20).get();
+    return snap.docs.map((doc) => toPackageSummary(doc.id, (doc.data() ?? {}) as Record<string, unknown>));
+  } catch (error) {
+    if (isMissingAdminError(error)) {
+      logMissingAdmin("recent:fetch", error);
+      return [];
+    }
+    console.warn("[packages:listRecent] Falha ao carregar pacotes recentes. Retornando lista vazia.", error);
+    return [];
+  }
 }
 
 async function fetchPackageServices(packageId: string, limit: number): Promise<Service[]> {
