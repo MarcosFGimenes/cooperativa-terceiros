@@ -78,6 +78,30 @@ export type SubpacotePlanejado = {
   [key: string]: unknown;
 };
 
+export type ServicoPlanejado = {
+  id?: string | number | null;
+  descricao?: string | null;
+  description?: string | null;
+  dataInicio?: DateInput;
+  dataFim?: DateInput;
+  inicio?: DateInput;
+  fim?: DateInput;
+  percentualRealAtual?: number | string | null;
+  percentualReal?: number | string | null;
+  percentualInformado?: number | string | null;
+  progressoReal?: number | string | null;
+  realProgress?: number | string | null;
+  currentProgress?: number | string | null;
+  [key: string]: unknown;
+};
+
+export type ServicoPlanejadoResumo = {
+  id?: string;
+  descricao?: string;
+  percentualPlanejado: number;
+  percentualReal: number;
+};
+
 const DAY_IN_MS = 24 * 60 * 60 * 1000;
 
 function toPositiveNumber(value: unknown): number | null {
@@ -149,6 +173,40 @@ function daysBetween(start: Date, end: Date): number {
 
 type ServiceProgressEntry = { horasPrevistas: number; percentual: number };
 
+function clampPercentage(value: number): number {
+  if (!Number.isFinite(value)) return 0;
+  return Math.max(0, Math.min(100, value));
+}
+
+function parsePercentual(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return clampPercentage(value);
+  }
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+    const parsed = Number(trimmed.replace(",", "."));
+    if (Number.isFinite(parsed)) {
+      return clampPercentage(parsed);
+    }
+  }
+  return null;
+}
+
+function normalizeDescricao(servico: ServicoPlanejado | ServicoDoSubpacote | null | undefined): string | undefined {
+  if (!servico) return undefined;
+  const candidatos = [servico.descricao, (servico as { description?: unknown }).description];
+  for (const valor of candidatos) {
+    if (typeof valor === "string") {
+      const trimmed = valor.trim();
+      if (trimmed) {
+        return trimmed;
+      }
+    }
+  }
+  return undefined;
+}
+
 function mapServicoParaPercentual(
   servico: ServicoDoSubpacote,
   referencia: Date,
@@ -213,4 +271,81 @@ export function calcularPercentualSubpacote(
   const percentual = somaPonderada / somaHoras;
   if (!Number.isFinite(percentual)) return 0;
   return Math.max(0, Math.min(100, percentual));
+}
+
+export function calcularPercentualPlanejadoServico(
+  servico: ServicoPlanejado | ServicoDoSubpacote | null | undefined,
+  dataReferencia?: DateInput,
+): number {
+  if (!servico) return 0;
+  const referencia = toDate(dataReferencia ?? new Date()) ?? new Date();
+  const inicio =
+    getDateFromKeys(servico as ServicoDoSubpacote, [
+      "dataInicio",
+      "inicioPrevisto",
+      "inicioPlanejado",
+      "plannedStart",
+      "startDate",
+      "inicio",
+    ]) ?? null;
+  const fim =
+    getDateFromKeys(servico as ServicoDoSubpacote, [
+      "dataFim",
+      "fimPrevisto",
+      "fimPlanejado",
+      "plannedEnd",
+      "endDate",
+      "fim",
+    ]) ?? null;
+  if (!inicio || !fim) return 0;
+  if (fim.getTime() <= inicio.getTime()) return 0;
+
+  const totalDias = Math.max(1, daysBetween(inicio, fim));
+  const referenciaMs = referencia.getTime();
+  const inicioMs = inicio.getTime();
+  const fimMs = fim.getTime();
+
+  if (referenciaMs <= inicioMs) {
+    return 0;
+  }
+  if (referenciaMs >= fimMs) {
+    return 100;
+  }
+
+  const diasDecorridos = daysBetween(inicio, referencia);
+  return clampPercentage((diasDecorridos / totalDias) * 100);
+}
+
+export function mapearServicosPlanejados(
+  servicos: ServicoPlanejado[] | null | undefined,
+  dataReferencia?: DateInput,
+): ServicoPlanejadoResumo[] {
+  const referencia = toDate(dataReferencia ?? new Date()) ?? new Date();
+  if (!Array.isArray(servicos)) return [];
+
+  return servicos.map((servico) => {
+    const percentualPlanejado = calcularPercentualPlanejadoServico(servico, referencia);
+    const percentualReal =
+      parsePercentual(servico.percentualRealAtual) ??
+      parsePercentual(servico.percentualReal) ??
+      parsePercentual(servico.percentualInformado) ??
+      parsePercentual(servico.progressoReal) ??
+      parsePercentual(servico.realProgress) ??
+      parsePercentual(servico.currentProgress) ??
+      0;
+
+    let id: string | undefined;
+    if (typeof servico.id === "string") {
+      id = servico.id;
+    } else if (typeof servico.id === "number" && Number.isFinite(servico.id)) {
+      id = String(servico.id);
+    }
+
+    return {
+      id,
+      descricao: normalizeDescricao(servico),
+      percentualPlanejado,
+      percentualReal,
+    };
+  });
 }
