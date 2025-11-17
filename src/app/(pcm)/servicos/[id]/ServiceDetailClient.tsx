@@ -486,7 +486,7 @@ export default function ServiceDetailClient({
     if (updates.length === 0) {
       return normalizedInitialUpdates;
     }
-    return toNewUpdates([...updates, ...normalizedInitialUpdates]);
+    return updates;
   }, [updates, normalizedInitialUpdates]);
 
   const recentChecklist = useMemo(
