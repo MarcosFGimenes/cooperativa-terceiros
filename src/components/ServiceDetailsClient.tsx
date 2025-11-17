@@ -548,7 +548,6 @@ export default function ServiceDetailsClient({ service, updates: initialUpdates,
         resources: resourcesPayload,
         workforce: payload.workforce,
         shiftConditions: payload.shiftConditions,
-        justification: payload.justification,
         declarationAccepted: payload.declarationAccepted,
       };
 
@@ -594,7 +593,6 @@ export default function ServiceDetailsClient({ service, updates: initialUpdates,
               resources: resourcesPayload,
               workforce: payload.workforce,
               shiftConditions: payload.shiftConditions,
-              justification: payload.justification ?? null,
               previousPercent: progress,
               declarationAccepted: true,
             });

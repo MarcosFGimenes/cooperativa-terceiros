@@ -22,7 +22,6 @@ export type ServiceUpdateFormPayload = {
     weather: "claro" | "nublado" | "chuvoso";
     condition: "praticavel" | "impraticavel";
   }>;
-  justification?: string;
   declarationAccepted: true;
 };
 
@@ -195,12 +194,6 @@ const formSchema = z
   .object({
     date: z.string().min(1, "Data obrigatória"),
     description: z.string().min(1, "Descreva o que foi realizado"),
-    manualPercent: z
-      .number({ invalid_type_error: "Informe o percentual" })
-      .min(0, "Mínimo 0%")
-      .max(100, "Máximo 100%")
-      .optional(),
-    justification: z.string().max(1000).optional(),
     declarationAccepted: z.literal(true, {
       errorMap: () => ({ message: "É necessário aceitar a declaração" }),
     }),
@@ -232,13 +225,7 @@ const formSchema = z
 
 type FormValues = z.infer<typeof formSchema>;
 
-export default function ServiceUpdateForm({
-  serviceId,
-  lastProgress,
-  suggestedPercent,
-  checklist,
-  onSubmit,
-}: ServiceUpdateFormProps) {
+export default function ServiceUpdateForm({ serviceId, lastProgress, checklist, onSubmit }: ServiceUpdateFormProps) {
   const checklistDefaults = useMemo(
     () =>
       checklist.map((item) => ({
@@ -253,11 +240,9 @@ export default function ServiceUpdateForm({
     defaultValues: {
       date: "",
       description: "",
-      manualPercent: undefined,
       resources: [],
       workforce: [{ role: "", quantity: 1 }],
       shifts: [],
-      justification: "",
       declarationAccepted: false,
       subactivities: checklistDefaults,
     },
@@ -266,8 +251,8 @@ export default function ServiceUpdateForm({
   const {
     register,
     control,
-    handleSubmit,
     watch,
+    handleSubmit,
     setValue,
     reset,
     formState: { errors, isSubmitting },
@@ -276,40 +261,19 @@ export default function ServiceUpdateForm({
   const workforceArray = useFieldArray({ control, name: "workforce" });
   const shiftArray = useFieldArray({ control, name: "shifts" });
 
-  const justification = watch("justification");
   const selectedResources = watch("resources");
   const subactivityValues = watch("subactivities");
-  const manualPercent = watch("manualPercent");
 
   const computedPercent = useMemo(
     () => {
-      if (typeof manualPercent === "number" && Number.isFinite(manualPercent)) {
-        return Math.max(0, Math.min(100, Math.round(manualPercent * 10) / 10));
-      }
       return computeChecklistPercent(checklist, subactivityValues, lastProgress);
     },
-    [checklist, manualPercent, subactivityValues, lastProgress],
-  );
-
-  const requiresJustification = useMemo(
-    () => Number.isFinite(computedPercent) && computedPercent < lastProgress,
-    [computedPercent, lastProgress],
+    [checklist, subactivityValues, lastProgress],
   );
 
   useEffect(() => {
     setValue("subactivities", checklistDefaults, { shouldDirty: false });
   }, [checklistDefaults, setValue]);
-
-  useEffect(() => {
-    if (requiresJustification && !justification) {
-      form.setError("justification", {
-        type: "custom",
-        message: "Explique o motivo da redução",
-      });
-    } else {
-      form.clearErrors("justification");
-    }
-  }, [form, justification, requiresJustification]);
 
   const selectedShifts = useMemo(() => shiftArray.fields.map((item) => item.shift), [shiftArray.fields]);
 
@@ -339,11 +303,6 @@ export default function ServiceUpdateForm({
     const range = toDateRangeIso(values.date);
     if (!range) {
       form.setError("date", { type: "custom", message: "Data inválida" });
-      return;
-    }
-
-    if (requiresJustification && !values.justification?.trim()) {
-      form.setError("justification", { type: "custom", message: "Informe o motivo da redução" });
       return;
     }
 
@@ -381,18 +340,15 @@ export default function ServiceUpdateForm({
         weather: item.weather,
         condition: item.condition,
       })),
-      justification: values.justification?.trim() || undefined,
       declarationAccepted: true,
     });
 
     reset({
       date: "",
       description: "",
-      manualPercent: undefined,
       resources: [],
       workforce: [{ role: "", quantity: 1 }],
       shifts: [],
-      justification: "",
       declarationAccepted: false,
       subactivities: checklist.map((item) => ({ id: item.id, progress: undefined })),
     });
@@ -400,58 +356,6 @@ export default function ServiceUpdateForm({
 
   return (
     <form onSubmit={handleSubmit(submit)} className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="space-y-1">
-          <label className="text-sm font-medium text-foreground">Percentual de conclusão</label>
-          <div className="flex flex-col gap-1 text-xs text-muted-foreground">
-            <span>Último registro: {lastProgress.toFixed(1)}%</span>
-            {Number.isFinite(suggestedPercent ?? NaN) ? (
-              <span className="w-fit rounded-full bg-muted px-2 py-0.5">
-                Sugerido: {Number(suggestedPercent).toFixed(1)}%
-              </span>
-            ) : null}
-            <span>
-              Informe manualmente o percentual ou deixe em branco para usar o cálculo das subatividades.
-            </span>
-          </div>
-        </div>
-        <div className="flex items-center gap-2 text-sm font-semibold text-primary">
-          <span>{Number.isFinite(computedPercent) ? computedPercent.toFixed(1) : "-"}%</span>
-        </div>
-      </div>
-
-      <div>
-        <label htmlFor={`${serviceId}-manual-percent`} className="text-sm font-medium text-foreground">
-          Percentual informado
-        </label>
-        <div className="mt-1 flex items-center gap-2">
-          <input
-            id={`${serviceId}-manual-percent`}
-            type="number"
-            min={0}
-            max={100}
-            step={0.1}
-            placeholder="0"
-            className="input w-32"
-            {...register("manualPercent", {
-              setValueAs: (value) => {
-                if (value === "" || value === null || typeof value === "undefined") {
-                  return undefined;
-                }
-                const numeric = Number(String(value).replace(",", "."));
-                if (!Number.isFinite(numeric)) return undefined;
-                const clamped = Math.max(0, Math.min(100, numeric));
-                return Math.round(clamped * 10) / 10;
-              },
-            })}
-          />
-          <span className="text-sm text-muted-foreground">%</span>
-        </div>
-        {errors.manualPercent ? (
-          <p className="mt-1 text-xs text-destructive">{errors.manualPercent.message}</p>
-        ) : null}
-      </div>
-
       <div>
         <label htmlFor={`${serviceId}-date`} className="text-sm font-medium text-foreground">
           Data
@@ -733,23 +637,6 @@ export default function ServiceUpdateForm({
             ))
           : null}
       </div>
-
-      {requiresJustification ? (
-        <div>
-          <label htmlFor={`${serviceId}-justification`} className="text-sm font-medium text-foreground">
-            Justificativa para redução do percentual
-          </label>
-          <textarea
-            id={`${serviceId}-justification`}
-            className="input mt-1 min-h-[100px]"
-            placeholder="Explique por que o percentual reduziu em relação ao registro anterior"
-            {...register("justification")}
-          />
-          {errors.justification ? (
-            <p className="mt-1 text-xs text-destructive">{errors.justification.message}</p>
-          ) : null}
-        </div>
-      ) : null}
 
       <label className="flex items-start gap-2 rounded-lg border border-muted bg-muted/40 p-4 text-sm">
         <input type="checkbox" className="mt-1 h-4 w-4" {...register("declarationAccepted")} />
