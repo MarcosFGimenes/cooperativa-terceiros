@@ -90,8 +90,12 @@ function parseDateOnly(value: string): Date | null {
   if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) {
     return null;
   }
-  const date = new Date(year, month - 1, day);
-  if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) {
+  const date = new Date(Date.UTC(year, month - 1, day));
+  if (
+    date.getUTCFullYear() !== year ||
+    date.getUTCMonth() !== month - 1 ||
+    date.getUTCDate() !== day
+  ) {
     return null;
   }
   return date;
@@ -101,9 +105,9 @@ function toDateRangeIso(value: string): { start: string; end: string } | null {
   const date = parseDateOnly(value);
   if (!date) return null;
   const start = new Date(date);
-  start.setHours(0, 0, 0, 0);
+  start.setUTCHours(0, 0, 0, 0);
   const end = new Date(date);
-  end.setHours(23, 59, 59, 999);
+  end.setUTCHours(23, 59, 59, 999);
   return { start: start.toISOString(), end: end.toISOString() };
 }
 

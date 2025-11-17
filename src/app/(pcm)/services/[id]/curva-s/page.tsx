@@ -16,7 +16,7 @@ const toDate = (input: unknown): Date | null => {
   if (!input) return null;
   if (input instanceof Date) return input;
   if (typeof input === "string") {
-    const iso = input.includes("T") ? input : `${input}T00:00:00`;
+    const iso = input.includes("T") ? input : `${input}T00:00:00Z`;
     const date = new Date(iso);
     return Number.isNaN(date.getTime()) ? null : date;
   }

@@ -806,7 +806,7 @@ type ServiceMetadataInput = {
 };
 
 function toDateOnlyTimestamp(value: string): Timestamp {
-  const date = new Date(`${value}T00:00:00`);
+  const date = new Date(`${value}T00:00:00Z`);
   if (Number.isNaN(date.getTime())) {
     throw new Error("Data inválida.");
   }
