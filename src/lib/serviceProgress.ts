@@ -78,6 +78,12 @@ export type SubpacotePlanejado = {
   [key: string]: unknown;
 };
 
+export type PacotePlanejado = {
+  subpacotes?: SubpacotePlanejado[] | null;
+  subPackages?: SubpacotePlanejado[] | null;
+  [key: string]: unknown;
+};
+
 export type ServicoPlanejado = {
   id?: string | number | null;
   descricao?: string | null;
@@ -102,7 +108,23 @@ export type ServicoPlanejadoResumo = {
   percentualReal: number;
 };
 
+export type CurvaSPonto = { data: Date; percentual: number };
+
+export type IndicadoresCurvaS = {
+  planejadoTotal: number;
+  planejadoAteHoje: number;
+  realizado: number;
+  diferenca: number;
+};
+
 const DAY_IN_MS = 24 * 60 * 60 * 1000;
+
+function startOfDay(date: Date): Date {
+  const year = date.getUTCFullYear();
+  const month = date.getUTCMonth();
+  const day = date.getUTCDate();
+  return new Date(Date.UTC(year, month, day));
+}
 
 function toPositiveNumber(value: unknown): number | null {
   if (typeof value === "number" && Number.isFinite(value) && value > 0) {
@@ -165,6 +187,45 @@ function getDateFromKeys(service: ServicoDoSubpacote, keys: string[]): Date | nu
   return null;
 }
 
+function extractHorasPrevistas(servico: ServicoDoSubpacote): number | null {
+  return (
+    toPositiveNumber(servico.horasPrevistas) ??
+    toPositiveNumber(servico.totalHours) ??
+    toPositiveNumber(servico.horas) ??
+    toPositiveNumber(servico.hours) ??
+    toPositiveNumber(servico.peso) ??
+    toPositiveNumber(servico.weight) ??
+    null
+  );
+}
+
+type DateRange = { inicio: Date; fim: Date };
+
+function resolveDateRange(servico: ServicoDoSubpacote): DateRange | null {
+  const inicio =
+    getDateFromKeys(servico, [
+      "dataInicio",
+      "inicioPrevisto",
+      "inicioPlanejado",
+      "plannedStart",
+      "startDate",
+      "inicio",
+    ]) ?? null;
+  const fim =
+    getDateFromKeys(servico, [
+      "dataFim",
+      "fimPrevisto",
+      "fimPlanejado",
+      "plannedEnd",
+      "endDate",
+      "fim",
+    ]) ?? null;
+
+  if (!inicio || !fim) return null;
+  if (fim.getTime() <= inicio.getTime()) return null;
+  return { inicio, fim };
+}
+
 function daysBetween(start: Date, end: Date): number {
   const diff = end.getTime() - start.getTime();
   if (!Number.isFinite(diff)) return 0;
@@ -172,6 +233,7 @@ function daysBetween(start: Date, end: Date): number {
 }
 
 type ServiceProgressEntry = { horasPrevistas: number; percentual: number };
+type AtualizacaoPercentual = { data: Date; percentual: number };
 
 function clampPercentage(value: number): number {
   if (!Number.isFinite(value)) return 0;
@@ -193,6 +255,114 @@ function parsePercentual(value: unknown): number | null {
   return null;
 }
 
+const UPDATE_LIST_KEYS = [
+  "atualizacoes",
+  "historicoAtualizacoes",
+  "historico",
+  "history",
+  "updates",
+  "progressUpdates",
+  "percentualUpdates",
+  "realUpdates",
+];
+
+const UPDATE_DATE_KEYS = [
+  "data",
+  "dataAtualizacao",
+  "data_atualizacao",
+  "dataUltimaAtualizacao",
+  "dataAtualizacaoPercentual",
+  "date",
+  "timestamp",
+  "createdAt",
+  "updatedAt",
+  "lastUpdateDate",
+];
+
+const UPDATE_PERCENT_KEYS = [
+  "percentual",
+  "percentualInformado",
+  "percentualReal",
+  "percentualRealAtual",
+  "percent",
+  "valor",
+  "value",
+  "progress",
+];
+
+function normalizeUpdateEntry(entry: unknown, fallbackDate?: Date): AtualizacaoPercentual | null {
+  if (!entry || typeof entry !== "object") return null;
+  const source = entry as Record<string, unknown>;
+  let data: Date | null = null;
+  for (const key of UPDATE_DATE_KEYS) {
+    if (Object.hasOwn(source, key)) {
+      data = toDate(source[key] as DateInput);
+      if (data) break;
+    }
+  }
+  if (!data && fallbackDate) {
+    data = new Date(fallbackDate.getTime());
+  }
+  if (!data) return null;
+
+  let percentual: number | null = null;
+  for (const key of UPDATE_PERCENT_KEYS) {
+    if (Object.hasOwn(source, key)) {
+      percentual = parsePercentual(source[key]);
+      if (percentual !== null) break;
+    }
+  }
+  if (percentual === null) return null;
+  return { data: startOfDay(data), percentual };
+}
+
+function coletarAtualizacoesDoServico(
+  servico: ServicoDoSubpacote,
+  fallbackDate?: Date,
+): AtualizacaoPercentual[] {
+  const atualizacoes: AtualizacaoPercentual[] = [];
+  for (const key of UPDATE_LIST_KEYS) {
+    const lista = (servico as Record<string, unknown>)[key];
+    if (!Array.isArray(lista)) continue;
+    for (const item of lista) {
+      const normalizado = normalizeUpdateEntry(item, fallbackDate);
+      if (normalizado) {
+        atualizacoes.push(normalizado);
+      }
+    }
+  }
+
+  const percentualDireto =
+    parsePercentual((servico as Record<string, unknown>).percentualRealAtual) ??
+    parsePercentual((servico as Record<string, unknown>).percentualReal) ??
+    parsePercentual((servico as Record<string, unknown>).percentualInformado) ??
+    parsePercentual((servico as Record<string, unknown>).progressoReal) ??
+    parsePercentual((servico as Record<string, unknown>).realProgress) ??
+    parsePercentual((servico as Record<string, unknown>).currentProgress);
+
+  if (percentualDireto !== null) {
+    let data =
+      getDateFromKeys(servico, [
+        "dataUltimaAtualizacao",
+        "dataAtualizacao",
+        "dataAtualizacaoPercentual",
+        "atualizadoEm",
+        "lastUpdateDate",
+        "updatedAt",
+      ]) ?? null;
+    if (!data && fallbackDate) {
+      data = new Date(fallbackDate.getTime());
+    }
+    if (!data) {
+      data = new Date(0);
+    }
+    atualizacoes.push({ data: startOfDay(data), percentual: percentualDireto });
+  }
+
+  atualizacoes.sort((a, b) => a.data.getTime() - b.data.getTime());
+  return atualizacoes;
+}
+
 function normalizeDescricao(servico: ServicoPlanejado | ServicoDoSubpacote | null | undefined): string | undefined {
   if (!servico) return undefined;
   const candidatos = [servico.descricao, (servico as { description?: unknown }).description];
@@ -207,44 +377,178 @@ function normalizeDescricao(servico: ServicoPlanejado | ServicoDoSubpacote | nul
   return undefined;
 }
 
+type PreparedServicoPlanejado = {
+  horasPrevistas: number;
+  inicio: Date;
+  fim: Date;
+  totalDias: number;
+  source: ServicoDoSubpacote;
+};
+
+type ServicoRealizadoNormalizado = {
+  horasPrevistas: number;
+  atualizacoes: AtualizacaoPercentual[];
+};
+
+function prepararServicoPlanejado(servico: ServicoDoSubpacote): PreparedServicoPlanejado | null {
+  const horasPrevistas = extractHorasPrevistas(servico);
+  if (!horasPrevistas) return null;
+  const range = resolveDateRange(servico);
+  if (!range) return null;
+  const totalDias = Math.max(1, daysBetween(range.inicio, range.fim));
+  return { horasPrevistas, inicio: range.inicio, fim: range.fim, totalDias, source: servico };
+}
+
+function calcularPercentualPlanejadoDoServico(
+  servico: PreparedServicoPlanejado,
+  referencia: Date,
+): number {
+  const referenciaMs = referencia.getTime();
+  const inicioMs = servico.inicio.getTime();
+  const fimMs = servico.fim.getTime();
+
+  if (referenciaMs <= inicioMs) {
+    return 0;
+  }
+  if (referenciaMs >= fimMs) {
+    return 100;
+  }
+
+  const diasDecorridos = daysBetween(servico.inicio, referencia);
+  return clampPercentage((diasDecorridos / servico.totalDias) * 100);
+}
+
+function prepararServicosPlanejados(servicos: ServicoDoSubpacote[]): PreparedServicoPlanejado[] {
+  return servicos
+    .map((servico) => prepararServicoPlanejado(servico))
+    .filter((item): item is PreparedServicoPlanejado => Boolean(item));
+}
+
 function mapServicoParaPercentual(
   servico: ServicoDoSubpacote,
   referencia: Date,
 ): ServiceProgressEntry | null {
-  const horasPrevistas =
-    toPositiveNumber(servico.horasPrevistas) ??
-    toPositiveNumber(servico.totalHours) ??
-    toPositiveNumber(servico.horas) ??
-    toPositiveNumber(servico.hours) ??
-    toPositiveNumber(servico.peso) ??
-    toPositiveNumber(servico.weight);
-  if (!horasPrevistas) return null;
+  const preparado = prepararServicoPlanejado(servico);
+  if (!preparado) return null;
+  const percentual = calcularPercentualPlanejadoDoServico(preparado, referencia);
+  return { horasPrevistas: preparado.horasPrevistas, percentual };
+}
 
-  const inicio =
-    getDateFromKeys(servico, ["dataInicio", "inicioPrevisto", "inicioPlanejado", "plannedStart", "startDate", "inicio"])
-    ?? null;
-  const fim =
-    getDateFromKeys(servico, ["dataFim", "fimPrevisto", "fimPlanejado", "plannedEnd", "endDate", "fim"])
-    ?? null;
-  if (!inicio || !fim) return null;
-  if (fim.getTime() <= inicio.getTime()) return null;
+function coletarServicosDoSubpacote(subpacote: SubpacotePlanejado | null | undefined): ServicoDoSubpacote[] {
+  if (!subpacote) return [];
+  const listas: ServicoDoSubpacote[][] = [];
+  if (Array.isArray(subpacote.servicos)) listas.push(subpacote.servicos);
+  const alternativa = (subpacote as { services?: ServicoDoSubpacote[] | null }).services;
+  if (Array.isArray(alternativa)) {
+    listas.push(alternativa);
+  }
+  const servicos: ServicoDoSubpacote[] = [];
+  for (const lista of listas) {
+    for (const servico of lista) {
+      if (servico && typeof servico === "object") {
+        servicos.push(servico);
+      }
+    }
+  }
+  return servicos;
+}
 
-  const totalDias = Math.max(1, daysBetween(inicio, fim));
-  const referenciaMs = referencia.getTime();
-  const inicioMs = inicio.getTime();
-  const fimMs = fim.getTime();
-
-  let diasDecorridos = 0;
-  if (referenciaMs <= inicioMs) {
-    diasDecorridos = 0;
-  } else if (referenciaMs >= fimMs) {
-    diasDecorridos = totalDias;
-  } else {
-    diasDecorridos = daysBetween(inicio, referencia);
+function coletarServicosDoPacote(pacote: PacotePlanejado | null | undefined): ServicoDoSubpacote[] {
+  if (!pacote) return [];
+  const subpacotes: SubpacotePlanejado[] = [];
+  if (Array.isArray(pacote.subpacotes)) {
+    subpacotes.push(...pacote.subpacotes);
+  }
+  const alternativa = (pacote as { subPackages?: SubpacotePlanejado[] | null }).subPackages;
+  if (Array.isArray(alternativa)) {
+    subpacotes.push(...alternativa);
   }
 
-  const percentual = Math.max(0, Math.min(100, (diasDecorridos / totalDias) * 100));
-  return { horasPrevistas, percentual };
+  return subpacotes.flatMap((subpacote) => coletarServicosDoSubpacote(subpacote));
+}
+
+function gerarLinhaDoTempo(servicos: PreparedServicoPlanejado[]): Date[] {
+  if (!servicos.length) return [];
+  let menor: Date | null = null;
+  let maior: Date | null = null;
+  for (const servico of servicos) {
+    const inicio = startOfDay(servico.inicio);
+    const fim = startOfDay(servico.fim);
+    if (!menor || inicio.getTime() < menor.getTime()) {
+      menor = inicio;
+    }
+    if (!maior || fim.getTime() > maior.getTime()) {
+      maior = fim;
+    }
+  }
+  if (!menor || !maior) return [];
+  const datas: Date[] = [];
+  for (let time = menor.getTime(); time <= maior.getTime(); time += DAY_IN_MS) {
+    datas.push(new Date(time));
+  }
+  return datas;
+}
+
+function calcularPercentualPlanejadoNoDia(
+  servicos: PreparedServicoPlanejado[],
+  referencia: Date,
+  somaHoras?: number,
+): number {
+  if (!servicos.length) return 0;
+  const totalHoras = somaHoras ?? servicos.reduce((total, servico) => total + servico.horasPrevistas, 0);
+  if (totalHoras <= 0) return 0;
+  const somaPonderada = servicos.reduce((total, servico) => {
+    const percentual = calcularPercentualPlanejadoDoServico(servico, referencia);
+    return total + percentual * servico.horasPrevistas;
+  }, 0);
+  return clampPercentage(somaPonderada / totalHoras);
+}
+
+function prepararServicosRealizados(
+  servicos: PreparedServicoPlanejado[],
+): ServicoRealizadoNormalizado[] {
+  return servicos.map((servico) => ({
+    horasPrevistas: servico.horasPrevistas,
+    atualizacoes: coletarAtualizacoesDoServico(servico.source, servico.inicio),
+  }));
+}
+
+function percentualRealizadoAte(
+  servico: ServicoRealizadoNormalizado,
+  referencia: Date,
+): number {
+  if (!servico.atualizacoes.length) return 0;
+  const alvo = startOfDay(referencia).getTime();
+  let percentual = 0;
+  for (const atualizacao of servico.atualizacoes) {
+    const data = atualizacao.data.getTime();
+    if (data <= alvo) {
+      percentual = atualizacao.percentual;
+    } else {
+      break;
+    }
+  }
+  return percentual;
+}
+
+function obterValorCurvaNaData(curva: CurvaSPonto[], referencia: Date): number {
+  if (!curva.length) return 0;
+  const alvo = startOfDay(referencia).getTime();
+  let anterior = curva[0];
+  if (alvo <= anterior.data.getTime()) {
+    return anterior.percentual;
+  }
+  for (const ponto of curva) {
+    const tempo = ponto.data.getTime();
+    if (tempo === alvo) {
+      return ponto.percentual;
+    }
+    if (tempo > alvo) {
+      return anterior.percentual;
+    }
+    anterior = ponto;
+  }
+  return curva[curva.length - 1].percentual;
 }
 
 export function calcularPercentualSubpacote(
@@ -279,31 +583,13 @@ export function calcularPercentualPlanejadoServico(
 ): number {
   if (!servico) return 0;
   const referencia = toDate(dataReferencia ?? new Date()) ?? new Date();
-  const inicio =
-    getDateFromKeys(servico as ServicoDoSubpacote, [
-      "dataInicio",
-      "inicioPrevisto",
-      "inicioPlanejado",
-      "plannedStart",
-      "startDate",
-      "inicio",
-    ]) ?? null;
-  const fim =
-    getDateFromKeys(servico as ServicoDoSubpacote, [
-      "dataFim",
-      "fimPrevisto",
-      "fimPlanejado",
-      "plannedEnd",
-      "endDate",
-      "fim",
-    ]) ?? null;
-  if (!inicio || !fim) return 0;
-  if (fim.getTime() <= inicio.getTime()) return 0;
+  const range = resolveDateRange(servico as ServicoDoSubpacote);
+  if (!range) return 0;
 
-  const totalDias = Math.max(1, daysBetween(inicio, fim));
+  const totalDias = Math.max(1, daysBetween(range.inicio, range.fim));
   const referenciaMs = referencia.getTime();
-  const inicioMs = inicio.getTime();
-  const fimMs = fim.getTime();
+  const inicioMs = range.inicio.getTime();
+  const fimMs = range.fim.getTime();
 
   if (referenciaMs <= inicioMs) {
     return 0;
@@ -312,7 +598,7 @@ export function calcularPercentualPlanejadoServico(
     return 100;
   }
 
-  const diasDecorridos = daysBetween(inicio, referencia);
+  const diasDecorridos = daysBetween(range.inicio, referencia);
   return clampPercentage((diasDecorridos / totalDias) * 100);
 }
 
@@ -348,4 +634,58 @@ export function mapearServicosPlanejados(
       percentualReal,
     };
   });
+}
+
+export function calcularCurvaSPlanejada(
+  pacote: PacotePlanejado | null | undefined,
+): CurvaSPonto[] {
+  const servicos = coletarServicosDoPacote(pacote);
+  const preparados = prepararServicosPlanejados(servicos);
+  const linhaDoTempo = gerarLinhaDoTempo(preparados);
+  if (!linhaDoTempo.length) return [];
+  const somaHoras = preparados.reduce((total, servico) => total + servico.horasPrevistas, 0);
+  return linhaDoTempo.map((data) => ({
+    data,
+    percentual:
+      somaHoras > 0 ? calcularPercentualPlanejadoNoDia(preparados, data, somaHoras) : 0,
+  }));
+}
+
+export function calcularCurvaSRealizada(
+  pacote: PacotePlanejado | null | undefined,
+): CurvaSPonto[] {
+  const servicos = coletarServicosDoPacote(pacote);
+  const preparados = prepararServicosPlanejados(servicos);
+  const linhaDoTempo = gerarLinhaDoTempo(preparados);
+  if (!linhaDoTempo.length) return [];
+  const somaHoras = preparados.reduce((total, servico) => total + servico.horasPrevistas, 0);
+  if (somaHoras <= 0) {
+    return linhaDoTempo.map((data) => ({ data, percentual: 0 }));
+  }
+  const servicosRealizados = prepararServicosRealizados(preparados);
+  return linhaDoTempo.map((data) => {
+    const somaPonderada = servicosRealizados.reduce((total, servico) => {
+      const percentual = percentualRealizadoAte(servico, data);
+      return total + percentual * servico.horasPrevistas;
+    }, 0);
+    const percentual = somaPonderada / somaHoras;
+    return { data, percentual: clampPercentage(percentual) };
+  });
+}
+
+export function calcularIndicadoresCurvaS(
+  pacote: PacotePlanejado | null | undefined,
+  dataHoje?: DateInput,
+): IndicadoresCurvaS {
+  const referencia = toDate(dataHoje ?? new Date()) ?? new Date();
+  const curvaPlanejada = calcularCurvaSPlanejada(pacote);
+  const curvaRealizada = calcularCurvaSRealizada(pacote);
+  const planejadoAteHoje = obterValorCurvaNaData(curvaPlanejada, referencia);
+  const realizado = obterValorCurvaNaData(curvaRealizada, referencia);
+  return {
+    planejadoTotal: 100,
+    planejadoAteHoje,
+    realizado,
+    diferenca: realizado - planejadoAteHoje,
+  };
 }

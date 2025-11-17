@@ -3,6 +3,9 @@ import { describe, expect, it } from "vitest";
 import {
   calcularPercentualSubpacote,
   calcularPercentualPlanejadoServico,
+  calcularCurvaSPlanejada,
+  calcularCurvaSRealizada,
+  calcularIndicadoresCurvaS,
   clampProgress,
   mapearServicosPlanejados,
   resolveReopenedProgress,
@@ -208,6 +211,73 @@ describe("serviceProgress utilities", () => {
       );
 
       expect(result[0]).toMatchObject({ percentualReal: 0 });
+    });
+  });
+
+  describe("Curva S consolidada", () => {
+    const servicoA = {
+      id: "A",
+      horasPrevistas: 10,
+      dataInicio: new Date("2024-01-01T00:00:00Z"),
+      dataFim: new Date("2024-01-05T00:00:00Z"),
+      atualizacoes: [
+        { data: new Date("2024-01-02T00:00:00Z"), percentual: 20 },
+        { data: new Date("2024-01-04T00:00:00Z"), percentual: 60 },
+      ],
+    };
+    const servicoB = {
+      id: "B",
+      horasPrevistas: 5,
+      dataInicio: new Date("2024-01-03T00:00:00Z"),
+      dataFim: new Date("2024-01-07T00:00:00Z"),
+      atualizacoes: [{ data: new Date("2024-01-05T00:00:00Z"), percentual: 40 }],
+    };
+    const pacoteCurva = {
+      subpacotes: [{ servicos: [servicoA] }, { services: [servicoB] }],
+      servicos: [
+        {
+          horasPrevistas: 100,
+          dataInicio: new Date("2023-12-01T00:00:00Z"),
+          dataFim: new Date("2024-02-01T00:00:00Z"),
+          atualizacoes: [{ data: new Date("2023-12-15T00:00:00Z"), percentual: 100 }],
+        },
+      ],
+    };
+
+    const obterPercentual = (curva: { data: Date; percentual: number }[], iso: string) => {
+      const alvo = new Date(iso).getTime();
+      const ponto = curva.find((item) => item.data.getTime() === alvo);
+      if (!ponto) {
+        throw new Error(`Ponto não encontrado para ${iso}`);
+      }
+      return ponto.percentual;
+    };
+
+    it("monta a curva planejada apenas com os serviços de subpacotes", () => {
+      const curvaPlanejada = calcularCurvaSPlanejada(pacoteCurva);
+      expect(curvaPlanejada).toHaveLength(7);
+      expect(curvaPlanejada[0].data.toISOString()).toBe("2024-01-01T00:00:00.000Z");
+      expect(curvaPlanejada[curvaPlanejada.length - 1].data.toISOString()).toBe(
+        "2024-01-07T00:00:00.000Z",
+      );
+      expect(obterPercentual(curvaPlanejada, "2024-01-03T00:00:00Z")).toBeCloseTo(33.33, 1);
+    });
+
+    it("usa o histórico do Terceiro para calcular a curva realizada", () => {
+      const curvaRealizada = calcularCurvaSRealizada(pacoteCurva);
+      expect(obterPercentual(curvaRealizada, "2024-01-01T00:00:00Z")).toBe(0);
+      expect(obterPercentual(curvaRealizada, "2024-01-04T00:00:00Z")).toBeCloseTo(40, 1);
+    });
+
+    it("calcula os indicadores consolidados com base nas curvas", () => {
+      const indicadores = calcularIndicadoresCurvaS(
+        pacoteCurva,
+        new Date("2024-01-05T00:00:00Z"),
+      );
+      expect(indicadores.planejadoTotal).toBe(100);
+      expect(indicadores.planejadoAteHoje).toBeCloseTo(83.33, 1);
+      expect(indicadores.realizado).toBeCloseTo(53.33, 1);
+      expect(indicadores.diferenca).toBeCloseTo(-29.99, 1);
     });
   });
 });
