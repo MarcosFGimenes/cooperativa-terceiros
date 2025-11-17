@@ -55,6 +55,19 @@ function toMillis(value: unknown | FirestoreTimestamp): number | undefined {
   return undefined;
 }
 
+function toNumber(value: unknown): number | undefined {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+  if (typeof value === "string") {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) {
+      return parsed;
+    }
+  }
+  return undefined;
+}
+
 function getTokenCompany(token: AccessTokenData): string | undefined {
   if (typeof token.companyId === "string" && token.companyId.trim()) return token.companyId.trim();
   if (typeof token.company === "string" && token.company.trim()) return token.company.trim();
@@ -107,6 +120,13 @@ function normalizeCompany(data: FirebaseFirestore.DocumentData): string | undefi
 
 function mapServiceDoc(doc: FirebaseFirestore.DocumentSnapshot): Service {
   const data = doc.data() ?? {};
+  const totalHoursCandidate =
+    toNumber(data.totalHours) ??
+    toNumber((data as Record<string, unknown>).totalHoras) ??
+    toNumber((data as Record<string, unknown>).horasTotais) ??
+    toNumber((data as Record<string, unknown>).horasPrevistas) ??
+    toNumber((data as Record<string, unknown>).hours) ??
+    0;
   return {
     id: doc.id,
     os: data.os ?? "",
@@ -116,7 +136,7 @@ function mapServiceDoc(doc: FirebaseFirestore.DocumentSnapshot): Service {
     sector: data.sector ?? "",
     plannedStart: data.plannedStart ?? "",
     plannedEnd: data.plannedEnd ?? "",
-    totalHours: data.totalHours ?? 0,
+    totalHours: totalHoursCandidate,
     status: (data.status ?? "aberto") as ServiceStatus,
     company: normalizeCompany(data),
     createdAt: toMillis(data.createdAt),
