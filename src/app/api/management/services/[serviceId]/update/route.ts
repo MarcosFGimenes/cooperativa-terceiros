@@ -28,7 +28,7 @@ function normaliseDate(value: unknown): string | null {
   if (typeof value !== "string") return null;
   const trimmed = value.trim();
   if (!trimmed) return null;
-  const date = new Date(`${trimmed}T00:00:00`);
+  const date = new Date(`${trimmed}T00:00:00Z`);
   if (Number.isNaN(date.getTime())) return null;
   return trimmed;
 }

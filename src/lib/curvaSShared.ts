@@ -1,11 +1,11 @@
 export type IsoDate = string;
 
 export function dateRangeInclusive(start: Date, end: Date): IsoDate[] {
-  const norm = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const norm = (d: Date) => new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
   const s = norm(start);
   const e = norm(end);
   const out: IsoDate[] = [];
-  for (let d = new Date(s); d <= e; d.setDate(d.getDate() + 1)) {
+  for (let d = new Date(s); d.getTime() <= e.getTime(); d.setUTCDate(d.getUTCDate() + 1)) {
     out.push(d.toISOString().slice(0, 10));
   }
   return out;
