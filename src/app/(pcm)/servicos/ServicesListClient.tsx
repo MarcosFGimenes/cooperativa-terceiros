@@ -1,12 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import Link from "next/link";
 
 import { calcularPercentualPlanejadoServico } from "@/lib/serviceProgress";
-import type { Service } from "@/types";
-
-const MAX_VISIBLE_SERVICES = 8;
+import type { PCMListResponse, PCMServiceListItem } from "@/types/pcm";
 
 const STATUS_LABEL: Record<string, string> = {
   concluido: "Concluído",
@@ -22,12 +20,12 @@ const STATUS_TONE: Record<string, string> = {
   Aberto: "bg-sky-100 text-sky-700 border-sky-200",
 };
 
-function normaliseStatus(status: Service["status"]): string {
+function normaliseStatus(status: PCMServiceListItem["status"]): string {
   const raw = String(status ?? "").trim().toLowerCase();
   return STATUS_LABEL[raw] ?? "Aberto";
 }
 
-function resolveServiceRealPercent(service: Service): number {
+function resolveServiceRealPercent(service: PCMServiceListItem): number {
   const progress = Number(
     service.progress ?? service.realPercent ?? service.andamento ?? service.manualPercent ?? 0,
   );
@@ -35,42 +33,77 @@ function resolveServiceRealPercent(service: Service): number {
   return Math.max(0, Math.min(100, Math.round(progress)));
 }
 
+function resolveIdentifier(service: PCMServiceListItem) {
+  return service.os || service.code || service.tag || service.id;
+}
+
+function resolveSubtitle(service: PCMServiceListItem) {
+  return service.equipmentName || service.equipamento || service.setor || service.sector || "";
+}
+
+function resolveCompanyLabel(service: PCMServiceListItem) {
+  return (
+    service.assignedTo?.companyName ||
+    service.assignedTo?.companyId ||
+    service.company ||
+    service.empresa ||
+    undefined
+  );
+}
+
 type Props = {
-  services: Service[];
+  initialItems: PCMServiceListItem[];
+  initialCursor: string | null;
 };
 
-export default function ServicesListClient({ services }: Props) {
-  const [showAll, setShowAll] = useState(false);
+export default function ServicesListClient({ initialItems, initialCursor }: Props) {
+  const [items, setItems] = useState(initialItems);
+  const [cursor, setCursor] = useState(initialCursor);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const today = useMemo(() => new Date(), []);
-  const visibleServices = useMemo(() => {
-    if (showAll) return services;
-    return services.slice(0, MAX_VISIBLE_SERVICES);
-  }, [services, showAll]);
 
-  const total = services.length;
-  const visibleCount = visibleServices.length;
-  const hasToggle = total > MAX_VISIBLE_SERVICES;
+  const handleLoadMore = useCallback(async () => {
+    if (!cursor) return;
+    setIsLoadingMore(true);
+    setErrorMessage(null);
+    try {
+      const params = new URLSearchParams({ limit: "15", cursor });
+      const response = await fetch(`/api/pcm/servicos?${params.toString()}`, {
+        method: "GET",
+        cache: "no-store",
+      });
+      if (!response.ok) {
+        throw new Error(`Falha ao carregar mais serviços: ${response.status}`);
+      }
+      const payload = (await response.json()) as PCMListResponse<PCMServiceListItem>;
+      setItems((prev) => [...prev, ...payload.items]);
+      setCursor(payload.nextCursor ?? null);
+    } catch (error) {
+      console.error("[ServicesListClient] Falha ao carregar mais serviços", error);
+      setErrorMessage("Não foi possível carregar mais serviços. Tente novamente.");
+    } finally {
+      setIsLoadingMore(false);
+    }
+  }, [cursor]);
 
-  if (total === 0) {
+  if (items.length === 0) {
     return null;
   }
 
   return (
     <div className="space-y-4">
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        {visibleServices.map((service) => {
+        {items.map((service) => {
           const serviceHref = `/servicos/${encodeURIComponent(service.id)}`;
           const statusLabel = normaliseStatus(service.status);
           const statusTone = STATUS_TONE[statusLabel] ?? "border-border bg-muted text-foreground/80";
           const plannedPercent = Math.round(calcularPercentualPlanejadoServico(service, today));
           const realPercent = resolveServiceRealPercent(service);
-          const identifier = service.os || service.code || service.tag || service.id;
-          const subtitle = service.equipmentName || service.setor || service.sector || "";
-          const companyLabel =
-            service.assignedTo?.companyName ||
-            service.company ||
-            service.assignedTo?.companyId ||
-            undefined;
+          const identifier = resolveIdentifier(service);
+          const subtitle = resolveSubtitle(service);
+          const companyLabel = resolveCompanyLabel(service);
+
           return (
             <Link
               key={service.id}
@@ -88,11 +121,9 @@ export default function ServicesListClient({ services }: Props) {
                 </div>
                 <div className="space-y-1">
                   <p className="line-clamp-2 text-base font-semibold text-foreground">{identifier}</p>
-                  {subtitle ? (
-                    <p className="text-sm text-muted-foreground">{subtitle}</p>
-                  ) : null}
+                  {subtitle ? <p className="text-sm text-muted-foreground">{subtitle}</p> : null}
                   <p className="text-xs text-muted-foreground">
-                    Planejado: <span className="font-semibold text-foreground">{plannedPercent}%</span> | Real: {" "}
+                    Planejado: <span className="font-semibold text-foreground">{plannedPercent}%</span> | Real:{" "}
                     <span className="font-semibold text-foreground">{realPercent}%</span>
                   </p>
                 </div>
@@ -112,16 +143,20 @@ export default function ServicesListClient({ services }: Props) {
           );
         })}
       </div>
-      {hasToggle ? (
-        <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
-          <span>
-            Mostrando {visibleCount} de {total} serviço{total === 1 ? "" : "s"}.
-          </span>
-          <button type="button" className="btn btn-secondary" onClick={() => setShowAll((prev) => !prev)}>
-            {showAll ? "Mostrar menos" : "Mostrar mais"}
-          </button>
+      <div className="flex flex-col gap-3 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p>Mostrando {items.length} serviço{items.length === 1 ? "" : "s"}.</p>
+          {errorMessage ? <p className="text-destructive">{errorMessage}</p> : null}
         </div>
-      ) : null}
+        <button
+          type="button"
+          className="btn btn-secondary"
+          disabled={!cursor || isLoadingMore}
+          onClick={handleLoadMore}
+        >
+          {isLoadingMore ? "Carregando..." : cursor ? "Carregar mais" : "Todos carregados"}
+        </button>
+      </div>
     </div>
   );
 }

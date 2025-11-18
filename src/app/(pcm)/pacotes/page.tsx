@@ -3,12 +3,12 @@ export const revalidate = 0;
 
 import Link from "next/link";
 
-import { listRecentPackages } from "@/lib/repo/packages";
+import { listPackagesPCM } from "@/lib/data";
 
 import PackagesListClient from "./PackagesListClient";
 
 export default async function PackagesListPage() {
-  const packages = await listRecentPackages();
+  const { items, nextCursor } = await listPackagesPCM({ limit: 10 });
 
   return (
     <div className="container mx-auto max-w-6xl space-y-6 px-4 py-6">
@@ -29,12 +29,12 @@ export default async function PackagesListPage() {
         </div>
       </div>
 
-      {packages.length === 0 ? (
+      {items.length === 0 ? (
         <div className="rounded-2xl border border-dashed bg-muted/30 p-6 text-center text-sm text-muted-foreground">
           Nenhum pacote encontrado.
         </div>
       ) : (
-        <PackagesListClient packages={packages} />
+        <PackagesListClient initialItems={items} initialCursor={nextCursor} />
       )}
     </div>
   );

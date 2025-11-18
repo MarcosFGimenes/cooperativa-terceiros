@@ -1,6 +1,7 @@
 import "server-only";
 import type { FirebaseFirestore } from "firebase-admin";
 import { getAdminDbOrThrow } from "@/lib/serverDb";
+import type { PCMPackageListItem, PCMListResponse, PCMServiceListItem } from "@/types/pcm";
 
 // Normaliza status (aceita "ABERTO", "aberto", etc.)
 export function normStatus(s?: string | null) {
@@ -25,21 +26,64 @@ function toNumber(value: unknown): number {
 }
 
 // Mapeia doc -> objeto comum
-function mapDoc(id: string, rawData: Record<string, unknown> | undefined) {
+function toTimestamp(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+  if (typeof value === "string") {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) {
+      return parsed;
+    }
+  }
+  if (value && typeof value === "object") {
+    const source = value as { toMillis?: () => number };
+    if (typeof source.toMillis === "function") {
+      const millis = source.toMillis();
+      if (typeof millis === "number" && Number.isFinite(millis)) {
+        return millis;
+      }
+    }
+  }
+  return null;
+}
+
+function mapDoc(id: string, rawData: Record<string, unknown> | undefined): PCMServiceListItem {
   const data = rawData ?? {};
   return {
     id,
     os: toOptionalString(data.os) ?? toOptionalString(data.O_S) ?? toOptionalString(data.OS),
     oc: toOptionalString(data.oc) ?? toOptionalString(data.O_C) ?? toOptionalString(data.OC),
     tag: toOptionalString(data.tag),
+    code: toOptionalString(data.code) ?? toOptionalString(data.codigo),
     equipamento: toOptionalString(data.equipamento) ?? toOptionalString(data.nomeEquipamento),
+    equipmentName:
+      toOptionalString(data.equipmentName) ??
+      toOptionalString(data.nomeEquipamento) ??
+      toOptionalString(data.equipamento),
     setor: toOptionalString(data.setor),
+    sector: toOptionalString(data.sector) ?? toOptionalString(data.setor),
     status: normStatus(toOptionalString(data.status)),
     andamento: toNumber(data.andamento ?? data.realPercent ?? data.progress),
+    progress: toNumber(data.progress),
+    realPercent: toNumber(data.realPercent),
+    manualPercent: toNumber(data.manualPercent ?? data.manual_percent ?? data.manualProgress),
     packageId: toOptionalString(data.packageId) ?? toOptionalString(data.pacoteId),
     empresa: toOptionalString(data.empresa) ?? toOptionalString(data.empresaId) ?? toOptionalString(data.company),
-    createdAt: data.createdAt ?? null,
-    updatedAt: data.updatedAt ?? null,
+    company: toOptionalString(data.company) ?? toOptionalString(data.empresa),
+    createdAt:
+      toTimestamp(data.createdAt ?? data.created_at ?? data.criadoEm ?? data.createdAtMs ?? data.createdAtMillis) ??
+      null,
+    updatedAt:
+      toTimestamp(data.updatedAt ?? data.updated_at ?? data.atualizadoEm ?? data.updatedAtMs ?? data.updatedAtMillis) ??
+      null,
+    plannedStart: data.plannedStart ?? data.dataInicio ?? data.inicioPlanejado ?? data.startDate ?? null,
+    plannedEnd: data.plannedEnd ?? data.dataFim ?? data.fimPlanejado ?? data.endDate ?? null,
+    plannedDaily: Array.isArray(data.plannedDaily)
+      ? (data.plannedDaily as unknown[]).filter(
+          (value): value is number => typeof value === "number" && Number.isFinite(value),
+        )
+      : null,
   };
 }
 
@@ -49,7 +93,7 @@ export async function listServicesPCM(options?: {
   cursor?: string | null;
   status?: string | null;
   empresa?: string | null;
-}) {
+}): Promise<PCMListResponse<PCMServiceListItem>> {
   const admin = getAdminDbOrThrow();
   const {
     limit = 10,
@@ -89,7 +133,31 @@ export async function listServicesPCM(options?: {
 }
 
 /** Lista pacotes com paginação para o PCM. */
-export async function listPackagesPCM(options?: { limit?: number; cursor?: string | null }) {
+function mapPackageDoc(id: string, data: Record<string, unknown>): PCMPackageListItem {
+  const services = Array.isArray(data.services) ? data.services : undefined;
+  const serviceIds = Array.isArray(data.serviceIds) ? data.serviceIds : undefined;
+  const servicesCount = typeof data.servicesCount === "number"
+    ? data.servicesCount
+    : services?.length ?? serviceIds?.length ?? 0;
+
+  return {
+    id,
+    name: toOptionalString(data.name) ?? toOptionalString(data.nome) ?? `Pacote ${id}`,
+    status: normStatus(toOptionalString(data.status)),
+    code: toOptionalString(data.code) ?? toOptionalString(data.codigo),
+    createdAt:
+      toTimestamp(data.createdAt ?? data.created_at ?? data.criadoEm ?? data.createdAtMs ?? data.createdAtMillis) ??
+      null,
+    servicesCount,
+    services,
+    serviceIds,
+  };
+}
+
+export async function listPackagesPCM(options?: {
+  limit?: number;
+  cursor?: string | null;
+}): Promise<PCMListResponse<PCMPackageListItem>> {
   const admin = getAdminDbOrThrow();
   const { limit = 10, cursor = null } = options ?? {};
 
@@ -106,10 +174,9 @@ export async function listPackagesPCM(options?: { limit?: number; cursor?: strin
   query = query.limit(limit);
 
   const snap = await query.get();
-  const items = snap.docs.map((docSnap) => ({
-    id: docSnap.id,
-    ...(docSnap.data() as Record<string, unknown>),
-  }));
+  const items = snap.docs.map((docSnap) =>
+    mapPackageDoc(docSnap.id, (docSnap.data() ?? {}) as Record<string, unknown>),
+  );
   const nextCursor = snap.docs.length > 0 ? snap.docs[snap.docs.length - 1].id : null;
 
   return { items, nextCursor };
