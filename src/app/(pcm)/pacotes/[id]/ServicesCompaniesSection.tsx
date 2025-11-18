@@ -9,6 +9,7 @@ export type FolderDisplay = {
   name: string;
   companyId?: string | null;
   services: string[];
+  progressPercent?: number | null;
 };
 
 export type ServiceDetail = {
@@ -65,6 +66,11 @@ export default function ServicesCompaniesSection({ folders, serviceDetails }: Pr
                   status: "Desconhecido",
                 } satisfies ServiceDetail;
               });
+              const plannedLabel = folder.services.length
+                ? typeof folder.progressPercent === "number" && Number.isFinite(folder.progressPercent)
+                  ? `${Math.round(folder.progressPercent)}%`
+                  : "0%"
+                : "Sem serviços";
               const isOpen = openFolderId === folder.id;
               const isExpanded = expandedFolderServices[folder.id] ?? false;
               const visibleServices = isExpanded
@@ -85,6 +91,9 @@ export default function ServicesCompaniesSection({ folders, serviceDetails }: Pr
                       <p className="truncate text-sm font-medium text-foreground">{folder.name}</p>
                       <p className="truncate text-xs text-muted-foreground">
                         Empresa: {folder.companyId ? folder.companyId : "-"}
+                      </p>
+                      <p className="truncate text-xs text-muted-foreground">
+                        Planejado hoje: <span className="font-semibold text-foreground">{plannedLabel}</span>
                       </p>
                     </div>
                     <span className="rounded-full border px-2 py-0.5 text-xs text-muted-foreground">
