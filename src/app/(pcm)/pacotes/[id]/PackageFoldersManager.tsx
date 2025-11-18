@@ -14,6 +14,7 @@ export type FolderSummary = {
   services: string[];
   tokenCode?: string | null;
   tokenCreatedAt?: number | null;
+  progressPercent?: number | null;
 };
 
 export type ServiceOption = {
@@ -64,6 +65,14 @@ function normaliseFolder(folder: FolderSummary): FolderState {
       ? folder.services.map((value) => value.trim()).filter((value) => value.length > 0)
       : [],
   };
+}
+
+function formatFolderProgress(folder: { progressPercent?: number | null; services: string[] }): string {
+  if (!folder.services.length) return "Sem serviços";
+  if (typeof folder.progressPercent === "number" && Number.isFinite(folder.progressPercent)) {
+    return `${Math.round(folder.progressPercent)}%`;
+  }
+  return "0%";
 }
 
 function formatDate(value?: number | null) {
@@ -517,6 +526,7 @@ export default function PackageFoldersManager({
               {folders.map((folder) => {
                 const isActive = activeFolder?.id === folder.id;
                 const selection = serviceSelections[folder.id] ?? new Set<string>();
+                const plannedLabel = formatFolderProgress(folder);
                 return (
                   <button
                     key={folder.id}
@@ -539,6 +549,9 @@ export default function PackageFoldersManager({
                     <p className="mt-1 text-xs text-muted-foreground">
                       Empresa: {folder.companyId ? folder.companyId : "-"}
                     </p>
+                    <p className="text-xs text-muted-foreground">
+                      Planejado hoje: <span className="font-semibold text-foreground">{plannedLabel}</span>
+                    </p>
                   </button>
                 );
               })}
@@ -547,62 +560,70 @@ export default function PackageFoldersManager({
 
           <div className="space-y-4">
             {activeFolder ? (
-              <div className="space-y-4">
-                <div className="rounded-lg border p-4 shadow-sm">
-                  <div className="flex flex-wrap items-center justify-between gap-3 border-b pb-3">
-                    <div>
-                      <h3 className="text-lg font-semibold text-foreground">{activeFolder.name}</h3>
-                      <p className="text-xs text-muted-foreground">
-                        Empresa vinculada: {activeFolder.companyId ? activeFolder.companyId : "-"}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        Token atual: <span className="font-mono text-foreground">{activeFolder.tokenCode ?? "Sem token ativo"}</span>
-                        {activeFolder.tokenCreatedAt ? (
-                          <span className="text-muted-foreground"> • gerado em {formatDate(activeFolder.tokenCreatedAt)}</span>
-                        ) : null}
-                        {activeFolderLink ? (
-                          <>
-                            {" "}•{" "}
-                            <a
-                              href={activeFolderLink}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="font-medium text-primary underline underline-offset-2"
+                <div className="space-y-4">
+                  <div className="rounded-lg border p-4 shadow-sm">
+                    {(() => {
+                      const plannedLabel = formatFolderProgress(activeFolder);
+                      return (
+                        <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-3">
+                          <div>
+                            <h3 className="text-lg font-semibold text-foreground">{activeFolder.name}</h3>
+                            <p className="text-xs text-muted-foreground">
+                              Empresa vinculada: {activeFolder.companyId ? activeFolder.companyId : "-"}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              Planejado hoje: <span className="font-semibold text-foreground">{plannedLabel}</span>
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              Token atual: <span className="font-mono text-foreground">{activeFolder.tokenCode ?? "Sem token ativo"}</span>
+                              {activeFolder.tokenCreatedAt ? (
+                                <span className="text-muted-foreground"> • gerado em {formatDate(activeFolder.tokenCreatedAt)}</span>
+                              ) : null}
+                              {activeFolderLink ? (
+                                <>
+                                  {" "}•{" "}
+                                  <a
+                                    href={activeFolderLink}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="font-medium text-primary underline underline-offset-2"
+                                  >
+                                    Link público
+                                  </a>
+                                </>
+                              ) : null}
+                            </p>
+                          </div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <button
+                              type="button"
+                              className="btn btn-secondary"
+                              onClick={() => copyTokenLink(activeFolder)}
+                              disabled={!activeFolder.tokenCode}
                             >
-                              Link público
-                            </a>
-                          </>
-                        ) : null}
-                      </p>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <button
-                        type="button"
-                        className="btn btn-secondary"
-                        onClick={() => copyTokenLink(activeFolder)}
-                        disabled={!activeFolder.tokenCode}
-                      >
-                        Copiar link
-                      </button>
-                      <button
-                        type="button"
-                        className="btn btn-outline"
-                        onClick={() => rotateToken(activeFolder.id)}
-                        disabled={rotatingToken[activeFolder.id] ?? false}
-                      >
-                        {rotatingToken[activeFolder.id] ? "Gerando…" : "Rotacionar token"}
-                      </button>
-                      <button
-                        type="button"
-                        className="btn btn-ghost text-xs"
-                        onClick={() => startEditing(activeFolder)}
-                      >
-                        Editar dados
-                      </button>
-                    </div>
-                  </div>
+                              Copiar link
+                            </button>
+                            <button
+                              type="button"
+                              className="btn btn-outline"
+                              onClick={() => rotateToken(activeFolder.id)}
+                              disabled={rotatingToken[activeFolder.id] ?? false}
+                            >
+                              {rotatingToken[activeFolder.id] ? "Gerando…" : "Rotacionar token"}
+                            </button>
+                            <button
+                              type="button"
+                              className="btn btn-ghost text-xs"
+                              onClick={() => startEditing(activeFolder)}
+                            >
+                              Editar dados
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })()}
 
-                  {editingFolderId === activeFolder.id ? (
+                    {editingFolderId === activeFolder.id ? (
                     <div className="mt-4 grid gap-3 rounded-lg bg-muted/40 p-3 sm:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_auto_auto]">
                       <div className="flex flex-col gap-1">
                         <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
