@@ -153,6 +153,43 @@ describe("serviceProgress utilities", () => {
       expect(percentual).toBeCloseTo(90, 5);
     });
 
+    it("prefers plannedDaily series when available", () => {
+      const percentual = calcularPercentualPlanejadoServico(
+        {
+          dataInicio: new Date("2024-01-01T00:00:00Z"),
+          dataFim: new Date("2024-01-03T00:00:00Z"),
+          plannedDaily: [0, 35, 80],
+        },
+        new Date("2024-01-02T12:00:00Z"),
+      );
+      expect(percentual).toBe(35);
+    });
+
+    it("returns 100 after the plannedDaily schedule ends", () => {
+      const percentual = calcularPercentualPlanejadoServico(
+        {
+          dataInicio: new Date("2024-01-01T00:00:00Z"),
+          dataFim: new Date("2024-01-03T00:00:00Z"),
+          plannedDaily: [0, 50, 60],
+        },
+        new Date("2024-01-05T00:00:00Z"),
+      );
+      expect(percentual).toBe(100);
+    });
+
+    it("falls back to the linear calculation when plannedDaily length mismatches", () => {
+      const percentual = calcularPercentualPlanejadoServico(
+        {
+          dataInicio: new Date("2024-01-01T00:00:00Z"),
+          dataFim: new Date("2024-01-04T00:00:00Z"),
+          plannedDaily: [0, 50],
+        },
+        new Date("2024-01-03T00:00:00Z"),
+      );
+      expect(percentual).toBeGreaterThan(0);
+      expect(percentual).toBeLessThan(100);
+    });
+
     it("returns zero for invalid dates", () => {
       expect(
         calcularPercentualPlanejadoServico(

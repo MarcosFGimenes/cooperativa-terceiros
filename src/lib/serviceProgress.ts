@@ -255,6 +255,51 @@ function parsePercentual(value: unknown): number | null {
   return null;
 }
 
+function sanitizePlannedDaily(values: unknown): number[] {
+  if (!Array.isArray(values)) return [];
+  const sanitised: number[] = values.map((value) => parsePercentual(value) ?? 0);
+  if (!sanitised.length) return [];
+  for (let i = 1; i < sanitised.length; i++) {
+    if (sanitised[i] < sanitised[i - 1]) {
+      sanitised[i] = sanitised[i - 1];
+    }
+  }
+  sanitised[sanitised.length - 1] = 100;
+  return sanitised.map((value) => Math.round(value));
+}
+
+function gerarDatasPlanejadas(range: DateRange): string[] {
+  const datas: string[] = [];
+  const inicio = startOfDay(range.inicio).getTime();
+  const fim = startOfDay(range.fim).getTime();
+  for (let time = inicio; time <= fim; time += DAY_IN_MS) {
+    datas.push(new Date(time).toISOString().slice(0, 10));
+  }
+  return datas;
+}
+
+function calcularPercentualUsandoSeriePlanejada(
+  servico: ServicoPlanejado | ServicoDoSubpacote,
+  range: DateRange,
+  referencia: Date,
+): number | null {
+  const serie = sanitizePlannedDaily((servico as { plannedDaily?: unknown }).plannedDaily);
+  if (!serie.length) return null;
+  const datas = gerarDatasPlanejadas(range);
+  if (datas.length !== serie.length || !datas.length) return null;
+  const alvo = startOfDay(referencia).toISOString().slice(0, 10);
+  if (alvo < datas[0]) return 0;
+  let percentual = 0;
+  for (let i = 0; i < datas.length; i++) {
+    if (alvo >= datas[i]) {
+      percentual = serie[i];
+    } else {
+      break;
+    }
+  }
+  return clampPercentage(percentual);
+}
+
 const UPDATE_LIST_KEYS = [
   "atualizacoes",
   "historicoAtualizacoes",
@@ -585,6 +630,15 @@ export function calcularPercentualPlanejadoServico(
   const referencia = toDate(dataReferencia ?? new Date()) ?? new Date();
   const range = resolveDateRange(servico as ServicoDoSubpacote);
   if (!range) return 0;
+
+  const percentualPlanejadoDaSerie = calcularPercentualUsandoSeriePlanejada(
+    servico,
+    range,
+    referencia,
+  );
+  if (typeof percentualPlanejadoDaSerie === "number") {
+    return percentualPlanejadoDaSerie;
+  }
 
   const totalDias = Math.max(1, daysBetween(range.inicio, range.fim));
   const referenciaMs = referencia.getTime();
