@@ -449,44 +449,46 @@ async function fetchAvailableOpenServices(limit: number, mode: ServiceMapMode): 
     }
   };
 
-  const baseLimit = limit * 2;
-
-  const unassignedQueries: Array<Promise<FirebaseFirestore.QuerySnapshot>> = [
-    collection.where("packageId", "==", null).limit(baseLimit).get(),
-    collection.where("packageId", "==", "").limit(baseLimit).get(),
-  ];
-
+  const baseLimit = Math.max(1, limit) * 2;
   const errors: Array<{ scope: string; error: unknown }> = [];
 
-  for (const queryPromise of unassignedQueries) {
-    if (results.length >= limit) break;
+  const runQuery = async (
+    scope: string,
+    promise: Promise<FirebaseFirestore.QuerySnapshot>,
+  ): Promise<void> => {
+    if (results.length >= limit) return;
     try {
-      const snapshot = await queryPromise;
+      const snapshot = await promise;
       pushDocs(snapshot.docs);
     } catch (error) {
-      errors.push({ scope: "packageId", error });
+      errors.push({ scope, error });
       console.warn(
-        "[services:listAvailableOpenServices] Falha ao listar serviços sem pacote associado. Continuando com resultado parcial.",
+        `[services:listAvailableOpenServices] Falha ao listar serviços (${scope}). Continuando com resultado parcial.`,
         error,
       );
     }
-  }
+  };
+
+  const unassignedQueries: Array<{ scope: string; promise: Promise<FirebaseFirestore.QuerySnapshot> }> = [
+    {
+      scope: "packageId:null",
+      promise: collection.where("packageId", "==", null).orderBy("createdAt", "desc").limit(baseLimit).get(),
+    },
+    {
+      scope: "packageId:empty",
+      promise: collection.where("packageId", "==", "").orderBy("createdAt", "desc").limit(baseLimit).get(),
+    },
+  ];
+
+  await Promise.all(unassignedQueries.map(({ scope, promise }) => runQuery(scope, promise)));
 
   if (results.length < limit) {
-    const statusCandidates = ["Aberto", "aberto", "ABERTO", "Pendente", "pendente", "PENDENTE"];
-    for (const status of statusCandidates) {
-      if (results.length >= limit) break;
-      try {
-        const snapshot = await collection.where("status", "==", status).limit(baseLimit).get();
-        pushDocs(snapshot.docs);
-      } catch (error) {
-        errors.push({ scope: `status:${status}`, error });
-        console.warn(
-          `[services:listAvailableOpenServices] Falha ao listar serviços com status ${status}. Continuando com resultado parcial.`,
-          error,
-        );
-      }
-    }
+    // Caso o Firestore solicite um índice composto para (status, createdAt), siga o link sugerido pelo console e atualize firestore.indexes.json.
+    const statusQueries = allowedStatuses.map((status) => ({
+      scope: `status:${status}`,
+      promise: collection.where("status", "==", status).orderBy("createdAt", "desc").limit(baseLimit).get(),
+    }));
+    await Promise.all(statusQueries.map(({ scope, promise }) => runQuery(scope, promise)));
   }
 
   if (results.length === 0 && errors.length > 0) {

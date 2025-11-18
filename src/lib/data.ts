@@ -138,6 +138,7 @@ export async function listServicesForToken(tokenDoc: unknown, options?: { limit?
   const empresa = toOptionalString(record.empresa);
   if (packageId && empresa) {
     try {
+      // Caso o Firestore solicite um índice composto (packageId + empresa), siga o link exibido no console e registre-o em firestore.indexes.json.
       const q = await admin
         .collection("services")
         .where("packageId", "==", packageId)

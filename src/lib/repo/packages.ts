@@ -68,10 +68,11 @@ function servicesCollectionOptional(): FirebaseFirestore.CollectionReference | n
 }
 
 const PACKAGE_CACHE_TTL_SECONDS = 300;
+const DEFAULT_PACKAGE_SERVICES_LIMIT = 100;
 
 function normalisePackageServiceLimit(limit: number | undefined): number {
   if (typeof limit !== "number" || !Number.isFinite(limit) || limit <= 0) {
-    return 0;
+    return DEFAULT_PACKAGE_SERVICES_LIMIT;
   }
   const safeLimit = Math.floor(limit);
   return Math.max(1, Math.min(safeLimit, 2000));
@@ -495,8 +496,13 @@ async function fetchPackageServices(packageId: string, limit: number): Promise<S
     logMissingAdmin("services:list");
     return [];
   }
-  const baseQuery = collection.where("packageId", "==", packageId);
-  const query = limit > 0 ? baseQuery.limit(limit) : baseQuery;
+
+  const safeLimit = normalisePackageServiceLimit(limit);
+  let query: FirebaseFirestore.Query = collection.where("packageId", "==", packageId);
+
+  if (safeLimit > 0) {
+    query = query.orderBy("createdAt", "desc").limit(safeLimit);
+  }
 
   try {
     const servicesSnap = await query.get();
