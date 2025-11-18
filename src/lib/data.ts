@@ -1,4 +1,5 @@
 import "server-only";
+import type { FirebaseFirestore } from "firebase-admin";
 import { getAdminDbOrThrow } from "@/lib/serverDb";
 
 // Normaliza status (aceita "ABERTO", "aberto", etc.)
@@ -42,28 +43,84 @@ function mapDoc(id: string, rawData: Record<string, unknown> | undefined) {
   };
 }
 
-/** Lista TODOS os serviços para o PCM (sem depender de índice; filtra em memória). */
-export async function listServicesPCM() {
+/** Lista serviços com filtros e paginação para o PCM. */
+export async function listServicesPCM(options?: {
+  limit?: number;
+  cursor?: string | null;
+  status?: string | null;
+  empresa?: string | null;
+}) {
   const admin = getAdminDbOrThrow();
-  const snap = await admin.collection("services").get();
-  return snap.docs.map((docSnap) => mapDoc(docSnap.id, docSnap.data() as Record<string, unknown>));
+  const {
+    limit = 10,
+    cursor = null,
+    status,
+    empresa,
+  } = options ?? {};
+
+  let query: FirebaseFirestore.Query = admin.collection("services");
+
+  if (status) {
+    query = query.where("status", "==", normStatus(status));
+  }
+
+  if (empresa) {
+    query = query.where("empresa", "==", empresa);
+  }
+
+  query = query.orderBy("createdAt", "desc");
+
+  if (cursor) {
+    const lastDoc = await admin.collection("services").doc(cursor).get();
+    if (lastDoc.exists) {
+      query = query.startAfter(lastDoc);
+    }
+  }
+
+  query = query.limit(limit);
+
+  const snap = await query.get();
+  const items = snap.docs.map((docSnap) =>
+    mapDoc(docSnap.id, docSnap.data() as Record<string, unknown>),
+  );
+  const nextCursor = snap.docs.length > 0 ? snap.docs[snap.docs.length - 1].id : null;
+
+  return { items, nextCursor };
 }
 
-/** Lista TODOS os pacotes para o PCM. */
-export async function listPackagesPCM() {
+/** Lista pacotes com paginação para o PCM. */
+export async function listPackagesPCM(options?: { limit?: number; cursor?: string | null }) {
   const admin = getAdminDbOrThrow();
-  const snap = await admin.collection("packages").get();
-  return snap.docs.map((docSnap) => ({
+  const { limit = 10, cursor = null } = options ?? {};
+
+  let query: FirebaseFirestore.Query = admin.collection("packages");
+  query = query.orderBy("createdAt", "desc");
+
+  if (cursor) {
+    const lastDoc = await admin.collection("packages").doc(cursor).get();
+    if (lastDoc.exists) {
+      query = query.startAfter(lastDoc);
+    }
+  }
+
+  query = query.limit(limit);
+
+  const snap = await query.get();
+  const items = snap.docs.map((docSnap) => ({
     id: docSnap.id,
     ...(docSnap.data() as Record<string, unknown>),
   }));
+  const nextCursor = snap.docs.length > 0 ? snap.docs[snap.docs.length - 1].id : null;
+
+  return { items, nextCursor };
 }
 
 /** Lista serviços vinculados a um token do Terceiro, tolerante a índices. */
-export async function listServicesForToken(tokenDoc: unknown) {
+export async function listServicesForToken(tokenDoc: unknown, options?: { limit?: number }) {
   if (!tokenDoc || typeof tokenDoc !== "object") return [];
   const record = tokenDoc as Record<string, unknown>;
   const admin = getAdminDbOrThrow();
+  const { limit = 50 } = options ?? {};
 
   // Caso 1: token de serviço único
   const serviceId = toOptionalString(record.serviceId);
@@ -80,21 +137,28 @@ export async function listServicesForToken(tokenDoc: unknown) {
   const packageId = toOptionalString(record.packageId);
   const empresa = toOptionalString(record.empresa);
   if (packageId && empresa) {
-    
     try {
       const q = await admin
         .collection("services")
         .where("packageId", "==", packageId)
         .where("empresa", "==", empresa)
+        .limit(limit)
         .get();
       return q.docs
         .map((docSnap) => mapDoc(docSnap.id, docSnap.data() as Record<string, unknown>))
         .filter((s) => s.status === "Aberto" || s.status === "Pendente");
     } catch {
-      const q2 = await admin.collection("services").where("packageId", "==", packageId).get();
+      const q2 = await admin
+        .collection("services")
+        .where("packageId", "==", packageId)
+        .limit(limit)
+        .get();
       return q2.docs
         .map((docSnap) => mapDoc(docSnap.id, docSnap.data() as Record<string, unknown>))
-        .filter((s) => s.empresa === empresa && (s.status === "Aberto" || s.status === "Pendente"));
+        .filter(
+          (s) =>
+            s.empresa === empresa && (s.status === "Aberto" || s.status === "Pendente"),
+        );
     }
   }
 
