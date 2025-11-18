@@ -3,12 +3,20 @@ import * as Navigation from "next/navigation";
 import { isRedirectError } from "next/dist/client/components/redirect";
 import DeletePackageButton from "@/components/DeletePackageButton.dynamic";
 import SCurveDeferred from "@/components/SCurveDeferred";
-import { plannedCurve } from "@/lib/curve";
 import { decodeRouteParam } from "@/lib/decodeRouteParam";
 import { getPackageByIdCached, listPackageServices } from "@/lib/repo/packages";
 import { listPackageFolders } from "@/lib/repo/folders";
 import { getServicesByIds, listAvailableOpenServices } from "@/lib/repo/services";
 import { formatDate as formatDisplayDate } from "@/lib/formatDateTime";
+import {
+  calcularCurvaSPlanejada,
+  calcularCurvaSRealizada,
+  calcularIndicadoresCurvaS,
+  calcularPercentualSubpacote,
+  calcularPercentualRealizadoSubpacote,
+  obterIntervaloSubpacote,
+  type ServicoDoSubpacote,
+} from "@/lib/serviceProgress";
 import type { Package, PackageFolder, Service } from "@/types";
 
 import type { ServiceInfo as FolderServiceInfo, ServiceOption as FolderServiceOption } from "./PackageFoldersManager";
@@ -21,6 +29,13 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 const MAX_SERVICES_TO_LOAD = 400;
+
+type PackageFolderWithProgress = PackageFolder & {
+  progressPercent?: number | null;
+  realizedPercent?: number | null;
+  startDateMs?: number | null;
+  endDateMs?: number | null;
+};
 
 const PACKAGE_STATUS_TONE: Record<string, string> = {
   Concluído: "bg-emerald-100 text-emerald-700 border-emerald-200",
@@ -65,11 +80,6 @@ function normaliseStatus(status: Package["status"] | Service["status"]): string 
   return "Aberto";
 }
 
-function normaliseProgress(value?: number | null) {
-  if (!Number.isFinite(value ?? NaN)) return 0;
-  return Math.max(0, Math.min(100, Math.round(Number(value ?? 0))));
-}
-
 function parseISO(value?: string | null) {
   if (!value) return null;
   const date = new Date(value);
@@ -83,55 +93,87 @@ function formatDate(value?: string | null) {
   return formatDisplayDate(date, { timeZone: "America/Sao_Paulo", fallback: "-" }) || "-";
 }
 
-function computeServiceRealized(service: Service) {
-  return normaliseProgress(service.progress ?? service.realPercent ?? service.andamento);
-}
-
-function choosePlanBounds(pkg: Package, services: Service[]) {
-  const startCandidates = [pkg.plannedStart, ...services.map((service) => service.plannedStart)]
-    .map(parseISO)
-    .filter(Boolean) as Date[];
-  const endCandidates = [pkg.plannedEnd, ...services.map((service) => service.plannedEnd)]
-    .map(parseISO)
-    .filter(Boolean) as Date[];
-  const start = startCandidates.length ? new Date(Math.min(...startCandidates.map((date) => date.getTime()))) : new Date();
-  const end = endCandidates.length ? new Date(Math.max(...endCandidates.map((date) => date.getTime()))) : start;
-  return {
-    start: start.toISOString(),
-    end: end.toISOString(),
+function mapServiceToSubpackageEntry(service: Service): ServicoDoSubpacote {
+  const updates = service.updates ?? [];
+  const label = service.os || service.code || service.id;
+  const dataInicio =
+    service.dataInicio ??
+    service.inicioPrevisto ??
+    service.inicioPlanejado ??
+    service.plannedStart ??
+    service.startDate ??
+    null;
+  const dataFim =
+    service.dataFim ??
+    service.fimPrevisto ??
+    service.fimPlanejado ??
+    service.plannedEnd ??
+    service.endDate ??
+    null;
+  const horasPrevistas =
+    service.totalHours ??
+    service.horasPrevistas ??
+    service.horas ??
+    service.hours ??
+    service.peso ??
+    service.weight ??
+    null;
+  const entry: ServicoDoSubpacote = {
+    id: service.id,
+    nome: label,
+    horasPrevistas,
+    totalHours: service.totalHours,
+    horas: service.horas,
+    hours: service.hours,
+    peso: service.peso,
+    weight: service.weight,
+    dataInicio,
+    inicioPrevisto: service.inicioPrevisto,
+    inicioPlanejado: service.inicioPlanejado,
+    plannedStart: service.plannedStart ?? dataInicio ?? undefined,
+    startDate: service.startDate ?? dataInicio ?? undefined,
+    dataFim,
+    fimPrevisto: service.fimPrevisto,
+    fimPlanejado: service.fimPlanejado,
+    plannedEnd: service.plannedEnd ?? dataFim ?? undefined,
+    endDate: service.endDate ?? dataFim ?? undefined,
+    percentualRealAtual: service.progress ?? service.realPercent ?? service.andamento ?? null,
+    updates,
+    atualizacoes: updates,
   };
-}
 
-function buildPackageRealizedSeries(planned: ReturnType<typeof plannedCurve>, realizedPercent: number) {
-  if (!planned.length) {
-    const today = new Date().toISOString().slice(0, 10);
-    return [
-      { date: today, percent: 0 },
-      { date: today, percent: realizedPercent },
-    ];
-  }
+  const updateListKeys = [
+    "atualizacoes",
+    "historicoAtualizacoes",
+    "historico",
+    "history",
+    "updates",
+    "progressUpdates",
+    "percentualUpdates",
+    "realUpdates",
+  ] as const;
+  updateListKeys.forEach((key) => {
+    const value = (service as Record<string, unknown>)[key];
+    if (Array.isArray(value)) {
+      (entry as Record<string, unknown>)[key] = value;
+    }
+  });
 
-  const first = planned[0];
-  const last = planned[planned.length - 1];
-  if (!first || !last) {
-    const day = first?.date ?? new Date().toISOString().slice(0, 10);
-    return [
-      { date: day, percent: 0 },
-      { date: day, percent: realizedPercent },
-    ];
-  }
+  const updateDateKeys = [
+    "dataUltimaAtualizacao",
+    "dataAtualizacao",
+    "dataAtualizacaoPercentual",
+    "atualizadoEm",
+    "lastUpdateDate",
+    "updatedAt",
+  ] as const;
+  updateDateKeys.forEach((key) => {
+    if (Object.hasOwn(service as Record<string, unknown>, key)) {
+      (entry as Record<string, unknown>)[key] = (service as Record<string, unknown>)[key];
+    }
+  });
 
-  if (planned.length === 1 || first.date === last.date) {
-    return [
-      { date: first.date, percent: 0 },
-      { date: last.date, percent: realizedPercent },
-    ];
-  }
-
-  return [
-    { date: first.date, percent: 0 },
-    { date: last.date, percent: realizedPercent },
-  ];
+  return entry;
 }
 
 async function renderPackageDetailPage(params: { id: string }) {
@@ -215,7 +257,7 @@ async function renderPackageDetailPage(params: { id: string }) {
 
   if (serviceIdsToFetch.length) {
     try {
-      const fetched = await getServicesByIds(serviceIdsToFetch, { mode: "summary" });
+      const fetched = await getServicesByIds(serviceIdsToFetch, { mode: "full" });
       services = fetched;
       const fetchedIds = new Set(fetched.map((service) => service.id));
       const missing = serviceIdsToFetch.filter((id) => !fetchedIds.has(id));
@@ -258,7 +300,7 @@ async function renderPackageDetailPage(params: { id: string }) {
 
         let enriched: Service[] = [];
         try {
-          enriched = await getServicesByIds(fallbackSlice.map((service) => service.id), { mode: "summary" });
+          enriched = await getServicesByIds(fallbackSlice.map((service) => service.id), { mode: "full" });
         } catch (error) {
           registerWarning(
             "Alguns serviços foram carregados parcialmente.",
@@ -305,44 +347,8 @@ async function renderPackageDetailPage(params: { id: string }) {
     return acc + (Number.isFinite(hours) ? hours : 0);
   }, 0);
 
-  const { start, end } = choosePlanBounds(pkg, services);
-  const totalHoursCandidate = (() => {
-    if (!hasServiceOverflow && hoursFromServices > 0) {
-      return hoursFromServices;
-    }
-    if (Number.isFinite(pkg.totalHours) && Number(pkg.totalHours) > 0) {
-      return Number(pkg.totalHours);
-    }
-    if (hoursFromServices > 0) {
-      return hoursFromServices;
-    }
-    return 1;
-  })();
-  const planned = plannedCurve(start, end, totalHoursCandidate);
-
-  const contributions = services.map((service) => ({
-    hours: Number(service.totalHours ?? 0) || 0,
-    progress: computeServiceRealized(service),
-  }));
-
-  const totalWeight = contributions.reduce((acc, { hours }) => acc + (hours > 0 ? hours : 0), 0);
-  const realized =
-    contributions.length && !hasServiceOverflow
-      ? totalWeight > 0
-        ? Math.round(
-            contributions.reduce((acc, { hours, progress }) => acc + progress * (hours > 0 ? hours : 0), 0) /
-              totalWeight,
-          )
-        : Math.round(contributions.reduce((acc, entry) => acc + entry.progress, 0) / contributions.length)
-      : null;
-  const realizedSeriesData = hasServiceOverflow ? [] : buildPackageRealizedSeries(planned, realized ?? 0);
-  const realizedValueLabel = typeof realized === "number" ? `${realized}%` : "-";
-  const realizedHeaderLabel = hasServiceOverflow
-    ? `Realizado (parcial): ${realizedValueLabel}`
-    : `Realizado: ${realizedValueLabel}`;
-
   const assignedCompanies = pkg.assignedCompanies?.filter((item) => item.companyId);
-  let folders: PackageFolder[] = [];
+  let folders: PackageFolderWithProgress[] = [];
   let availableOpenServices: Service[] = [];
 
   const [foldersResult, availableServicesResult] = await Promise.allSettled([
@@ -369,6 +375,60 @@ async function renderPackageDetailPage(params: { id: string }) {
       "Falha ao listar serviços disponíveis",
     );
   }
+
+  const servicesById = new Map(services.map((service) => [service.id, service]));
+  const today = new Date();
+
+  const subpackagesForCurve = folders.map((folder) => {
+    const servicos = folder.services
+      .map((serviceId) => servicesById.get(serviceId))
+      .filter((service): service is Service => Boolean(service))
+      .map((service) => mapServiceToSubpackageEntry(service));
+    return { id: folder.id, nome: folder.name, servicos };
+  });
+
+  const packageForCurve = { subpacotes: subpackagesForCurve };
+  const plannedCurvePoints = calcularCurvaSPlanejada(packageForCurve).map((point) => ({
+    date: point.data.toISOString().slice(0, 10),
+    percent: point.percentual,
+  }));
+  const realizedSeriesData = calcularCurvaSRealizada(packageForCurve).map((point) => ({
+    date: point.data.toISOString().slice(0, 10),
+    percent: point.percentual,
+  }));
+  const curvaIndicators = calcularIndicadoresCurvaS(packageForCurve, today);
+  const realizedPercent = curvaIndicators.realizado;
+  const realizedValueLabel = `${Math.round(realizedPercent)}%`;
+  const realizedHeaderLabel = hasServiceOverflow
+    ? `Realizado (parcial): ${realizedValueLabel}`
+    : `Realizado: ${realizedValueLabel}`;
+
+  const folderAnalyticsMap = new Map<
+    string,
+    { plannedPercent: number; realizedPercent: number; startDateMs: number | null; endDateMs: number | null }
+  >();
+  subpackagesForCurve.forEach((subpacote) => {
+    if (!subpacote?.id) return;
+    const plannedPercent = calcularPercentualSubpacote(subpacote, today);
+    const realizedPercent = calcularPercentualRealizadoSubpacote(subpacote, today);
+    const intervalo = obterIntervaloSubpacote(subpacote);
+    folderAnalyticsMap.set(subpacote.id, {
+      plannedPercent,
+      realizedPercent,
+      startDateMs: intervalo.inicio ? intervalo.inicio.getTime() : null,
+      endDateMs: intervalo.fim ? intervalo.fim.getTime() : null,
+    });
+  });
+  folders = folders.map((folder) => {
+    const analytics = folderAnalyticsMap.get(folder.id);
+    return {
+      ...folder,
+      progressPercent: analytics?.plannedPercent ?? 0,
+      realizedPercent: analytics?.realizedPercent ?? null,
+      startDateMs: analytics?.startDateMs ?? null,
+      endDateMs: analytics?.endDateMs ?? null,
+    };
+  });
 
   const folderServiceIds = new Set<string>();
   folders.forEach((folder) => {
@@ -535,9 +595,9 @@ async function renderPackageDetailPage(params: { id: string }) {
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1.7fr)_minmax(320px,1fr)]">
         <section className="rounded-2xl border bg-card/80 p-5 shadow-sm">
           <SCurveDeferred
-            planned={planned}
+            planned={plannedCurvePoints}
             realizedSeries={realizedSeriesData}
-            realizedPercent={typeof realized === "number" ? realized : 0}
+            realizedPercent={realizedPercent}
             title="Curva S consolidada"
             description="Planejado versus realizado considerando todos os serviços do pacote."
             headerAside={<span className="font-medium text-foreground">{realizedHeaderLabel}</span>}
