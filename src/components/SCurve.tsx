@@ -19,6 +19,13 @@ import { formatLongDate, formatShortMonthDate } from "@/lib/formatDateTime";
 type PlannedPoint = { date: string; percent: number; hoursAccum?: number };
 type CurvePoint = { date: string; percent: number };
 
+type SCurveMetrics = {
+  plannedTotal?: number | null;
+  plannedToDate?: number | null;
+  realized?: number | null;
+  delta?: number | null;
+};
+
 export type SCurveProps = {
   planned: PlannedPoint[];
   realizedSeries: CurvePoint[];
@@ -29,6 +36,7 @@ export type SCurveProps = {
   className?: string;
   chartHeight?: number;
   deferRendering?: boolean;
+  metrics?: SCurveMetrics;
 };
 
 type ChartEntry = {
@@ -119,6 +127,7 @@ export default function SCurve({
   className,
   chartHeight,
   deferRendering = false,
+  metrics,
 }: Props) {
   const chartData = useMemo<ChartEntry[]>(() => {
     const map = new Map<string, ChartEntry>();
@@ -157,12 +166,20 @@ export default function SCurve({
   }, [planned, realizedSeries]);
 
   const plannedTotal = useMemo(() => {
+    const indicator = clampPercent(metrics?.plannedTotal);
+    if (indicator !== null) {
+      return indicator;
+    }
     if (!planned.length) return 0;
     const last = planned[planned.length - 1];
     return clampPercent(last?.percent) ?? 0;
-  }, [planned]);
+  }, [metrics?.plannedTotal, planned]);
 
   const plannedToToday = useMemo(() => {
+    const indicator = clampPercent(metrics?.plannedToDate);
+    if (indicator !== null) {
+      return indicator;
+    }
     if (!planned.length) return 0;
     const today = new Date();
     const candidates = planned.filter((point) => {
@@ -173,17 +190,26 @@ export default function SCurve({
     if (!candidates.length) return clampPercent(planned[0]?.percent) ?? 0;
     const last = candidates[candidates.length - 1];
     return clampPercent(last?.percent) ?? 0;
-  }, [planned]);
+  }, [metrics?.plannedToDate, planned]);
 
   const realisedLatest = useMemo(() => {
+    const indicator = clampPercent(metrics?.realized);
+    if (indicator !== null) {
+      return indicator;
+    }
     if (realizedSeries.length) {
       const last = realizedSeries[realizedSeries.length - 1];
       return clampPercent(last?.percent) ?? 0;
     }
     return clampPercent(realizedPercent) ?? 0;
-  }, [realizedPercent, realizedSeries]);
+  }, [metrics?.realized, realizedPercent, realizedSeries]);
 
-  const delta = realisedLatest - plannedToToday;
+  const delta = useMemo(() => {
+    if (typeof metrics?.delta === "number" && Number.isFinite(metrics.delta)) {
+      return metrics.delta;
+    }
+    return realisedLatest - plannedToToday;
+  }, [metrics?.delta, plannedToToday, realisedLatest]);
   const deltaTone = delta >= -2 && delta <= 2 ? "neutral" : delta > 2 ? "positive" : "warning";
 
   const hasData = chartData.some((entry) => entry.planned !== null || entry.realized !== null);
