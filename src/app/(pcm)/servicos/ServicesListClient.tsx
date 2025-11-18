@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 
+import { calcularPercentualPlanejadoServico } from "@/lib/serviceProgress";
 import type { Service } from "@/types";
 
 const MAX_VISIBLE_SERVICES = 8;
@@ -26,7 +27,7 @@ function normaliseStatus(status: Service["status"]): string {
   return STATUS_LABEL[raw] ?? "Aberto";
 }
 
-function computeProgress(service: Service): number {
+function resolveServiceRealPercent(service: Service): number {
   const progress = Number(
     service.progress ?? service.realPercent ?? service.andamento ?? service.manualPercent ?? 0,
   );
@@ -40,6 +41,7 @@ type Props = {
 
 export default function ServicesListClient({ services }: Props) {
   const [showAll, setShowAll] = useState(false);
+  const today = useMemo(() => new Date(), []);
   const visibleServices = useMemo(() => {
     if (showAll) return services;
     return services.slice(0, MAX_VISIBLE_SERVICES);
@@ -60,7 +62,8 @@ export default function ServicesListClient({ services }: Props) {
           const serviceHref = `/servicos/${encodeURIComponent(service.id)}`;
           const statusLabel = normaliseStatus(service.status);
           const statusTone = STATUS_TONE[statusLabel] ?? "border-border bg-muted text-foreground/80";
-          const progress = computeProgress(service);
+          const plannedPercent = Math.round(calcularPercentualPlanejadoServico(service, today));
+          const realPercent = resolveServiceRealPercent(service);
           const identifier = service.os || service.code || service.tag || service.id;
           const subtitle = service.equipmentName || service.setor || service.sector || "";
           const companyLabel =
@@ -80,7 +83,7 @@ export default function ServicesListClient({ services }: Props) {
                     {statusLabel}
                   </span>
                   <span className="rounded-full border border-transparent bg-muted/60 px-2 py-0.5 text-xs text-muted-foreground">
-                    {progress}% concluído
+                    {realPercent}% concluído
                   </span>
                 </div>
                 <div className="space-y-1">
@@ -88,11 +91,15 @@ export default function ServicesListClient({ services }: Props) {
                   {subtitle ? (
                     <p className="text-sm text-muted-foreground">{subtitle}</p>
                   ) : null}
+                  <p className="text-xs text-muted-foreground">
+                    Planejado: <span className="font-semibold text-foreground">{plannedPercent}%</span> | Real: {" "}
+                    <span className="font-semibold text-foreground">{realPercent}%</span>
+                  </p>
                 </div>
               </div>
               <div className="space-y-2">
                 <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
-                  <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${progress}%` }} />
+                  <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${realPercent}%` }} />
                 </div>
                 <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
                   <span>{companyLabel ? `Empresa: ${companyLabel}` : `Pacote: ${service.packageId ?? "Não vinculado"}`}</span>

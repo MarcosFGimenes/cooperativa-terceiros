@@ -1,5 +1,9 @@
 type DateInput = number | string | Date | null | undefined;
 
+const ISO_DATE_ONLY = /^(\d{4})-(\d{2})-(\d{2})$/;
+const ISO_ZERO_TIME = /^(\d{4})-(\d{2})-(\d{2})T00:00(?::00){0,2}(?:\.\d{3})?(?:Z|[+-]\d{2}:?\d{2})?$/i;
+const BR_DATE_ONLY = /^(\d{2})\/(\d{2})\/(\d{4})$/;
+
 type PartsOptions = {
   timeZone?: string;
   includeTime?: boolean;
@@ -62,9 +66,44 @@ function toDate(value: DateInput): Date | null {
   return null;
 }
 
+function isDateOnlyValue(value: DateInput, date: Date): boolean {
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed) return false;
+    if (ISO_DATE_ONLY.test(trimmed) || ISO_ZERO_TIME.test(trimmed) || BR_DATE_ONLY.test(trimmed)) {
+      return true;
+    }
+  }
+
+  const target = value instanceof Date ? value : date;
+  return (
+    target.getUTCHours() === 0 &&
+    target.getUTCMinutes() === 0 &&
+    target.getUTCSeconds() === 0 &&
+    target.getUTCMilliseconds() === 0
+  );
+}
+
+function buildUtcParts(date: Date, includeTime?: boolean): PartsResult {
+  const year = String(date.getUTCFullYear()).padStart(4, "0");
+  const month = String(date.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(date.getUTCDate()).padStart(2, "0");
+  const result: PartsResult = { year, month, day };
+  if (includeTime) {
+    result.hour = "00";
+    result.minute = "00";
+  }
+  return result;
+}
+
 function toParts(value: DateInput, options?: PartsOptions): PartsResult | null {
   const date = toDate(value);
   if (!date) return null;
+
+  const treatAsDateOnly = isDateOnlyValue(value, date);
+  if (treatAsDateOnly) {
+    return buildUtcParts(date, options?.includeTime);
+  }
 
   try {
     const formatter = new Intl.DateTimeFormat("en-US", {
