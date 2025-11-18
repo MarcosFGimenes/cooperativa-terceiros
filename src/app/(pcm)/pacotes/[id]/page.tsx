@@ -402,6 +402,12 @@ async function renderPackageDetailPage(params: { id: string }) {
   const realizedHeaderLabel = hasServiceOverflow
     ? `Realizado (parcial): ${realizedValueLabel}`
     : `Realizado: ${realizedValueLabel}`;
+  const curveMetrics = {
+    plannedTotal: curvaIndicators.planejadoTotal,
+    plannedToDate: curvaIndicators.planejadoAteHoje,
+    realized: curvaIndicators.realizado,
+    delta: curvaIndicators.diferenca,
+  };
 
   const folderAnalyticsMap = new Map<
     string,
@@ -602,6 +608,7 @@ async function renderPackageDetailPage(params: { id: string }) {
             description="Planejado versus realizado considerando todos os serviços do pacote."
             headerAside={<span className="font-medium text-foreground">{realizedHeaderLabel}</span>}
             chartHeight={360}
+            metrics={curveMetrics}
             deferRendering
             fallback={
               <div className="flex h-[360px] w-full items-center justify-center rounded-xl border border-dashed border-border/70 bg-muted/40">
