@@ -1,11 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useState } from "react";
 import Link from "next/link";
 
-import type { PackageSummary } from "@/lib/repo/packages";
-
-const MAX_VISIBLE_PACKAGES = 6;
+import type { PCMListResponse, PCMPackageListItem } from "@/types/pcm";
 
 const STATUS_LABEL: Record<string, string> = {
   concluido: "Concluído",
@@ -25,7 +23,7 @@ const DATE_FORMATTER = new Intl.DateTimeFormat("pt-BR", {
   month: "short",
 });
 
-function normaliseStatus(status: PackageSummary["status"]): string {
+function normaliseStatus(status: PCMPackageListItem["status"]): string {
   const raw = String(status ?? "").trim().toLowerCase();
   return STATUS_LABEL[raw] ?? "Aberto";
 }
@@ -40,19 +38,54 @@ function formatCreatedAt(timestamp?: number | null) {
   }
 }
 
+function resolveServicesCount(pkg: PCMPackageListItem): number {
+  if (typeof pkg.servicesCount === "number" && Number.isFinite(pkg.servicesCount)) {
+    return pkg.servicesCount;
+  }
+  if (Array.isArray(pkg.services)) {
+    return pkg.services.length;
+  }
+  if (Array.isArray(pkg.serviceIds)) {
+    return pkg.serviceIds.length;
+  }
+  return 0;
+}
+
 type Props = {
-  packages: PackageSummary[];
+  initialItems: PCMPackageListItem[];
+  initialCursor: string | null;
 };
 
-export default function PackagesListClient({ packages }: Props) {
-  const [showAll, setShowAll] = useState(false);
-  const visiblePackages = useMemo(() => {
-    if (showAll) return packages;
-    return packages.slice(0, MAX_VISIBLE_PACKAGES);
-  }, [packages, showAll]);
-  const total = packages.length;
-  const visibleCount = visiblePackages.length;
-  const hasToggle = total > MAX_VISIBLE_PACKAGES;
+export default function PackagesListClient({ initialItems, initialCursor }: Props) {
+  const [items, setItems] = useState(initialItems);
+  const [cursor, setCursor] = useState(initialCursor);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const total = items.length;
+
+  const handleLoadMore = useCallback(async () => {
+    if (!cursor) return;
+    setIsLoadingMore(true);
+    setErrorMessage(null);
+    try {
+      const params = new URLSearchParams({ limit: "15", cursor });
+      const response = await fetch(`/api/pcm/pacotes?${params.toString()}`, {
+        method: "GET",
+        cache: "no-store",
+      });
+      if (!response.ok) {
+        throw new Error(`Falha ao carregar mais pacotes: ${response.status}`);
+      }
+      const payload = (await response.json()) as PCMListResponse<PCMPackageListItem>;
+      setItems((prev) => [...prev, ...payload.items]);
+      setCursor(payload.nextCursor ?? null);
+    } catch (error) {
+      console.error("[PackagesListClient] Falha ao carregar mais pacotes", error);
+      setErrorMessage("Não foi possível carregar mais pacotes. Tente novamente.");
+    } finally {
+      setIsLoadingMore(false);
+    }
+  }, [cursor]);
 
   if (total === 0) {
     return null;
@@ -61,12 +94,13 @@ export default function PackagesListClient({ packages }: Props) {
   return (
     <div className="space-y-4">
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        {visiblePackages.map((pkg) => {
+        {items.map((pkg) => {
           const packageHref = `/pacotes/${encodeURIComponent(pkg.id)}`;
           const statusLabel = normaliseStatus(pkg.status);
           const statusTone = STATUS_TONE[statusLabel] ?? "border-border bg-muted text-foreground/80";
-          const servicesLabel = pkg.servicesCount
-            ? `${pkg.servicesCount} serviço${pkg.servicesCount === 1 ? "" : "s"}`
+          const servicesCount = resolveServicesCount(pkg);
+          const servicesLabel = servicesCount
+            ? `${servicesCount} serviço${servicesCount === 1 ? "" : "s"}`
             : "Sem serviços";
           const createdAtLabel = formatCreatedAt(pkg.createdAt);
           return (
@@ -103,16 +137,20 @@ export default function PackagesListClient({ packages }: Props) {
           );
         })}
       </div>
-      {hasToggle ? (
-        <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
-          <span>
-            Mostrando {visibleCount} de {total} pacote{total === 1 ? "" : "s"}.
-          </span>
-          <button type="button" className="btn btn-secondary" onClick={() => setShowAll((prev) => !prev)}>
-            {showAll ? "Mostrar menos" : "Mostrar mais"}
-          </button>
+      <div className="flex flex-col gap-3 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p>Mostrando {total} pacote{total === 1 ? "" : "s"}.</p>
+          {errorMessage ? <p className="text-destructive">{errorMessage}</p> : null}
         </div>
-      ) : null}
+        <button
+          type="button"
+          className="btn btn-secondary"
+          disabled={!cursor || isLoadingMore}
+          onClick={handleLoadMore}
+        >
+          {isLoadingMore ? "Carregando..." : cursor ? "Carregar mais" : "Todos carregados"}
+        </button>
+      </div>
     </div>
   );
 }

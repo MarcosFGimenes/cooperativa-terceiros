@@ -3,12 +3,12 @@ export const revalidate = 0;
 
 import Link from "next/link";
 
-import { listRecentServices } from "@/lib/repo/services";
+import { listServicesPCM } from "@/lib/data";
 
 import ServicesListClient from "./ServicesListClient";
 
 export default async function ServicesListPage() {
-  const services = await listRecentServices();
+  const { items, nextCursor } = await listServicesPCM({ limit: 10 });
 
   return (
     <div className="container mx-auto max-w-6xl space-y-6 px-4 py-6">
@@ -29,12 +29,12 @@ export default async function ServicesListPage() {
         </div>
       </div>
 
-      {services.length === 0 ? (
+      {items.length === 0 ? (
         <div className="rounded-2xl border border-dashed bg-muted/30 p-6 text-center text-sm text-muted-foreground">
           Nenhum serviço encontrado.
         </div>
       ) : (
-        <ServicesListClient services={services} />
+        <ServicesListClient initialItems={items} initialCursor={nextCursor} />
       )}
     </div>
   );
