@@ -13,6 +13,8 @@ import {
   calcularCurvaSRealizada,
   calcularIndicadoresCurvaS,
   calcularPercentualSubpacote,
+  calcularPercentualRealizadoSubpacote,
+  obterIntervaloSubpacote,
   type ServicoDoSubpacote,
 } from "@/lib/serviceProgress";
 import type { Package, PackageFolder, Service } from "@/types";
@@ -28,7 +30,12 @@ export const revalidate = 0;
 
 const MAX_SERVICES_TO_LOAD = 400;
 
-type PackageFolderWithProgress = PackageFolder & { progressPercent?: number | null };
+type PackageFolderWithProgress = PackageFolder & {
+  progressPercent?: number | null;
+  realizedPercent?: number | null;
+  startDateMs?: number | null;
+  endDateMs?: number | null;
+};
 
 const PACKAGE_STATUS_TONE: Record<string, string> = {
   Concluído: "bg-emerald-100 text-emerald-700 border-emerald-200",
@@ -89,16 +96,84 @@ function formatDate(value?: string | null) {
 function mapServiceToSubpackageEntry(service: Service): ServicoDoSubpacote {
   const updates = service.updates ?? [];
   const label = service.os || service.code || service.id;
-  return {
+  const dataInicio =
+    service.dataInicio ??
+    service.inicioPrevisto ??
+    service.inicioPlanejado ??
+    service.plannedStart ??
+    service.startDate ??
+    null;
+  const dataFim =
+    service.dataFim ??
+    service.fimPrevisto ??
+    service.fimPlanejado ??
+    service.plannedEnd ??
+    service.endDate ??
+    null;
+  const horasPrevistas =
+    service.totalHours ??
+    service.horasPrevistas ??
+    service.horas ??
+    service.hours ??
+    service.peso ??
+    service.weight ??
+    null;
+  const entry: ServicoDoSubpacote = {
     id: service.id,
     nome: label,
-    horasPrevistas: Number(service.totalHours ?? 0) || 0,
-    plannedStart: service.plannedStart,
-    plannedEnd: service.plannedEnd,
+    horasPrevistas,
+    totalHours: service.totalHours,
+    horas: service.horas,
+    hours: service.hours,
+    peso: service.peso,
+    weight: service.weight,
+    dataInicio,
+    inicioPrevisto: service.inicioPrevisto,
+    inicioPlanejado: service.inicioPlanejado,
+    plannedStart: service.plannedStart ?? dataInicio ?? undefined,
+    startDate: service.startDate ?? dataInicio ?? undefined,
+    dataFim,
+    fimPrevisto: service.fimPrevisto,
+    fimPlanejado: service.fimPlanejado,
+    plannedEnd: service.plannedEnd ?? dataFim ?? undefined,
+    endDate: service.endDate ?? dataFim ?? undefined,
     percentualRealAtual: service.progress ?? service.realPercent ?? service.andamento ?? null,
     updates,
     atualizacoes: updates,
   };
+
+  const updateListKeys = [
+    "atualizacoes",
+    "historicoAtualizacoes",
+    "historico",
+    "history",
+    "updates",
+    "progressUpdates",
+    "percentualUpdates",
+    "realUpdates",
+  ] as const;
+  updateListKeys.forEach((key) => {
+    const value = (service as Record<string, unknown>)[key];
+    if (Array.isArray(value)) {
+      (entry as Record<string, unknown>)[key] = value;
+    }
+  });
+
+  const updateDateKeys = [
+    "dataUltimaAtualizacao",
+    "dataAtualizacao",
+    "dataAtualizacaoPercentual",
+    "atualizadoEm",
+    "lastUpdateDate",
+    "updatedAt",
+  ] as const;
+  updateDateKeys.forEach((key) => {
+    if (Object.hasOwn(service as Record<string, unknown>, key)) {
+      (entry as Record<string, unknown>)[key] = (service as Record<string, unknown>)[key];
+    }
+  });
+
+  return entry;
 }
 
 async function renderPackageDetailPage(params: { id: string }) {
@@ -328,15 +403,32 @@ async function renderPackageDetailPage(params: { id: string }) {
     ? `Realizado (parcial): ${realizedValueLabel}`
     : `Realizado: ${realizedValueLabel}`;
 
-  const folderProgressMap = new Map<string, number>();
+  const folderAnalyticsMap = new Map<
+    string,
+    { plannedPercent: number; realizedPercent: number; startDateMs: number | null; endDateMs: number | null }
+  >();
   subpackagesForCurve.forEach((subpacote) => {
     if (!subpacote?.id) return;
-    folderProgressMap.set(subpacote.id, calcularPercentualSubpacote(subpacote, today));
+    const plannedPercent = calcularPercentualSubpacote(subpacote, today);
+    const realizedPercent = calcularPercentualRealizadoSubpacote(subpacote, today);
+    const intervalo = obterIntervaloSubpacote(subpacote);
+    folderAnalyticsMap.set(subpacote.id, {
+      plannedPercent,
+      realizedPercent,
+      startDateMs: intervalo.inicio ? intervalo.inicio.getTime() : null,
+      endDateMs: intervalo.fim ? intervalo.fim.getTime() : null,
+    });
   });
-  folders = folders.map((folder) => ({
-    ...folder,
-    progressPercent: folderProgressMap.get(folder.id) ?? 0,
-  }));
+  folders = folders.map((folder) => {
+    const analytics = folderAnalyticsMap.get(folder.id);
+    return {
+      ...folder,
+      progressPercent: analytics?.plannedPercent ?? 0,
+      realizedPercent: analytics?.realizedPercent ?? null,
+      startDateMs: analytics?.startDateMs ?? null,
+      endDateMs: analytics?.endDateMs ?? null,
+    };
+  });
 
   const folderServiceIds = new Set<string>();
   folders.forEach((folder) => {

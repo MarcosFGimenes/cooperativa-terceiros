@@ -2,12 +2,14 @@ import { describe, expect, it } from "vitest";
 
 import {
   calcularPercentualSubpacote,
+  calcularPercentualRealizadoSubpacote,
   calcularPercentualPlanejadoServico,
   calcularCurvaSPlanejada,
   calcularCurvaSRealizada,
   calcularIndicadoresCurvaS,
   clampProgress,
   mapearServicosPlanejados,
+  obterIntervaloSubpacote,
   resolveReopenedProgress,
   snapshotBeforeConclusion,
 } from "@/lib/serviceProgress";
@@ -114,6 +116,73 @@ describe("serviceProgress utilities", () => {
         new Date("2024-01-20T00:00:00Z"),
       );
       expect(percentual).toBe(100);
+    });
+  });
+
+  describe("calcularPercentualRealizadoSubpacote", () => {
+    const reference = new Date("2024-01-05T00:00:00Z");
+
+    it("returns zero when no services contribute hours", () => {
+      expect(calcularPercentualRealizadoSubpacote({ servicos: [] }, reference)).toBe(0);
+      expect(
+        calcularPercentualRealizadoSubpacote(
+          {
+            servicos: [
+              { horasPrevistas: 0, dataInicio: "2024-01-01", dataFim: "2024-01-10" },
+              { horasPrevistas: null },
+            ],
+          },
+          reference,
+        ),
+      ).toBe(0);
+    });
+
+    it("calculates weighted real progress based on the latest updates", () => {
+      const percentual = calcularPercentualRealizadoSubpacote(
+        {
+          servicos: [
+            {
+              horasPrevistas: 10,
+              dataInicio: "2024-01-01",
+              dataFim: "2024-01-06",
+              atualizacoes: [
+                { data: "2024-01-02", percentual: 20 },
+                { data: "2024-01-05", percentual: 40 },
+                { data: "2024-01-07", percentual: 80 },
+              ],
+            },
+            {
+              horasPrevistas: 5,
+              dataInicio: "2024-01-01",
+              dataFim: "2024-01-10",
+              atualizacoes: [
+                { data: "2024-01-03", percentual: 10 },
+                { data: "2024-01-04", percentual: 50 },
+              ],
+            },
+          ],
+        },
+        reference,
+      );
+      expect(percentual).toBeCloseTo((40 * 10 + 50 * 5) / 15, 5);
+    });
+
+    it("treats missing updates as zero progress", () => {
+      const percentual = calcularPercentualRealizadoSubpacote(
+        {
+          servicos: [
+            { horasPrevistas: 8, dataInicio: "2024-01-01", dataFim: "2024-01-05" },
+            {
+              horasPrevistas: 4,
+              dataInicio: "2024-01-02",
+              dataFim: "2024-01-06",
+              atualizacoes: [{ data: "2024-01-04", percentual: 75 }],
+            },
+          ],
+        },
+        reference,
+      );
+      expect(percentual).toBeCloseTo((0 * 8 + 75 * 4) / 12, 5);
     });
   });
 
@@ -315,6 +384,25 @@ describe("serviceProgress utilities", () => {
       expect(indicadores.planejadoAteHoje).toBeCloseTo(83.33, 1);
       expect(indicadores.realizado).toBeCloseTo(53.33, 1);
       expect(indicadores.diferenca).toBeCloseTo(-29.99, 1);
+    });
+  });
+
+  describe("obterIntervaloSubpacote", () => {
+    it("returns the earliest start and latest finish across services", () => {
+      const intervalo = obterIntervaloSubpacote({
+        servicos: [
+          { horasPrevistas: 5, dataInicio: "2024-02-10", dataFim: "2024-02-20" },
+          { horasPrevistas: 5, dataInicio: "2024-02-01", dataFim: "2024-03-01" },
+        ],
+      });
+      expect(intervalo.inicio?.toISOString()).toBe(new Date("2024-02-01T00:00:00.000Z").toISOString());
+      expect(intervalo.fim?.toISOString()).toBe(new Date("2024-03-01T00:00:00.000Z").toISOString());
+    });
+
+    it("falls back to null values when there are no valid ranges", () => {
+      const intervalo = obterIntervaloSubpacote({ servicos: [{ horasPrevistas: 5 }] });
+      expect(intervalo.inicio).toBeNull();
+      expect(intervalo.fim).toBeNull();
     });
   });
 });

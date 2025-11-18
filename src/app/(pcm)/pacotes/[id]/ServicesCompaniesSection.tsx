@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 
+import { formatDateTime } from "@/lib/formatDateTime";
 import { cn } from "@/lib/utils";
 
 export type FolderDisplay = {
@@ -10,6 +11,9 @@ export type FolderDisplay = {
   companyId?: string | null;
   services: string[];
   progressPercent?: number | null;
+  realizedPercent?: number | null;
+  startDateMs?: number | null;
+  endDateMs?: number | null;
 };
 
 export type ServiceDetail = {
@@ -30,6 +34,19 @@ export default function ServicesCompaniesSection({ folders, serviceDetails }: Pr
   const [openFolderId, setOpenFolderId] = useState<string | null>(null);
   const [expandedFolderServices, setExpandedFolderServices] = useState<Record<string, boolean>>({});
   const MAX_VISIBLE_SERVICES = 5;
+
+  const formatPercentLabel = (value: number | null | undefined, hasServices: boolean) => {
+    if (!hasServices) return "Sem serviços";
+    if (typeof value === "number" && Number.isFinite(value)) {
+      return `${Math.round(value)}%`;
+    }
+    return "0%";
+  };
+
+  const formatDateLabel = (value?: number | null) => {
+    if (typeof value !== "number" || !Number.isFinite(value)) return "-";
+    return formatDateTime(value, { timeZone: "America/Sao_Paulo", fallback: "-" }) || "-";
+  };
 
   return (
     <div className="card space-y-6 p-4">
@@ -66,11 +83,11 @@ export default function ServicesCompaniesSection({ folders, serviceDetails }: Pr
                   status: "Desconhecido",
                 } satisfies ServiceDetail;
               });
-              const plannedLabel = folder.services.length
-                ? typeof folder.progressPercent === "number" && Number.isFinite(folder.progressPercent)
-                  ? `${Math.round(folder.progressPercent)}%`
-                  : "0%"
-                : "Sem serviços";
+              const hasServices = folder.services.length > 0;
+              const plannedLabel = formatPercentLabel(folder.progressPercent, hasServices);
+              const realizedLabel = formatPercentLabel(folder.realizedPercent, hasServices);
+              const startLabel = formatDateLabel(folder.startDateMs);
+              const endLabel = formatDateLabel(folder.endDateMs);
               const isOpen = openFolderId === folder.id;
               const isExpanded = expandedFolderServices[folder.id] ?? false;
               const visibleServices = isExpanded
@@ -94,6 +111,13 @@ export default function ServicesCompaniesSection({ folders, serviceDetails }: Pr
                       </p>
                       <p className="truncate text-xs text-muted-foreground">
                         Planejado hoje: <span className="font-semibold text-foreground">{plannedLabel}</span>
+                      </p>
+                      <p className="truncate text-xs text-muted-foreground">
+                        Realizado: <span className="font-semibold text-foreground">{realizedLabel}</span>
+                      </p>
+                      <p className="truncate text-xs text-muted-foreground">
+                        Cronograma: <span className="font-semibold text-foreground">{startLabel}</span> —{' '}
+                        <span className="font-semibold text-foreground">{endLabel}</span>
                       </p>
                     </div>
                     <span className="rounded-full border px-2 py-0.5 text-xs text-muted-foreground">

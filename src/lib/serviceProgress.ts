@@ -498,6 +498,25 @@ function coletarServicosDoSubpacote(subpacote: SubpacotePlanejado | null | undef
   return servicos;
 }
 
+export function obterIntervaloSubpacote(
+  subpacote: SubpacotePlanejado | null | undefined,
+): { inicio: Date | null; fim: Date | null } {
+  const servicos = coletarServicosDoSubpacote(subpacote);
+  let menor: Date | null = null;
+  let maior: Date | null = null;
+  for (const servico of servicos) {
+    const range = resolveDateRange(servico);
+    if (!range) continue;
+    if (!menor || range.inicio.getTime() < menor.getTime()) {
+      menor = range.inicio;
+    }
+    if (!maior || range.fim.getTime() > maior.getTime()) {
+      maior = range.fim;
+    }
+  }
+  return { inicio: menor, fim: maior };
+}
+
 function coletarServicosDoPacote(pacote: PacotePlanejado | null | undefined): ServicoDoSubpacote[] {
   if (!pacote) return [];
   const subpacotes: SubpacotePlanejado[] = [];
@@ -620,6 +639,37 @@ export function calcularPercentualSubpacote(
   const percentual = somaPonderada / somaHoras;
   if (!Number.isFinite(percentual)) return 0;
   return Math.max(0, Math.min(100, percentual));
+}
+
+export function calcularPercentualRealizadoSubpacote(
+  subpacote: SubpacotePlanejado | null | undefined,
+  dataReferencia?: DateInput,
+): number {
+  const referencia = toDate(dataReferencia ?? new Date()) ?? new Date();
+  const servicos = coletarServicosDoSubpacote(subpacote);
+  const normalizados = servicos
+    .map((servico) => {
+      const horasPrevistas = extractHorasPrevistas(servico);
+      if (!horasPrevistas) return null;
+      const range = resolveDateRange(servico);
+      const normalizado: ServicoRealizadoNormalizado = {
+        horasPrevistas,
+        atualizacoes: coletarAtualizacoesDoServico(servico, range?.inicio),
+      };
+      return normalizado;
+    })
+    .filter((servico): servico is ServicoRealizadoNormalizado => Boolean(servico));
+
+  const somaHoras = normalizados.reduce((total, servico) => total + servico.horasPrevistas, 0);
+  if (somaHoras <= 0) return 0;
+
+  const somaPonderada = normalizados.reduce((total, servico) => {
+    const percentual = percentualRealizadoAte(servico, referencia);
+    return total + percentual * servico.horasPrevistas;
+  }, 0);
+  const percentual = somaPonderada / somaHoras;
+  if (!Number.isFinite(percentual)) return 0;
+  return clampPercentage(percentual);
 }
 
 export function calcularPercentualPlanejadoServico(

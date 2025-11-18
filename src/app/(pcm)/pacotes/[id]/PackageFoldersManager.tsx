@@ -15,6 +15,9 @@ export type FolderSummary = {
   tokenCode?: string | null;
   tokenCreatedAt?: number | null;
   progressPercent?: number | null;
+  realizedPercent?: number | null;
+  startDateMs?: number | null;
+  endDateMs?: number | null;
 };
 
 export type ServiceOption = {
@@ -71,6 +74,14 @@ function formatFolderProgress(folder: { progressPercent?: number | null; service
   if (!folder.services.length) return "Sem serviços";
   if (typeof folder.progressPercent === "number" && Number.isFinite(folder.progressPercent)) {
     return `${Math.round(folder.progressPercent)}%`;
+  }
+  return "0%";
+}
+
+function formatFolderRealized(folder: { realizedPercent?: number | null; services: string[] }): string {
+  if (!folder.services.length) return "Sem serviços";
+  if (typeof folder.realizedPercent === "number" && Number.isFinite(folder.realizedPercent)) {
+    return `${Math.round(folder.realizedPercent)}%`;
   }
   return "0%";
 }
@@ -527,6 +538,9 @@ export default function PackageFoldersManager({
                 const isActive = activeFolder?.id === folder.id;
                 const selection = serviceSelections[folder.id] ?? new Set<string>();
                 const plannedLabel = formatFolderProgress(folder);
+                const realizedLabel = formatFolderRealized(folder);
+                const startLabel = formatDate(folder.startDateMs) || "-";
+                const endLabel = formatDate(folder.endDateMs) || "-";
                 return (
                   <button
                     key={folder.id}
@@ -552,6 +566,13 @@ export default function PackageFoldersManager({
                     <p className="text-xs text-muted-foreground">
                       Planejado hoje: <span className="font-semibold text-foreground">{plannedLabel}</span>
                     </p>
+                    <p className="text-xs text-muted-foreground">
+                      Realizado: <span className="font-semibold text-foreground">{realizedLabel}</span>
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Cronograma: <span className="font-semibold text-foreground">{startLabel}</span> —{' '}
+                      <span className="font-semibold text-foreground">{endLabel}</span>
+                    </p>
                   </button>
                 );
               })}
@@ -564,6 +585,9 @@ export default function PackageFoldersManager({
                   <div className="rounded-lg border p-4 shadow-sm">
                     {(() => {
                       const plannedLabel = formatFolderProgress(activeFolder);
+                      const realizedLabel = formatFolderRealized(activeFolder);
+                      const startLabel = formatDate(activeFolder.startDateMs) || "-";
+                      const endLabel = formatDate(activeFolder.endDateMs) || "-";
                       return (
                         <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-3">
                           <div>
@@ -573,6 +597,13 @@ export default function PackageFoldersManager({
                             </p>
                             <p className="text-xs text-muted-foreground">
                               Planejado hoje: <span className="font-semibold text-foreground">{plannedLabel}</span>
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              Realizado: <span className="font-semibold text-foreground">{realizedLabel}</span>
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              Cronograma: <span className="font-semibold text-foreground">{startLabel}</span> —{' '}
+                              <span className="font-semibold text-foreground">{endLabel}</span>
                             </p>
                             <p className="text-xs text-muted-foreground">
                               Token atual: <span className="font-mono text-foreground">{activeFolder.tokenCode ?? "Sem token ativo"}</span>
