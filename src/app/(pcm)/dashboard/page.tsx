@@ -6,6 +6,7 @@ import Link from "next/link";
 import { listRecentPackages } from "@/lib/repo/packages";
 import { listRecentServices } from "@/lib/repo/services";
 import { formatDateTime } from "@/lib/formatDateTime";
+import { calcularPercentualPlanejadoServico } from "@/lib/serviceProgress";
 import type { Service } from "@/types";
 
 function normaliseStatus(status: Service["status"]): "Aberto" | "Pendente" | "Concluído" {
@@ -18,6 +19,12 @@ function normaliseStatus(status: Service["status"]): "Aberto" | "Pendente" | "Co
 function formatDate(value?: number) {
   if (value === null || value === undefined) return "";
   return formatDateTime(value, { timeZone: "America/Sao_Paulo", fallback: "" });
+}
+
+function resolveServiceRealPercent(service: Service): number {
+  const raw = service.progress ?? service.realPercent ?? service.andamento;
+  if (!Number.isFinite(raw ?? NaN)) return 0;
+  return Math.max(0, Math.min(100, Math.round(Number(raw ?? 0))));
 }
 
 export default async function DashboardPCM() {
@@ -34,6 +41,7 @@ export default async function DashboardPCM() {
     },
     { Aberto: 0, Pendente: 0, "Concluído": 0 } as Record<"Aberto" | "Pendente" | "Concluído", number>,
   );
+  const today = new Date();
 
   return (
     <div className="container mx-auto space-y-6 p-4">
@@ -89,9 +97,10 @@ export default async function DashboardPCM() {
               </div>
             ) : (
               services.slice(0, 5).map((service) => {
-                const progress = Math.round(
-                  service.progress ?? service.realPercent ?? service.andamento ?? 0,
+                const plannedPercent = Math.round(
+                  calcularPercentualPlanejadoServico(service, today),
                 );
+                const realPercent = resolveServiceRealPercent(service);
                 const createdAt = formatDate(service.createdAt);
                 const serviceHref = `/servicos/${encodeURIComponent(service.id)}`;
                 return (
@@ -112,8 +121,11 @@ export default async function DashboardPCM() {
                         {normaliseStatus(service.status)}
                         {createdAt ? ` • ${createdAt}` : ""}
                       </p>
+                      <p className="text-xs text-muted-foreground">
+                        Planejado: <span className="font-semibold text-foreground">{plannedPercent}%</span>
+                        {" "}| Real: <span className="font-semibold text-foreground">{realPercent}%</span>
+                      </p>
                     </Link>
-                    <span className="text-sm font-semibold text-primary">{progress}%</span>
                   </div>
                 );
               })
