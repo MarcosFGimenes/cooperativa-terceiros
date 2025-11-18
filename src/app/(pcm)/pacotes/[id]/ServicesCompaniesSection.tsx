@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-import { formatDateTime } from "@/lib/formatDateTime";
+import { formatDate } from "@/lib/formatDateTime";
 import { cn } from "@/lib/utils";
 
 export type FolderDisplay = {
@@ -45,7 +45,7 @@ export default function ServicesCompaniesSection({ folders, serviceDetails }: Pr
 
   const formatDateLabel = (value?: number | null) => {
     if (typeof value !== "number" || !Number.isFinite(value)) return "-";
-    return formatDateTime(value, { timeZone: "America/Sao_Paulo", fallback: "-" }) || "-";
+    return formatDate(value, { timeZone: "America/Sao_Paulo", fallback: "-" }) || "-";
   };
 
   return (

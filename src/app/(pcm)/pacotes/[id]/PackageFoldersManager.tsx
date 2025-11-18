@@ -5,7 +5,7 @@ import { toast } from "sonner";
 
 import { tryGetAuth } from "@/lib/firebase";
 import { cn } from "@/lib/utils";
-import { formatDateTime } from "@/lib/formatDateTime";
+import { formatDate, formatDateTime } from "@/lib/formatDateTime";
 
 export type FolderSummary = {
   id: string;
@@ -86,7 +86,12 @@ function formatFolderRealized(folder: { realizedPercent?: number | null; service
   return "0%";
 }
 
-function formatDate(value?: number | null) {
+function formatDateLabel(value?: number | null) {
+  if (!value || !Number.isFinite(value)) return "";
+  return formatDate(value, { timeZone: "America/Sao_Paulo", fallback: "" });
+}
+
+function formatDateTimeLabel(value?: number | null) {
   if (!value || !Number.isFinite(value)) return "";
   return formatDateTime(value, { timeZone: "America/Sao_Paulo", fallback: "" });
 }
@@ -539,8 +544,8 @@ export default function PackageFoldersManager({
                 const selection = serviceSelections[folder.id] ?? new Set<string>();
                 const plannedLabel = formatFolderProgress(folder);
                 const realizedLabel = formatFolderRealized(folder);
-                const startLabel = formatDate(folder.startDateMs) || "-";
-                const endLabel = formatDate(folder.endDateMs) || "-";
+                const startLabel = formatDateLabel(folder.startDateMs) || "-";
+                const endLabel = formatDateLabel(folder.endDateMs) || "-";
                 return (
                   <button
                     key={folder.id}
@@ -586,8 +591,8 @@ export default function PackageFoldersManager({
                     {(() => {
                       const plannedLabel = formatFolderProgress(activeFolder);
                       const realizedLabel = formatFolderRealized(activeFolder);
-                      const startLabel = formatDate(activeFolder.startDateMs) || "-";
-                      const endLabel = formatDate(activeFolder.endDateMs) || "-";
+                      const startLabel = formatDateLabel(activeFolder.startDateMs) || "-";
+                      const endLabel = formatDateLabel(activeFolder.endDateMs) || "-";
                       return (
                         <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-3">
                           <div>
@@ -608,7 +613,7 @@ export default function PackageFoldersManager({
                             <p className="text-xs text-muted-foreground">
                               Token atual: <span className="font-mono text-foreground">{activeFolder.tokenCode ?? "Sem token ativo"}</span>
                               {activeFolder.tokenCreatedAt ? (
-                                <span className="text-muted-foreground"> • gerado em {formatDate(activeFolder.tokenCreatedAt)}</span>
+                                <span className="text-muted-foreground"> • gerado em {formatDateTimeLabel(activeFolder.tokenCreatedAt)}</span>
                               ) : null}
                               {activeFolderLink ? (
                                 <>
