@@ -131,6 +131,32 @@ function buildThirdUpdateSummary(update: ThirdServiceUpdate) {
   return { title, percentLabel, description, hoursLabel, resourcesLabel };
 }
 
+function hasDetailedUpdateInfo(update: ThirdServiceUpdate): boolean {
+  return Boolean(
+    (update.description && update.description.trim()) ||
+      (update.resources && update.resources.length) ||
+      (update.workforce && update.workforce.length) ||
+      (update.shiftConditions && update.shiftConditions.length) ||
+      (update.impediments && update.impediments.length) ||
+      (update.evidences && update.evidences.length) ||
+      (update.justification && update.justification.trim()) ||
+      (update.criticality !== null && update.criticality !== undefined),
+  );
+}
+
+function getUpdateDetailScore(update: ThirdServiceUpdate): number {
+  let score = 0;
+  if (update.description && update.description.trim()) score += 3;
+  if (update.resources && update.resources.length) score += update.resources.length + 1;
+  if (update.workforce && update.workforce.length) score += update.workforce.length + 1;
+  if (update.shiftConditions && update.shiftConditions.length) score += update.shiftConditions.length + 1;
+  if (update.impediments && update.impediments.length) score += update.impediments.length + 1;
+  if (update.evidences && update.evidences.length) score += update.evidences.length + 1;
+  if (update.justification && update.justification.trim()) score += 1;
+  if (update.criticality !== null && update.criticality !== undefined) score += 1;
+  return score;
+}
+
 const SHIFT_LABELS = {
   manha: "Manhã",
   tarde: "Tarde",
@@ -386,6 +412,48 @@ export default function ServiceDetailsClient({ service, updates: initialUpdates,
       }),
     [checklistItems],
   );
+
+  const visibleUpdates = useMemo(() => {
+    if (!updates.length) return [];
+
+    const bestByDay = new Map<string, { update: ThirdServiceUpdate; score: number }>();
+
+    updates.forEach((update) => {
+      const key = buildThirdUpdateSummary(update).title;
+      const score = getUpdateDetailScore(update);
+      const current = bestByDay.get(key);
+      if (!current) {
+        bestByDay.set(key, { update, score });
+        return;
+      }
+
+      if (score > current.score) {
+        bestByDay.set(key, { update, score });
+        return;
+      }
+
+      if (score === current.score) {
+        const currentCreatedAt = typeof current.update.createdAt === "number" ? current.update.createdAt : 0;
+        const candidateCreatedAt = typeof update.createdAt === "number" ? update.createdAt : 0;
+        if (candidateCreatedAt > currentCreatedAt) {
+          bestByDay.set(key, { update, score });
+        }
+      }
+    });
+
+    const uniqueUpdates = [...bestByDay.values()]
+      .map((item) => item.update)
+      .sort((a, b) => {
+        const left = typeof a.createdAt === "number" ? a.createdAt : 0;
+        const right = typeof b.createdAt === "number" ? b.createdAt : 0;
+        return right - left;
+      });
+
+    const detailed = uniqueUpdates.filter((item) => hasDetailedUpdateInfo(item));
+    if (detailed.length > 0) return detailed;
+
+    return uniqueUpdates.length > 0 ? [uniqueUpdates[0]] : [];
+  }, [updates]);
 
   const statusLabel = useMemo(() => normaliseStatus(service.status), [service.status]);
 
@@ -727,11 +795,11 @@ export default function ServiceDetailsClient({ service, updates: initialUpdates,
 
         <div className="card p-4">
           <h2 className="text-lg font-semibold">Atualizações recentes</h2>
-          {updates.length === 0 ? (
+          {visibleUpdates.length === 0 ? (
             <p className="mt-2 text-sm text-muted-foreground">Nenhuma atualização registrada.</p>
           ) : (
             <ul className="mt-3 space-y-2 text-sm">
-              {updates.slice(0, 10).map((update) => {
+              {visibleUpdates.slice(0, 10).map((update) => {
                 const summary = buildThirdUpdateSummary(update);
                 const hours = computeTimeWindowHours(update);
                 return (
