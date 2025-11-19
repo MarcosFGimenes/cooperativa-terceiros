@@ -177,7 +177,7 @@ input:-webkit-autofill:focus {
 @media print {
   @page {
     size: A4 portrait;
-    margin: 12mm;
+    margin: 8mm;
   }
 
   body {
@@ -194,9 +194,17 @@ input:-webkit-autofill:focus {
     box-shadow: none !important;
   }
 
+  .card {
+    padding: 14px !important;
+  }
+
   * {
     box-shadow: none !important;
     background-image: none !important;
+  }
+
+  .scurve-container {
+    height: 420px !important;
   }
 }
 

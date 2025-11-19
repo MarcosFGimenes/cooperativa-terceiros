@@ -90,12 +90,19 @@ function ChartTooltip({ active, payload }: TooltipPayload) {
   const planned = payload.find((item) => item.dataKey === "planned");
   const realized = payload.find((item) => item.dataKey === "realized");
 
+  const plannedValue = typeof planned?.value === "number" ? planned.value : null;
+  const realizedValue = typeof realized?.value === "number" ? realized.value : null;
+  const difference =
+    plannedValue !== null && realizedValue !== null
+      ? Math.round(realizedValue - plannedValue)
+      : null;
+
   return (
     <div className="rounded-lg border bg-background p-3 text-xs shadow-sm">
       <p className="font-semibold text-foreground">{formatFullDate(first.date)}</p>
-      {planned && typeof planned.value === "number" ? (
+      {plannedValue !== null ? (
         <p className="mt-1 text-muted-foreground">
-          Planejado: <span className="font-semibold text-foreground">{Math.round(planned.value)}%</span>
+          Planejado: <span className="font-semibold text-foreground">{Math.round(plannedValue)}%</span>
         </p>
       ) : null}
       {typeof first.plannedHours === "number" ? (
@@ -103,9 +110,14 @@ function ChartTooltip({ active, payload }: TooltipPayload) {
           Horas acumuladas: <span className="font-semibold text-foreground">{first.plannedHours.toFixed(1)}</span>
         </p>
       ) : null}
-      {realized && typeof realized.value === "number" ? (
+      {realizedValue !== null ? (
         <p className="mt-1 text-muted-foreground">
-          Realizado: <span className="font-semibold text-foreground">{Math.round(realized.value)}%</span>
+          Realizado: <span className="font-semibold text-foreground">{Math.round(realizedValue)}%</span>
+        </p>
+      ) : null}
+      {difference !== null ? (
+        <p className="text-muted-foreground">
+          Diferença: <span className="font-semibold text-foreground">{difference > 0 ? "+" : ""}{difference}%</span>
         </p>
       ) : null}
     </div>
@@ -220,6 +232,26 @@ export default function SCurve({
     setIsClientReady(true);
   }, []);
 
+  useEffect(() => {
+    if (!deferRendering) return;
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return;
+
+    const mql = window.matchMedia("print");
+    const handlePrint = (event: MediaQueryListEvent) => {
+      // Ensure the chart is rendered when the document enters print mode
+      if (event.matches) {
+        setIsChartVisible(true);
+      }
+    };
+
+    if (mql.matches) {
+      setIsChartVisible(true);
+    }
+
+    mql.addEventListener("change", handlePrint);
+    return () => mql.removeEventListener("change", handlePrint);
+  }, [deferRendering]);
+
   const resolvedTitle = title ?? "Curva S";
   const resolvedDescription =
     description ?? "Comparativo entre o avanço planejado e o realizado ao longo do tempo.";
@@ -249,7 +281,7 @@ export default function SCurve({
       {hasData ? (
         isChartVisible ? (
           isClientReady ? (
-            <div className="w-full" style={{ height: resolvedChartHeight }}>
+            <div className={cn("w-full scurve-container")} style={{ height: resolvedChartHeight }}>
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={chartData} margin={{ left: 4, right: 16, top: 16, bottom: 8 }}>
                   <CartesianGrid strokeDasharray="4 4" stroke="hsl(var(--border))" />

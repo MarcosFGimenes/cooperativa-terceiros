@@ -105,6 +105,10 @@ export default function CurvaS({ planned, actual }: CurvaSProps) {
   const plannedSeries = computeSeries(planned, xPositions, yForPercent);
   const actualSeries = computeSeries(actual, xPositions, yForPercent);
 
+  // Build quick lookup maps so each dot can expose the daily delta between real and planned.
+  const plannedPercentByDate = new Map(plannedSeries.points.map((point) => [point.label, point.value]));
+  const actualPercentByDate = new Map(actualSeries.points.map((point) => [point.label, point.value]));
+
   const percentTicks = [0, 25, 50, 75, 100];
   const showXAxisLabels = dates.length <= 8 ? dates : dates.filter((_, index) => index % 2 === 0);
 
@@ -222,12 +226,25 @@ export default function CurvaS({ planned, actual }: CurvaSProps) {
         )}
 
         {[plannedSeries, actualSeries].map((series, seriesIndex) =>
-          series.points.map((point, pointIndex) => (
-            <g key={`${seriesIndex}-${point.label}-${pointIndex}`}>
-              <circle cx={point.x} cy={point.y} r={4.5} fill="#fff" strokeWidth={2.5} stroke="#111827" />
-              <title>{`${getLongDateLabel(point.label)}: ${point.value}%`}</title>
-            </g>
-          )),
+          series.points.map((point, pointIndex) => {
+            const plannedValue = plannedPercentByDate.get(point.label);
+            const actualValue = actualPercentByDate.get(point.label);
+            const hasDifference = plannedValue !== undefined && actualValue !== undefined;
+            const difference = hasDifference ? Math.round(actualValue - plannedValue) : null;
+
+            const baseTitle = `${getLongDateLabel(point.label)}: ${point.value}%`;
+            const enhancedTitle =
+              hasDifference && difference !== null
+                ? `${baseTitle} (Diferença: ${difference > 0 ? "+" : ""}${difference}%)`
+                : baseTitle;
+
+            return (
+              <g key={`${seriesIndex}-${point.label}-${pointIndex}`}>
+                <circle cx={point.x} cy={point.y} r={4.5} fill="#fff" strokeWidth={2.5} stroke="#111827" />
+                <title>{enhancedTitle}</title>
+              </g>
+            );
+          }),
         )}
       </svg>
 

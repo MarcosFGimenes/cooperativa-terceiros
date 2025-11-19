@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
 import { ArrowLeft, Pencil } from "lucide-react";
 import {
@@ -90,6 +91,9 @@ export default function ServiceDetailClient({
     [baseService, fallbackService],
   );
   const encodedServiceId = encodeURIComponent(serviceId);
+  const searchParams = useSearchParams();
+  const isPdfExport = searchParams?.get("export") === "pdf";
+  const resolvedChartHeight = isPdfExport ? 420 : 288;
 
   const [service, setService] = useState<ServiceRealtimeData>(composedInitial);
   const [checklist, setChecklist] = useState<ChecklistItem[]>(toNewChecklist(initialChecklist));
@@ -499,9 +503,15 @@ export default function ServiceDetailClient({
     [checklist],
   );
 
+  const handleExportPdf = useCallback(() => {
+    // Use the native print dialog to allow exporting the full report as PDF.
+    if (typeof window === "undefined") return;
+    window.print();
+  }, []);
+
   return (
     <div className="container mx-auto space-y-6 p-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3 print:hidden">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Serviço {serviceLabel}</h1>
           <p className="text-sm text-muted-foreground">
@@ -520,6 +530,9 @@ export default function ServiceDetailClient({
             <Pencil aria-hidden="true" className="h-4 w-4" />
             Editar
           </Link>
+          <button type="button" className="btn btn-outline" onClick={handleExportPdf}>
+            Exportar PDF
+          </button>
           <DeleteServiceButton serviceId={service.id} serviceLabel={serviceLabel} />
         </div>
       </div>
@@ -618,10 +631,13 @@ export default function ServiceDetailClient({
           title="Curva S do serviço"
           description="Evolução planejada versus realizado para este serviço."
           headerAside={<span className="font-medium text-foreground">Realizado: {realizedPercent}%</span>}
-          chartHeight={288}
-          deferRendering
+          chartHeight={resolvedChartHeight}
+          deferRendering={!isPdfExport}
           fallback={
-            <div className="flex h-[288px] w-full items-center justify-center rounded-xl border border-dashed bg-muted/40">
+            <div
+              className="flex w-full items-center justify-center rounded-xl border border-dashed bg-muted/40"
+              style={{ minHeight: resolvedChartHeight }}
+            >
               <span className="text-sm text-muted-foreground">Carregando gráfico...</span>
             </div>
           }
