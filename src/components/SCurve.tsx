@@ -232,6 +232,26 @@ export default function SCurve({
     setIsClientReady(true);
   }, []);
 
+  useEffect(() => {
+    if (!deferRendering) return;
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return;
+
+    const mql = window.matchMedia("print");
+    const handlePrint = (event: MediaQueryListEvent) => {
+      // Ensure the chart is rendered when the document enters print mode
+      if (event.matches) {
+        setIsChartVisible(true);
+      }
+    };
+
+    if (mql.matches) {
+      setIsChartVisible(true);
+    }
+
+    mql.addEventListener("change", handlePrint);
+    return () => mql.removeEventListener("change", handlePrint);
+  }, [deferRendering]);
+
   const resolvedTitle = title ?? "Curva S";
   const resolvedDescription =
     description ?? "Comparativo entre o avanço planejado e o realizado ao longo do tempo.";
@@ -261,7 +281,7 @@ export default function SCurve({
       {hasData ? (
         isChartVisible ? (
           isClientReady ? (
-            <div className="w-full" style={{ height: resolvedChartHeight }}>
+            <div className={cn("w-full scurve-container")} style={{ height: resolvedChartHeight }}>
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={chartData} margin={{ left: 4, right: 16, top: 16, bottom: 8 }}>
                   <CartesianGrid strokeDasharray="4 4" stroke="hsl(var(--border))" />

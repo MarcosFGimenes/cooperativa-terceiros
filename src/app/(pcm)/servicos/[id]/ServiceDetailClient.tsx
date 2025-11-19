@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
 import { ArrowLeft, Pencil } from "lucide-react";
 import {
@@ -90,6 +91,9 @@ export default function ServiceDetailClient({
     [baseService, fallbackService],
   );
   const encodedServiceId = encodeURIComponent(serviceId);
+  const searchParams = useSearchParams();
+  const isPdfExport = searchParams?.get("export") === "pdf";
+  const resolvedChartHeight = isPdfExport ? 420 : 288;
 
   const [service, setService] = useState<ServiceRealtimeData>(composedInitial);
   const [checklist, setChecklist] = useState<ChecklistItem[]>(toNewChecklist(initialChecklist));
@@ -627,10 +631,13 @@ export default function ServiceDetailClient({
           title="Curva S do serviço"
           description="Evolução planejada versus realizado para este serviço."
           headerAside={<span className="font-medium text-foreground">Realizado: {realizedPercent}%</span>}
-          chartHeight={288}
-          deferRendering
+          chartHeight={resolvedChartHeight}
+          deferRendering={!isPdfExport}
           fallback={
-            <div className="flex h-[288px] w-full items-center justify-center rounded-xl border border-dashed bg-muted/40">
+            <div
+              className="flex w-full items-center justify-center rounded-xl border border-dashed bg-muted/40"
+              style={{ minHeight: resolvedChartHeight }}
+            >
               <span className="text-sm text-muted-foreground">Carregando gráfico...</span>
             </div>
           }
