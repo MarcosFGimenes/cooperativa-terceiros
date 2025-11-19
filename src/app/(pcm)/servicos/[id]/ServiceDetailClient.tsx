@@ -93,7 +93,7 @@ export default function ServiceDetailClient({
   const encodedServiceId = encodeURIComponent(serviceId);
   const searchParams = useSearchParams();
   const isPdfExport = searchParams?.get("export") === "pdf";
-  const resolvedChartHeight = isPdfExport ? 420 : 288;
+  const resolvedChartHeight = isPdfExport ? 480 : 288;
 
   const [service, setService] = useState<ServiceRealtimeData>(composedInitial);
   const [checklist, setChecklist] = useState<ChecklistItem[]>(toNewChecklist(initialChecklist));
@@ -571,36 +571,36 @@ export default function ServiceDetailClient({
               <dt className="text-muted-foreground">Empresa atribuída</dt>
               <dd className="font-medium">{companyLabel || "-"}</dd>
             </div>
-            <div>
-              <dt className="text-muted-foreground">Horas Totais</dt>
-              <dd className="font-medium">
-                {typeof service.totalHours === "number" && Number.isFinite(service.totalHours)
-                  ? service.totalHours
-                  : "-"}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-muted-foreground">Início planejado</dt>
-              <dd className="font-medium">
-                {formatDate(service.plannedStart ?? composedInitial.plannedStart ?? null)}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-muted-foreground">Fim planejado</dt>
-              <dd className="font-medium">
-                {formatDate(service.plannedEnd ?? composedInitial.plannedEnd ?? null)}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-muted-foreground">Última atualização</dt>
-              <dd className="font-medium">
-                {formatDateTime(service.updatedAt ?? composedInitial.updatedAt ?? null)}
-              </dd>
-            </div>
-            <div className="sm:col-span-2">
-              <dt className="text-muted-foreground">Token de acesso</dt>
-              <dd className="space-y-3">
-                {currentToken ? (
+          <div>
+            <dt className="text-muted-foreground">Horas Totais</dt>
+            <dd className="font-medium">
+              {typeof service.totalHours === "number" && Number.isFinite(service.totalHours)
+                ? service.totalHours
+                : "-"}
+            </dd>
+          </div>
+          <div className="hide-for-print">
+            <dt className="text-muted-foreground">Início planejado</dt>
+            <dd className="font-medium">
+              {formatDate(service.plannedStart ?? composedInitial.plannedStart ?? null)}
+            </dd>
+          </div>
+          <div className="hide-for-print">
+            <dt className="text-muted-foreground">Fim planejado</dt>
+            <dd className="font-medium">
+              {formatDate(service.plannedEnd ?? composedInitial.plannedEnd ?? null)}
+            </dd>
+          </div>
+          <div className="hide-for-print">
+            <dt className="text-muted-foreground">Última atualização</dt>
+            <dd className="font-medium">
+              {formatDateTime(service.updatedAt ?? composedInitial.updatedAt ?? null)}
+            </dd>
+          </div>
+          <div className="sm:col-span-2 hide-for-print">
+            <dt className="text-muted-foreground">Token de acesso</dt>
+            <dd className="space-y-3">
+              {currentToken ? (
                   <div className="space-y-2">
                     <div className="inline-flex items-center rounded-md border border-primary/40 bg-primary/10 px-2 py-1 font-mono text-sm text-primary">
                       {currentToken.code}
