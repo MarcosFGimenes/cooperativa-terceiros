@@ -6,7 +6,7 @@ import Link from "next/link";
 import { listRecentPackages } from "@/lib/repo/packages";
 import { listRecentServices } from "@/lib/repo/services";
 import { formatDateTime } from "@/lib/formatDateTime";
-import { calcularPercentualPlanejadoServico } from "@/lib/serviceProgress";
+import { resolveServicoPercentualPlanejado, resolveServicoRealPercent } from "@/lib/serviceProgress";
 import type { Service } from "@/types";
 
 function normaliseStatus(status: Service["status"]): "Aberto" | "Pendente" | "Concluído" {
@@ -19,12 +19,6 @@ function normaliseStatus(status: Service["status"]): "Aberto" | "Pendente" | "Co
 function formatDate(value?: number) {
   if (value === null || value === undefined) return "";
   return formatDateTime(value, { timeZone: "America/Sao_Paulo", fallback: "" });
-}
-
-function resolveServiceRealPercent(service: Service): number {
-  const raw = service.progress ?? service.realPercent ?? service.andamento;
-  if (!Number.isFinite(raw ?? NaN)) return 0;
-  return Math.max(0, Math.min(100, Math.round(Number(raw ?? 0))));
 }
 
 export default async function DashboardPCM() {
@@ -98,9 +92,9 @@ export default async function DashboardPCM() {
             ) : (
               services.slice(0, 5).map((service) => {
                 const plannedPercent = Math.round(
-                  calcularPercentualPlanejadoServico(service, today),
+                  resolveServicoPercentualPlanejado(service, today),
                 );
-                const realPercent = resolveServiceRealPercent(service);
+                  const realPercent = resolveServicoRealPercent(service);
                 const createdAt = formatDate(service.createdAt);
                 const serviceHref = `/servicos/${encodeURIComponent(service.id)}`;
                 return (
