@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { ArrowLeft, Pencil } from "lucide-react";
@@ -499,9 +499,15 @@ export default function ServiceDetailClient({
     [checklist],
   );
 
+  const handleExportPdf = useCallback(() => {
+    // Use the native print dialog to allow exporting the full report as PDF.
+    if (typeof window === "undefined") return;
+    window.print();
+  }, []);
+
   return (
     <div className="container mx-auto space-y-6 p-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3 print:hidden">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Serviço {serviceLabel}</h1>
           <p className="text-sm text-muted-foreground">
@@ -520,6 +526,9 @@ export default function ServiceDetailClient({
             <Pencil aria-hidden="true" className="h-4 w-4" />
             Editar
           </Link>
+          <button type="button" className="btn btn-outline" onClick={handleExportPdf}>
+            Exportar PDF
+          </button>
           <DeleteServiceButton serviceId={service.id} serviceLabel={serviceLabel} />
         </div>
       </div>

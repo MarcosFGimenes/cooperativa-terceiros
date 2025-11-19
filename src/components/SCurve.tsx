@@ -90,12 +90,19 @@ function ChartTooltip({ active, payload }: TooltipPayload) {
   const planned = payload.find((item) => item.dataKey === "planned");
   const realized = payload.find((item) => item.dataKey === "realized");
 
+  const plannedValue = typeof planned?.value === "number" ? planned.value : null;
+  const realizedValue = typeof realized?.value === "number" ? realized.value : null;
+  const difference =
+    plannedValue !== null && realizedValue !== null
+      ? Math.round(realizedValue - plannedValue)
+      : null;
+
   return (
     <div className="rounded-lg border bg-background p-3 text-xs shadow-sm">
       <p className="font-semibold text-foreground">{formatFullDate(first.date)}</p>
-      {planned && typeof planned.value === "number" ? (
+      {plannedValue !== null ? (
         <p className="mt-1 text-muted-foreground">
-          Planejado: <span className="font-semibold text-foreground">{Math.round(planned.value)}%</span>
+          Planejado: <span className="font-semibold text-foreground">{Math.round(plannedValue)}%</span>
         </p>
       ) : null}
       {typeof first.plannedHours === "number" ? (
@@ -103,9 +110,14 @@ function ChartTooltip({ active, payload }: TooltipPayload) {
           Horas acumuladas: <span className="font-semibold text-foreground">{first.plannedHours.toFixed(1)}</span>
         </p>
       ) : null}
-      {realized && typeof realized.value === "number" ? (
+      {realizedValue !== null ? (
         <p className="mt-1 text-muted-foreground">
-          Realizado: <span className="font-semibold text-foreground">{Math.round(realized.value)}%</span>
+          Realizado: <span className="font-semibold text-foreground">{Math.round(realizedValue)}%</span>
+        </p>
+      ) : null}
+      {difference !== null ? (
+        <p className="text-muted-foreground">
+          Diferença: <span className="font-semibold text-foreground">{difference > 0 ? "+" : ""}{difference}%</span>
         </p>
       ) : null}
     </div>

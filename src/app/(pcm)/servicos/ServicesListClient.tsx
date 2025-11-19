@@ -3,7 +3,10 @@
 import { useCallback, useMemo, useState } from "react";
 import Link from "next/link";
 
-import { calcularPercentualPlanejadoServico } from "@/lib/serviceProgress";
+import {
+  resolveServicoPercentualPlanejado,
+  resolveServicoRealPercent,
+} from "@/lib/serviceProgress";
 import type { PCMListResponse, PCMServiceListItem } from "@/types/pcm";
 
 const STATUS_LABEL: Record<string, string> = {
@@ -23,14 +26,6 @@ const STATUS_TONE: Record<string, string> = {
 function normaliseStatus(status: PCMServiceListItem["status"]): string {
   const raw = String(status ?? "").trim().toLowerCase();
   return STATUS_LABEL[raw] ?? "Aberto";
-}
-
-function resolveServiceRealPercent(service: PCMServiceListItem): number {
-  const progress = Number(
-    service.progress ?? service.realPercent ?? service.andamento ?? service.manualPercent ?? 0,
-  );
-  if (!Number.isFinite(progress)) return 0;
-  return Math.max(0, Math.min(100, Math.round(progress)));
 }
 
 function resolveIdentifier(service: PCMServiceListItem) {
@@ -98,8 +93,8 @@ export default function ServicesListClient({ initialItems, initialCursor }: Prop
           const serviceHref = `/servicos/${encodeURIComponent(service.id)}`;
           const statusLabel = normaliseStatus(service.status);
           const statusTone = STATUS_TONE[statusLabel] ?? "border-border bg-muted text-foreground/80";
-          const plannedPercent = Math.round(calcularPercentualPlanejadoServico(service, today));
-          const realPercent = resolveServiceRealPercent(service);
+          const plannedPercent = Math.round(resolveServicoPercentualPlanejado(service, today));
+          const realPercent = resolveServicoRealPercent(service);
           const identifier = resolveIdentifier(service);
           const subtitle = resolveSubtitle(service);
           const companyLabel = resolveCompanyLabel(service);

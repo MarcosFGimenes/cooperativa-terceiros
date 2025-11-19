@@ -255,6 +255,21 @@ function parsePercentual(value: unknown): number | null {
   return null;
 }
 
+function pickFirstObject<T extends Record<string, unknown>>(
+  source: Record<string, unknown>,
+  keys: string[],
+): T | null {
+  for (const key of keys) {
+    if (Object.hasOwn(source, key)) {
+      const candidate = source[key];
+      if (candidate && typeof candidate === "object") {
+        return candidate as T;
+      }
+    }
+  }
+  return null;
+}
+
 function sanitizePlannedDaily(values: unknown): number[] {
   if (!Array.isArray(values)) return [];
   const sanitised: number[] = values.map((value) => parsePercentual(value) ?? 0);
@@ -704,6 +719,124 @@ export function calcularPercentualPlanejadoServico(
 
   const diasDecorridos = daysBetween(range.inicio, referencia);
   return clampPercentage((diasDecorridos / totalDias) * 100);
+}
+
+export function resolveServicoPercentualPlanejado(
+  servico: ServicoPlanejado | ServicoDoSubpacote | Record<string, unknown> | null | undefined,
+  dataReferencia?: DateInput,
+): number {
+  const referencia = toDate(dataReferencia ?? new Date()) ?? new Date();
+  if (!servico || typeof servico !== "object") return 0;
+
+  const range = resolveDateRange(servico as ServicoDoSubpacote);
+  if (range) {
+    return calcularPercentualPlanejadoServico(servico as ServicoDoSubpacote, referencia);
+  }
+
+  const source = servico as Record<string, unknown>;
+
+  const subpacotePlanejado = pickFirstObject<SubpacotePlanejado>(source, [
+    "plannedSubpackage",
+    "subpacotePlanejado",
+    "subpacote",
+    "folder",
+    "subpackage",
+    "subPackage",
+  ]);
+  if (subpacotePlanejado) {
+    return clampProgress(calcularPercentualSubpacote(subpacotePlanejado, referencia));
+  }
+
+  const pacotePlanejado = pickFirstObject<PacotePlanejado>(source, [
+    "pacotePlanejado",
+    "package",
+    "plannedPackage",
+    "pacote",
+  ]);
+  if (pacotePlanejado) {
+    const subpacotes =
+      (Array.isArray(pacotePlanejado.subpacotes) && pacotePlanejado.subpacotes) ||
+      (Array.isArray((pacotePlanejado as { subPackages?: SubpacotePlanejado[] }).subPackages) &&
+        (pacotePlanejado as { subPackages?: SubpacotePlanejado[] }).subPackages) ||
+      [];
+
+    if (subpacotes.length) {
+      const subpacoteId =
+        (source.subpacoteId as unknown) ??
+        (source.subPackageId as unknown) ??
+        (source.folderId as unknown) ??
+        (source.subpackageId as unknown) ??
+        (source.folder && typeof source.folder === "object"
+          ? (source.folder as { id?: unknown }).id
+          : undefined) ??
+        (source.subpacote && typeof source.subpacote === "object"
+          ? (source.subpacote as { id?: unknown }).id
+          : undefined);
+
+      if (typeof subpacoteId === "string" || typeof subpacoteId === "number") {
+        const matched = subpacotes.find((entry) => {
+          const id = (entry as { id?: unknown }).id;
+          if (typeof id === "string" || typeof id === "number") {
+            return String(id) === String(subpacoteId);
+          }
+          return false;
+        });
+        if (matched) {
+          return clampProgress(calcularPercentualSubpacote(matched, referencia));
+        }
+      }
+
+      return clampProgress(calcularPercentualSubpacote(subpacotes[0], referencia));
+    }
+  }
+
+  return 0;
+}
+
+export function resolveServicoRealPercent(
+  servico: ServicoDoSubpacote | ServicoPlanejado | Record<string, unknown> | null | undefined,
+  dataReferencia?: DateInput,
+): number {
+  if (!servico || typeof servico !== "object") return 0;
+  const referencia = toDate(dataReferencia ?? new Date()) ?? new Date();
+
+  const range = resolveDateRange(servico as ServicoDoSubpacote);
+  const inicioPlanejado = range?.inicio ?? null;
+  const atualizacoes = coletarAtualizacoesDoServico(
+    servico as ServicoDoSubpacote,
+    inicioPlanejado ?? referencia,
+  );
+  if (atualizacoes.length) {
+    const ultima = atualizacoes[atualizacoes.length - 1];
+    return clampProgress(ultima.percentual);
+  }
+
+  const source = servico as Record<string, unknown>;
+  const camposPercentual = [
+    "progress",
+    "realPercent",
+    "percentualReal",
+    "percentualRealAtual",
+    "percentualInformado",
+    "progressoReal",
+    "realProgress",
+    "currentProgress",
+    "andamento",
+    "manualPercent",
+    "manualProgress",
+    "percent",
+    "pct",
+  ];
+
+  for (const campo of camposPercentual) {
+    if (!Object.hasOwn(source, campo)) continue;
+    const parsed = parsePercentual(source[campo]);
+    if (parsed !== null) {
+      return clampProgress(parsed);
+    }
+  }
+
+  return 0;
 }
 
 export function mapearServicosPlanejados(

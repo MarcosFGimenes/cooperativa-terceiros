@@ -11,6 +11,8 @@ import {
   mapearServicosPlanejados,
   obterIntervaloSubpacote,
   resolveReopenedProgress,
+  resolveServicoPercentualPlanejado,
+  resolveServicoRealPercent,
   snapshotBeforeConclusion,
 } from "@/lib/serviceProgress";
 
@@ -55,6 +57,90 @@ describe("serviceProgress utilities", () => {
       current: 100,
     });
     expect(target).toBe(0);
+  });
+
+  describe("resolveServicoRealPercent", () => {
+    it("prefers the last percentual update when available", () => {
+      const percent = resolveServicoRealPercent({
+        updates: [
+          { percentual: 20, data: "2024-01-01" },
+          { percentualReal: 65, dataAtualizacaoPercentual: "2024-01-05" },
+        ],
+        progress: 5,
+      });
+
+      expect(percent).toBe(65);
+    });
+
+    it("reads direct percentual fields when there is no history", () => {
+      const percent = resolveServicoRealPercent({ percentualInformado: "37.2" });
+      expect(percent).toBe(37);
+    });
+
+    it("clamps invalid or out of range values", () => {
+      expect(resolveServicoRealPercent({ progress: 150 })).toBe(100);
+      expect(resolveServicoRealPercent({ progress: -20 })).toBe(0);
+    });
+  });
+
+  describe("resolveServicoPercentualPlanejado", () => {
+    it("falls back to the planned subpackage when the service lacks dates", () => {
+      const reference = new Date("2024-01-04T00:00:00Z");
+      const percent = resolveServicoPercentualPlanejado(
+        {
+          subpacotePlanejado: {
+            servicos: [
+              {
+                horasPrevistas: 10,
+                dataInicio: new Date("2024-01-01T00:00:00Z"),
+                dataFim: new Date("2024-01-06T00:00:00Z"),
+              },
+            ],
+          },
+        },
+        reference,
+      );
+
+      expect(percent).toBeGreaterThan(0);
+      expect(percent).toBeLessThan(100);
+    });
+
+    it("uses the matching subpackage inside a planned package", () => {
+      const reference = new Date("2024-02-02T00:00:00Z");
+      const percent = resolveServicoPercentualPlanejado(
+        {
+          pacotePlanejado: {
+            subpacotes: [
+              {
+                id: "folder-b",
+                servicos: [
+                  {
+                    horasPrevistas: 10,
+                    dataInicio: new Date("2024-01-01T00:00:00Z"),
+                    dataFim: new Date("2024-01-11T00:00:00Z"),
+                  },
+                ],
+              },
+              {
+                id: "folder-a",
+                servicos: [
+                  {
+                    horasPrevistas: 5,
+                    dataInicio: new Date("2024-02-01T00:00:00Z"),
+                    dataFim: new Date("2024-02-06T00:00:00Z"),
+                  },
+                ],
+              },
+            ],
+          },
+          subpacoteId: "folder-a",
+        },
+        reference,
+      );
+
+      expect(percent).toBeGreaterThan(0);
+      expect(percent).toBeLessThanOrEqual(100);
+    });
   });
 
   describe("calcularPercentualSubpacote", () => {
