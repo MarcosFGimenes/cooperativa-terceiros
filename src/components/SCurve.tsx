@@ -49,6 +49,9 @@ type ChartEntry = {
 
 type TooltipPayload = TooltipProps<number, string>;
 
+const REALIZED_COLOR = "#2ec27e"; // cor verde do gráfico João
+const PLANNED_COLOR = "#f28c28"; // cor laranja do gráfico João
+
 function toDayIso(value: string) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
@@ -276,20 +279,20 @@ export default function SCurve({
                   type="monotone"
                   name="Planejado"
                   dataKey="planned"
-                  stroke="hsl(var(--primary))"
-                  strokeWidth={2}
-                  dot={{ r: 3 }}
-                  activeDot={{ r: 5 }}
+                  stroke={PLANNED_COLOR} // cor da série Planejado alinhada ao modelo João
+                  strokeWidth={3}
+                  dot={{ r: 4, stroke: PLANNED_COLOR, fill: PLANNED_COLOR }}
+                  activeDot={{ r: 6, stroke: PLANNED_COLOR, fill: PLANNED_COLOR }}
                   isAnimationActive={false}
                 />
                 <Line
                   type="monotone"
                   name="Realizado"
                   dataKey="realized"
-                  stroke="#10b981"
-                  strokeWidth={2}
-                  dot={{ r: 3 }}
-                  activeDot={{ r: 5 }}
+                  stroke={REALIZED_COLOR} // cor da série Realizado alinhada ao modelo João
+                  strokeWidth={3}
+                  dot={{ r: 4, stroke: REALIZED_COLOR, fill: REALIZED_COLOR }}
+                  activeDot={{ r: 6, stroke: REALIZED_COLOR, fill: REALIZED_COLOR }}
                   isAnimationActive={false}
                 />
               </LineChart>

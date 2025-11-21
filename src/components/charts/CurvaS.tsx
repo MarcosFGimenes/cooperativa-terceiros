@@ -16,6 +16,9 @@ const clampPercent = (value: number) => {
 
 const roundTwo = (value: number) => Math.round(value * 100) / 100;
 
+const PLANNED_COLOR = "#f28c28"; // cor laranja do gráfico João para a série Planejado
+const ACTUAL_COLOR = "#2ec27e"; // cor verde do gráfico João para a série Realizado
+
 const UTC_TIME_ZONE = "UTC";
 
 const getDateLabel = (iso: string) => {
@@ -112,9 +115,14 @@ export default function CurvaS({ planned, actual }: CurvaSProps) {
   const percentTicks = [0, 25, 50, 75, 100];
   const showXAxisLabels = dates.length <= 8 ? dates : dates.filter((_, index) => index % 2 === 0);
 
-  const legendItems: Array<{ label: string; color: string; dash?: string }> = [
-    { label: "Planejado", color: "#6366f1", dash: "6 4" },
-    { label: "Realizado", color: "#16a34a" },
+  const legendItems: Array<{ label: string; color: string }> = [
+    { label: "Planejado", color: PLANNED_COLOR },
+    { label: "Realizado", color: ACTUAL_COLOR },
+  ];
+
+  const seriesWithColor = [
+    { series: plannedSeries, color: PLANNED_COLOR },
+    { series: actualSeries, color: ACTUAL_COLOR },
   ];
 
   return (
@@ -204,28 +212,20 @@ export default function CurvaS({ planned, actual }: CurvaSProps) {
           );
         })}
 
-        {plannedSeries.path && (
-          <path
-            d={plannedSeries.path}
-            fill="none"
-            stroke="#6366f1"
-            strokeWidth={2.5}
-            strokeDasharray="6 4"
-            strokeLinecap="round"
-          />
-        )}
+        {seriesWithColor.map(({ series, color }) => (
+          series.path ? (
+            <path
+              key={color}
+              d={series.path}
+              fill="none"
+              stroke={color}
+              strokeWidth={3} // linha contínua com espessura similar ao modelo João
+              strokeLinecap="round"
+            />
+          ) : null
+        ))}
 
-        {actualSeries.path && (
-          <path
-            d={actualSeries.path}
-            fill="none"
-            stroke="#16a34a"
-            strokeWidth={2.5}
-            strokeLinecap="round"
-          />
-        )}
-
-        {[plannedSeries, actualSeries].map((series, seriesIndex) =>
+        {seriesWithColor.map(({ series, color }, seriesIndex) =>
           series.points.map((point, pointIndex) => {
             const plannedValue = plannedPercentByDate.get(point.label);
             const actualValue = actualPercentByDate.get(point.label);
@@ -244,7 +244,14 @@ export default function CurvaS({ planned, actual }: CurvaSProps) {
 
             return (
               <g key={`${seriesIndex}-${point.label}-${pointIndex}`}>
-                <circle cx={point.x} cy={point.y} r={4.5} fill="#fff" strokeWidth={2.5} stroke="#111827" />
+                <circle
+                  cx={point.x}
+                  cy={point.y}
+                  r={5}
+                  fill={color} // marcador com a mesma cor da série
+                  strokeWidth={2.5}
+                  stroke={color}
+                />
                 <title>{tooltipLines.join("\n")}</title>
               </g>
             );
@@ -258,10 +265,7 @@ export default function CurvaS({ planned, actual }: CurvaSProps) {
             <span
               className="h-2 w-4 rounded-sm"
               style={{
-                background:
-                  item.dash && item.dash.length > 0
-                    ? `repeating-linear-gradient(90deg, transparent, transparent 4px, ${item.color} 4px, ${item.color} 8px)`
-                    : item.color,
+                background: item.color,
               }}
             />
             <span className="font-medium text-foreground">{item.label}</span>
