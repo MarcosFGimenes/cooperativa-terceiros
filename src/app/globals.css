@@ -175,6 +175,11 @@ input:-webkit-autofill:focus {
 }
 
 @media print {
+  :root {
+    --border: 0 0% 0%;
+    --muted-foreground: 0 0% 24%;
+  }
+
   @page {
     size: A4 portrait;
     margin: 10mm;
@@ -203,8 +208,30 @@ input:-webkit-autofill:focus {
     background-image: none !important;
   }
 
+  .space-y-6 > :not([hidden]) ~ :not([hidden]) {
+    margin-top: 14px !important;
+  }
+
+  .package-print-layout {
+    max-width: 100% !important;
+    padding: 0 !important;
+  }
+
+  .package-print-layout .print-card {
+    padding: 12px !important;
+  }
+
+  .package-print-layout .summary-grid {
+    margin-top: 10px !important;
+    gap: 10px !important;
+  }
+
+  .package-print-layout .scurve-card {
+    margin-top: 10px !important;
+  }
+
   .scurve-container {
-    height: 360px !important;
+    height: 340px !important;
   }
 
   .hide-for-print {
