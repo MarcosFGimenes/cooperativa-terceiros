@@ -226,31 +226,10 @@ export default function SCurve({
 
   const hasData = chartData.some((entry) => entry.planned !== null || entry.realized !== null);
   const [isClientReady, setIsClientReady] = useState(false);
-  const [isChartVisible, setIsChartVisible] = useState(() => !deferRendering);
 
   useEffect(() => {
     setIsClientReady(true);
   }, []);
-
-  useEffect(() => {
-    if (!deferRendering) return;
-    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return;
-
-    const mql = window.matchMedia("print");
-    const handlePrint = (event: MediaQueryListEvent) => {
-      // Ensure the chart is rendered when the document enters print mode
-      if (event.matches) {
-        setIsChartVisible(true);
-      }
-    };
-
-    if (mql.matches) {
-      setIsChartVisible(true);
-    }
-
-    mql.addEventListener("change", handlePrint);
-    return () => mql.removeEventListener("change", handlePrint);
-  }, [deferRendering]);
 
   const resolvedTitle = title ?? "Curva S";
   const resolvedDescription =
@@ -279,55 +258,46 @@ export default function SCurve({
       </div>
 
       {hasData ? (
-        isChartVisible ? (
-          isClientReady ? (
-            <div className={cn("w-full scurve-container")} style={{ height: resolvedChartHeight }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={chartData} margin={{ left: 4, right: 16, top: 16, bottom: 8 }}>
-                  <CartesianGrid strokeDasharray="4 4" stroke="hsl(var(--border))" />
-                  <XAxis dataKey="dateLabel" stroke="hsl(var(--muted-foreground))" tick={{ fontSize: 12 }} />
-                  <YAxis
-                    stroke="hsl(var(--muted-foreground))"
-                    domain={[0, 100]}
-                    allowDecimals={false}
-                    tickFormatter={(value) => `${value}%`}
-                  />
-                  <Tooltip content={<ChartTooltip />} />
-                  <Legend wrapperStyle={{ fontSize: 12 }} />
-                  <Line
-                    type="monotone"
-                    name="Planejado"
-                    dataKey="planned"
-                    stroke="hsl(var(--primary))"
-                    strokeWidth={2}
-                    dot={{ r: 3 }}
-                    activeDot={{ r: 5 }}
-                    isAnimationActive={false}
-                  />
-                  <Line
-                    type="monotone"
-                    name="Realizado"
-                    dataKey="realized"
-                    stroke="#10b981"
-                    strokeWidth={2}
-                    dot={{ r: 3 }}
-                    activeDot={{ r: 5 }}
-                    isAnimationActive={false}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          ) : (
-            <div className="flex h-72 w-full items-center justify-center rounded-xl border border-dashed border-muted-foreground/40 bg-muted/20 text-xs text-muted-foreground">
-              Preparando gráfico…
-            </div>
-          )
+        isClientReady ? (
+          <div className={cn("w-full scurve-container")} style={{ height: resolvedChartHeight }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={chartData} margin={{ left: 4, right: 16, top: 16, bottom: 8 }}>
+                <CartesianGrid strokeDasharray="4 4" stroke="hsl(var(--border))" />
+                <XAxis dataKey="dateLabel" stroke="hsl(var(--muted-foreground))" tick={{ fontSize: 12 }} />
+                <YAxis
+                  stroke="hsl(var(--muted-foreground))"
+                  domain={[0, 100]}
+                  allowDecimals={false}
+                  tickFormatter={(value) => `${value}%`}
+                />
+                <Tooltip content={<ChartTooltip />} />
+                <Legend wrapperStyle={{ fontSize: 12 }} />
+                <Line
+                  type="monotone"
+                  name="Planejado"
+                  dataKey="planned"
+                  stroke="hsl(var(--primary))"
+                  strokeWidth={2}
+                  dot={{ r: 3 }}
+                  activeDot={{ r: 5 }}
+                  isAnimationActive={false}
+                />
+                <Line
+                  type="monotone"
+                  name="Realizado"
+                  dataKey="realized"
+                  stroke="#10b981"
+                  strokeWidth={2}
+                  dot={{ r: 3 }}
+                  activeDot={{ r: 5 }}
+                  isAnimationActive={false}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
         ) : (
-          <div className="flex flex-col items-start gap-3 rounded-xl border border-dashed border-muted-foreground/40 p-6 text-sm text-muted-foreground">
-            <p>Para visualizar a curva S consolidada, clique no botão abaixo.</p>
-            <button type="button" className="btn btn-primary" onClick={() => setIsChartVisible(true)}>
-              Mostrar gráfico
-            </button>
+          <div className="flex h-72 w-full items-center justify-center rounded-xl border border-dashed border-muted-foreground/40 bg-muted/20 text-xs text-muted-foreground">
+            Preparando gráfico…
           </div>
         )
       ) : (

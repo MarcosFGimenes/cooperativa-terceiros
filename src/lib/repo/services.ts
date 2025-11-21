@@ -17,6 +17,23 @@ const SERVICE_CACHE_TTL_SECONDS = 180;
 const SERVICE_LIST_CACHE_TTL_SECONDS = 300;
 const DEFAULT_AVAILABLE_SERVICES_LIMIT = 200;
 
+type ChecklistSeed = { id: string; descricao: string; peso: number };
+
+type CreateServicePayload = {
+  os: string;
+  oc: string | null;
+  tag: string;
+  equipamento: string;
+  equipmentName?: string | null;
+  setor: string | null;
+  inicioPrevistoMillis: number;
+  fimPrevistoMillis: number;
+  horasPrevistas: number;
+  empresaId: string | null;
+  status: ServiceStatus;
+  checklist: ChecklistSeed[];
+};
+
 function normaliseAvailableServicesLimit(limit: number | undefined): number {
   if (typeof limit !== "number" || !Number.isFinite(limit)) {
     return DEFAULT_AVAILABLE_SERVICES_LIMIT;
@@ -81,6 +98,58 @@ function revalidateServiceDetailCache(serviceId: string) {
   if (!serviceId) return;
   revalidateTag("services:detail");
   revalidateTag("services:available");
+}
+
+export async function createService(payload: CreateServicePayload) {
+  const servicesCol = servicesCollection();
+  const docRef = servicesCol.doc();
+  const now = FieldValue.serverTimestamp();
+  const checklist = Array.isArray(payload.checklist) ? payload.checklist : [];
+  const equipmentName = (payload.equipmentName ?? payload.equipamento).trim();
+
+  const serviceDoc = {
+    os: payload.os,
+    oc: payload.oc || null,
+    tag: payload.tag,
+    equipamento: payload.equipamento,
+    equipmentName: equipmentName || payload.equipamento,
+    setor: payload.setor || null,
+    inicioPrevisto: Timestamp.fromMillis(payload.inicioPrevistoMillis),
+    fimPrevisto: Timestamp.fromMillis(payload.fimPrevistoMillis),
+    horasPrevistas: payload.horasPrevistas,
+    empresaId: payload.empresaId,
+    company: payload.empresaId,
+    status: payload.status,
+    andamento: 0,
+    checklist,
+    hasChecklist: checklist.length > 0,
+    createdAt: now,
+    updatedAt: now,
+    createdBy: "pcm",
+  };
+
+  await docRef.set(serviceDoc);
+
+  if (checklist.length > 0) {
+    const db = getDb();
+    const batch = db.batch();
+    const checklistCol = docRef.collection("checklist");
+
+    checklist.forEach((item) => {
+      const ref = checklistCol.doc(item.id);
+      batch.set(ref, {
+        description: item.descricao,
+        weight: item.peso,
+        progress: 0,
+        status: "nao_iniciado",
+        updatedAt: now,
+      });
+    });
+
+    await batch.commit();
+  }
+
+  return { id: docRef.id };
 }
 
 function toMillis(value: unknown | Timestamp | number | null | undefined) {
@@ -158,7 +227,8 @@ function normaliseServiceStatus(value: unknown): ServiceStatus {
 function toNumber(value: unknown): number | undefined {
   if (typeof value === "number" && Number.isFinite(value)) return value;
   if (typeof value === "string") {
-    const parsed = Number(value);
+    const cleaned = value.trim().replace(/%$/, "").replace(",", ".");
+    const parsed = Number(cleaned);
     if (Number.isFinite(parsed)) return parsed;
   }
   if (typeof value === "object" && value && "toMillis" in value) {
@@ -442,7 +512,6 @@ async function fetchAvailableOpenServices(limit: number, mode: ServiceMapMode): 
         mode,
       );
       if (!allowedStatusSet.has(service.status)) continue;
-      if (service.packageId && service.packageId.trim().length > 0) continue;
       seen.add(service.id);
       results.push(service);
       if (results.length >= limit) break;
@@ -469,26 +538,18 @@ async function fetchAvailableOpenServices(limit: number, mode: ServiceMapMode): 
     }
   };
 
-  const unassignedQueries: Array<{ scope: string; promise: Promise<FirebaseFirestore.QuerySnapshot> }> = [
-    {
-      scope: "packageId:null",
-      promise: collection.where("packageId", "==", null).orderBy("createdAt", "desc").limit(baseLimit).get(),
-    },
-    {
-      scope: "packageId:empty",
-      promise: collection.where("packageId", "==", "").orderBy("createdAt", "desc").limit(baseLimit).get(),
-    },
-  ];
-
-  await Promise.all(unassignedQueries.map(({ scope, promise }) => runQuery(scope, promise)));
+  // Caso o Firestore solicite um índice composto para (status, createdAt), siga o link sugerido pelo console e atualize firestore.indexes.json.
+  const statusQueries = allowedStatuses.map((status) => ({
+    scope: `status:${status}`,
+    promise: collection.where("status", "==", status).orderBy("createdAt", "desc").limit(baseLimit).get(),
+  }));
+  await Promise.all(statusQueries.map(({ scope, promise }) => runQuery(scope, promise)));
 
   if (results.length < limit) {
-    // Caso o Firestore solicite um índice composto para (status, createdAt), siga o link sugerido pelo console e atualize firestore.indexes.json.
-    const statusQueries = allowedStatuses.map((status) => ({
-      scope: `status:${status}`,
-      promise: collection.where("status", "==", status).orderBy("createdAt", "desc").limit(baseLimit).get(),
-    }));
-    await Promise.all(statusQueries.map(({ scope, promise }) => runQuery(scope, promise)));
+    await runQuery(
+      "createdAt:recent",
+      collection.orderBy("createdAt", "desc").limit(baseLimit * 2).get(),
+    );
   }
 
   if (results.length === 0 && errors.length > 0) {
@@ -507,10 +568,13 @@ async function fetchAvailableOpenServices(limit: number, mode: ServiceMapMode): 
 
 export async function listAvailableOpenServices(
   limit = DEFAULT_AVAILABLE_SERVICES_LIMIT,
-  options?: { mode?: ServiceMapMode },
+  options?: { mode?: ServiceMapMode; disableCache?: boolean },
 ): Promise<Service[]> {
   const safeLimit = normaliseAvailableServicesLimit(limit);
   const mode = normaliseServiceMode(options?.mode);
+  if (options?.disableCache) {
+    return fetchAvailableOpenServices(safeLimit, mode);
+  }
   return listAvailableOpenServicesCache(safeLimit, mode);
 }
 
