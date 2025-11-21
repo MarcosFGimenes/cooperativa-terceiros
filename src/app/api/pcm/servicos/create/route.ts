@@ -87,6 +87,8 @@ function validateRequest(body: Record<string, unknown>): CreateServiceRequest | 
 
   const checklist = parseChecklist(body.checklist);
 
+  const resolvedCompanyId = normaliseString(body.companyId) || normaliseString(body.empresaId);
+
   return {
     os,
     oc: normaliseString(body.oc) || null,
@@ -97,7 +99,7 @@ function validateRequest(body: Record<string, unknown>): CreateServiceRequest | 
     inicioPrevistoMillis,
     fimPrevistoMillis,
     horasPrevistas,
-    empresaId: normaliseString(body.empresaId) || null,
+    empresaId: resolvedCompanyId || null,
     status: normaliseStatus(body.status),
     checklist,
   };

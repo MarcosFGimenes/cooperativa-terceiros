@@ -119,13 +119,15 @@ export default function AcessoPorTokenPage() {
       return;
     }
 
-    if (selectedService.hasChecklist && selectedService.checklist.length > 0) {
+    const hasChecklistItems = selectedService.hasChecklist && selectedService.checklist.length > 0;
+
+    if (hasChecklistItems) {
       const next: Record<string, number> = {};
       selectedService.checklist.forEach((item) => {
         next[item.id] = Number.isFinite(item.progress) ? Math.round(item.progress) : 0;
       });
       setChecklistValues(next);
-      setManualPercent("");
+      setManualPercent(Math.round(selectedService.andamento ?? 0).toString());
     } else {
       setManualPercent(Math.round(selectedService.andamento ?? 0).toString());
       setChecklistValues({});
@@ -300,24 +302,42 @@ export default function AcessoPorTokenPage() {
     event.preventDefault();
     if (!validatedToken || !selectedService) return;
 
-    if (selectedService.hasChecklist && selectedService.checklist.length > 0) {
+    const manualInput = manualPercent.trim();
+    const hasChecklistItems = selectedService.hasChecklist && selectedService.checklist.length > 0;
+    const parsedManual = manualInput === "" ? null : Number(manualInput);
+
+    if (manualInput !== "" && (!Number.isFinite(parsedManual) || parsedManual < 0 || parsedManual > 100)) {
+      toast.error("Informe um percentual entre 0 e 100.");
+      return;
+    }
+
+    const normalizedManual =
+      manualInput === "" ? undefined : Math.max(0, Math.min(100, Number(parsedManual ?? 0)));
+
+    if (hasChecklistItems) {
       const itemsPayload = selectedService.checklist.map((item) => ({
         itemId: item.id,
         pct: Math.max(0, Math.min(100, Number(checklistValues[item.id] ?? 0))),
       }));
-      const body = {
+      const body: Record<string, unknown> = {
         token: validatedToken,
         serviceId: selectedService.id,
         items: itemsPayload,
         note: note.trim() ? note.trim() : undefined,
       };
+      if (typeof normalizedManual === "number") {
+        body.totalPct = normalizedManual;
+      }
       await sendUpdate(body);
     } else {
-      const pct = Math.max(0, Math.min(100, Number(manualPercent || 0)));
+      if (typeof normalizedManual !== "number") {
+        toast.error("Informe o percentual concluído do serviço (0 a 100%).");
+        return;
+      }
       const body = {
         token: validatedToken,
         serviceId: selectedService.id,
-        totalPct: pct,
+        totalPct: normalizedManual,
         note: note.trim() ? note.trim() : undefined,
       };
       await sendUpdate(body);
@@ -465,20 +485,20 @@ export default function AcessoPorTokenPage() {
                       />
                     ))}
                   </div>
-                ) : (
-                  <Field
-                    label="Percentual total"
-                    type="number"
-                    min={0}
-                    max={100}
-                    step={1}
-                    value={manualPercent}
-                    onChange={(event) => setManualPercent(event.target.value)}
-                    required
-                    hint="Informe o percentual concluído do serviço (0 a 100%)."
-                    className="input"
-                  />
-                )}
+                ) : null}
+
+                <Field
+                  label="Percentual total"
+                  type="number"
+                  min={0}
+                  max={100}
+                  step={1}
+                  value={manualPercent}
+                  onChange={(event) => setManualPercent(event.target.value)}
+                  required={!selectedService.hasChecklist || selectedService.checklist.length === 0}
+                  hint="Informe o percentual concluído do serviço (0 a 100%)."
+                  className="input"
+                />
 
                 <div className="space-y-1">
                   <label htmlFor="note" className="text-sm font-medium text-foreground/90">
