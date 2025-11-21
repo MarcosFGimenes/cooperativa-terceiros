@@ -675,7 +675,7 @@ async function renderPackageDetailPage(params: { id: string }) {
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1.7fr)_minmax(320px,1fr)]">
         <section
-          className="rounded-2xl border bg-card/80 p-5 shadow-sm scurve-card print-card"
+          className="rounded-2xl border bg-card/80 p-5 shadow-sm scurve-card print-card print-avoid-break print-page-break-before"
           style={{ breakInside: "avoid-page", pageBreakInside: "avoid" }}
         >
           <SCurveDeferred
@@ -749,7 +749,7 @@ async function renderPackageDetailPage(params: { id: string }) {
           <ServicesCompaniesSection folders={folders} serviceDetails={serviceDetails} />
         </div>
 
-        <div className="hidden print:block" aria-hidden>
+        <div className="hidden print:block print-page-break-before" aria-hidden>
           <ServicesCompaniesSection
             folders={folders}
             serviceDetails={serviceDetails}
