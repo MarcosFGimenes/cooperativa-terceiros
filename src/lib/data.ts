@@ -56,9 +56,27 @@ function toTimestamp(value: unknown): number | null {
   return null;
 }
 
+function toSerializableDate(value: unknown): number | string | null {
+  if (value === null || value === undefined) return null;
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    return trimmed ? trimmed : null;
+  }
+
+  const timestamp = toTimestamp(value);
+  if (timestamp !== null) return timestamp;
+
+  if (value instanceof Date) {
+    const time = value.getTime();
+    return Number.isNaN(time) ? null : time;
+  }
+
+  return null;
+}
+
 function mapDoc(id: string, rawData: Record<string, unknown> | undefined): PCMServiceListItem {
   const data = rawData ?? {};
-  return {
+  const result: PCMServiceListItem & Record<string, unknown> = {
     id,
     os: toOptionalString(data.os) ?? toOptionalString(data.O_S) ?? toOptionalString(data.OS),
     oc: toOptionalString(data.oc) ?? toOptionalString(data.O_C) ?? toOptionalString(data.OC),
@@ -85,14 +103,86 @@ function mapDoc(id: string, rawData: Record<string, unknown> | undefined): PCMSe
     updatedAt:
       toTimestamp(data.updatedAt ?? data.updated_at ?? data.atualizadoEm ?? data.updatedAtMs ?? data.updatedAtMillis) ??
       null,
-    plannedStart: data.plannedStart ?? data.dataInicio ?? data.inicioPlanejado ?? data.startDate ?? null,
-    plannedEnd: data.plannedEnd ?? data.dataFim ?? data.fimPlanejado ?? data.endDate ?? null,
+    plannedStart:
+      toSerializableDate(
+        data.plannedStart ??
+          data.dataInicio ??
+          data.inicioPrevisto ??
+          data.inicioPlanejado ??
+          data.startDate ??
+          null,
+      ),
+    plannedEnd:
+      toSerializableDate(
+        data.plannedEnd ??
+          data.dataFim ??
+          data.fimPrevisto ??
+          data.fimPlanejado ??
+          data.endDate ??
+          null,
+      ),
     plannedDaily: Array.isArray(data.plannedDaily)
       ? (data.plannedDaily as unknown[]).filter(
           (value): value is number => typeof value === "number" && Number.isFinite(value),
         )
       : null,
   };
+
+  const dateFields = [
+    "dataInicio",
+    "inicioPrevisto",
+    "inicioPlanejado",
+    "startDate",
+    "dataFim",
+    "fimPrevisto",
+    "fimPlanejado",
+    "endDate",
+  ];
+
+  for (const field of dateFields) {
+    if (data[field] !== undefined) {
+      const serialised = toSerializableDate(data[field]);
+      if (serialised !== null) {
+        result[field] = serialised;
+      }
+    }
+  }
+
+  const progressFields = [
+    "percentualReal",
+    "percentualRealAtual",
+    "percentualInformado",
+    "progressoReal",
+    "realProgress",
+    "currentProgress",
+    "percentual",
+    "manualProgress",
+  ];
+
+  for (const field of progressFields) {
+    if (data[field] !== undefined) {
+      result[field] = data[field];
+    }
+  }
+
+  const updateListFields = [
+    "atualizacoes",
+    "historicoAtualizacoes",
+    "historico",
+    "history",
+    "updates",
+    "progressUpdates",
+    "percentualUpdates",
+    "realUpdates",
+  ];
+
+  for (const field of updateListFields) {
+    if (Array.isArray(data[field])) {
+      result[field] = data[field];
+    }
+  }
+
+  return result;
 }
 
 /** Lista serviços com filtros e paginação para o PCM. */
@@ -102,42 +192,47 @@ export async function listServicesPCM(options?: {
   status?: string | null;
   empresa?: string | null;
 }): Promise<PCMListResponse<PCMServiceListItem>> {
-  const admin = getAdminDbOrThrow();
-  const {
-    limit = 10,
-    cursor = null,
-    status,
-    empresa,
-  } = options ?? {};
+  try {
+    const admin = getAdminDbOrThrow();
+    const {
+      limit = 10,
+      cursor = null,
+      status,
+      empresa,
+    } = options ?? {};
 
-  let query: FirebaseFirestore.Query = admin.collection("services");
+    let query: FirebaseFirestore.Query = admin.collection("services");
 
-  if (status) {
-    query = query.where("status", "==", normStatus(status));
-  }
-
-  if (empresa) {
-    query = query.where("empresa", "==", empresa);
-  }
-
-  query = query.orderBy("createdAt", "desc");
-
-  if (cursor) {
-    const lastDoc = await admin.collection("services").doc(cursor).get();
-    if (lastDoc.exists) {
-      query = query.startAfter(lastDoc);
+    if (status) {
+      query = query.where("status", "==", normStatus(status));
     }
+
+    if (empresa) {
+      query = query.where("empresa", "==", empresa);
+    }
+
+    query = query.orderBy("createdAt", "desc");
+
+    if (cursor) {
+      const lastDoc = await admin.collection("services").doc(cursor).get();
+      if (lastDoc.exists) {
+        query = query.startAfter(lastDoc);
+      }
+    }
+
+    query = query.limit(limit);
+
+    const snap = await query.get();
+    const items = snap.docs.map((docSnap) =>
+      mapDoc(docSnap.id, docSnap.data() as Record<string, unknown>),
+    );
+    const nextCursor = snap.docs.length > 0 ? snap.docs[snap.docs.length - 1].id : null;
+
+    return { items, nextCursor };
+  } catch (error) {
+    console.error("[data] listServicesPCM falhou", error);
+    return { items: [], nextCursor: null };
   }
-
-  query = query.limit(limit);
-
-  const snap = await query.get();
-  const items = snap.docs.map((docSnap) =>
-    mapDoc(docSnap.id, docSnap.data() as Record<string, unknown>),
-  );
-  const nextCursor = snap.docs.length > 0 ? snap.docs[snap.docs.length - 1].id : null;
-
-  return { items, nextCursor };
 }
 
 /** Lista pacotes com paginação para o PCM. */
@@ -166,28 +261,33 @@ export async function listPackagesPCM(options?: {
   limit?: number;
   cursor?: string | null;
 }): Promise<PCMListResponse<PCMPackageListItem>> {
-  const admin = getAdminDbOrThrow();
-  const { limit = 10, cursor = null } = options ?? {};
+  try {
+    const admin = getAdminDbOrThrow();
+    const { limit = 10, cursor = null } = options ?? {};
 
-  let query: FirebaseFirestore.Query = admin.collection("packages");
-  query = query.orderBy("createdAt", "desc");
+    let query: FirebaseFirestore.Query = admin.collection("packages");
+    query = query.orderBy("createdAt", "desc");
 
-  if (cursor) {
-    const lastDoc = await admin.collection("packages").doc(cursor).get();
-    if (lastDoc.exists) {
-      query = query.startAfter(lastDoc);
+    if (cursor) {
+      const lastDoc = await admin.collection("packages").doc(cursor).get();
+      if (lastDoc.exists) {
+        query = query.startAfter(lastDoc);
+      }
     }
+
+    query = query.limit(limit);
+
+    const snap = await query.get();
+    const items = snap.docs.map((docSnap) =>
+      mapPackageDoc(docSnap.id, (docSnap.data() ?? {}) as Record<string, unknown>),
+    );
+    const nextCursor = snap.docs.length > 0 ? snap.docs[snap.docs.length - 1].id : null;
+
+    return { items, nextCursor };
+  } catch (error) {
+    console.error("[data] listPackagesPCM falhou", error);
+    return { items: [], nextCursor: null };
   }
-
-  query = query.limit(limit);
-
-  const snap = await query.get();
-  const items = snap.docs.map((docSnap) =>
-    mapPackageDoc(docSnap.id, (docSnap.data() ?? {}) as Record<string, unknown>),
-  );
-  const nextCursor = snap.docs.length > 0 ? snap.docs[snap.docs.length - 1].id : null;
-
-  return { items, nextCursor };
 }
 
 /** Lista serviços vinculados a um token do Terceiro, tolerante a índices. */
