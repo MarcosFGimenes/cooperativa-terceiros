@@ -241,6 +241,17 @@ input:-webkit-autofill:focus {
     height: 340px !important;
   }
 
+  .services-print-page {
+    break-before: page;
+    page-break-before: always;
+  }
+
+  .services-print-page .folder-card,
+  .services-print-page .service-card {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
   .hide-for-print {
     display: none !important;
   }

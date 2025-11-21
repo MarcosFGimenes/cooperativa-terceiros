@@ -117,7 +117,7 @@ export default function ServicesCompaniesSection({
               : assignedServices.slice(0, MAX_VISIBLE_SERVICES);
             const hiddenCount = isAlwaysOpen ? 0 : assignedServices.length - visibleServices.length;
             return (
-              <div key={folder.id} className="rounded-lg border">
+              <div key={folder.id} className="rounded-lg border folder-card">
                 <button
                   type="button"
                   className={cn(
@@ -156,7 +156,7 @@ export default function ServicesCompaniesSection({
                       ) : (
                         <>
                           {visibleServices.map((detail) => (
-                            <div key={detail.id} className="rounded border bg-background px-3 py-2">
+                            <div key={detail.id} className="rounded border bg-background px-3 py-2 service-card">
                               <p className="font-medium text-foreground">{detail.label || detail.id}</p>
                               {detail.status ? (
                                 <p className="text-xs text-muted-foreground">{detail.status}</p>
