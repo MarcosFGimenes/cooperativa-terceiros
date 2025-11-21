@@ -476,6 +476,13 @@ async function fetchAvailableOpenServices(limit: number, mode: ServiceMapMode): 
   }));
   await Promise.all(statusQueries.map(({ scope, promise }) => runQuery(scope, promise)));
 
+  if (results.length < limit) {
+    await runQuery(
+      "createdAt:recent",
+      collection.orderBy("createdAt", "desc").limit(baseLimit * 2).get(),
+    );
+  }
+
   if (results.length === 0 && errors.length > 0) {
     const firstError = errors[0];
     console.warn(
