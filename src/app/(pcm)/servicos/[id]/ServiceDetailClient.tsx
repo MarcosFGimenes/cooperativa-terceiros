@@ -553,8 +553,8 @@ export default function ServiceDetailClient({
         </div>
       ) : null}
 
-      <div className="grid gap-4 lg:grid-cols-[1fr_minmax(320px,380px)]">
-        <div className="card p-4">
+      <div className="grid gap-4 lg:grid-cols-[1fr_minmax(320px,380px)] print-avoid-break">
+        <div className="card p-4 print-avoid-break">
           <h2 className="mb-4 text-lg font-semibold">Informações gerais</h2>
           <dl className="grid grid-cols-1 gap-4 text-sm sm:grid-cols-2">
             <div>
@@ -634,29 +634,31 @@ export default function ServiceDetailClient({
             </div>
           </dl>
         </div>
-        <SCurveDeferred
-        planned={planned}
-        realizedSeries={realizedSeries}
-        realizedPercent={realizedPercent}
-          title="Curva S do serviço"
-          description="Evolução planejada versus realizado para este serviço."
-          headerAside={<span className="font-medium text-foreground">Realizado: {realizedPercent}%</span>}
-          metrics={{ plannedToDate: plannedPercentToDate }}
-          chartHeight={resolvedChartHeight}
-          deferRendering={!isPdfExport}
-          fallback={
-            <div
-              className="flex w-full items-center justify-center rounded-xl border border-dashed bg-muted/40"
-              style={{ minHeight: resolvedChartHeight }}
-            >
-              <span className="text-sm text-muted-foreground">Carregando gráfico...</span>
-            </div>
-          }
-        />
+        <div className="print-avoid-break">
+          <SCurveDeferred
+            planned={planned}
+            realizedSeries={realizedSeries}
+            realizedPercent={realizedPercent}
+            title="Curva S do serviço"
+            description="Evolução planejada versus realizado para este serviço."
+            headerAside={<span className="font-medium text-foreground">Realizado: {realizedPercent}%</span>}
+            metrics={{ plannedToDate: plannedPercentToDate }}
+            chartHeight={resolvedChartHeight}
+            deferRendering={!isPdfExport}
+            fallback={
+              <div
+                className="flex w-full items-center justify-center rounded-xl border border-dashed bg-muted/40"
+                style={{ minHeight: resolvedChartHeight }}
+              >
+                <span className="text-sm text-muted-foreground">Carregando gráfico...</span>
+              </div>
+            }
+          />
+        </div>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <div className="card p-4">
+      <div className="grid gap-4 lg:grid-cols-2 print-page-break-before">
+        <div className="card p-4 print-avoid-break">
           <div className="flex flex-col gap-1">
             <h2 className="text-lg font-semibold">Checklists Recentes</h2>
             <span className="text-xs text-muted-foreground">Serviço {serviceLabel}</span>
@@ -683,7 +685,7 @@ export default function ServiceDetailClient({
           )}
         </div>
 
-        <div className="card p-4">
+        <div className="card p-4 print-avoid-break">
           <h2 className="text-lg font-semibold">Atualizações recentes</h2>
           {displayedUpdates.length === 0 ? (
             <p className="mt-2 text-sm text-muted-foreground">Nenhuma atualização registrada.</p>
