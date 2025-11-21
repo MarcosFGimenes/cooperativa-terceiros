@@ -34,9 +34,15 @@ type Props = {
   folders: FolderDisplay[];
   serviceDetails: ServiceDetailsMap;
   forceExpandAll?: boolean;
+  printLayout?: boolean;
 };
 
-export default function ServicesCompaniesSection({ folders, serviceDetails, forceExpandAll = false }: Props) {
+export default function ServicesCompaniesSection({
+  folders,
+  serviceDetails,
+  forceExpandAll = false,
+  printLayout = false,
+}: Props) {
   const [openFolderId, setOpenFolderId] = useState<string | null>(null);
   const [expandedFolderServices, setExpandedFolderServices] = useState<Record<string, boolean>>({});
   const MAX_VISIBLE_SERVICES = 5;
@@ -61,8 +67,10 @@ export default function ServicesCompaniesSection({ folders, serviceDetails, forc
     return `${rounded}%`;
   };
 
+  const containerClass = printLayout ? "space-y-6 p-4" : "card space-y-6 p-4";
+
   return (
-    <div className="card space-y-6 p-4">
+    <div className={containerClass}>
       <div>
         <h2 className="text-lg font-semibold">Serviços e Empresas</h2>
         <p className="text-xs text-muted-foreground">
