@@ -167,42 +167,47 @@ export async function listServicesPCM(options?: {
   status?: string | null;
   empresa?: string | null;
 }): Promise<PCMListResponse<PCMServiceListItem>> {
-  const admin = getAdminDbOrThrow();
-  const {
-    limit = 10,
-    cursor = null,
-    status,
-    empresa,
-  } = options ?? {};
+  try {
+    const admin = getAdminDbOrThrow();
+    const {
+      limit = 10,
+      cursor = null,
+      status,
+      empresa,
+    } = options ?? {};
 
-  let query: FirebaseFirestore.Query = admin.collection("services");
+    let query: FirebaseFirestore.Query = admin.collection("services");
 
-  if (status) {
-    query = query.where("status", "==", normStatus(status));
-  }
-
-  if (empresa) {
-    query = query.where("empresa", "==", empresa);
-  }
-
-  query = query.orderBy("createdAt", "desc");
-
-  if (cursor) {
-    const lastDoc = await admin.collection("services").doc(cursor).get();
-    if (lastDoc.exists) {
-      query = query.startAfter(lastDoc);
+    if (status) {
+      query = query.where("status", "==", normStatus(status));
     }
+
+    if (empresa) {
+      query = query.where("empresa", "==", empresa);
+    }
+
+    query = query.orderBy("createdAt", "desc");
+
+    if (cursor) {
+      const lastDoc = await admin.collection("services").doc(cursor).get();
+      if (lastDoc.exists) {
+        query = query.startAfter(lastDoc);
+      }
+    }
+
+    query = query.limit(limit);
+
+    const snap = await query.get();
+    const items = snap.docs.map((docSnap) =>
+      mapDoc(docSnap.id, docSnap.data() as Record<string, unknown>),
+    );
+    const nextCursor = snap.docs.length > 0 ? snap.docs[snap.docs.length - 1].id : null;
+
+    return { items, nextCursor };
+  } catch (error) {
+    console.error("[data] listServicesPCM falhou", error);
+    return { items: [], nextCursor: null };
   }
-
-  query = query.limit(limit);
-
-  const snap = await query.get();
-  const items = snap.docs.map((docSnap) =>
-    mapDoc(docSnap.id, docSnap.data() as Record<string, unknown>),
-  );
-  const nextCursor = snap.docs.length > 0 ? snap.docs[snap.docs.length - 1].id : null;
-
-  return { items, nextCursor };
 }
 
 /** Lista pacotes com paginação para o PCM. */
@@ -231,28 +236,33 @@ export async function listPackagesPCM(options?: {
   limit?: number;
   cursor?: string | null;
 }): Promise<PCMListResponse<PCMPackageListItem>> {
-  const admin = getAdminDbOrThrow();
-  const { limit = 10, cursor = null } = options ?? {};
+  try {
+    const admin = getAdminDbOrThrow();
+    const { limit = 10, cursor = null } = options ?? {};
 
-  let query: FirebaseFirestore.Query = admin.collection("packages");
-  query = query.orderBy("createdAt", "desc");
+    let query: FirebaseFirestore.Query = admin.collection("packages");
+    query = query.orderBy("createdAt", "desc");
 
-  if (cursor) {
-    const lastDoc = await admin.collection("packages").doc(cursor).get();
-    if (lastDoc.exists) {
-      query = query.startAfter(lastDoc);
+    if (cursor) {
+      const lastDoc = await admin.collection("packages").doc(cursor).get();
+      if (lastDoc.exists) {
+        query = query.startAfter(lastDoc);
+      }
     }
+
+    query = query.limit(limit);
+
+    const snap = await query.get();
+    const items = snap.docs.map((docSnap) =>
+      mapPackageDoc(docSnap.id, (docSnap.data() ?? {}) as Record<string, unknown>),
+    );
+    const nextCursor = snap.docs.length > 0 ? snap.docs[snap.docs.length - 1].id : null;
+
+    return { items, nextCursor };
+  } catch (error) {
+    console.error("[data] listPackagesPCM falhou", error);
+    return { items: [], nextCursor: null };
   }
-
-  query = query.limit(limit);
-
-  const snap = await query.get();
-  const items = snap.docs.map((docSnap) =>
-    mapPackageDoc(docSnap.id, (docSnap.data() ?? {}) as Record<string, unknown>),
-  );
-  const nextCursor = snap.docs.length > 0 ? snap.docs[snap.docs.length - 1].id : null;
-
-  return { items, nextCursor };
 }
 
 /** Lista serviços vinculados a um token do Terceiro, tolerante a índices. */
