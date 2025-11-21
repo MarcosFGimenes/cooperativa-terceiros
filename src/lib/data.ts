@@ -56,6 +56,24 @@ function toTimestamp(value: unknown): number | null {
   return null;
 }
 
+function toSerializableDate(value: unknown): number | string | null {
+  if (value === null || value === undefined) return null;
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    return trimmed ? trimmed : null;
+  }
+
+  const timestamp = toTimestamp(value);
+  if (timestamp !== null) return timestamp;
+
+  if (value instanceof Date) {
+    const time = value.getTime();
+    return Number.isNaN(time) ? null : time;
+  }
+
+  return null;
+}
+
 function mapDoc(id: string, rawData: Record<string, unknown> | undefined): PCMServiceListItem {
   const data = rawData ?? {};
   const result: PCMServiceListItem & Record<string, unknown> = {
@@ -86,19 +104,23 @@ function mapDoc(id: string, rawData: Record<string, unknown> | undefined): PCMSe
       toTimestamp(data.updatedAt ?? data.updated_at ?? data.atualizadoEm ?? data.updatedAtMs ?? data.updatedAtMillis) ??
       null,
     plannedStart:
-      data.plannedStart ??
-      data.dataInicio ??
-      data.inicioPrevisto ??
-      data.inicioPlanejado ??
-      data.startDate ??
-      null,
+      toSerializableDate(
+        data.plannedStart ??
+          data.dataInicio ??
+          data.inicioPrevisto ??
+          data.inicioPlanejado ??
+          data.startDate ??
+          null,
+      ),
     plannedEnd:
-      data.plannedEnd ??
-      data.dataFim ??
-      data.fimPrevisto ??
-      data.fimPlanejado ??
-      data.endDate ??
-      null,
+      toSerializableDate(
+        data.plannedEnd ??
+          data.dataFim ??
+          data.fimPrevisto ??
+          data.fimPlanejado ??
+          data.endDate ??
+          null,
+      ),
     plannedDaily: Array.isArray(data.plannedDaily)
       ? (data.plannedDaily as unknown[]).filter(
           (value): value is number => typeof value === "number" && Number.isFinite(value),
@@ -119,7 +141,10 @@ function mapDoc(id: string, rawData: Record<string, unknown> | undefined): PCMSe
 
   for (const field of dateFields) {
     if (data[field] !== undefined) {
-      result[field] = data[field];
+      const serialised = toSerializableDate(data[field]);
+      if (serialised !== null) {
+        result[field] = serialised;
+      }
     }
   }
 
