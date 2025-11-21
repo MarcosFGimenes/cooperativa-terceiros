@@ -173,6 +173,19 @@ function toDate(value: DateInput): Date | null {
         }
       }
     }
+
+    const seconds = (source as { seconds?: unknown; _seconds?: unknown }).seconds ??
+      (source as { _seconds?: unknown })._seconds;
+    const nanoseconds =
+      (source as { nanoseconds?: unknown; _nanoseconds?: unknown }).nanoseconds ??
+      (source as { _nanoseconds?: unknown })._nanoseconds;
+    if (typeof seconds === "number" && Number.isFinite(seconds)) {
+      const millis = seconds * 1000 + (typeof nanoseconds === "number" ? nanoseconds / 1_000_000 : 0);
+      const date = new Date(millis);
+      if (!Number.isNaN(date.getTime())) {
+        return date;
+      }
+    }
   }
   return null;
 }

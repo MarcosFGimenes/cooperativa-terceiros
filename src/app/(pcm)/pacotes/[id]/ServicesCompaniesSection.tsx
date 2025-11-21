@@ -33,9 +33,10 @@ export type ServiceDetailsMap = Record<string, ServiceDetail | undefined>;
 type Props = {
   folders: FolderDisplay[];
   serviceDetails: ServiceDetailsMap;
+  forceExpandAll?: boolean;
 };
 
-export default function ServicesCompaniesSection({ folders, serviceDetails }: Props) {
+export default function ServicesCompaniesSection({ folders, serviceDetails, forceExpandAll = false }: Props) {
   const [openFolderId, setOpenFolderId] = useState<string | null>(null);
   const [expandedFolderServices, setExpandedFolderServices] = useState<Record<string, boolean>>({});
   const MAX_VISIBLE_SERVICES = 5;
@@ -96,28 +97,32 @@ export default function ServicesCompaniesSection({ folders, serviceDetails }: Pr
                 } satisfies ServiceDetail;
               });
               const hasServices = folder.services.length > 0;
-              const plannedLabel = formatPercentLabel(folder.progressPercent, hasServices);
-              const realizedLabel = formatPercentLabel(folder.realizedPercent, hasServices);
-              const startLabel = formatDateLabel(folder.startDateMs);
-              const endLabel = formatDateLabel(folder.endDateMs);
-              const isOpen = openFolderId === folder.id;
-              const isExpanded = expandedFolderServices[folder.id] ?? false;
-              const visibleServices = isExpanded
-                ? assignedServices
-                : assignedServices.slice(0, MAX_VISIBLE_SERVICES);
-              const hiddenCount = assignedServices.length - visibleServices.length;
-              return (
-                <div key={folder.id} className="rounded-lg border">
-                  <button
-                    type="button"
-                    className={cn(
-                      "flex w-full items-center justify-between gap-3 px-3 py-2 text-left transition",
-                      isOpen ? "bg-muted/60" : "hover:bg-muted/40",
-                    )}
-                    onClick={() => setOpenFolderId((current) => (current === folder.id ? null : folder.id))}
-                  >
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-medium text-foreground">{folder.name}</p>
+            const plannedLabel = formatPercentLabel(folder.progressPercent, hasServices);
+            const realizedLabel = formatPercentLabel(folder.realizedPercent, hasServices);
+            const startLabel = formatDateLabel(folder.startDateMs);
+            const endLabel = formatDateLabel(folder.endDateMs);
+            const isAlwaysOpen = forceExpandAll;
+            const isOpen = isAlwaysOpen || openFolderId === folder.id;
+            const isExpanded = isAlwaysOpen || (expandedFolderServices[folder.id] ?? false);
+            const visibleServices = isExpanded
+              ? assignedServices
+              : assignedServices.slice(0, MAX_VISIBLE_SERVICES);
+            const hiddenCount = isAlwaysOpen ? 0 : assignedServices.length - visibleServices.length;
+            return (
+              <div key={folder.id} className="rounded-lg border">
+                <button
+                  type="button"
+                  className={cn(
+                    "flex w-full items-center justify-between gap-3 px-3 py-2 text-left transition",
+                    isOpen ? "bg-muted/60" : "hover:bg-muted/40",
+                    isAlwaysOpen ? "cursor-default" : "",
+                  )}
+                  onClick={() =>
+                    setOpenFolderId((current) => (isAlwaysOpen ? current : current === folder.id ? null : folder.id))
+                  }
+                >
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium text-foreground">{folder.name}</p>
                       <p className="truncate text-xs text-muted-foreground">
                         Empresa: {folder.companyId ? folder.companyId : "-"}
                       </p>
@@ -160,7 +165,7 @@ export default function ServicesCompaniesSection({ folders, serviceDetails }: Pr
                               </p>
                             </div>
                           ))}
-                          {hiddenCount > 0 ? (
+                          {!isAlwaysOpen && hiddenCount > 0 ? (
                             <div className="flex flex-wrap items-center justify-between gap-2 rounded border border-dashed bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
                               <span>
                                 Mostrando {visibleServices.length} de {assignedServices.length} serviço
@@ -179,7 +184,7 @@ export default function ServicesCompaniesSection({ folders, serviceDetails }: Pr
                                 Mostrar mais
                               </button>
                             </div>
-                          ) : assignedServices.length > MAX_VISIBLE_SERVICES ? (
+                          ) : !isAlwaysOpen && assignedServices.length > MAX_VISIBLE_SERVICES ? (
                             <div className="flex flex-wrap items-center justify-end gap-2">
                               <button
                                 type="button"
