@@ -749,8 +749,13 @@ async function renderPackageDetailPage(params: { id: string }) {
           <ServicesCompaniesSection folders={folders} serviceDetails={serviceDetails} />
         </div>
 
-        <div className="hidden print:block" aria-hidden>
-          <ServicesCompaniesSection folders={folders} serviceDetails={serviceDetails} forceExpandAll />
+        <div className="hidden services-print-page print:block" aria-hidden>
+          <ServicesCompaniesSection
+            folders={folders}
+            serviceDetails={serviceDetails}
+            forceExpandAll
+            printLayout
+          />
         </div>
       </div>
     </div>

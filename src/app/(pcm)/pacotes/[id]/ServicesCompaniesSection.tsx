@@ -34,9 +34,15 @@ type Props = {
   folders: FolderDisplay[];
   serviceDetails: ServiceDetailsMap;
   forceExpandAll?: boolean;
+  printLayout?: boolean;
 };
 
-export default function ServicesCompaniesSection({ folders, serviceDetails, forceExpandAll = false }: Props) {
+export default function ServicesCompaniesSection({
+  folders,
+  serviceDetails,
+  forceExpandAll = false,
+  printLayout = false,
+}: Props) {
   const [openFolderId, setOpenFolderId] = useState<string | null>(null);
   const [expandedFolderServices, setExpandedFolderServices] = useState<Record<string, boolean>>({});
   const MAX_VISIBLE_SERVICES = 5;
@@ -61,8 +67,10 @@ export default function ServicesCompaniesSection({ folders, serviceDetails, forc
     return `${rounded}%`;
   };
 
+  const containerClass = printLayout ? "space-y-6 p-4" : "card space-y-6 p-4";
+
   return (
-    <div className="card space-y-6 p-4">
+    <div className={containerClass}>
       <div>
         <h2 className="text-lg font-semibold">Serviços e Empresas</h2>
         <p className="text-xs text-muted-foreground">
@@ -109,7 +117,7 @@ export default function ServicesCompaniesSection({ folders, serviceDetails, forc
               : assignedServices.slice(0, MAX_VISIBLE_SERVICES);
             const hiddenCount = isAlwaysOpen ? 0 : assignedServices.length - visibleServices.length;
             return (
-              <div key={folder.id} className="rounded-lg border">
+              <div key={folder.id} className="rounded-lg border folder-card">
                 <button
                   type="button"
                   className={cn(
@@ -148,7 +156,7 @@ export default function ServicesCompaniesSection({ folders, serviceDetails, forc
                       ) : (
                         <>
                           {visibleServices.map((detail) => (
-                            <div key={detail.id} className="rounded border bg-background px-3 py-2">
+                            <div key={detail.id} className="rounded border bg-background px-3 py-2 service-card">
                               <p className="font-medium text-foreground">{detail.label || detail.id}</p>
                               {detail.status ? (
                                 <p className="text-xs text-muted-foreground">{detail.status}</p>

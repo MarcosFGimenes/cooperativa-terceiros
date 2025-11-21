@@ -190,6 +190,13 @@ input:-webkit-autofill:focus {
     color: #000000 !important;
   }
 
+  ul,
+  ol {
+    list-style: none !important;
+    padding-left: 0 !important;
+    margin-left: 0 !important;
+  }
+
   header, footer, nav, .no-print {
     display: none !important;
   }
@@ -232,6 +239,17 @@ input:-webkit-autofill:focus {
 
   .scurve-container {
     height: 340px !important;
+  }
+
+  .services-print-page {
+    break-before: page;
+    page-break-before: always;
+  }
+
+  .services-print-page .folder-card,
+  .services-print-page .service-card {
+    break-inside: avoid;
+    page-break-inside: avoid;
   }
 
   .hide-for-print {
