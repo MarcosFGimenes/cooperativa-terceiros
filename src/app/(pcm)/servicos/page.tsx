@@ -6,6 +6,7 @@ import Link from "next/link";
 import { listServicesPCM } from "@/lib/data";
 
 import ServicesListClient from "./ServicesListClient";
+import ExcelImport from "@/components/ExcelImport";
 
 export default async function ServicesListPage() {
   const { items, nextCursor } = await listServicesPCM({ limit: 10 });
@@ -28,6 +29,8 @@ export default async function ServicesListPage() {
           </Link>
         </div>
       </div>
+
+      <ExcelImport />
 
       {items.length === 0 ? (
         <div className="rounded-2xl border border-dashed bg-muted/30 p-6 text-center text-sm text-muted-foreground">
