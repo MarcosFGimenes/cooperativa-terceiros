@@ -381,7 +381,13 @@ export async function requireServiceAccess(
   const data = snap.data() ?? {};
   const statusRaw = typeof data.status === "string" ? data.status.trim().toLowerCase() : "";
   const statusNormalised = statusRaw || "aberto";
-  if (statusNormalised !== "aberto") {
+  const isOpen =
+    statusNormalised === "aberto" ||
+    statusNormalised === "aberta" ||
+    statusNormalised === "open" ||
+    statusNormalised === "pendente";
+
+  if (!isOpen) {
     throw new PublicAccessError(403, "Serviço fechado");
   }
 
