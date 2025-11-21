@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { revalidateTag } from "next/cache";
 
 import { createAccessToken } from "@/lib/accessTokens";
+import { ensureServiceAccessToken } from "@/lib/repo/accessTokens";
 import { createService } from "@/lib/repo/services";
 import type { ServiceStatus } from "@/lib/types";
 
@@ -124,13 +125,21 @@ export async function POST(request: Request) {
     const { id } = await createService(validated);
 
     try {
-      await createAccessToken({
+      await ensureServiceAccessToken({
         serviceId: id,
-        empresa: validated.empresaId ?? undefined,
         company: validated.empresaId ?? undefined,
       });
-    } catch (tokenError) {
-      console.error("[api/pcm/servicos/create] Falha ao gerar token", tokenError);
+    } catch (adminTokenError) {
+      console.error("[api/pcm/servicos/create] Falha ao gerar token via admin", adminTokenError);
+      try {
+        await createAccessToken({
+          serviceId: id,
+          empresa: validated.empresaId ?? undefined,
+          company: validated.empresaId ?? undefined,
+        });
+      } catch (tokenError) {
+        console.error("[api/pcm/servicos/create] Falha ao gerar token (fallback)", tokenError);
+      }
     }
 
     revalidateTag("services:available");
