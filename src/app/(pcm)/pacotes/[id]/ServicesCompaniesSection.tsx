@@ -158,16 +158,6 @@ export default function ServicesCompaniesSection({ folders, serviceDetails }: Pr
                                 {" "}—{" "}
                                 <span className="font-semibold text-foreground">{formatDateLabel(detail.endDateMs)}</span>
                               </p>
-                              <p className="text-xs text-muted-foreground">
-                                Planejado: {formatPercentLabel(detail.plannedPercent ?? null, true)} • Realizado: {" "}
-                                {formatPercentLabel(detail.realizedPercent ?? null, true)} • Dif.: {" "}
-                                <span className="font-semibold text-foreground">{formatDeltaLabel(detail.deltaPercent)}</span>
-                              </p>
-                              <p className="text-xs text-muted-foreground">
-                                Cronograma: <span className="font-semibold text-foreground">{formatDateLabel(detail.startDateMs)}</span>
-                                {" "}—{" "}
-                                <span className="font-semibold text-foreground">{formatDateLabel(detail.endDateMs)}</span>
-                              </p>
                             </div>
                           ))}
                           {hiddenCount > 0 ? (
