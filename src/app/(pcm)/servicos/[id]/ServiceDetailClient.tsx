@@ -16,6 +16,7 @@ import {
 } from "firebase/firestore";
 import SCurveDeferred from "@/components/SCurveDeferred";
 import { plannedCurve } from "@/lib/curve";
+import { resolveServicoPercentualPlanejado } from "@/lib/serviceProgress";
 import { isFirestoreLongPollingForced, tryGetFirestore } from "@/lib/firebase";
 import { isConnectionResetError } from "@/lib/networkErrors";
 import { useFirebaseAuthSession } from "@/lib/useFirebaseAuthSession";
@@ -476,6 +477,15 @@ export default function ServiceDetailClient({
     return service.id;
   }, [service.id, service.os, service.code]);
 
+  const plannedPercentToDate = useMemo(() => {
+    const today = new Date();
+    return resolveServicoPercentualPlanejado({
+      ...service,
+      plannedStart: service.plannedStart ?? composedInitial.plannedStart,
+      plannedEnd: service.plannedEnd ?? composedInitial.plannedEnd,
+    }, today);
+  }, [service, composedInitial]);
+
   const companyLabel = useMemo(() => {
     if (service.assignedTo?.companyName) return service.assignedTo.companyName;
     if (service.assignedTo?.companyId) return service.assignedTo.companyId;
@@ -625,12 +635,13 @@ export default function ServiceDetailClient({
           </dl>
         </div>
         <SCurveDeferred
-          planned={planned}
-          realizedSeries={realizedSeries}
-          realizedPercent={realizedPercent}
+        planned={planned}
+        realizedSeries={realizedSeries}
+        realizedPercent={realizedPercent}
           title="Curva S do serviço"
           description="Evolução planejada versus realizado para este serviço."
           headerAside={<span className="font-medium text-foreground">Realizado: {realizedPercent}%</span>}
+          metrics={{ plannedToDate: plannedPercentToDate }}
           chartHeight={resolvedChartHeight}
           deferRendering={!isPdfExport}
           fallback={

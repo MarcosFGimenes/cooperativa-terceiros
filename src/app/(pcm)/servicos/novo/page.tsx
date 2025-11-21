@@ -4,18 +4,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import {
-  Timestamp,
-  collection,
-  deleteDoc,
-  doc,
-  getDocs,
-  orderBy,
-  query,
-  serverTimestamp,
-  setDoc,
-  writeBatch,
-} from "firebase/firestore";
+import { Timestamp, collection, deleteDoc, doc, serverTimestamp, setDoc, writeBatch } from "firebase/firestore";
 
 import { Field, FormRow } from "@/components/ui/form-controls";
 import { createAccessToken } from "@/lib/accessTokens";
@@ -24,8 +13,6 @@ import { useFirebaseAuthSession } from "@/lib/useFirebaseAuthSession";
 import { dateOnlyToMillis, maskDateOnlyInput, parseDateOnly } from "@/lib/dateOnly";
 
 type ChecklistDraft = Array<{ id: string; descricao: string; peso: number | "" }>;
-
-type PackageOption = { id: string; nome: string };
 
 const STATUS_OPTIONS = ["Aberto", "Pendente", "Concluído"] as const;
 
@@ -51,13 +38,10 @@ export default function NovoServico() {
     horasPrevistas: "",
     empresaId: "",
     status: "Aberto" as (typeof STATUS_OPTIONS)[number],
-    pacoteId: "",
   });
   const [withChecklist, setWithChecklist] = useState(false);
   const [checklist, setChecklist] = useState<ChecklistDraft>([]);
   const [saving, setSaving] = useState(false);
-  const [packages, setPackages] = useState<PackageOption[]>([]);
-  const [loadingPackages, setLoadingPackages] = useState(false);
   const { db: firestore, error: firestoreError } = useMemo(() => tryGetFirestore(), []);
   const { ready: isAuthReady, issue: authIssue } = useFirebaseAuthSession();
 
@@ -77,32 +61,6 @@ export default function NovoServico() {
       }, 0),
     [checklist],
   );
-
-  useEffect(() => {
-    if (!firestore || !isAuthReady) return;
-    setLoadingPackages(true);
-    getDocs(query(collection(firestore, "packages"), orderBy("nome", "asc")))
-      .then((snapshot) => {
-        const result: PackageOption[] = snapshot.docs.map((doc) => {
-          const data = doc.data() ?? {};
-          return { id: doc.id, nome: String(data.nome ?? data.name ?? "") };
-        });
-        setPackages(result);
-      })
-      .catch((error) => {
-        console.error("[servicos/novo] Falha ao carregar pacotes", error);
-        const errorCode =
-          typeof error === "object" && error !== null && "code" in error && typeof (error as { code?: unknown }).code === "string"
-            ? ((error as { code: string }).code)
-            : null;
-        if (errorCode === "permission-denied") {
-          toast.error("Você não tem permissão para ver os pacotes disponíveis.");
-        } else {
-          toast.error("Não foi possível carregar os pacotes disponíveis.");
-        }
-      })
-      .finally(() => setLoadingPackages(false));
-  }, [firestore, isAuthReady]);
 
   function updateForm<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -199,8 +157,6 @@ export default function NovoServico() {
         empresaId: companyId,
         company: companyId,
         status: form.status,
-        pacoteId: form.pacoteId || null,
-        packageId: form.pacoteId || null,
         andamento: 0,
         checklist: sanitizedChecklist,
         hasChecklist: sanitizedChecklist.length > 0,
@@ -372,25 +328,8 @@ export default function NovoServico() {
           </div>
         </FormRow>
 
-        <div className="space-y-2">
-          <label className="text-sm font-medium text-foreground/90" htmlFor="pacote">
-            Pacote (opcional)
-          </label>
-          <select
-            id="pacote"
-            value={form.pacoteId}
-            onChange={(event) => updateForm("pacoteId", event.target.value)}
-            className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm shadow-sm focus-visible:ring-2 focus-visible:ring-primary/40"
-            disabled={loadingPackages}
-          >
-            <option value="">Nenhum pacote</option>
-            {packages.map((pkg) => (
-              <option key={pkg.id} value={pkg.id}>
-                {pkg.nome || `Pacote ${pkg.id}`}
-              </option>
-            ))}
-          </select>
-          {loadingPackages ? <p className="text-xs text-muted-foreground">Carregando pacotes...</p> : null}
+        <div className="space-y-2 text-sm text-muted-foreground">
+          Os serviços criados aqui podem ser vinculados a um subpacote posteriormente.
         </div>
 
         <div className="rounded-xl border border-dashed bg-muted/20 p-4">
