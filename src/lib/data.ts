@@ -58,7 +58,7 @@ function toTimestamp(value: unknown): number | null {
 
 function mapDoc(id: string, rawData: Record<string, unknown> | undefined): PCMServiceListItem {
   const data = rawData ?? {};
-  return {
+  const result: PCMServiceListItem & Record<string, unknown> = {
     id,
     os: toOptionalString(data.os) ?? toOptionalString(data.O_S) ?? toOptionalString(data.OS),
     oc: toOptionalString(data.oc) ?? toOptionalString(data.O_C) ?? toOptionalString(data.OC),
@@ -85,14 +85,79 @@ function mapDoc(id: string, rawData: Record<string, unknown> | undefined): PCMSe
     updatedAt:
       toTimestamp(data.updatedAt ?? data.updated_at ?? data.atualizadoEm ?? data.updatedAtMs ?? data.updatedAtMillis) ??
       null,
-    plannedStart: data.plannedStart ?? data.dataInicio ?? data.inicioPlanejado ?? data.startDate ?? null,
-    plannedEnd: data.plannedEnd ?? data.dataFim ?? data.fimPlanejado ?? data.endDate ?? null,
+    plannedStart:
+      data.plannedStart ??
+      data.dataInicio ??
+      data.inicioPrevisto ??
+      data.inicioPlanejado ??
+      data.startDate ??
+      null,
+    plannedEnd:
+      data.plannedEnd ??
+      data.dataFim ??
+      data.fimPrevisto ??
+      data.fimPlanejado ??
+      data.endDate ??
+      null,
     plannedDaily: Array.isArray(data.plannedDaily)
       ? (data.plannedDaily as unknown[]).filter(
           (value): value is number => typeof value === "number" && Number.isFinite(value),
         )
       : null,
   };
+
+  const dateFields = [
+    "dataInicio",
+    "inicioPrevisto",
+    "inicioPlanejado",
+    "startDate",
+    "dataFim",
+    "fimPrevisto",
+    "fimPlanejado",
+    "endDate",
+  ];
+
+  for (const field of dateFields) {
+    if (data[field] !== undefined) {
+      result[field] = data[field];
+    }
+  }
+
+  const progressFields = [
+    "percentualReal",
+    "percentualRealAtual",
+    "percentualInformado",
+    "progressoReal",
+    "realProgress",
+    "currentProgress",
+    "percentual",
+    "manualProgress",
+  ];
+
+  for (const field of progressFields) {
+    if (data[field] !== undefined) {
+      result[field] = data[field];
+    }
+  }
+
+  const updateListFields = [
+    "atualizacoes",
+    "historicoAtualizacoes",
+    "historico",
+    "history",
+    "updates",
+    "progressUpdates",
+    "percentualUpdates",
+    "realUpdates",
+  ];
+
+  for (const field of updateListFields) {
+    if (Array.isArray(data[field])) {
+      result[field] = data[field];
+    }
+  }
+
+  return result;
 }
 
 /** Lista serviços com filtros e paginação para o PCM. */
