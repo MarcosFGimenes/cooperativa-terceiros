@@ -158,7 +158,8 @@ function normaliseServiceStatus(value: unknown): ServiceStatus {
 function toNumber(value: unknown): number | undefined {
   if (typeof value === "number" && Number.isFinite(value)) return value;
   if (typeof value === "string") {
-    const parsed = Number(value);
+    const cleaned = value.trim().replace(/%$/, "").replace(",", ".");
+    const parsed = Number(cleaned);
     if (Number.isFinite(parsed)) return parsed;
   }
   if (typeof value === "object" && value && "toMillis" in value) {
