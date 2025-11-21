@@ -507,10 +507,13 @@ async function fetchAvailableOpenServices(limit: number, mode: ServiceMapMode): 
 
 export async function listAvailableOpenServices(
   limit = DEFAULT_AVAILABLE_SERVICES_LIMIT,
-  options?: { mode?: ServiceMapMode },
+  options?: { mode?: ServiceMapMode; disableCache?: boolean },
 ): Promise<Service[]> {
   const safeLimit = normaliseAvailableServicesLimit(limit);
   const mode = normaliseServiceMode(options?.mode);
+  if (options?.disableCache) {
+    return fetchAvailableOpenServices(safeLimit, mode);
+  }
   return listAvailableOpenServicesCache(safeLimit, mode);
 }
 
