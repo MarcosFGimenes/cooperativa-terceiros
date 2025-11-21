@@ -611,8 +611,8 @@ async function renderPackageDetailPage(params: { id: string }) {
     : `${services.length} serviço${services.length === 1 ? "" : "s"}`;
 
   return (
-    <div className="container mx-auto max-w-6xl space-y-6 px-4 py-6">
-      <section className="rounded-2xl border bg-card/80 p-5 shadow-sm">
+    <div className="container mx-auto max-w-6xl space-y-6 px-4 py-6 package-print-layout">
+      <section className="rounded-2xl border bg-card/80 p-5 shadow-sm print-card">
         <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
           <div className="space-y-3">
             <div className="flex flex-wrap items-center gap-2">
@@ -642,7 +642,7 @@ async function renderPackageDetailPage(params: { id: string }) {
           </div>
         </div>
 
-        <dl className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <dl className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4 summary-grid">
           <div className="space-y-1 rounded-xl border border-dashed border-border/70 bg-muted/20 p-4">
             <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Início planejado</dt>
             <dd className="text-base font-semibold text-foreground">{plannedStartLabel}</dd>
@@ -674,7 +674,10 @@ async function renderPackageDetailPage(params: { id: string }) {
       ) : null}
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1.7fr)_minmax(320px,1fr)]">
-        <section className="rounded-2xl border bg-card/80 p-5 shadow-sm">
+        <section
+          className="rounded-2xl border bg-card/80 p-5 shadow-sm scurve-card print-card"
+          style={{ breakInside: "avoid-page", pageBreakInside: "avoid" }}
+        >
           <SCurveDeferred
             planned={plannedCurvePoints}
             realizedSeries={realizedSeriesData}
