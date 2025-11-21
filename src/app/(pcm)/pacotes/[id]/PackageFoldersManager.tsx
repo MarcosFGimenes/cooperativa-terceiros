@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import { tryGetAuth } from "@/lib/firebase";
@@ -123,6 +123,38 @@ function sortServiceOptions(options: ServiceOption[]) {
   return [...options].sort((a, b) => a.label.localeCompare(b.label, "pt-BR", { sensitivity: "base" }));
 }
 
+function buildServiceOptionFromApi(data: Record<string, unknown>): ServiceOption {
+  const baseLabel =
+    typeof data.os === "string" && data.os
+      ? data.os
+      : typeof data.oc === "string" && data.oc
+        ? data.oc
+        : typeof data.tag === "string" && data.tag
+          ? data.tag
+          : typeof data.id === "string" && data.id
+            ? data.id
+            : "";
+  const descriptionParts: string[] = [];
+  const companyLabel =
+    (typeof data.empresa === "string" && data.empresa) ||
+    (typeof data.company === "string" && data.company) ||
+    (typeof (data.assignedTo as { companyName?: string })?.companyName === "string"
+      ? (data.assignedTo as { companyName?: string }).companyName
+      : undefined);
+  if (companyLabel) descriptionParts.push(`Empresa: ${companyLabel}`);
+  const sector = typeof data.setor === "string" && data.setor;
+  if (sector) descriptionParts.push(`Setor: ${sector}`);
+
+  const status = typeof data.status === "string" ? data.status : "";
+
+  return {
+    id: String(data.id ?? ""),
+    label: baseLabel || String(data.id ?? ""),
+    description: descriptionParts.length ? descriptionParts.join(" • ") : undefined,
+    status,
+  };
+}
+
 export default function PackageFoldersManager({
   packageId,
   services,
@@ -142,6 +174,7 @@ export default function PackageFoldersManager({
     return initial;
   });
   const [availableServices, setAvailableServices] = useState<ServiceOption[]>(() => sortServiceOptions(services));
+  const [loadingAvailableServices, setLoadingAvailableServices] = useState(false);
   const [pendingServices, setPendingServices] = useState<PendingMap>({});
   const [savingServices, setSavingServices] = useState<BooleanMap>({});
   const [rotatingToken, setRotatingToken] = useState<BooleanMap>({});
@@ -178,6 +211,45 @@ export default function PackageFoldersManager({
       return folders.some((folder) => folder.id === current) ? current : null;
     });
   }, [folders]);
+
+  const refreshAvailableServices = useCallback(async () => {
+    setLoadingAvailableServices(true);
+    try {
+      const search = new URLSearchParams({ limit: "400", mode: "summary" });
+      const response = await fetch(`/api/pcm/services/available?${search.toString()}`, {
+        cache: "no-store",
+      });
+      const data = await response.json();
+      if (!response.ok || !data?.ok || !Array.isArray(data.services)) {
+        const message =
+          typeof data?.error === "string" && data.error
+            ? data.error
+            : "Não foi possível atualizar a lista de serviços.";
+        throw new Error(message);
+      }
+      const assignedServiceIds = new Set<string>();
+      folders.forEach((folder) => {
+        folder.services.forEach((id) => {
+          if (id) assignedServiceIds.add(id);
+        });
+      });
+      const mappedOptions = data.services
+        .map((service: Record<string, unknown>) => buildServiceOptionFromApi(service))
+        .filter((option: ServiceOption) => option.id && !assignedServiceIds.has(option.id));
+      setAvailableServices(sortServiceOptions(mappedOptions));
+    } catch (error) {
+      console.error("[PackageFoldersManager] Falha ao buscar serviços disponíveis", error);
+      const message = error instanceof Error ? error.message : "Não foi possível atualizar os serviços.";
+      toast.error(message);
+    } finally {
+      setLoadingAvailableServices(false);
+    }
+  }, [folders]);
+
+  useEffect(() => {
+    if (!addingServicesFor) return;
+    refreshAvailableServices();
+  }, [addingServicesFor, refreshAvailableServices]);
 
   function updateServiceSelection(folderId: string, serviceId: string, checked: boolean) {
     setServiceSelections((prev) => {
@@ -845,6 +917,9 @@ export default function PackageFoldersManager({
                             Apenas serviços abertos ou pendentes e sem vínculo com outros pacotes ou subpacotes aparecem
                             nesta lista.
                           </p>
+                          {loadingAvailableServices ? (
+                            <p className="mt-1 text-xs text-muted-foreground">Atualizando serviços disponíveis…</p>
+                          ) : null}
                         </div>
                         <input
                           value={serviceSearch}
