@@ -2,16 +2,7 @@
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import type { TooltipProps } from "recharts";
-import {
-  CartesianGrid,
-  Legend,
-  Line,
-  LineChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
+import { Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
 import { cn } from "@/lib/utils";
 import { formatLongDate, formatShortMonthDate } from "@/lib/formatDateTime";
@@ -48,6 +39,9 @@ type ChartEntry = {
 };
 
 type TooltipPayload = TooltipProps<number, string>;
+
+const REALIZED_COLOR = "#2ec27e"; // cor verde do gráfico João
+const PLANNED_COLOR = "#f28c28"; // cor laranja do gráfico João
 
 function toDayIso(value: string) {
   const date = new Date(value);
@@ -262,7 +256,6 @@ export default function SCurve({
           <div className={cn("w-full scurve-container")} style={{ height: resolvedChartHeight }}>
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={chartData} margin={{ left: 4, right: 16, top: 16, bottom: 8 }}>
-                <CartesianGrid strokeDasharray="4 4" stroke="hsl(var(--border))" />
                 <XAxis dataKey="dateLabel" stroke="hsl(var(--muted-foreground))" tick={{ fontSize: 12 }} />
                 <YAxis
                   stroke="hsl(var(--muted-foreground))"
@@ -276,20 +269,20 @@ export default function SCurve({
                   type="monotone"
                   name="Planejado"
                   dataKey="planned"
-                  stroke="hsl(var(--primary))"
-                  strokeWidth={2}
-                  dot={{ r: 3 }}
-                  activeDot={{ r: 5 }}
+                  stroke={PLANNED_COLOR} // cor da série Planejado alinhada ao modelo João
+                  strokeWidth={3}
+                  dot={{ r: 4, stroke: PLANNED_COLOR, fill: PLANNED_COLOR }}
+                  activeDot={{ r: 6, stroke: PLANNED_COLOR, fill: PLANNED_COLOR }}
                   isAnimationActive={false}
                 />
                 <Line
                   type="monotone"
                   name="Realizado"
                   dataKey="realized"
-                  stroke="#10b981"
-                  strokeWidth={2}
-                  dot={{ r: 3 }}
-                  activeDot={{ r: 5 }}
+                  stroke={REALIZED_COLOR} // cor da série Realizado alinhada ao modelo João
+                  strokeWidth={3}
+                  dot={{ r: 4, stroke: REALIZED_COLOR, fill: REALIZED_COLOR }}
+                  activeDot={{ r: 6, stroke: REALIZED_COLOR, fill: REALIZED_COLOR }}
                   isAnimationActive={false}
                 />
               </LineChart>
