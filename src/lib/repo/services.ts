@@ -443,7 +443,6 @@ async function fetchAvailableOpenServices(limit: number, mode: ServiceMapMode): 
         mode,
       );
       if (!allowedStatusSet.has(service.status)) continue;
-      if (service.packageId && service.packageId.trim().length > 0) continue;
       seen.add(service.id);
       results.push(service);
       if (results.length >= limit) break;
@@ -470,27 +469,12 @@ async function fetchAvailableOpenServices(limit: number, mode: ServiceMapMode): 
     }
   };
 
-  const unassignedQueries: Array<{ scope: string; promise: Promise<FirebaseFirestore.QuerySnapshot> }> = [
-    {
-      scope: "packageId:null",
-      promise: collection.where("packageId", "==", null).orderBy("createdAt", "desc").limit(baseLimit).get(),
-    },
-    {
-      scope: "packageId:empty",
-      promise: collection.where("packageId", "==", "").orderBy("createdAt", "desc").limit(baseLimit).get(),
-    },
-  ];
-
-  await Promise.all(unassignedQueries.map(({ scope, promise }) => runQuery(scope, promise)));
-
-  if (results.length < limit) {
-    // Caso o Firestore solicite um índice composto para (status, createdAt), siga o link sugerido pelo console e atualize firestore.indexes.json.
-    const statusQueries = allowedStatuses.map((status) => ({
-      scope: `status:${status}`,
-      promise: collection.where("status", "==", status).orderBy("createdAt", "desc").limit(baseLimit).get(),
-    }));
-    await Promise.all(statusQueries.map(({ scope, promise }) => runQuery(scope, promise)));
-  }
+  // Caso o Firestore solicite um índice composto para (status, createdAt), siga o link sugerido pelo console e atualize firestore.indexes.json.
+  const statusQueries = allowedStatuses.map((status) => ({
+    scope: `status:${status}`,
+    promise: collection.where("status", "==", status).orderBy("createdAt", "desc").limit(baseLimit).get(),
+  }));
+  await Promise.all(statusQueries.map(({ scope, promise }) => runQuery(scope, promise)));
 
   if (results.length === 0 && errors.length > 0) {
     const firstError = errors[0];
