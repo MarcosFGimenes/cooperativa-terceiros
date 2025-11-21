@@ -190,6 +190,13 @@ input:-webkit-autofill:focus {
     color: #000000 !important;
   }
 
+  ul,
+  ol {
+    list-style: none !important;
+    padding-left: 0 !important;
+    margin-left: 0 !important;
+  }
+
   header, footer, nav, .no-print {
     display: none !important;
   }
