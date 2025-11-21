@@ -25,13 +25,8 @@ type CreateServiceRequest = {
   fimPrevistoMillis: number;
   horasPrevistas: number;
   empresaId: string | null;
-  folderId?: string | null;
   status: ServiceStatus;
   checklist: Array<{ id: string; descricao: string; peso: number }>;
-  label?: string | null;
-  participantsCount?: number | null;
-  estimatedTime?: number | null;
-  metadata?: Record<string, unknown>;
 };
 
 function normaliseString(value: unknown): string {
@@ -94,10 +89,6 @@ function validateRequest(body: Record<string, unknown>): CreateServiceRequest | 
   const checklist = parseChecklist(body.checklist);
 
   const resolvedCompanyId = normaliseString(body.companyId) || normaliseString(body.empresaId);
-  const folderId = normaliseString(body.folderId) || null;
-
-  const participants = Number(body.participantsCount);
-  const estimatedTime = Number(body.estimatedTime);
 
   return {
     os,
@@ -110,13 +101,8 @@ function validateRequest(body: Record<string, unknown>): CreateServiceRequest | 
     fimPrevistoMillis,
     horasPrevistas,
     empresaId: resolvedCompanyId || null,
-    folderId,
     status: normaliseStatus(body.status),
     checklist,
-    label: normaliseString(body.label) || null,
-    participantsCount: Number.isFinite(participants) ? participants : null,
-    estimatedTime: Number.isFinite(estimatedTime) ? estimatedTime : null,
-    metadata: typeof body.metadata === "object" && body.metadata !== null ? (body.metadata as Record<string, unknown>) : undefined,
   };
 }
 
