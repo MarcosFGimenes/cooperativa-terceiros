@@ -1,14 +1,4 @@
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  LabelList,
-  type TooltipProps,
-} from "recharts";
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, LabelList, type TooltipProps } from "recharts";
 
 type TooltipPayload = TooltipProps<number, string>;
 
@@ -50,7 +40,6 @@ export default function CurveSChart({ data }: { data: { date: string; planned: n
     <div className="w-full h-[420px]">
       <ResponsiveContainer>
         <LineChart data={data} margin={{ top: 24, right: 24, left: 8, bottom: 8 }}>
-          <CartesianGrid strokeDasharray="3 3" />
           <XAxis dataKey="date" tick={{ fontSize: 10 }} />
           <YAxis domain={[0, 100]} tickFormatter={(v) => `${v}%`} />
           <Tooltip content={<CustomTooltip />} />

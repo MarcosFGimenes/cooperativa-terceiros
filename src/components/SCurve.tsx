@@ -2,16 +2,7 @@
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import type { TooltipProps } from "recharts";
-import {
-  CartesianGrid,
-  Legend,
-  Line,
-  LineChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
+import { Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
 import { cn } from "@/lib/utils";
 import { formatLongDate, formatShortMonthDate } from "@/lib/formatDateTime";
@@ -265,7 +256,6 @@ export default function SCurve({
           <div className={cn("w-full scurve-container")} style={{ height: resolvedChartHeight }}>
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={chartData} margin={{ left: 4, right: 16, top: 16, bottom: 8 }}>
-                <CartesianGrid strokeDasharray="4 4" stroke="hsl(var(--border))" />
                 <XAxis dataKey="dateLabel" stroke="hsl(var(--muted-foreground))" tick={{ fontSize: 12 }} />
                 <YAxis
                   stroke="hsl(var(--muted-foreground))"
