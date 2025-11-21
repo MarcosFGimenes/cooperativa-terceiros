@@ -1,31 +1,15 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import {
-  Timestamp,
-  collection,
-  deleteDoc,
-  doc,
-  getDocs,
-  orderBy,
-  query,
-  serverTimestamp,
-  setDoc,
-  writeBatch,
-} from "firebase/firestore";
 
 import { Field, FormRow } from "@/components/ui/form-controls";
-import { createAccessToken } from "@/lib/accessTokens";
-import { tryGetFirestore } from "@/lib/firebase";
 import { useFirebaseAuthSession } from "@/lib/useFirebaseAuthSession";
 import { dateOnlyToMillis, maskDateOnlyInput, parseDateOnly } from "@/lib/dateOnly";
 
 type ChecklistDraft = Array<{ id: string; descricao: string; peso: number | "" }>;
-
-type PackageOption = { id: string; nome: string };
 
 const STATUS_OPTIONS = ["Aberto", "Pendente", "Concluído"] as const;
 
@@ -51,22 +35,11 @@ export default function NovoServico() {
     horasPrevistas: "",
     empresaId: "",
     status: "Aberto" as (typeof STATUS_OPTIONS)[number],
-    pacoteId: "",
   });
   const [withChecklist, setWithChecklist] = useState(false);
   const [checklist, setChecklist] = useState<ChecklistDraft>([]);
   const [saving, setSaving] = useState(false);
-  const [packages, setPackages] = useState<PackageOption[]>([]);
-  const [loadingPackages, setLoadingPackages] = useState(false);
-  const { db: firestore, error: firestoreError } = useMemo(() => tryGetFirestore(), []);
   const { ready: isAuthReady, issue: authIssue } = useFirebaseAuthSession();
-
-  useEffect(() => {
-    if (firestoreError) {
-      console.error("[servicos/novo] Firestore indisponível", firestoreError);
-      toast.error("Configuração de banco de dados indisponível.");
-    }
-  }, [firestoreError]);
 
   const totalPeso = useMemo(
     () =>
@@ -77,32 +50,6 @@ export default function NovoServico() {
       }, 0),
     [checklist],
   );
-
-  useEffect(() => {
-    if (!firestore || !isAuthReady) return;
-    setLoadingPackages(true);
-    getDocs(query(collection(firestore, "packages"), orderBy("nome", "asc")))
-      .then((snapshot) => {
-        const result: PackageOption[] = snapshot.docs.map((doc) => {
-          const data = doc.data() ?? {};
-          return { id: doc.id, nome: String(data.nome ?? data.name ?? "") };
-        });
-        setPackages(result);
-      })
-      .catch((error) => {
-        console.error("[servicos/novo] Falha ao carregar pacotes", error);
-        const errorCode =
-          typeof error === "object" && error !== null && "code" in error && typeof (error as { code?: unknown }).code === "string"
-            ? ((error as { code: string }).code)
-            : null;
-        if (errorCode === "permission-denied") {
-          toast.error("Você não tem permissão para ver os pacotes disponíveis.");
-        } else {
-          toast.error("Não foi possível carregar os pacotes disponíveis.");
-        }
-      })
-      .finally(() => setLoadingPackages(false));
-  }, [firestore, isAuthReady]);
 
   function updateForm<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -173,11 +120,6 @@ export default function NovoServico() {
       toast.error("Horas previstas deve ser um número maior que zero.");
       return;
     }
-
-    if (!firestore) {
-      toast.error("Banco de dados indisponível.");
-      return;
-    }
     if (!isAuthReady) {
       toast.error("Sua sessão segura ainda não foi confirmada. Aguarde ou faça login novamente.");
       return;
@@ -186,77 +128,40 @@ export default function NovoServico() {
     setSaving(true);
     try {
       const companyId = form.empresaId.trim() || null;
-      const payload = {
-        os: form.os.trim(),
-        oc: form.oc.trim() || null,
-        tag: form.tag.trim(),
-        equipamento: form.equipamento.trim(),
-        equipmentName: form.equipamento.trim(),
-        setor: form.setor.trim() || null,
-        inicioPrevisto: Timestamp.fromMillis(inicioMillis),
-        fimPrevisto: Timestamp.fromMillis(fimMillis),
-        horasPrevistas: horas,
-        empresaId: companyId,
-        company: companyId,
-        status: form.status,
-        pacoteId: form.pacoteId || null,
-        packageId: form.pacoteId || null,
-        andamento: 0,
-        checklist: sanitizedChecklist,
-        hasChecklist: sanitizedChecklist.length > 0,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-        createdBy: "pcm",
-      };
+      const response = await fetch("/api/pcm/servicos/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          os: form.os.trim(),
+          oc: form.oc.trim() || null,
+          tag: form.tag.trim(),
+          equipamento: form.equipamento.trim(),
+          equipmentName: form.equipamento.trim(),
+          setor: form.setor.trim() || null,
+          inicioPrevistoMillis: inicioMillis,
+          fimPrevistoMillis: fimMillis,
+          horasPrevistas: horas,
+          empresaId: companyId,
+          status: form.status,
+          checklist: sanitizedChecklist,
+        }),
+      });
 
-      const servicesCollection = collection(firestore, "services");
-      const docRef = doc(servicesCollection);
-      await setDoc(docRef, payload);
+      const result = (await response.json().catch(() => null)) as
+        | { ok: boolean; error?: string }
+        | null;
 
-      try {
-        const token = await createAccessToken({
-          serviceId: docRef.id,
-          empresa: companyId ?? undefined,
-          company: companyId ?? undefined,
-        });
-        console.info(`[servicos/novo] Token gerado para serviço ${docRef.id}:`, token);
-      } catch (tokenError) {
-        console.error(`[servicos/novo] Falha ao gerar token do serviço ${docRef.id}`, tokenError);
-        try {
-          await deleteDoc(docRef);
-        } catch (cleanupError) {
-          console.error(
-            `[servicos/novo] Falha ao remover serviço ${docRef.id} após erro ao gerar token`,
-            cleanupError,
-          );
-        }
-        toast.error("Não foi possível criar o serviço. Tente novamente.");
-        return;
-      }
-
-      if (sanitizedChecklist.length > 0) {
-        const batch = writeBatch(firestore);
-        const checklistCollection = collection(firestore, "services", docRef.id, "checklist");
-
-        sanitizedChecklist.forEach((item) => {
-          const checklistRef = doc(checklistCollection, item.id);
-          batch.set(checklistRef, {
-            description: item.descricao,
-            weight: item.peso,
-            progress: 0,
-            status: "nao_iniciado",
-            updatedAt: serverTimestamp(),
-          });
-        });
-
-        await batch.commit();
+      if (!response.ok || !result?.ok) {
+        const message = result?.error || "Não foi possível criar o serviço.";
+        throw new Error(message);
       }
 
       toast.success("Serviço criado com sucesso.");
       router.push("/dashboard");
     } catch (error) {
       console.error("[servicos/novo] Falha ao criar serviço", error);
-      toast.error("Não foi possível criar o serviço.");
+      const message = error instanceof Error ? error.message : "Não foi possível criar o serviço.";
+      toast.error(message);
     } finally {
       setSaving(false);
     }
@@ -267,16 +172,6 @@ export default function NovoServico() {
       <div className="container mx-auto max-w-4xl px-4 py-6">
         <div className="rounded-2xl border bg-amber-50 p-6 text-sm text-amber-700 shadow-sm">
           {authIssue ?? "Sincronizando sessão segura. Aguarde..."}
-        </div>
-      </div>
-    );
-  }
-
-  if (!firestore) {
-    return (
-      <div className="container mx-auto max-w-4xl px-4 py-6">
-        <div className="rounded-2xl border bg-card/80 p-6 text-sm text-amber-600 shadow-sm">
-          Não foi possível carregar o banco de dados. Verifique a configuração do Firebase.
         </div>
       </div>
     );
@@ -372,25 +267,8 @@ export default function NovoServico() {
           </div>
         </FormRow>
 
-        <div className="space-y-2">
-          <label className="text-sm font-medium text-foreground/90" htmlFor="pacote">
-            Pacote (opcional)
-          </label>
-          <select
-            id="pacote"
-            value={form.pacoteId}
-            onChange={(event) => updateForm("pacoteId", event.target.value)}
-            className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm shadow-sm focus-visible:ring-2 focus-visible:ring-primary/40"
-            disabled={loadingPackages}
-          >
-            <option value="">Nenhum pacote</option>
-            {packages.map((pkg) => (
-              <option key={pkg.id} value={pkg.id}>
-                {pkg.nome || `Pacote ${pkg.id}`}
-              </option>
-            ))}
-          </select>
-          {loadingPackages ? <p className="text-xs text-muted-foreground">Carregando pacotes...</p> : null}
+        <div className="space-y-2 text-sm text-muted-foreground">
+          Os serviços criados aqui podem ser vinculados a um subpacote posteriormente.
         </div>
 
         <div className="rounded-xl border border-dashed bg-muted/20 p-4">
