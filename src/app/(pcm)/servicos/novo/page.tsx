@@ -142,6 +142,7 @@ export default function NovoServico() {
           fimPrevistoMillis: fimMillis,
           horasPrevistas: horas,
           empresaId: companyId,
+          companyId,
           status: form.status,
           checklist: sanitizedChecklist,
         }),

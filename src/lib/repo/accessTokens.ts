@@ -1,5 +1,9 @@
 import "server-only";
 
+import crypto from "crypto";
+
+import { FieldValue } from "firebase-admin/firestore";
+
 import { getAdmin } from "@/lib/firebaseAdmin";
 
 type FirestoreLikeTimestamp = {
@@ -133,4 +137,84 @@ export async function getLatestServiceToken(serviceId: string): Promise<ServiceA
 
   tokens.sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0));
   return tokens[0] ?? null;
+}
+
+type EnsureServiceTokenInput = { serviceId: string; company?: string | null };
+
+function randomToken(length = 8) {
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  const bytes = crypto.randomBytes(length);
+  let token = "";
+  for (let i = 0; i < length; i += 1) {
+    token += alphabet[bytes[i] % alphabet.length];
+  }
+  return token;
+}
+
+export async function ensureServiceAccessToken({ serviceId, company }: EnsureServiceTokenInput) {
+  if (!serviceId) return null;
+
+  const { db } = getAdmin();
+  const now = Date.now();
+
+  const snapshot = await db
+    .collection("accessTokens")
+    .where("targetType", "==", "service")
+    .where("targetId", "==", serviceId)
+    .limit(20)
+    .get();
+
+  let latestMatch: ServiceAccessToken | null = null;
+
+  snapshot.forEach((docSnap) => {
+    const data = (docSnap.data() ?? {}) as RawTokenData;
+    if (!isTokenActive(data, now)) return;
+
+    const docCompany = normaliseCompany(data);
+    if (company) {
+      if (!docCompany || docCompany !== company) return;
+    }
+
+    const code = (typeof data.code === "string" && data.code.trim()) || docSnap.id;
+    if (!code) return;
+
+    const createdAt = toMillis(data.createdAt) ?? 0;
+    if (!latestMatch || (latestMatch.createdAt ?? 0) < createdAt) {
+      latestMatch = { code, company: docCompany, createdAt };
+    }
+  });
+
+  if (latestMatch) {
+    return latestMatch;
+  }
+
+  for (let attempts = 0; attempts < 5; attempts += 1) {
+    const code = randomToken();
+    const ref = db.collection("accessTokens").doc(code);
+    const existing = await ref.get();
+    if (existing.exists) continue;
+
+    const payload: Record<string, unknown> = {
+      code,
+      token: code,
+      active: true,
+      status: "active",
+      targetType: "service",
+      targetId: serviceId,
+      serviceId,
+      createdAt: FieldValue.serverTimestamp(),
+    };
+
+    if (company) {
+      payload.company = company;
+      payload.companyId = company;
+      payload.empresa = company;
+      payload.empresaId = company;
+    }
+
+    await ref.set(payload);
+    return { code, company: company ?? undefined, createdAt: Date.now() } satisfies ServiceAccessToken;
+  }
+
+  throw new Error("Não foi possível gerar um token único para o serviço.");
 }
