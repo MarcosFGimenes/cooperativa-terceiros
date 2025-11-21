@@ -23,6 +23,7 @@ import type { Package, PackageFolder, Service } from "@/types";
 import type { ServiceInfo as FolderServiceInfo, ServiceOption as FolderServiceOption } from "./PackageFoldersManager";
 import ServicesCompaniesSection from "./ServicesCompaniesSection";
 import PackageFoldersManagerClient from "./PackageFoldersManager.client";
+import PackagePdfExportButton from "./PackagePdfExportButton";
 
 const { notFound } = Navigation;
 
@@ -610,8 +611,8 @@ async function renderPackageDetailPage(params: { id: string }) {
     : `${services.length} serviço${services.length === 1 ? "" : "s"}`;
 
   return (
-    <div className="container mx-auto max-w-6xl space-y-6 px-4 py-6">
-      <section className="rounded-2xl border bg-card/80 p-5 shadow-sm">
+    <div className="container mx-auto max-w-6xl space-y-6 px-4 py-6 package-print-layout">
+      <section className="rounded-2xl border bg-card/80 p-5 shadow-sm print-card">
         <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
           <div className="space-y-3">
             <div className="flex flex-wrap items-center gap-2">
@@ -629,18 +630,19 @@ async function renderPackageDetailPage(params: { id: string }) {
               </p>
             </div>
           </div>
-          <div className="flex flex-wrap items-center gap-2 md:justify-end">
+          <div className="flex flex-wrap items-center gap-2 md:justify-end print:hidden">
             <Link className="btn btn-secondary" href="/pacotes">
               Voltar
             </Link>
             <Link className="btn btn-primary" href={`/pacotes/${encodedPackageId}/editar`}>
               Editar
             </Link>
+            <PackagePdfExportButton />
             <DeletePackageButton packageId={pkg.id} packageLabel={packageLabel} />
           </div>
         </div>
 
-        <dl className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <dl className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4 summary-grid">
           <div className="space-y-1 rounded-xl border border-dashed border-border/70 bg-muted/20 p-4">
             <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Início planejado</dt>
             <dd className="text-base font-semibold text-foreground">{plannedStartLabel}</dd>
@@ -661,7 +663,7 @@ async function renderPackageDetailPage(params: { id: string }) {
       </section>
 
       {warningMessages.length ? (
-        <div className="rounded-2xl border border-amber-200 bg-amber-50/90 p-4 text-sm text-amber-900 shadow-sm">
+        <div className="rounded-2xl border border-amber-200 bg-amber-50/90 p-4 text-sm text-amber-900 shadow-sm print:hidden">
           <p className="font-medium">Nem todas as informações foram carregadas.</p>
           <ul className="mt-2 list-disc space-y-1 pl-5">
             {warningMessages.map((message) => (
@@ -672,7 +674,10 @@ async function renderPackageDetailPage(params: { id: string }) {
       ) : null}
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1.7fr)_minmax(320px,1fr)]">
-        <section className="rounded-2xl border bg-card/80 p-5 shadow-sm">
+        <section
+          className="rounded-2xl border bg-card/80 p-5 shadow-sm scurve-card print-card"
+          style={{ breakInside: "avoid-page", pageBreakInside: "avoid" }}
+        >
           <SCurveDeferred
             planned={plannedCurvePoints}
             realizedSeries={realizedSeriesData}
@@ -691,7 +696,7 @@ async function renderPackageDetailPage(params: { id: string }) {
           />
         </section>
 
-        <section className="rounded-2xl border bg-card/80 p-5 shadow-sm">
+        <section className="rounded-2xl border bg-card/80 p-5 shadow-sm print:hidden">
           <h2 className="mb-4 text-lg font-semibold">Informações do pacote</h2>
           <dl className="grid gap-4 text-sm sm:grid-cols-2">
             <div className="space-y-1">
@@ -733,14 +738,20 @@ async function renderPackageDetailPage(params: { id: string }) {
       </div>
 
       <div className="space-y-6">
-        <PackageFoldersManagerClient
-          packageId={pkg.id}
-          services={availableServiceOptions}
-          serviceDetails={serviceDetails}
-          initialFolders={folders}
-        />
+        <div className="space-y-6 print:hidden">
+          <PackageFoldersManagerClient
+            packageId={pkg.id}
+            services={availableServiceOptions}
+            serviceDetails={serviceDetails}
+            initialFolders={folders}
+          />
 
-        <ServicesCompaniesSection folders={folders} serviceDetails={serviceDetails} />
+          <ServicesCompaniesSection folders={folders} serviceDetails={serviceDetails} />
+        </div>
+
+        <div className="hidden print:block" aria-hidden>
+          <ServicesCompaniesSection folders={folders} serviceDetails={serviceDetails} forceExpandAll />
+        </div>
       </div>
     </div>
   );
