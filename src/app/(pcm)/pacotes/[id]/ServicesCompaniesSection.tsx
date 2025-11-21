@@ -21,6 +21,11 @@ export type ServiceDetail = {
   label: string;
   status: string;
   companyLabel?: string;
+  plannedPercent?: number | null;
+  realizedPercent?: number | null;
+  deltaPercent?: number | null;
+  startDateMs?: number | null;
+  endDateMs?: number | null;
 };
 
 export type ServiceDetailsMap = Record<string, ServiceDetail | undefined>;
@@ -46,6 +51,13 @@ export default function ServicesCompaniesSection({ folders, serviceDetails }: Pr
   const formatDateLabel = (value?: number | null) => {
     if (typeof value !== "number" || !Number.isFinite(value)) return "-";
     return formatDate(value, { timeZone: "America/Sao_Paulo", fallback: "-" }) || "-";
+  };
+
+  const formatDeltaLabel = (value?: number | null) => {
+    if (typeof value !== "number" || !Number.isFinite(value)) return "0%";
+    const rounded = Math.round(value);
+    if (rounded > 0) return `+${rounded}%`;
+    return `${rounded}%`;
   };
 
   return (
@@ -136,6 +148,16 @@ export default function ServicesCompaniesSection({ folders, serviceDetails }: Pr
                               <p className="text-xs text-muted-foreground">
                                 ID: {detail.id}
                                 {detail.status ? ` • ${detail.status}` : ""}
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                Planejado: {formatPercentLabel(detail.plannedPercent ?? null, true)} • Realizado: {" "}
+                                {formatPercentLabel(detail.realizedPercent ?? null, true)} • Dif.: {" "}
+                                <span className="font-semibold text-foreground">{formatDeltaLabel(detail.deltaPercent)}</span>
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                Cronograma: <span className="font-semibold text-foreground">{formatDateLabel(detail.startDateMs)}</span>
+                                {" "}—{" "}
+                                <span className="font-semibold text-foreground">{formatDateLabel(detail.endDateMs)}</span>
                               </p>
                             </div>
                           ))}

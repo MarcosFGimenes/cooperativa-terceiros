@@ -12,6 +12,7 @@ import {
   calcularCurvaSPlanejada,
   calcularCurvaSRealizada,
   calcularIndicadoresCurvaS,
+  calcularPercentualPlanejadoServico,
   calcularPercentualSubpacote,
   calcularPercentualRealizadoSubpacote,
   obterIntervaloSubpacote,
@@ -174,6 +175,61 @@ function mapServiceToSubpackageEntry(service: Service): ServicoDoSubpacote {
   });
 
   return entry;
+}
+
+function clampPercent(value?: number | null) {
+  if (typeof value !== "number" || !Number.isFinite(value)) return null;
+  return Math.max(0, Math.min(100, value));
+}
+
+function parsePercent(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return clampPercent(value);
+  }
+  if (typeof value === "string") {
+    const parsed = Number(value.replace(",", ".").trim());
+    if (Number.isFinite(parsed)) return clampPercent(parsed);
+  }
+  return null;
+}
+
+function extractDateMs(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (value instanceof Date && Number.isFinite(value.getTime())) return value.getTime();
+  if (typeof value === "string" && value.trim()) {
+    const parsed = new Date(value);
+    if (Number.isFinite(parsed.getTime())) return parsed.getTime();
+  }
+  return null;
+}
+
+function buildServiceProgressSnapshot(service: Service, reference: Date) {
+  const plannedPercent = calcularPercentualPlanejadoServico(mapServiceToSubpackageEntry(service), reference) ?? 0;
+  const percentCandidates: unknown[] = [
+    service.realPercent,
+    service.progress,
+    service.andamento,
+    (service as Record<string, unknown>).percentual,
+    (service as Record<string, unknown>).percent,
+    (service as Record<string, unknown>).pct,
+    (service as Record<string, unknown>).percentualRealAtual,
+  ];
+  const realizedPercent = clampPercent(percentCandidates.map((candidate) => parsePercent(candidate)).find((value) => value !== null)) ?? 0;
+  const deltaPercent = Number.isFinite(realizedPercent - plannedPercent) ? realizedPercent - plannedPercent : null;
+  const startDateMs =
+    extractDateMs(service.dataInicio) ??
+    extractDateMs(service.inicioPrevisto) ??
+    extractDateMs(service.inicioPlanejado) ??
+    extractDateMs(service.plannedStart) ??
+    extractDateMs(service.startDate);
+  const endDateMs =
+    extractDateMs(service.dataFim) ??
+    extractDateMs(service.fimPrevisto) ??
+    extractDateMs(service.fimPlanejado) ??
+    extractDateMs(service.plannedEnd) ??
+    extractDateMs(service.endDate);
+
+  return { plannedPercent, realizedPercent, deltaPercent, startDateMs, endDateMs };
 }
 
 async function renderPackageDetailPage(params: { id: string }) {
@@ -466,6 +522,7 @@ async function renderPackageDetailPage(params: { id: string }) {
 
   services.forEach((service) => {
     const baseLabel = service.os || service.code || service.id;
+    const snapshot = buildServiceProgressSnapshot(service, today);
     const companyLabel =
       service.assignedTo?.companyName ||
       service.assignedTo?.companyId ||
@@ -480,6 +537,11 @@ async function renderPackageDetailPage(params: { id: string }) {
       label: companyLabel ? `${baseLabel} — ${companyLabel}` : baseLabel,
       status: statusLabel,
       companyLabel: companyLabel,
+      plannedPercent: snapshot.plannedPercent,
+      realizedPercent: snapshot.realizedPercent,
+      deltaPercent: snapshot.deltaPercent,
+      startDateMs: snapshot.startDateMs,
+      endDateMs: snapshot.endDateMs,
       isOpen: statusLabel === "Aberto" || statusLabel === "Pendente",
     };
   });
@@ -487,11 +549,17 @@ async function renderPackageDetailPage(params: { id: string }) {
   availableOpenServices.forEach((service) => {
     const companyLabel =
       service.empresa || service.company || service.assignedTo?.companyName || service.assignedTo?.companyId || null;
+    const snapshot = buildServiceProgressSnapshot(service, today);
     if (serviceDetails[service.id]) {
       if (!serviceDetails[service.id].companyLabel && companyLabel) {
         serviceDetails[service.id] = {
           ...serviceDetails[service.id],
           companyLabel: companyLabel ?? undefined,
+          plannedPercent: serviceDetails[service.id].plannedPercent ?? snapshot.plannedPercent,
+          realizedPercent: serviceDetails[service.id].realizedPercent ?? snapshot.realizedPercent,
+          deltaPercent: serviceDetails[service.id].deltaPercent ?? snapshot.deltaPercent,
+          startDateMs: serviceDetails[service.id].startDateMs ?? snapshot.startDateMs,
+          endDateMs: serviceDetails[service.id].endDateMs ?? snapshot.endDateMs,
         };
       }
       return;
@@ -503,6 +571,11 @@ async function renderPackageDetailPage(params: { id: string }) {
       label: companyLabel ? `${baseLabel} — ${companyLabel}` : baseLabel,
       status: statusLabel,
       companyLabel: companyLabel ?? undefined,
+      plannedPercent: snapshot.plannedPercent,
+      realizedPercent: snapshot.realizedPercent,
+      deltaPercent: snapshot.deltaPercent,
+      startDateMs: snapshot.startDateMs,
+      endDateMs: snapshot.endDateMs,
       isOpen: statusLabel === "Aberto" || statusLabel === "Pendente",
     };
   });
