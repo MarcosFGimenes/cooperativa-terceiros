@@ -353,7 +353,7 @@ async function renderPackageDetailPage(params: { id: string }) {
 
   const [foldersResult, availableServicesResult] = await Promise.allSettled([
     listPackageFolders(pkg.id),
-    listAvailableOpenServices(200, { mode: "summary" }),
+    listAvailableOpenServices(200, { mode: "summary", disableCache: true }),
   ]);
 
   if (foldersResult.status === "fulfilled") {
