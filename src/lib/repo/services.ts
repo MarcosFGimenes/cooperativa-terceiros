@@ -30,8 +30,13 @@ type CreateServicePayload = {
   fimPrevistoMillis: number;
   horasPrevistas: number;
   empresaId: string | null;
+  folderId?: string | null;
   status: ServiceStatus;
   checklist: ChecklistSeed[];
+  label?: string | null;
+  participantsCount?: number | null;
+  estimatedTime?: number | null;
+  metadata?: Record<string, unknown>;
 };
 
 function normaliseAvailableServicesLimit(limit: number | undefined): number {
@@ -100,12 +105,36 @@ function revalidateServiceDetailCache(serviceId: string) {
   revalidateTag("services:available");
 }
 
+function sanitiseMetadata(value: Record<string, unknown> | undefined) {
+  if (!value) return undefined;
+
+  const clean: Record<string, unknown> = {};
+
+  for (const [key, entry] of Object.entries(value)) {
+    if (entry === undefined) continue;
+    if (entry === null) {
+      clean[key] = null;
+      continue;
+    }
+    if (typeof entry === "number" || typeof entry === "string" || typeof entry === "boolean") {
+      clean[key] = entry;
+      continue;
+    }
+    if (entry && typeof entry === "object") {
+      clean[key] = sanitiseMetadata(entry as Record<string, unknown>) ?? null;
+    }
+  }
+
+  return clean;
+}
+
 export async function createService(payload: CreateServicePayload) {
   const servicesCol = servicesCollection();
   const docRef = servicesCol.doc();
   const now = FieldValue.serverTimestamp();
   const checklist = Array.isArray(payload.checklist) ? payload.checklist : [];
   const equipmentName = (payload.equipmentName ?? payload.equipamento).trim();
+  const metadata = sanitiseMetadata(payload.metadata);
 
   const serviceDoc = {
     os: payload.os,
@@ -119,10 +148,15 @@ export async function createService(payload: CreateServicePayload) {
     horasPrevistas: payload.horasPrevistas,
     empresaId: payload.empresaId,
     company: payload.empresaId,
+    folderId: payload.folderId ?? null,
     status: payload.status,
     andamento: 0,
     checklist,
     hasChecklist: checklist.length > 0,
+    label: payload.label || payload.equipamento,
+    participantsCount: payload.participantsCount ?? null,
+    estimatedTime: payload.estimatedTime ?? null,
+    metadata: metadata ?? undefined,
     createdAt: now,
     updatedAt: now,
     createdBy: "pcm",
@@ -345,6 +379,7 @@ function mapServiceData(
     oc: data.oc ? String(data.oc) : undefined,
     tag: data.tag ? String(data.tag) : undefined,
     equipmentName: String(data.equipmentName ?? data.equipamento ?? data.equipment ?? ""),
+    label: typeof data.label === "string" ? data.label : undefined,
     setor: data.setor ? String(data.setor) : undefined,
     sector: data.sector ? String(data.sector) : undefined,
     plannedStart,
@@ -365,8 +400,12 @@ function mapServiceData(
     checklist,
     createdAt,
     packageId: data.packageId ? String(data.packageId) : data.pacoteId ? String(data.pacoteId) : undefined,
+    folderId: typeof data.folderId === "string" ? data.folderId : undefined,
     company: data.company ? String(data.company) : data.companyId ? String(data.companyId) : undefined,
     empresa: data.empresa ? String(data.empresa) : undefined,
+    participantsCount: toNumber(data.participantsCount) ?? undefined,
+    estimatedTime: toNumber(data.estimatedTime) ?? undefined,
+    metadata: data.metadata && typeof data.metadata === "object" ? data.metadata : undefined,
     andamento: progress ?? undefined,
     realPercent: progress ?? undefined,
   };
