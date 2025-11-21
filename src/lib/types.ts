@@ -42,11 +42,6 @@ export type Service = BaseService & {
   realPercent?: number;
   hasChecklist?: boolean;
   packageId?: string;
-  folderId?: string;
-  label?: string;
-  participantsCount?: number;
-  estimatedTime?: number;
-  metadata?: Record<string, unknown>;
   updatedAt?: number;
   previousProgress?: number | null;
 };
