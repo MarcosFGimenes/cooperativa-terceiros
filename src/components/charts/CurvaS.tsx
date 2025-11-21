@@ -230,18 +230,22 @@ export default function CurvaS({ planned, actual }: CurvaSProps) {
             const plannedValue = plannedPercentByDate.get(point.label);
             const actualValue = actualPercentByDate.get(point.label);
             const hasDifference = plannedValue !== undefined && actualValue !== undefined;
-            const difference = hasDifference ? Math.round(actualValue - plannedValue) : null;
 
-            const baseTitle = `${getLongDateLabel(point.label)}: ${point.value}%`;
-            const enhancedTitle =
-              hasDifference && difference !== null
-                ? `${baseTitle} (Diferença: ${difference > 0 ? "+" : ""}${difference}%)`
-                : baseTitle;
+            const dailyDifference = hasDifference ? roundTwo(actualValue - plannedValue) : null;
+
+            const tooltipLines = [
+              getLongDateLabel(point.label),
+              plannedValue !== undefined ? `Planejado: ${plannedValue}%` : null,
+              actualValue !== undefined ? `Realizado: ${actualValue}%` : null,
+              hasDifference && dailyDifference !== null
+                ? `Diferença: ${dailyDifference > 0 ? "+" : ""}${dailyDifference}%`
+                : null,
+            ].filter((line): line is string => Boolean(line));
 
             return (
               <g key={`${seriesIndex}-${point.label}-${pointIndex}`}>
                 <circle cx={point.x} cy={point.y} r={4.5} fill="#fff" strokeWidth={2.5} stroke="#111827" />
-                <title>{enhancedTitle}</title>
+                <title>{tooltipLines.join("\n")}</title>
               </g>
             );
           }),
