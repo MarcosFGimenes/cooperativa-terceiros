@@ -1,14 +1,11 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Timestamp, collection, deleteDoc, doc, serverTimestamp, setDoc, writeBatch } from "firebase/firestore";
 
 import { Field, FormRow } from "@/components/ui/form-controls";
-import { createAccessToken } from "@/lib/accessTokens";
-import { tryGetFirestore } from "@/lib/firebase";
 import { useFirebaseAuthSession } from "@/lib/useFirebaseAuthSession";
 import { dateOnlyToMillis, maskDateOnlyInput, parseDateOnly } from "@/lib/dateOnly";
 
@@ -42,15 +39,7 @@ export default function NovoServico() {
   const [withChecklist, setWithChecklist] = useState(false);
   const [checklist, setChecklist] = useState<ChecklistDraft>([]);
   const [saving, setSaving] = useState(false);
-  const { db: firestore, error: firestoreError } = useMemo(() => tryGetFirestore(), []);
   const { ready: isAuthReady, issue: authIssue } = useFirebaseAuthSession();
-
-  useEffect(() => {
-    if (firestoreError) {
-      console.error("[servicos/novo] Firestore indisponível", firestoreError);
-      toast.error("Configuração de banco de dados indisponível.");
-    }
-  }, [firestoreError]);
 
   const totalPeso = useMemo(
     () =>
@@ -131,11 +120,6 @@ export default function NovoServico() {
       toast.error("Horas previstas deve ser um número maior que zero.");
       return;
     }
-
-    if (!firestore) {
-      toast.error("Banco de dados indisponível.");
-      return;
-    }
     if (!isAuthReady) {
       toast.error("Sua sessão segura ainda não foi confirmada. Aguarde ou faça login novamente.");
       return;
@@ -144,75 +128,40 @@ export default function NovoServico() {
     setSaving(true);
     try {
       const companyId = form.empresaId.trim() || null;
-      const payload = {
-        os: form.os.trim(),
-        oc: form.oc.trim() || null,
-        tag: form.tag.trim(),
-        equipamento: form.equipamento.trim(),
-        equipmentName: form.equipamento.trim(),
-        setor: form.setor.trim() || null,
-        inicioPrevisto: Timestamp.fromMillis(inicioMillis),
-        fimPrevisto: Timestamp.fromMillis(fimMillis),
-        horasPrevistas: horas,
-        empresaId: companyId,
-        company: companyId,
-        status: form.status,
-        andamento: 0,
-        checklist: sanitizedChecklist,
-        hasChecklist: sanitizedChecklist.length > 0,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-        createdBy: "pcm",
-      };
+      const response = await fetch("/api/pcm/servicos/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          os: form.os.trim(),
+          oc: form.oc.trim() || null,
+          tag: form.tag.trim(),
+          equipamento: form.equipamento.trim(),
+          equipmentName: form.equipamento.trim(),
+          setor: form.setor.trim() || null,
+          inicioPrevistoMillis: inicioMillis,
+          fimPrevistoMillis: fimMillis,
+          horasPrevistas: horas,
+          empresaId: companyId,
+          status: form.status,
+          checklist: sanitizedChecklist,
+        }),
+      });
 
-      const servicesCollection = collection(firestore, "services");
-      const docRef = doc(servicesCollection);
-      await setDoc(docRef, payload);
+      const result = (await response.json().catch(() => null)) as
+        | { ok: boolean; error?: string }
+        | null;
 
-      try {
-        const token = await createAccessToken({
-          serviceId: docRef.id,
-          empresa: companyId ?? undefined,
-          company: companyId ?? undefined,
-        });
-        console.info(`[servicos/novo] Token gerado para serviço ${docRef.id}:`, token);
-      } catch (tokenError) {
-        console.error(`[servicos/novo] Falha ao gerar token do serviço ${docRef.id}`, tokenError);
-        try {
-          await deleteDoc(docRef);
-        } catch (cleanupError) {
-          console.error(
-            `[servicos/novo] Falha ao remover serviço ${docRef.id} após erro ao gerar token`,
-            cleanupError,
-          );
-        }
-        toast.error("Não foi possível criar o serviço. Tente novamente.");
-        return;
-      }
-
-      if (sanitizedChecklist.length > 0) {
-        const batch = writeBatch(firestore);
-        const checklistCollection = collection(firestore, "services", docRef.id, "checklist");
-
-        sanitizedChecklist.forEach((item) => {
-          const checklistRef = doc(checklistCollection, item.id);
-          batch.set(checklistRef, {
-            description: item.descricao,
-            weight: item.peso,
-            progress: 0,
-            status: "nao_iniciado",
-            updatedAt: serverTimestamp(),
-          });
-        });
-
-        await batch.commit();
+      if (!response.ok || !result?.ok) {
+        const message = result?.error || "Não foi possível criar o serviço.";
+        throw new Error(message);
       }
 
       toast.success("Serviço criado com sucesso.");
       router.push("/dashboard");
     } catch (error) {
       console.error("[servicos/novo] Falha ao criar serviço", error);
-      toast.error("Não foi possível criar o serviço.");
+      const message = error instanceof Error ? error.message : "Não foi possível criar o serviço.";
+      toast.error(message);
     } finally {
       setSaving(false);
     }
@@ -223,16 +172,6 @@ export default function NovoServico() {
       <div className="container mx-auto max-w-4xl px-4 py-6">
         <div className="rounded-2xl border bg-amber-50 p-6 text-sm text-amber-700 shadow-sm">
           {authIssue ?? "Sincronizando sessão segura. Aguarde..."}
-        </div>
-      </div>
-    );
-  }
-
-  if (!firestore) {
-    return (
-      <div className="container mx-auto max-w-4xl px-4 py-6">
-        <div className="rounded-2xl border bg-card/80 p-6 text-sm text-amber-600 shadow-sm">
-          Não foi possível carregar o banco de dados. Verifique a configuração do Firebase.
         </div>
       </div>
     );

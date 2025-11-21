@@ -17,6 +17,23 @@ const SERVICE_CACHE_TTL_SECONDS = 180;
 const SERVICE_LIST_CACHE_TTL_SECONDS = 300;
 const DEFAULT_AVAILABLE_SERVICES_LIMIT = 200;
 
+type ChecklistSeed = { id: string; descricao: string; peso: number };
+
+type CreateServicePayload = {
+  os: string;
+  oc: string | null;
+  tag: string;
+  equipamento: string;
+  equipmentName?: string | null;
+  setor: string | null;
+  inicioPrevistoMillis: number;
+  fimPrevistoMillis: number;
+  horasPrevistas: number;
+  empresaId: string | null;
+  status: ServiceStatus;
+  checklist: ChecklistSeed[];
+};
+
 function normaliseAvailableServicesLimit(limit: number | undefined): number {
   if (typeof limit !== "number" || !Number.isFinite(limit)) {
     return DEFAULT_AVAILABLE_SERVICES_LIMIT;
@@ -81,6 +98,58 @@ function revalidateServiceDetailCache(serviceId: string) {
   if (!serviceId) return;
   revalidateTag("services:detail");
   revalidateTag("services:available");
+}
+
+export async function createService(payload: CreateServicePayload) {
+  const servicesCol = servicesCollection();
+  const docRef = servicesCol.doc();
+  const now = FieldValue.serverTimestamp();
+  const checklist = Array.isArray(payload.checklist) ? payload.checklist : [];
+  const equipmentName = (payload.equipmentName ?? payload.equipamento).trim();
+
+  const serviceDoc = {
+    os: payload.os,
+    oc: payload.oc || null,
+    tag: payload.tag,
+    equipamento: payload.equipamento,
+    equipmentName: equipmentName || payload.equipamento,
+    setor: payload.setor || null,
+    inicioPrevisto: Timestamp.fromMillis(payload.inicioPrevistoMillis),
+    fimPrevisto: Timestamp.fromMillis(payload.fimPrevistoMillis),
+    horasPrevistas: payload.horasPrevistas,
+    empresaId: payload.empresaId,
+    company: payload.empresaId,
+    status: payload.status,
+    andamento: 0,
+    checklist,
+    hasChecklist: checklist.length > 0,
+    createdAt: now,
+    updatedAt: now,
+    createdBy: "pcm",
+  };
+
+  await docRef.set(serviceDoc);
+
+  if (checklist.length > 0) {
+    const db = getDb();
+    const batch = db.batch();
+    const checklistCol = docRef.collection("checklist");
+
+    checklist.forEach((item) => {
+      const ref = checklistCol.doc(item.id);
+      batch.set(ref, {
+        description: item.descricao,
+        weight: item.peso,
+        progress: 0,
+        status: "nao_iniciado",
+        updatedAt: now,
+      });
+    });
+
+    await batch.commit();
+  }
+
+  return { id: docRef.id };
 }
 
 function toMillis(value: unknown | Timestamp | number | null | undefined) {
