@@ -1,3 +1,5 @@
+import type { Service } from "@/types";
+
 export function clampProgress(value: number): number {
   if (!Number.isFinite(value)) return 0;
   return Math.max(0, Math.min(100, Math.round(value)));
@@ -906,13 +908,31 @@ export function calcularCurvaSRealizada(
 ): CurvaSPonto[] {
   const servicos = coletarServicosDoPacote(pacote);
   const preparados = prepararServicosPlanejados(servicos);
-  const linhaDoTempo = gerarLinhaDoTempo(preparados);
+  let linhaDoTempo = gerarLinhaDoTempo(preparados);
   if (!linhaDoTempo.length) return [];
   const somaHoras = preparados.reduce((total, servico) => total + servico.horasPrevistas, 0);
   if (somaHoras <= 0) {
     return linhaDoTempo.map((data) => ({ data, percentual: 0 }));
   }
   const servicosRealizados = prepararServicosRealizados(preparados);
+
+  const dataUltimaAtualizacao = servicosRealizados.reduce<Date | null>((maisRecente, servico) => {
+    const ultima = servico.atualizacoes.length ? servico.atualizacoes[servico.atualizacoes.length - 1].data : null;
+    if (!ultima) return maisRecente;
+    if (!maisRecente || ultima.getTime() > maisRecente.getTime()) {
+      return ultima;
+    }
+    return maisRecente;
+  }, null);
+
+  if (dataUltimaAtualizacao) {
+    const limite = startOfDay(dataUltimaAtualizacao).getTime();
+    linhaDoTempo = linhaDoTempo.filter((data) => data.getTime() <= limite);
+    if (!linhaDoTempo.length) {
+      linhaDoTempo = [startOfDay(dataUltimaAtualizacao)];
+    }
+  }
+
   return linhaDoTempo.map((data) => {
     const somaPonderada = servicosRealizados.reduce((total, servico) => {
       const percentual = percentualRealizadoAte(servico, data);
@@ -938,4 +958,179 @@ export function calcularIndicadoresCurvaS(
     realizado,
     diferenca: realizado - planejadoAteHoje,
   };
+}
+
+type PcmService = Service & {
+  folderId?: string | null;
+  pastaId?: string | null;
+  folderName?: string | null;
+};
+
+// Usa a mesma regra de ponderação aplicada nos cálculos de percentual,
+// baseada em horas previstas/total/peso. Mantém consistência entre as métricas
+// exibidas (percentuais) e os valores derivados (horas faltantes/diferença).
+function normalizarHorasTotal(servico: PcmService): number {
+  const horas = extractHorasPrevistas(servico as unknown as ServicoDoSubpacote);
+  return horas ?? 0;
+}
+
+function clampPercentageValue(value: number): number {
+  if (!Number.isFinite(value)) return 0;
+  return Math.max(0, Math.min(100, value));
+}
+
+function normalizarServicosParaSubpacote(servicos: PcmService[]): ServicoDoSubpacote[] {
+  return servicos.map((servico) => ({
+    ...servico,
+    dataInicio: (servico as { dataInicio?: DateInput }).dataInicio,
+    dataFim: (servico as { dataFim?: DateInput }).dataFim,
+    inicioPrevisto: (servico as { inicioPrevisto?: DateInput }).inicioPrevisto,
+    fimPrevisto: (servico as { fimPrevisto?: DateInput }).fimPrevisto,
+    inicioPlanejado: (servico as { inicioPlanejado?: DateInput }).inicioPlanejado,
+    fimPlanejado: (servico as { fimPlanejado?: DateInput }).fimPlanejado,
+    plannedStart: servico.plannedStart,
+    plannedEnd: servico.plannedEnd,
+    startDate: (servico as { startDate?: DateInput }).startDate,
+    endDate: (servico as { endDate?: DateInput }).endDate,
+    totalHours: servico.totalHours,
+  }));
+}
+
+export function calcularMetricasSubpacote(
+  services: PcmService[],
+  currentDate: Date,
+): Array<{
+  nome: string;
+  plannedPercent: number;
+  realizedPercent: number;
+  totalHours: number;
+  horasFaltando: number;
+  diferenca: number;
+}> {
+  if (!Array.isArray(services) || services.length === 0) return [];
+
+  const grupos = new Map<
+    string,
+    { nome: string; servicos: PcmService[]; totalHours: number }
+  >();
+
+  const semSubpacoteKey = "sem-subpacote";
+
+  services.forEach((servico) => {
+    const folderId =
+      (typeof servico.folderId === "string" && servico.folderId.trim()) ||
+      (typeof servico.pastaId === "string" && servico.pastaId.trim());
+    const chave = folderId || semSubpacoteKey;
+    const nome =
+      (servico.folderName && servico.folderName.trim()) ||
+      folderId ||
+      "Sem Subpacote";
+    const existente = grupos.get(chave) ?? { nome, servicos: [], totalHours: 0 };
+    existente.servicos.push(servico);
+    existente.totalHours += normalizarHorasTotal(servico);
+    existente.nome = existente.nome || nome;
+    grupos.set(chave, existente);
+  });
+
+  return Array.from(grupos.values())
+    .map((grupo) => {
+      const servicosNormalizados = normalizarServicosParaSubpacote(grupo.servicos);
+      const subpacotePlanejado = { servicos: servicosNormalizados };
+      const plannedPercent = clampPercentageValue(
+        calcularPercentualSubpacote(subpacotePlanejado, currentDate) ?? 0,
+      );
+      const realizedPercent = clampPercentageValue(
+        calcularPercentualRealizadoSubpacote(subpacotePlanejado, currentDate) ?? 0,
+      );
+      const horasFaltando = grupo.totalHours * (100 - realizedPercent) * 0.01;
+      const diferenca = grupo.totalHours * (realizedPercent - plannedPercent) * 0.01;
+
+      return {
+        nome: grupo.nome,
+        plannedPercent,
+        realizedPercent,
+        totalHours: grupo.totalHours,
+        horasFaltando,
+        diferenca,
+      };
+    })
+    .sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR", { sensitivity: "base" }));
+}
+
+export function calcularMetricasPorSetor(
+  services: PcmService[],
+  currentDate: Date,
+): Array<{
+  setor: string;
+  plannedPercent: number;
+  realizedPercent: number;
+  totalHours: number;
+  horasFaltando: number;
+  diferenca: number;
+}> {
+  if (!Array.isArray(services) || services.length === 0) return [];
+
+  const grupos = new Map<
+    string,
+    { setor: string; servicos: PcmService[]; totalHours: number }
+  >();
+
+  services.forEach((servico) => {
+    const setorRaw =
+      (typeof servico.setor === "string" && servico.setor.trim()) ||
+      (typeof servico.sector === "string" && servico.sector.trim());
+    const setor = setorRaw || "Sem setor";
+    const existente = grupos.get(setor) ?? { setor, servicos: [], totalHours: 0 };
+    existente.servicos.push(servico);
+    existente.totalHours += normalizarHorasTotal(servico);
+    grupos.set(setor, existente);
+  });
+
+  return Array.from(grupos.values())
+    .map((grupo) => {
+      const servicos = grupo.servicos;
+      let totalHours = 0;
+      let sumWeightedPlanned = 0;
+      let sumWeightedRealized = 0;
+
+      servicos.forEach((servico) => {
+        const horas = normalizarHorasTotal(servico);
+        if (horas <= 0) return;
+        const servicoComoSubpacote = servico as unknown as ServicoDoSubpacote;
+        totalHours += horas;
+
+        const plannedPercent = clampPercentageValue(
+          calcularPercentualPlanejadoServico(servicoComoSubpacote, currentDate) ?? 0,
+        );
+
+        const range = resolveDateRange(servicoComoSubpacote);
+        const atualizacoes = coletarAtualizacoesDoServico(servicoComoSubpacote, range?.inicio);
+        const servicoRealizadoNorm: ServicoRealizadoNormalizado = {
+          horasPrevistas: horas,
+          atualizacoes,
+        };
+        const realizedPercent = clampPercentageValue(
+          percentualRealizadoAte(servicoRealizadoNorm, currentDate),
+        );
+        sumWeightedPlanned += plannedPercent * horas;
+        sumWeightedRealized += realizedPercent * horas;
+      });
+
+      const plannedPercent =
+        totalHours > 0 ? clampPercentageValue(sumWeightedPlanned / totalHours) : 0;
+      const realizedPercent =
+        totalHours > 0 ? clampPercentageValue(sumWeightedRealized / totalHours) : 0;
+      const horasFaltando = totalHours * (100 - realizedPercent) * 0.01;
+      const diferenca = totalHours * (realizedPercent - plannedPercent) * 0.01;
+
+      return {
+        setor: grupo.setor,
+        plannedPercent,
+        realizedPercent,
+        totalHours,
+        horasFaltando,
+        diferenca,
+      };
+    })
+    .sort((a, b) => a.setor.localeCompare(b.setor, "pt-BR", { sensitivity: "base" }));
 }
