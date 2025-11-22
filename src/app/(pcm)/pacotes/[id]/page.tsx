@@ -12,6 +12,8 @@ import {
   calcularCurvaSPlanejada,
   calcularCurvaSRealizada,
   calcularIndicadoresCurvaS,
+  calcularMetricasPorSetor,
+  calcularMetricasSubpacote,
   calcularPercentualPlanejadoServico,
   calcularPercentualSubpacote,
   calcularPercentualRealizadoSubpacote,
@@ -54,7 +56,7 @@ function renderPackageLoadFailure(packageLabel: string, warnings: string[] = [])
     <div className="container mx-auto max-w-4xl space-y-6 px-4 py-6">
       <div className="rounded-2xl border bg-card/80 p-6 shadow-sm">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Pacote {packageLabel}</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">{packageLabel}</h1>
           <p className="text-sm text-muted-foreground">
             Não foi possível carregar as informações deste pacote no momento.
           </p>
@@ -501,6 +503,44 @@ async function renderPackageDetailPage(params: { id: string }) {
     });
   });
 
+  const folderLookup = new Map<string, { id: string; name?: string | null }>();
+  folders.forEach((folder) => {
+    folder.services.forEach((serviceId) => {
+      if (!serviceId) return;
+      folderLookup.set(serviceId, { id: folder.id, name: folder.name });
+    });
+  });
+
+  const saoPauloNow = new Date(
+    new Date().toLocaleString("en-US", { timeZone: "America/Sao_Paulo" }),
+  );
+
+  const servicesWithFolderContext = services.map((service) => {
+    const folderData = folderLookup.get(service.id);
+    const directFolderId =
+      (typeof (service as { folderId?: unknown }).folderId === "string" &&
+        (service as { folderId?: string }).folderId.trim()) ||
+      (typeof (service as { pastaId?: unknown }).pastaId === "string" &&
+        (service as { pastaId?: string }).pastaId.trim()) ||
+      null;
+
+    return {
+      ...service,
+      folderId: folderData?.id ?? directFolderId,
+      pastaId: directFolderId ?? (service as { pastaId?: string | null }).pastaId,
+      folderName: folderData?.name ?? null,
+    };
+  });
+
+  const subpackageMetrics = calcularMetricasSubpacote(servicesWithFolderContext, saoPauloNow);
+  const sectorMetrics = calcularMetricasPorSetor(servicesWithFolderContext, saoPauloNow);
+
+  const formatMetricValue = (value: number): string => {
+    const rounded = Math.round(value);
+    if (!Number.isFinite(rounded)) return "0";
+    return Object.is(rounded, -0) ? "0" : String(rounded);
+  };
+
   const availableServiceOptions: FolderServiceOption[] = availableOpenServices
     .filter((service) => !folderServiceIds.has(service.id))
     .map((service) => {
@@ -624,7 +664,7 @@ async function renderPackageDetailPage(params: { id: string }) {
               </span>
             </div>
             <div className="space-y-1">
-              <h1 className="text-2xl font-semibold tracking-tight">Pacote {packageLabel}</h1>
+              <h1 className="text-2xl font-semibold tracking-tight">{packageLabel}</h1>
               <p className="text-sm text-muted-foreground">
                 Resumo do pacote, serviços vinculados e curva S consolidada.
               </p>
@@ -758,6 +798,92 @@ async function renderPackageDetailPage(params: { id: string }) {
           />
         </div>
       </div>
+
+      <section className="rounded-2xl border bg-card/80 p-5 shadow-sm space-y-8">
+        <div className="space-y-3">
+          <h2 className="text-lg font-semibold">Resumo por Subpacote</h2>
+          {subpackageMetrics.length ? (
+            <div className="overflow-x-auto rounded-xl border border-green-300/80 bg-green-100/60">
+              <table className="mt-2 min-w-full text-center">
+                <thead>
+                  <tr className="bg-green-500 text-white">
+                    <th className="p-2 text-left">Subpacote</th>
+                    <th className="p-2">% Atual</th>
+                    <th className="p-2">% Deveria Estar</th>
+                    <th className="p-2">Horas Faltando</th>
+                    <th className="p-2">Diferença</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-green-200 text-foreground">
+                  {subpackageMetrics.map((metric) => (
+                    <tr key={metric.nome} className="border-b border-green-300/60">
+                      <td className="p-2 text-left font-medium text-foreground/90">{metric.nome}</td>
+                      <td className="p-2 text-black dark:text-black">
+                        {formatMetricValue(metric.realizedPercent)}%
+                      </td>
+                      <td className="p-2 text-black dark:text-black">
+                        {formatMetricValue(metric.plannedPercent)}%
+                      </td>
+                      <td className="p-2 text-black dark:text-black">
+                        {formatMetricValue(metric.horasFaltando)}
+                      </td>
+                      <td className="p-2 text-black dark:text-black">
+                        {formatMetricValue(metric.diferenca)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              Não há subpacotes cadastrados para este pacote.
+            </p>
+          )}
+        </div>
+
+        <div className="space-y-3">
+          <h2 className="text-lg font-semibold">Resumo por Setor</h2>
+          {sectorMetrics.length ? (
+            <div className="overflow-x-auto rounded-xl border border-green-300/80 bg-green-100/60">
+              <table className="mt-2 min-w-full text-center">
+                <thead>
+                  <tr className="bg-green-500 text-white">
+                    <th className="p-2 text-left">Setor</th>
+                    <th className="p-2">% Atual</th>
+                    <th className="p-2">% Deveria Estar</th>
+                    <th className="p-2">Horas Faltando</th>
+                    <th className="p-2">Diferença</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-green-200 text-foreground">
+                  {sectorMetrics.map((metric) => (
+                    <tr key={metric.setor} className="border-b border-green-300/60">
+                      <td className="p-2 text-left font-medium text-foreground/90">{metric.setor}</td>
+                      <td className="p-2 text-black dark:text-black">
+                        {formatMetricValue(metric.realizedPercent)}%
+                      </td>
+                      <td className="p-2 text-black dark:text-black">
+                        {formatMetricValue(metric.plannedPercent)}%
+                      </td>
+                      <td className="p-2 text-black dark:text-black">
+                        {formatMetricValue(metric.horasFaltando)}
+                      </td>
+                      <td className="p-2 text-black dark:text-black">
+                        {formatMetricValue(metric.diferenca)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              Não há setores cadastrados para este pacote.
+            </p>
+          )}
+        </div>
+      </section>
     </div>
   );
 }

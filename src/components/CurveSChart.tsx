@@ -1,4 +1,22 @@
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, LabelList, type TooltipProps } from "recharts";
+import {
+  LabelList,
+  Legend,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+  type TooltipProps,
+} from "recharts";
+
+import {
+  ACTIVE_DOT_RADIUS,
+  DOT_RADIUS,
+  LINE_STROKE_WIDTH,
+  PLANNED_COLOR,
+  REALIZED_COLOR,
+} from "./charts/colors";
 
 type TooltipPayload = TooltipProps<number, string>;
 
@@ -41,21 +59,42 @@ export default function CurveSChart({ data }: { data: { date: string; planned: n
       <ResponsiveContainer>
         <LineChart data={data} margin={{ top: 24, right: 24, left: 8, bottom: 8 }}>
           <XAxis dataKey="date" tick={{ fontSize: 10 }} />
-          <YAxis domain={[0, 100]} tickFormatter={(v) => `${v}%`} />
+          <YAxis domain={[0, 100]} tickFormatter={(v) => `${v}%`} hide />
           <Tooltip content={<CustomTooltip />} />
-          <Line type="monotone" dataKey="planned" stroke="#f59e0b" strokeWidth={3} dot={{ r: 2 }} activeDot={{ r: 4 }} name="Planejado">
+          <Legend wrapperStyle={{ fontSize: 12 }} />
+          <Line
+            type="monotone"
+            dataKey="planned"
+            stroke={PLANNED_COLOR}
+            strokeWidth={LINE_STROKE_WIDTH}
+            dot={{ r: DOT_RADIUS, stroke: PLANNED_COLOR, fill: PLANNED_COLOR }}
+            activeDot={{ r: ACTIVE_DOT_RADIUS, stroke: PLANNED_COLOR, fill: PLANNED_COLOR }}
+            name="Planejado"
+            strokeLinecap="round"
+            isAnimationActive={false}
+          >
             <LabelList
               dataKey="planned"
               position="top"
-              formatter={(v: number) => `${v}%`}
+              formatter={(v: number) => `${Math.round(v)}%`}
               className="text-[10px] fill-muted-foreground"
             />
           </Line>
-          <Line type="monotone" dataKey="actual" stroke="#2563eb" strokeWidth={3} dot={{ r: 2 }} activeDot={{ r: 4 }} name="Realizado">
+          <Line
+            type="monotone"
+            dataKey="actual"
+            stroke={REALIZED_COLOR}
+            strokeWidth={LINE_STROKE_WIDTH}
+            dot={{ r: DOT_RADIUS, stroke: REALIZED_COLOR, fill: REALIZED_COLOR }}
+            activeDot={{ r: ACTIVE_DOT_RADIUS, stroke: REALIZED_COLOR, fill: REALIZED_COLOR }}
+            name="Realizado"
+            strokeLinecap="round"
+            isAnimationActive={false}
+          >
             <LabelList
               dataKey="actual"
               position="top"
-              formatter={(v: number) => `${v}%`}
+              formatter={(v: number) => `${Math.round(v)}%`}
               className="text-[10px] fill-muted-foreground"
             />
           </Line>
