@@ -80,7 +80,21 @@ function parseDateValue(value: unknown): number | null {
 }
 
 function parseHours(value: unknown): number | null {
-  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "number" && Number.isFinite(value)) {
+    const numeric = value;
+    const isLikelyExcelTime =
+      numeric > 0 &&
+      ((numeric < 1 && !Number.isInteger(numeric)) || (numeric < 48 && !Number.isInteger(numeric)) || numeric <= 5);
+
+    // When the column is formatted as [h]:mm:ss, Excel stores the duration as days.
+    // Convert those serials back to hours so values such as 0.5 (12h) or 1.67 (40h)
+    // are interpreted correctly.
+    if (isLikelyExcelTime) {
+      return numeric * 24;
+    }
+    return numeric;
+  }
+
   if (typeof value === "string") {
     const cleaned = value.replace(/[^0-9,\.\-]+/g, "").replace(",", ".");
     const numeric = Number(cleaned);

@@ -56,7 +56,7 @@ function renderPackageLoadFailure(packageLabel: string, warnings: string[] = [])
     <div className="container mx-auto max-w-4xl space-y-6 px-4 py-6">
       <div className="rounded-2xl border bg-card/80 p-6 shadow-sm">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Pacote {packageLabel}</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">{packageLabel}</h1>
           <p className="text-sm text-muted-foreground">
             Não foi possível carregar as informações deste pacote no momento.
           </p>
@@ -664,7 +664,7 @@ async function renderPackageDetailPage(params: { id: string }) {
               </span>
             </div>
             <div className="space-y-1">
-              <h1 className="text-2xl font-semibold tracking-tight">Pacote {packageLabel}</h1>
+              <h1 className="text-2xl font-semibold tracking-tight">{packageLabel}</h1>
               <p className="text-sm text-muted-foreground">
                 Resumo do pacote, serviços vinculados e curva S consolidada.
               </p>

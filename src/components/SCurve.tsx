@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import type { TooltipProps } from "recharts";
 import {
-  CartesianGrid,
   LabelList,
   Legend,
   Line,
@@ -273,8 +272,8 @@ export default function SCurve({
                 <CartesianGrid stroke="#e5e7eb" strokeDasharray="3 3" horizontal={false} />
                 <XAxis dataKey="dateLabel" stroke="hsl(var(--muted-foreground))" tick={{ fontSize: 12 }} />
                 <YAxis
-                  stroke="hsl(var(--muted-foreground))"
                   domain={[0, 100]}
+                  hide
                   allowDecimals={false}
                   tickFormatter={(value) => `${value}%`}
                 />

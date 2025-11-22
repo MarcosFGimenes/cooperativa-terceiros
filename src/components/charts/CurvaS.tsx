@@ -109,8 +109,6 @@ export default function CurvaS({ planned, actual }: CurvaSProps) {
   // Build quick lookup maps so each dot can expose the daily delta between real and planned.
   const plannedPercentByDate = new Map(plannedSeries.points.map((point) => [point.label, point.value]));
   const actualPercentByDate = new Map(actualSeries.points.map((point) => [point.label, point.value]));
-
-  const percentTicks = [0, 25, 50, 75, 100];
   const showXAxisLabels = dates.length <= 8 ? dates : dates.filter((_, index) => index % 2 === 0);
 
   const legendItems: Array<{ label: string; color: string }> = [
@@ -137,26 +135,11 @@ export default function CurvaS({ planned, actual }: CurvaSProps) {
           y={padding.top}
           width={plotWidth}
           height={plotHeight}
-          fill="url(#curva-grid)"
+          fill="none"
           stroke="#d1d5db"
           strokeWidth={1}
         />
 
-        <defs>
-          <pattern id="curva-grid" width="100" height="100" patternUnits="userSpaceOnUse">
-            <rect width="100" height="100" fill="transparent" />
-            <path d="M100 0V100" stroke="#e5e7eb" strokeWidth="1" strokeDasharray="3 3" />
-          </pattern>
-          </defs>
-
-          <line
-            x1={padding.left}
-            y1={padding.top}
-            x2={padding.left}
-            y2={padding.top + plotHeight}
-            stroke="#111827"
-            strokeWidth={1.5}
-          />
         <line
           x1={padding.left}
           y1={padding.top + plotHeight}
@@ -165,32 +148,6 @@ export default function CurvaS({ planned, actual }: CurvaSProps) {
           stroke="#111827"
           strokeWidth={1.5}
         />
-
-        {percentTicks.map((tick) => {
-          const y = yForPercent(tick);
-          return (
-            <g key={tick}>
-              <line
-                x1={padding.left}
-                x2={padding.left + plotWidth}
-                y1={y}
-                y2={y}
-                stroke="#e5e7eb"
-                strokeWidth={1}
-                strokeDasharray="4 4"
-              />
-              <text
-                x={padding.left - 12}
-                y={y + 4}
-                textAnchor="end"
-                fontSize={12}
-                fill="#4b5563"
-              >
-                {tick}%
-              </text>
-            </g>
-          );
-        })}
 
         {showXAxisLabels.map((date) => {
           const x = xPositions.get(date);
