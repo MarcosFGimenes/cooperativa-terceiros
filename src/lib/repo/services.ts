@@ -32,6 +32,8 @@ type CreateServicePayload = {
   empresaId: string | null;
   status: ServiceStatus;
   checklist: ChecklistSeed[];
+  description?: string | null;
+  importKey?: string | null;
 };
 
 function normaliseAvailableServicesLimit(limit: number | undefined): number {
@@ -100,12 +102,52 @@ function revalidateServiceDetailCache(serviceId: string) {
   revalidateTag("services:available");
 }
 
+function normaliseImportValue(value: unknown): string {
+  return String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
+}
+
+function formatDateKey(value: number | string | null | undefined): string {
+  if (value === null || value === undefined) return "";
+  const millis = typeof value === "number" ? value : Date.parse(String(value));
+  if (!Number.isFinite(millis)) return "";
+  const date = new Date(millis);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toISOString().slice(0, 10);
+}
+
+export function buildServiceImportKey(input: {
+  os: string;
+  setor?: string | null;
+  tag?: string | null;
+  equipmentName?: string | null;
+  plannedStart?: number | string | null;
+  plannedEnd?: number | string | null;
+  empresa?: string | null;
+}) {
+  const parts = [
+    normaliseImportValue(input.os),
+    normaliseImportValue(input.setor),
+    normaliseImportValue(input.tag),
+    normaliseImportValue(input.equipmentName),
+    formatDateKey(input.plannedStart),
+    formatDateKey(input.plannedEnd),
+    normaliseImportValue(input.empresa),
+  ].filter(Boolean);
+
+  return parts.join("::");
+}
+
 export async function createService(payload: CreateServicePayload) {
   const servicesCol = servicesCollection();
   const docRef = servicesCol.doc();
   const now = FieldValue.serverTimestamp();
   const checklist = Array.isArray(payload.checklist) ? payload.checklist : [];
   const equipmentName = (payload.equipmentName ?? payload.equipamento).trim();
+  const description = (payload.description ?? "").trim();
+  const importKey = (payload.importKey ?? "").trim();
 
   const serviceDoc = {
     os: payload.os,
@@ -123,6 +165,8 @@ export async function createService(payload: CreateServicePayload) {
     andamento: 0,
     checklist,
     hasChecklist: checklist.length > 0,
+    description: description || null,
+    importKey: importKey || null,
     createdAt: now,
     updatedAt: now,
     createdBy: "pcm",
@@ -350,6 +394,11 @@ function mapServiceData(
     plannedStart,
     plannedEnd,
     totalHours,
+    description: data.description
+      ? String(data.description)
+      : data.descricao
+        ? String(data.descricao)
+        : undefined,
     plannedDaily:
       includeDetails && Array.isArray(data.plannedDaily)
         ? (data.plannedDaily as unknown[]).map((value) => {
@@ -369,6 +418,7 @@ function mapServiceData(
     empresa: data.empresa ? String(data.empresa) : undefined,
     andamento: progress ?? undefined,
     realPercent: progress ?? undefined,
+    importKey: data.importKey ? String(data.importKey) : undefined,
   };
 }
 
@@ -454,6 +504,67 @@ export async function getServicesByIds(
   collected.sort((a, b) => a.index - b.index);
 
   return collected.map((entry) => entry.service);
+}
+
+async function queryServicesByField(
+  field: string,
+  values: string[],
+  options?: { mode?: ServiceMapMode },
+): Promise<Service[]> {
+  const uniqueValues = Array.from(
+    new Set(values.map((value) => value.trim()).filter((value) => value.length > 0)),
+  );
+  if (!uniqueValues.length) return [];
+
+  let db: FirebaseFirestore.Firestore;
+  try {
+    db = getDb();
+  } catch (error) {
+    if (isMissingAdminError(error)) {
+      console.warn(
+        `[services:queryServicesByField] Firebase Admin não configurado ao consultar campo ${field}.`,
+        error,
+      );
+      return [];
+    }
+    throw error;
+  }
+
+  const servicesCol = db.collection("services");
+  const chunkSize = 10;
+  const chunks: string[][] = [];
+  for (let i = 0; i < uniqueValues.length; i += chunkSize) {
+    chunks.push(uniqueValues.slice(i, i + chunkSize));
+  }
+
+  const results: Service[] = [];
+
+  await Promise.all(
+    chunks.map(async (chunk) => {
+      const snap = await servicesCol.where(field, "in", chunk).get();
+      snap.docs.forEach((doc) => {
+        results.push(
+          mapServiceData(doc.id, (doc.data() ?? {}) as Record<string, unknown>, options?.mode),
+        );
+      });
+    }),
+  );
+
+  return results;
+}
+
+export async function findServicesByImportKeys(
+  keys: string[],
+  options?: { mode?: ServiceMapMode },
+): Promise<Service[]> {
+  return queryServicesByField("importKey", keys, options);
+}
+
+export async function findServicesByOsList(
+  osList: string[],
+  options?: { mode?: ServiceMapMode },
+): Promise<Service[]> {
+  return queryServicesByField("os", osList, options);
 }
 
 export async function listRecentServices(): Promise<Service[]> {
