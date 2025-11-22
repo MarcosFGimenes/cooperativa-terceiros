@@ -102,7 +102,7 @@ type ParsedRow = {
   importKey: string;
 };
 
-function sanitiseRow(row: Record<string, unknown>): ParsedRow | { error: string } {
+async function sanitiseRow(row: Record<string, unknown>): Promise<ParsedRow | { error: string }> {
   const os = toText(pickField(row, HEADER_ALIASES.os)).trim();
   const tag = toText(pickField(row, HEADER_ALIASES.tag)).trim();
   const equipamento = toText(pickField(row, HEADER_ALIASES.equipamento)).trim();
@@ -126,7 +126,7 @@ function sanitiseRow(row: Record<string, unknown>): ParsedRow | { error: string 
     return { error: "Linha ignorada: total de horas inválido." };
   }
 
-  const importKey = buildServiceImportKey({
+  const importKey = await buildServiceImportKey({
     os,
     setor,
     tag,
@@ -182,19 +182,19 @@ export async function POST(request: Request) {
   const seenKeys = new Set<string>();
   const parsedRows: ParsedRow[] = [];
 
-  rows.forEach((row) => {
-    const parsed = sanitiseRow(row);
+  for (const row of rows) {
+    const parsed = await sanitiseRow(row);
     if ("error" in parsed) {
       skipped += 1;
-      return;
+      continue;
     }
     if (seenKeys.has(parsed.importKey)) {
       duplicateKeys += 1;
-      return;
+      continue;
     }
     seenKeys.add(parsed.importKey);
     parsedRows.push(parsed);
-  });
+  }
 
   if (!parsedRows.length) {
     return NextResponse.json(
@@ -212,10 +212,10 @@ export async function POST(request: Request) {
   );
 
   const existingByOs = await findServicesByOsList(parsedRows.map((item) => item.os));
-  existingByOs.forEach((service) => {
+  for (const service of existingByOs) {
     const computedKey =
       service.importKey ||
-      buildServiceImportKey({
+      (await buildServiceImportKey({
         os: service.os,
         tag: service.tag,
         setor: service.setor ?? service.sector ?? null,
@@ -223,11 +223,11 @@ export async function POST(request: Request) {
         plannedStart: service.plannedStart,
         plannedEnd: service.plannedEnd,
         empresa: service.company ?? service.empresa ?? null,
-      });
+      }));
     if (computedKey) {
       existingKeySet.add(computedKey);
     }
-  });
+  }
 
   const toCreate = parsedRows.filter((row) => !existingKeySet.has(row.importKey));
   const duplicatesFromDatabase = parsedRows.length - toCreate.length;

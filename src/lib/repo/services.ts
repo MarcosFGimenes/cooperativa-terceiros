@@ -118,7 +118,7 @@ function formatDateKey(value: number | string | null | undefined): string {
   return date.toISOString().slice(0, 10);
 }
 
-export function buildServiceImportKey(input: {
+function computeServiceImportKey(input: {
   os: string;
   setor?: string | null;
   tag?: string | null;
@@ -138,6 +138,18 @@ export function buildServiceImportKey(input: {
   ].filter(Boolean);
 
   return parts.join("::");
+}
+
+export async function buildServiceImportKey(input: {
+  os: string;
+  setor?: string | null;
+  tag?: string | null;
+  equipmentName?: string | null;
+  plannedStart?: number | string | null;
+  plannedEnd?: number | string | null;
+  empresa?: string | null;
+}) {
+  return computeServiceImportKey(input);
 }
 
 export async function createService(payload: CreateServicePayload) {
