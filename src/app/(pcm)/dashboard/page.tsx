@@ -8,6 +8,7 @@ import { listRecentServices } from "@/lib/repo/services";
 import { formatDateTime } from "@/lib/formatDateTime";
 import { resolveServicoPercentualPlanejado, resolveServicoRealPercent } from "@/lib/serviceProgress";
 import type { Service } from "@/types";
+import ImportServicesButton from "./_components/ImportServicesButton";
 
 function normaliseStatus(status: Service["status"]): "Aberto" | "Pendente" | "Concluído" {
   const raw = String(status ?? "").toLowerCase();
@@ -48,6 +49,7 @@ export default async function DashboardPCM() {
           <Link className="btn btn-primary" href="/servicos/novo">
             + Novo Serviço
           </Link>
+          <ImportServicesButton />
           <Link className="btn btn-secondary" href="/pacotes/novo">
             + Novo Pacote
           </Link>
