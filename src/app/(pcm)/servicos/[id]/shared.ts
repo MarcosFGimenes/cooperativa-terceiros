@@ -40,6 +40,7 @@ export type ServiceRealtimeData = {
   updatedAt?: number | null;
   hasChecklist?: boolean | null;
   previousProgress?: number | null;
+  description?: string | null;
 };
 
 type PlannedPoint = { date: string; percent: number; hoursAccum?: number };
@@ -167,6 +168,7 @@ export function composeServiceRealtimeData(
     updatedAt: primary?.updatedAt ?? fallback?.updatedAt ?? null,
     hasChecklist: primary?.hasChecklist ?? fallback?.hasChecklist ?? null,
     previousProgress: primary?.previousProgress ?? fallback?.previousProgress ?? null,
+    description: primary?.description ?? fallback?.description ?? null,
   };
 
   if (!base.plannedStart && typeof primary?.createdAt === "number") {
@@ -252,6 +254,7 @@ export function mapServiceSnapshot(
     updatedAt: toMillis(data.updatedAt) ?? null,
     hasChecklist: data.hasChecklist === true || Array.isArray(data.checklist) ? true : null,
     previousProgress: toNumber(data.previousProgress) ?? null,
+    description: toOptionalString(data.description ?? data.descricao) ?? null,
   };
 }
 
