@@ -30,6 +30,7 @@ export default function NovoServico() {
     tag: "",
     equipamento: "",
     setor: "",
+    description: "",
     dataInicio: "",
     dataFim: "",
     horasPrevistas: "",
@@ -120,6 +121,11 @@ export default function NovoServico() {
       toast.error("Horas previstas deve ser um número maior que zero.");
       return;
     }
+
+    if (form.description && form.description.length > 1000) {
+      toast.error("A descrição do serviço deve ter no máximo 1000 caracteres.");
+      return;
+    }
     if (!isAuthReady) {
       toast.error("Sua sessão segura ainda não foi confirmada. Aguarde ou faça login novamente.");
       return;
@@ -145,6 +151,7 @@ export default function NovoServico() {
           companyId,
           status: form.status,
           checklist: sanitizedChecklist,
+          description: form.description.trim() || null,
         }),
       });
 
@@ -267,6 +274,25 @@ export default function NovoServico() {
             </select>
           </div>
         </FormRow>
+
+        <div className="space-y-1">
+          <label htmlFor="description" className="text-sm font-medium text-foreground">
+            Descrição do serviço
+          </label>
+          <textarea
+            id="description"
+            name="description"
+            rows={3}
+            maxLength={1000}
+            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            placeholder="Descreva resumidamente o serviço..."
+            value={form.description}
+            onChange={(event) => updateForm("description", event.target.value)}
+          />
+          <p className="text-xs text-muted-foreground">
+            Campo opcional para detalhar melhor o escopo deste serviço.
+          </p>
+        </div>
 
         <div className="space-y-2 text-sm text-muted-foreground">
           Os serviços criados aqui podem ser vinculados a um subpacote posteriormente.

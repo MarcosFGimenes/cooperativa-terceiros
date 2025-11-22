@@ -118,6 +118,7 @@ export type Service = {
   plannedStart: string;
   plannedEnd: string;
   totalHours: number;
+  description?: string | null;
   status: ServiceStatus;
   code?: string;
   assignedTo?: AssignedCompany;
@@ -133,6 +134,7 @@ export type Service = {
   realPercent?: number;
   updatedAt?: number;
   previousProgress?: number | null;
+  importKey?: string | null;
 };
 
 export type PackageStatus = ServiceStatus;

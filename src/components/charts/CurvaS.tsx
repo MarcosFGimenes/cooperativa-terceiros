@@ -1,6 +1,7 @@
 import type { CSSProperties } from "react";
 
 import { formatDayMonth, formatLongDate } from "@/lib/formatDateTime";
+import { ACTIVE_DOT_RADIUS, DOT_RADIUS, LINE_STROKE_WIDTH, PLANNED_COLOR, REALIZED_COLOR } from "./colors";
 
 type CurvePoint = { d: string; pct: number };
 
@@ -15,9 +16,6 @@ const clampPercent = (value: number) => {
 };
 
 const roundTwo = (value: number) => Math.round(value * 100) / 100;
-
-const PLANNED_COLOR = "#f28c28"; // cor laranja do gráfico João para a série Planejado
-const ACTUAL_COLOR = "#2ec27e"; // cor verde do gráfico João para a série Realizado
 
 const UTC_TIME_ZONE = "UTC";
 
@@ -117,12 +115,12 @@ export default function CurvaS({ planned, actual }: CurvaSProps) {
 
   const legendItems: Array<{ label: string; color: string }> = [
     { label: "Planejado", color: PLANNED_COLOR },
-    { label: "Realizado", color: ACTUAL_COLOR },
+    { label: "Realizado", color: REALIZED_COLOR },
   ];
 
   const seriesWithColor = [
     { series: plannedSeries, color: PLANNED_COLOR },
-    { series: actualSeries, color: ACTUAL_COLOR },
+    { series: actualSeries, color: REALIZED_COLOR },
   ];
 
   return (
@@ -147,19 +145,18 @@ export default function CurvaS({ planned, actual }: CurvaSProps) {
         <defs>
           <pattern id="curva-grid" width="100" height="100" patternUnits="userSpaceOnUse">
             <rect width="100" height="100" fill="transparent" />
-            <path d="M0 100H100" stroke="#e5e7eb" strokeWidth="1" />
-            <path d="M100 0V100" stroke="#e5e7eb" strokeWidth="1" />
+            <path d="M100 0V100" stroke="#e5e7eb" strokeWidth="1" strokeDasharray="3 3" />
           </pattern>
-        </defs>
+          </defs>
 
-        <line
-          x1={padding.left}
-          y1={padding.top}
-          x2={padding.left}
-          y2={padding.top + plotHeight}
-          stroke="#111827"
-          strokeWidth={1.5}
-        />
+          <line
+            x1={padding.left}
+            y1={padding.top}
+            x2={padding.left}
+            y2={padding.top + plotHeight}
+            stroke="#111827"
+            strokeWidth={1.5}
+          />
         <line
           x1={padding.left}
           y1={padding.top + plotHeight}
@@ -219,7 +216,7 @@ export default function CurvaS({ planned, actual }: CurvaSProps) {
               d={series.path}
               fill="none"
               stroke={color}
-              strokeWidth={3} // linha contínua com espessura similar ao modelo João
+              strokeWidth={LINE_STROKE_WIDTH}
               strokeLinecap="round"
             />
           ) : null
@@ -247,9 +244,9 @@ export default function CurvaS({ planned, actual }: CurvaSProps) {
                 <circle
                   cx={point.x}
                   cy={point.y}
-                  r={5}
+                  r={Math.max(DOT_RADIUS, ACTIVE_DOT_RADIUS - 1)}
                   fill={color} // marcador com a mesma cor da série
-                  strokeWidth={2.5}
+                  strokeWidth={Math.max(2, LINE_STROKE_WIDTH - 0.5)}
                   stroke={color}
                 />
                 <title>{tooltipLines.join("\n")}</title>
