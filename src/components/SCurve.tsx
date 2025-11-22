@@ -2,10 +2,27 @@
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import type { TooltipProps } from "recharts";
-import { Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import {
+  CartesianGrid,
+  LabelList,
+  Legend,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 
 import { cn } from "@/lib/utils";
 import { formatLongDate, formatShortMonthDate } from "@/lib/formatDateTime";
+import {
+  ACTIVE_DOT_RADIUS,
+  DOT_RADIUS,
+  LINE_STROKE_WIDTH,
+  PLANNED_COLOR,
+  REALIZED_COLOR,
+} from "./charts/colors";
 
 type PlannedPoint = { date: string; percent: number; hoursAccum?: number };
 type CurvePoint = { date: string; percent: number };
@@ -39,9 +56,6 @@ type ChartEntry = {
 };
 
 type TooltipPayload = TooltipProps<number, string>;
-
-const REALIZED_COLOR = "#2ec27e"; // cor verde do gráfico João
-const PLANNED_COLOR = "#f28c28"; // cor laranja do gráfico João
 
 function toDayIso(value: string) {
   const date = new Date(value);
@@ -256,6 +270,7 @@ export default function SCurve({
           <div className={cn("w-full scurve-container")} style={{ height: resolvedChartHeight }}>
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={chartData} margin={{ left: 4, right: 16, top: 16, bottom: 8 }}>
+                <CartesianGrid stroke="#e5e7eb" strokeDasharray="3 3" horizontal={false} />
                 <XAxis dataKey="dateLabel" stroke="hsl(var(--muted-foreground))" tick={{ fontSize: 12 }} />
                 <YAxis
                   stroke="hsl(var(--muted-foreground))"
@@ -270,21 +285,37 @@ export default function SCurve({
                   name="Planejado"
                   dataKey="planned"
                   stroke={PLANNED_COLOR} // cor da série Planejado alinhada ao modelo João
-                  strokeWidth={3}
-                  dot={{ r: 4, stroke: PLANNED_COLOR, fill: PLANNED_COLOR }}
-                  activeDot={{ r: 6, stroke: PLANNED_COLOR, fill: PLANNED_COLOR }}
+                  strokeWidth={LINE_STROKE_WIDTH}
+                  dot={{ r: DOT_RADIUS, stroke: PLANNED_COLOR, fill: PLANNED_COLOR }}
+                  activeDot={{ r: ACTIVE_DOT_RADIUS, stroke: PLANNED_COLOR, fill: PLANNED_COLOR }}
+                  strokeLinecap="round"
                   isAnimationActive={false}
-                />
+                >
+                  <LabelList
+                    dataKey="planned"
+                    position="top"
+                    formatter={(value) => (typeof value === "number" ? `${Math.round(value)}%` : "")}
+                    className="text-[10px] fill-muted-foreground"
+                  />
+                </Line>
                 <Line
                   type="monotone"
                   name="Realizado"
                   dataKey="realized"
                   stroke={REALIZED_COLOR} // cor da série Realizado alinhada ao modelo João
-                  strokeWidth={3}
-                  dot={{ r: 4, stroke: REALIZED_COLOR, fill: REALIZED_COLOR }}
-                  activeDot={{ r: 6, stroke: REALIZED_COLOR, fill: REALIZED_COLOR }}
+                  strokeWidth={LINE_STROKE_WIDTH}
+                  dot={{ r: DOT_RADIUS, stroke: REALIZED_COLOR, fill: REALIZED_COLOR }}
+                  activeDot={{ r: ACTIVE_DOT_RADIUS, stroke: REALIZED_COLOR, fill: REALIZED_COLOR }}
+                  strokeLinecap="round"
                   isAnimationActive={false}
-                />
+                >
+                  <LabelList
+                    dataKey="realized"
+                    position="top"
+                    formatter={(value) => (typeof value === "number" ? `${Math.round(value)}%` : "")}
+                    className="text-[10px] fill-muted-foreground"
+                  />
+                </Line>
               </LineChart>
             </ResponsiveContainer>
           </div>

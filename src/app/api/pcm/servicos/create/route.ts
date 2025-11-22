@@ -27,6 +27,7 @@ type CreateServiceRequest = {
   empresaId: string | null;
   status: ServiceStatus;
   checklist: Array<{ id: string; descricao: string; peso: number }>;
+  description?: string | null;
 };
 
 function normaliseString(value: unknown): string {
@@ -90,6 +91,11 @@ function validateRequest(body: Record<string, unknown>): CreateServiceRequest | 
 
   const resolvedCompanyId = normaliseString(body.companyId) || normaliseString(body.empresaId);
 
+  const description = normaliseString(body.description);
+  if (description.length > 1000) {
+    return { error: "A descrição do serviço deve ter no máximo 1000 caracteres." };
+  }
+
   return {
     os,
     oc: normaliseString(body.oc) || null,
@@ -103,6 +109,7 @@ function validateRequest(body: Record<string, unknown>): CreateServiceRequest | 
     empresaId: resolvedCompanyId || null,
     status: normaliseStatus(body.status),
     checklist,
+    description: description || null,
   };
 }
 
