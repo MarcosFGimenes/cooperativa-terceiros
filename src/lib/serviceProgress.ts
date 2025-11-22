@@ -908,13 +908,31 @@ export function calcularCurvaSRealizada(
 ): CurvaSPonto[] {
   const servicos = coletarServicosDoPacote(pacote);
   const preparados = prepararServicosPlanejados(servicos);
-  const linhaDoTempo = gerarLinhaDoTempo(preparados);
+  let linhaDoTempo = gerarLinhaDoTempo(preparados);
   if (!linhaDoTempo.length) return [];
   const somaHoras = preparados.reduce((total, servico) => total + servico.horasPrevistas, 0);
   if (somaHoras <= 0) {
     return linhaDoTempo.map((data) => ({ data, percentual: 0 }));
   }
   const servicosRealizados = prepararServicosRealizados(preparados);
+
+  const dataUltimaAtualizacao = servicosRealizados.reduce<Date | null>((maisRecente, servico) => {
+    const ultima = servico.atualizacoes.length ? servico.atualizacoes[servico.atualizacoes.length - 1].data : null;
+    if (!ultima) return maisRecente;
+    if (!maisRecente || ultima.getTime() > maisRecente.getTime()) {
+      return ultima;
+    }
+    return maisRecente;
+  }, null);
+
+  if (dataUltimaAtualizacao) {
+    const limite = startOfDay(dataUltimaAtualizacao).getTime();
+    linhaDoTempo = linhaDoTempo.filter((data) => data.getTime() <= limite);
+    if (!linhaDoTempo.length) {
+      linhaDoTempo = [startOfDay(dataUltimaAtualizacao)];
+    }
+  }
+
   return linhaDoTempo.map((data) => {
     const somaPonderada = servicosRealizados.reduce((total, servico) => {
       const percentual = percentualRealizadoAte(servico, data);
