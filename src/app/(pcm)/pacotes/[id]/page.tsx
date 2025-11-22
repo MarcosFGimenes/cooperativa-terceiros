@@ -803,31 +803,31 @@ async function renderPackageDetailPage(params: { id: string }) {
         <div className="space-y-3">
           <h2 className="text-lg font-semibold">Resumo por Subpacote</h2>
           {subpackageMetrics.length ? (
-            <div className="overflow-x-auto rounded-xl border border-green-300/80 bg-green-100/60">
-              <table className="mt-2 min-w-full text-center">
-                <thead>
-                  <tr className="bg-green-500 text-white">
-                    <th className="p-2 text-left">Subpacote</th>
-                    <th className="p-2">% Atual</th>
-                    <th className="p-2">% Deveria Estar</th>
-                    <th className="p-2">Horas Faltando</th>
-                    <th className="p-2">Diferença</th>
+            <div className="overflow-x-auto rounded-xl border bg-card">
+              <table className="summary-table mt-2 min-w-full border border-border border-collapse text-center">
+                <thead className="bg-muted/80 text-foreground">
+                  <tr>
+                    <th className="border border-border p-3 text-left">Subpacote</th>
+                    <th className="border border-border p-3">% Atual</th>
+                    <th className="border border-border p-3">% Deveria Estar</th>
+                    <th className="border border-border p-3">Horas Faltando</th>
+                    <th className="border border-border p-3">Diferença</th>
                   </tr>
                 </thead>
-                <tbody className="bg-green-200 text-foreground">
+                <tbody className="text-foreground">
                   {subpackageMetrics.map((metric) => (
-                    <tr key={metric.nome} className="border-b border-green-300/60">
-                      <td className="p-2 text-left font-medium text-foreground/90">{metric.nome}</td>
-                      <td className="p-2 text-black dark:text-black">
+                    <tr key={metric.nome} className="odd:bg-muted/40">
+                      <td className="border border-border p-3 text-left font-medium">{metric.nome}</td>
+                      <td className="border border-border p-3 font-semibold">
                         {formatMetricValue(metric.realizedPercent)}%
                       </td>
-                      <td className="p-2 text-black dark:text-black">
+                      <td className="border border-border p-3 font-semibold">
                         {formatMetricValue(metric.plannedPercent)}%
                       </td>
-                      <td className="p-2 text-black dark:text-black">
+                      <td className="border border-border p-3 font-semibold">
                         {formatMetricValue(metric.horasFaltando)}
                       </td>
-                      <td className="p-2 text-black dark:text-black">
+                      <td className="border border-border p-3 font-semibold">
                         {formatMetricValue(metric.diferenca)}
                       </td>
                     </tr>
@@ -845,31 +845,31 @@ async function renderPackageDetailPage(params: { id: string }) {
         <div className="space-y-3">
           <h2 className="text-lg font-semibold">Resumo por Setor</h2>
           {sectorMetrics.length ? (
-            <div className="overflow-x-auto rounded-xl border border-green-300/80 bg-green-100/60">
-              <table className="mt-2 min-w-full text-center">
-                <thead>
-                  <tr className="bg-green-500 text-white">
-                    <th className="p-2 text-left">Setor</th>
-                    <th className="p-2">% Atual</th>
-                    <th className="p-2">% Deveria Estar</th>
-                    <th className="p-2">Horas Faltando</th>
-                    <th className="p-2">Diferença</th>
+            <div className="overflow-x-auto rounded-xl border bg-card">
+              <table className="summary-table mt-2 min-w-full border border-border border-collapse text-center">
+                <thead className="bg-muted/80 text-foreground">
+                  <tr>
+                    <th className="border border-border p-3 text-left">Setor</th>
+                    <th className="border border-border p-3">% Atual</th>
+                    <th className="border border-border p-3">% Deveria Estar</th>
+                    <th className="border border-border p-3">Horas Faltando</th>
+                    <th className="border border-border p-3">Diferença</th>
                   </tr>
                 </thead>
-                <tbody className="bg-green-200 text-foreground">
+                <tbody className="text-foreground">
                   {sectorMetrics.map((metric) => (
-                    <tr key={metric.setor} className="border-b border-green-300/60">
-                      <td className="p-2 text-left font-medium text-foreground/90">{metric.setor}</td>
-                      <td className="p-2 text-black dark:text-black">
+                    <tr key={metric.setor} className="odd:bg-muted/40">
+                      <td className="border border-border p-3 text-left font-medium">{metric.setor}</td>
+                      <td className="border border-border p-3 font-semibold">
                         {formatMetricValue(metric.realizedPercent)}%
                       </td>
-                      <td className="p-2 text-black dark:text-black">
+                      <td className="border border-border p-3 font-semibold">
                         {formatMetricValue(metric.plannedPercent)}%
                       </td>
-                      <td className="p-2 text-black dark:text-black">
+                      <td className="border border-border p-3 font-semibold">
                         {formatMetricValue(metric.horasFaltando)}
                       </td>
-                      <td className="p-2 text-black dark:text-black">
+                      <td className="border border-border p-3 font-semibold">
                         {formatMetricValue(metric.diferenca)}
                       </td>
                     </tr>

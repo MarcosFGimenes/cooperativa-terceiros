@@ -190,6 +190,10 @@ input:-webkit-autofill:focus {
     color: #000000 !important;
   }
 
+  body * {
+    color: #000000 !important;
+  }
+
   ul,
   ol {
     list-style: none !important;
@@ -253,6 +257,12 @@ input:-webkit-autofill:focus {
   .print-avoid-break {
     break-inside: avoid;
     page-break-inside: avoid;
+  }
+
+  .summary-table,
+  .summary-table th,
+  .summary-table td {
+    border-color: #000000 !important;
   }
 }
 
