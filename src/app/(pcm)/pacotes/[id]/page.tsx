@@ -818,10 +818,18 @@ async function renderPackageDetailPage(params: { id: string }) {
                   {subpackageMetrics.map((metric) => (
                     <tr key={metric.nome} className="border-b border-green-300/60">
                       <td className="p-2 text-left font-medium text-foreground/90">{metric.nome}</td>
-                      <td className="p-2">{formatMetricValue(metric.realizedPercent)}%</td>
-                      <td className="p-2">{formatMetricValue(metric.plannedPercent)}%</td>
-                      <td className="p-2">{formatMetricValue(metric.horasFaltando)}</td>
-                      <td className="p-2">{formatMetricValue(metric.diferenca)}</td>
+                      <td className="p-2 text-black dark:text-black">
+                        {formatMetricValue(metric.realizedPercent)}%
+                      </td>
+                      <td className="p-2 text-black dark:text-black">
+                        {formatMetricValue(metric.plannedPercent)}%
+                      </td>
+                      <td className="p-2 text-black dark:text-black">
+                        {formatMetricValue(metric.horasFaltando)}
+                      </td>
+                      <td className="p-2 text-black dark:text-black">
+                        {formatMetricValue(metric.diferenca)}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -852,10 +860,18 @@ async function renderPackageDetailPage(params: { id: string }) {
                   {sectorMetrics.map((metric) => (
                     <tr key={metric.setor} className="border-b border-green-300/60">
                       <td className="p-2 text-left font-medium text-foreground/90">{metric.setor}</td>
-                      <td className="p-2">{formatMetricValue(metric.realizedPercent)}%</td>
-                      <td className="p-2">{formatMetricValue(metric.plannedPercent)}%</td>
-                      <td className="p-2">{formatMetricValue(metric.horasFaltando)}</td>
-                      <td className="p-2">{formatMetricValue(metric.diferenca)}</td>
+                      <td className="p-2 text-black dark:text-black">
+                        {formatMetricValue(metric.realizedPercent)}%
+                      </td>
+                      <td className="p-2 text-black dark:text-black">
+                        {formatMetricValue(metric.plannedPercent)}%
+                      </td>
+                      <td className="p-2 text-black dark:text-black">
+                        {formatMetricValue(metric.horasFaltando)}
+                      </td>
+                      <td className="p-2 text-black dark:text-black">
+                        {formatMetricValue(metric.diferenca)}
+                      </td>
                     </tr>
                   ))}
                 </tbody>

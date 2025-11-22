@@ -948,9 +948,12 @@ type PcmService = Service & {
   folderName?: string | null;
 };
 
+// Usa a mesma regra de ponderação aplicada nos cálculos de percentual,
+// baseada em horas previstas/total/peso. Mantém consistência entre as métricas
+// exibidas (percentuais) e os valores derivados (horas faltantes/diferença).
 function normalizarHorasTotal(servico: PcmService): number {
-  const horas = Number(servico.totalHours ?? 0);
-  return Number.isFinite(horas) && horas > 0 ? horas : 0;
+  const horas = extractHorasPrevistas(servico as unknown as ServicoDoSubpacote);
+  return horas ?? 0;
 }
 
 function clampPercentageValue(value: number): number {
@@ -1068,8 +1071,7 @@ export function calcularMetricasPorSetor(
   return Array.from(grupos.values())
     .map((grupo) => {
       const servicos = grupo.servicos;
-      const totalHours = grupo.totalHours;
-
+      let totalHours = 0;
       let sumWeightedPlanned = 0;
       let sumWeightedRealized = 0;
 
@@ -1077,9 +1079,21 @@ export function calcularMetricasPorSetor(
         const horas = normalizarHorasTotal(servico);
         if (horas <= 0) return;
         const servicoComoSubpacote = servico as unknown as ServicoDoSubpacote;
-        const planned = calcularPercentualPlanejadoServico(servicoComoSubpacote, currentDate) ?? 0;
-        const plannedPercent = clampPercentageValue(planned);
-        const realizedPercent = clampPercentageValue(resolveServicoRealPercent(servicoComoSubpacote, currentDate));
+        totalHours += horas;
+
+        const plannedPercent = clampPercentageValue(
+          calcularPercentualPlanejadoServico(servicoComoSubpacote, currentDate) ?? 0,
+        );
+
+        const range = resolveDateRange(servicoComoSubpacote);
+        const atualizacoes = coletarAtualizacoesDoServico(servicoComoSubpacote, range?.inicio);
+        const servicoRealizadoNorm: ServicoRealizadoNormalizado = {
+          horasPrevistas: horas,
+          atualizacoes,
+        };
+        const realizedPercent = clampPercentageValue(
+          percentualRealizadoAte(servicoRealizadoNorm, currentDate),
+        );
         sumWeightedPlanned += plannedPercent * horas;
         sumWeightedRealized += realizedPercent * horas;
       });
