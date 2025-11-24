@@ -143,7 +143,7 @@ function toPositiveNumber(value: unknown): number | null {
   return null;
 }
 
-function toDate(value: DateInput): Date | null {
+export function toDate(value: DateInput): Date | null {
   if (value instanceof Date) {
     const time = value.getTime();
     return Number.isNaN(time) ? null : new Date(time);
@@ -1064,7 +1064,7 @@ function normalizarServicosParaSubpacote(servicos: PcmService[]): ServicoDoSubpa
 
 export function calcularMetricasSubpacote(
   services: PcmService[],
-  currentDate: Date,
+  dataReferencia?: DateInput,
 ): Array<{
   nome: string;
   plannedPercent: number;
@@ -1074,6 +1074,9 @@ export function calcularMetricasSubpacote(
   diferenca: number;
 }> {
   if (!Array.isArray(services) || services.length === 0) return [];
+
+  const referencia = toDate(dataReferencia ?? new Date()) ?? new Date();
+  const currentDate = startOfDay(referencia);
 
   const grupos = new Map<
     string,
@@ -1129,7 +1132,7 @@ export function calcularMetricasSubpacote(
 
 export function calcularMetricasPorSetor(
   services: PcmService[],
-  currentDate: Date,
+  dataReferencia?: DateInput,
 ): Array<{
   setor: string;
   plannedPercent: number;
@@ -1139,6 +1142,8 @@ export function calcularMetricasPorSetor(
   diferenca: number;
 }> {
   if (!Array.isArray(services) || services.length === 0) return [];
+
+  const currentDate = startOfDay(toDate(dataReferencia ?? new Date()) ?? new Date());
 
   const grupos = new Map<
     string,

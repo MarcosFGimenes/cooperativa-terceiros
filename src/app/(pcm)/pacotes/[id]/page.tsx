@@ -20,6 +20,7 @@ import {
   calcularPercentualSubpacote,
   calcularPercentualRealizadoSubpacote,
   obterIntervaloSubpacote,
+  toDate,
   type ServicoDoSubpacote,
 } from "@/lib/serviceProgress";
 import type { Package, PackageFolder, Service } from "@/types";
@@ -210,8 +211,10 @@ function extractDateMs(value: unknown): number | null {
   return null;
 }
 
-function buildServiceProgressSnapshot(service: Service, reference: Date) {
-  const plannedPercent = calcularPercentualPlanejadoServico(mapServiceToSubpackageEntry(service), reference) ?? 0;
+function buildServiceProgressSnapshot(service: Service, dataReferencia?: Parameters<typeof toDate>[0]) {
+  const reference = toDate(dataReferencia ?? new Date()) ?? new Date();
+  const plannedPercent =
+    calcularPercentualPlanejadoServico(mapServiceToSubpackageEntry(service), reference) ?? 0;
   const percentCandidates: unknown[] = [
     service.realPercent,
     service.progress,

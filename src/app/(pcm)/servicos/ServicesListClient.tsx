@@ -131,7 +131,7 @@ export default function ServicesListClient({ initialItems, initialCursor }: Prop
                     {statusLabel}
                   </span>
                   <span className="rounded-full border border-transparent bg-muted/60 px-2 py-0.5 text-xs text-muted-foreground">
-                    {realPercent}% concluído
+                    {realPercent}% concluído (em {referenceLabel})
                   </span>
                 </div>
                 <div className="space-y-1">

@@ -588,7 +588,9 @@ export default function ServiceDetailClient({
             </div>
             <div>
               <dt className="text-muted-foreground">Andamento</dt>
-              <dd className="font-medium">{Math.round(realizedPercent)}%</dd>
+              <dd className="font-medium">
+                {Math.round(realizedPercent)}% (em {referenceLabel})
+              </dd>
             </div>
             <div>
               <dt className="text-muted-foreground">Tag</dt>
