@@ -474,8 +474,10 @@ async function renderPackageDetailPage(params: { id: string }) {
   >();
   subpackagesForCurve.forEach((subpacote) => {
     if (!subpacote?.id) return;
-    const plannedPercent = calcularPercentualSubpacote(subpacote, today);
-    const realizedPercent = calcularPercentualRealizadoSubpacote(subpacote, today);
+    const plannedPercentRaw = calcularPercentualSubpacote(subpacote, today);
+    const realizedPercentRaw = calcularPercentualRealizadoSubpacote(subpacote, today);
+    const plannedPercent = Math.round(plannedPercentRaw);
+    const realizedPercent = Math.round(realizedPercentRaw);
     const intervalo = obterIntervaloSubpacote(subpacote);
     folderAnalyticsMap.set(subpacote.id, {
       plannedPercent,
