@@ -205,38 +205,31 @@ input:-webkit-autofill:focus {
     display: none !important;
   }
 
-  main, section, article, .card {
-    background: #ffffff !important;
-    box-shadow: none !important;
-    border-radius: 0 !important;
-  }
-
-  .card {
-    padding: 14px !important;
-  }
-
   * {
     box-shadow: none !important;
     background-image: none !important;
   }
 
-  .space-y-6 > :not([hidden]) ~ :not([hidden]) {
-    margin-top: 14px !important;
+  .print-card,
+  .package-print-layout,
+  section,
+  table,
+  div {
+    background: white !important;
+    border: none !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
   }
 
   .package-print-layout {
     max-width: 100% !important;
+    width: 100% !important;
     padding: 0 !important;
     margin: 0 !important;
-    width: 100% !important;
   }
 
   .package-print-layout .print-card {
     padding: 12px !important;
-    border: none !important;
-    background: #ffffff !important;
-    box-shadow: none !important;
-    border-radius: 0 !important;
     width: 100% !important;
   }
 
@@ -248,51 +241,10 @@ input:-webkit-autofill:focus {
 
   .package-print-layout .scurve-card {
     margin-top: 10px !important;
-    border-radius: 0 !important;
-    background: #ffffff !important;
-    border: none !important;
-    box-shadow: none !important;
   }
 
   .scurve-container {
     height: 340px !important;
-  }
-
-  .package-print-layout section,
-  .package-print-layout .card,
-  .package-print-layout .print-card,
-  .package-print-layout .summary-table,
-  .package-print-layout .summary-table tr,
-  .package-print-layout .summary-table td,
-  .package-print-layout .summary-table th {
-    break-inside: avoid;
-    page-break-inside: avoid;
-    width: 100% !important;
-    background: #ffffff !important;
-    border-radius: 0 !important;
-    box-shadow: none !important;
-  }
-
-  .package-print-layout table {
-    page-break-inside: avoid !important;
-    break-inside: avoid !important;
-    width: 100% !important;
-    border-collapse: collapse !important;
-  }
-
-  .package-print-layout tr {
-    page-break-inside: avoid !important;
-    break-inside: avoid !important;
-  }
-
-  .package-print-layout .summary-table th,
-  .package-print-layout .summary-table td {
-    padding-block: 12px !important;
-    border-radius: 0 !important;
-  }
-
-  .package-print-layout .summary-table tbody tr + tr td {
-    padding-top: 16px !important;
   }
 
   .hide-for-print {
@@ -304,43 +256,75 @@ input:-webkit-autofill:focus {
     page-break-before: always;
   }
 
-  .print-avoid-break {
-    break-inside: avoid;
-    page-break-inside: avoid;
-  }
-
-  .summary-table,
-  .summary-table th,
-  .summary-table td {
-    border-color: #000000 !important;
-    border-style: solid !important;
-  }
-
-  .package-print-layout .summary-table-wrapper,
-  .package-print-layout .summary-table {
+  .print-no-border {
     border: none !important;
-    border-radius: 0 !important;
-    background: transparent !important;
     box-shadow: none !important;
   }
 
-  .package-print-layout .summary-table-wrapper .summary-table {
+  .print-no-radius {
+    border-radius: 0 !important;
+  }
+
+  .print-full-width {
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+  }
+
+  .print-no-background {
+    background: white !important;
+  }
+
+  .print-no-padding {
+    padding: 0 !important;
+  }
+
+  .print-plain-table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    table-layout: fixed !important;
+    page-break-inside: avoid !important;
+  }
+
+  .print-plain-table th,
+  .print-plain-table td {
     border: 1px solid #000000 !important;
+    padding: 10px !important;
+    text-align: left !important;
+    page-break-inside: avoid !important;
   }
 
-  .package-print-layout .summary-card,
-  .package-print-layout .summary-grid,
-  .package-print-layout .summary-table-wrapper,
-  .package-print-layout .summary-table {
-    background: transparent !important;
+  .print-plain-table thead {
+    display: table-header-group;
   }
 
-  .package-print-layout .print-no-border {
-    border: none !important;
-    box-shadow: none !important;
-    border-radius: 0 !important;
-    background: transparent !important;
+  .print-plain-table tr {
+    page-break-inside: avoid !important;
   }
+
+  .print-keep-with-next,
+  .print-keep-with-next + * {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  .package-print-layout section,
+  .package-print-layout article,
+  .package-print-layout .card {
+    page-break-before: auto !important;
+    page-break-after: auto !important;
+    page-break-inside: auto !important;
+    break-inside: auto !important;
+  }
+
+  .package-print-layout h1,
+  .package-print-layout h2,
+  .package-print-layout h3,
+  .package-print-layout table {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
   }
 }
 
