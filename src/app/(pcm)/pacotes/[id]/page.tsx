@@ -246,10 +246,6 @@ async function renderPackageDetailPage(
   params: { id: string },
   searchParams?: Record<string, string | string[] | undefined>,
 ) {
-async function renderPackageDetailPage(
-  params: { id: string },
-  searchParams?: Record<string, string | string[] | undefined>,
-) {
   const rawPackageId = params.id;
   const decodedPackageId = decodeRouteParam(rawPackageId);
   const packageIdCandidates = Array.from(
@@ -265,6 +261,11 @@ async function renderPackageDetailPage(
     }
     warningSet.add(message);
   };
+
+  const refDateParamRaw = searchParams?.refDate;
+  const refDateValue = Array.isArray(refDateParamRaw) ? refDateParamRaw[0] : refDateParamRaw ?? null;
+  const { date: referenceDate, inputValue: referenceDateInput } = resolveReferenceDate(refDateValue);
+  const referenceLabel = formatReferenceLabel(referenceDate);
 
   const refDateParamRaw = searchParams?.refDate;
   const refDateValue = Array.isArray(refDateParamRaw) ? refDateParamRaw[0] : refDateParamRaw ?? null;
@@ -476,34 +477,11 @@ async function renderPackageDetailPage(
     const servicos = folder.services
       .map((serviceId) => servicesById.get(serviceId))
       .filter((service): service is Service => Boolean(service))
-  const subpackagesForCurve = folders.map((folder) => {
-    const servicos = folder.services
-      .map((serviceId) => servicesById.get(serviceId))
-      .filter((service): service is Service => Boolean(service))
       .map((service) => mapServiceToSubpackageEntry(service));
     return { id: folder.id, nome: folder.name, servicos };
   });
 
   const packageForCurve = { subpacotes: subpackagesForCurve };
-  const plannedCurvePoints = calcularCurvaSPlanejada(packageForCurve, referenceDate).map((point) => ({
-    date: point.data.toISOString().slice(0, 10),
-    percent: point.percentual,
-  }));
-  const realizedSeriesData = calcularCurvaSRealizada(packageForCurve, referenceDate).map((point) => ({
-    date: point.data.toISOString().slice(0, 10),
-    percent: point.percentual,
-  }));
-  const curvaIndicators = calcularIndicadoresCurvaS(packageForCurve, referenceDate);
-  const plannedPercentAtReference = Math.round(
-    calcularPercentualPlanejadoPacote(packageForCurve, referenceDate),
-  );
-  const realizedPercent = Math.round(
-    calcularPercentualRealizadoPacote(packageForCurve, referenceDate),
-  );
-  const realizedValueLabel = `${realizedPercent}%`;
-  const realizedHeaderLabel = hasServiceOverflow
-    ? `Realizado em ${referenceLabel} (parcial): ${realizedValueLabel}`
-    : `Realizado em ${referenceLabel}: ${realizedValueLabel}`;
   const plannedCurvePoints = calcularCurvaSPlanejada(packageForCurve, referenceDate).map((point) => ({
     date: point.data.toISOString().slice(0, 10),
     percent: point.percentual,
@@ -534,12 +512,6 @@ async function renderPackageDetailPage(
     string,
     { plannedPercent: number; realizedPercent: number; startDateMs: number | null; endDateMs: number | null }
   >();
-  subpackagesForCurve.forEach((subpacote) => {
-    if (!subpacote?.id) return;
-    const plannedPercentRaw = calcularPercentualSubpacote(subpacote, referenceDate);
-    const realizedPercentRaw = calcularPercentualRealizadoSubpacote(subpacote, referenceDate);
-    const plannedPercent = Math.round(plannedPercentRaw);
-    const realizedPercent = Math.round(realizedPercentRaw);
   subpackagesForCurve.forEach((subpacote) => {
     if (!subpacote?.id) return;
     const plannedPercentRaw = calcularPercentualSubpacote(subpacote, referenceDate);
@@ -583,8 +555,6 @@ async function renderPackageDetailPage(
 
   const servicesWithFolderContext = services.map((service) => {
     const folderData = folderLookup.get(service.id);
-  const servicesWithFolderContext = services.map((service) => {
-    const folderData = folderLookup.get(service.id);
     const directFolderId =
       (typeof (service as { folderId?: unknown }).folderId === "string" &&
         (service as { folderId?: string }).folderId.trim()) ||
@@ -600,8 +570,6 @@ async function renderPackageDetailPage(
     };
   });
 
-  const subpackageMetrics = calcularMetricasSubpacote(servicesWithFolderContext, referenceDate);
-  const sectorMetrics = calcularMetricasPorSetor(servicesWithFolderContext, referenceDate);
   const subpackageMetrics = calcularMetricasSubpacote(servicesWithFolderContext, referenceDate);
   const sectorMetrics = calcularMetricasPorSetor(servicesWithFolderContext, referenceDate);
 
@@ -634,7 +602,6 @@ async function renderPackageDetailPage(
   services.forEach((service) => {
     const baseLabel = service.os || service.code || service.id;
     const snapshot = buildServiceProgressSnapshot(service, referenceDate);
-    const snapshot = buildServiceProgressSnapshot(service, referenceDate);
     const companyLabel =
       service.assignedTo?.companyName ||
       service.assignedTo?.companyId ||
@@ -661,7 +628,6 @@ async function renderPackageDetailPage(
   availableOpenServices.forEach((service) => {
     const companyLabel =
       service.empresa || service.company || service.assignedTo?.companyName || service.assignedTo?.companyId || null;
-    const snapshot = buildServiceProgressSnapshot(service, referenceDate);
     const snapshot = buildServiceProgressSnapshot(service, referenceDate);
     if (serviceDetails[service.id]) {
       if (!serviceDetails[service.id].companyLabel && companyLabel) {
@@ -752,27 +718,6 @@ async function renderPackageDetailPage(
             <PackagePdfExportButton />
             <DeletePackageButton packageId={pkg.id} packageLabel={packageLabel} />
           </div>
-        </div>
-
-        <div className="mt-4 rounded-2xl border border-dashed border-border/70 bg-muted/20 p-4">
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div className="space-y-1">
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Data de referência
-              </p>
-              <p className="text-base font-semibold text-foreground">{referenceLabel}</p>
-              <p className="text-xs text-muted-foreground">
-                Planejado: <span className="font-semibold text-foreground">{plannedPercentAtReference}%</span> | Real:
-                <span className="font-semibold text-foreground"> {realizedPercent}%</span>
-              </p>
-            </div>
-            <div className="w-full max-w-[240px]">
-              <ReferenceDateSelector value={referenceDateInput} />
-            </div>
-          </div>
-        </div>
-
-        <dl className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4 summary-grid">
         </div>
 
         <div className="mt-4 rounded-2xl border border-dashed border-border/70 bg-muted/20 p-4">
@@ -924,13 +869,6 @@ async function renderPackageDetailPage(
                     <th className="border border-border p-3">Horas Faltando</th>
                     <th className="border border-border p-3">Diferença</th>
                   </tr>
-                  <tr>
-                    <th className="border border-border p-3 text-left">Subpacote</th>
-                    <th className="border border-border p-3">% Atual ({referenceLabel})</th>
-                    <th className="border border-border p-3">% Deveria Estar ({referenceLabel})</th>
-                    <th className="border border-border p-3">Horas Faltando</th>
-                    <th className="border border-border p-3">Diferença</th>
-                  </tr>
                 </thead>
                 <tbody className="text-foreground">
                   {subpackageMetrics.map((metric) => (
@@ -966,13 +904,6 @@ async function renderPackageDetailPage(
             <div className="overflow-x-auto rounded-xl border bg-card">
               <table className="summary-table mt-2 min-w-full border border-border border-collapse text-center">
                 <thead className="bg-muted/80 text-foreground">
-                  <tr>
-                    <th className="border border-border p-3 text-left">Setor</th>
-                    <th className="border border-border p-3">% Atual ({referenceLabel})</th>
-                    <th className="border border-border p-3">% Deveria Estar ({referenceLabel})</th>
-                    <th className="border border-border p-3">Horas Faltando</th>
-                    <th className="border border-border p-3">Diferença</th>
-                  </tr>
                   <tr>
                     <th className="border border-border p-3 text-left">Setor</th>
                     <th className="border border-border p-3">% Atual ({referenceLabel})</th>
@@ -1034,15 +965,6 @@ function isNotFoundLikeError(error: unknown): boolean {
   return false;
 }
 
-export default async function PackageDetailPage({
-  params,
-  searchParams,
-}: {
-  params: { id: string };
-  searchParams?: Record<string, string | string[] | undefined>;
-}) {
-  try {
-    return await renderPackageDetailPage(params, searchParams);
 export default async function PackageDetailPage({
   params,
   searchParams,
