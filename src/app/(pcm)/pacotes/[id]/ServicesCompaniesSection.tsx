@@ -117,7 +117,7 @@ export default function ServicesCompaniesSection({
                 : assignedServices.slice(0, MAX_VISIBLE_SERVICES);
               const hiddenCount = isAlwaysOpen ? 0 : assignedServices.length - visibleServices.length;
               return (
-                <div key={folder.id} className="subpackage-block rounded-lg border">
+                <div key={folder.id} className="subpackage-block rounded-lg border border-slate-200 bg-slate-100">
                   <button
                     type="button"
                     className={cn(
@@ -151,7 +151,7 @@ export default function ServicesCompaniesSection({
                     </span>
                   </button>
                   {isOpen ? (
-                    <div className="service-list space-y-2 border-t px-3 py-3 text-sm">
+                    <div className="service-list space-y-2 px-3 pb-4 pt-2 text-sm">
                       {assignedServices.length === 0 ? (
                         <p className="text-muted-foreground">Nenhum serviço vinculado a este subpacote.</p>
                       ) : (
@@ -159,9 +159,9 @@ export default function ServicesCompaniesSection({
                           {visibleServices.map((detail) => (
                             <div
                               key={detail.id}
-                              className="service-card service-entry rounded border border-slate-300 bg-slate-200/90 text-slate-900"
+                              className="service-card service-entry rounded border border-slate-200 bg-white text-slate-900 shadow-sm"
                             >
-                              <div className="service-title flex items-center justify-between gap-2 rounded-t border-b border-slate-300 bg-slate-300/70 px-3 py-2">
+                              <div className="service-title flex items-center justify-between gap-2 rounded-t border-b border-slate-200 bg-slate-100 px-3 py-2">
                                 <p className="font-semibold text-slate-900">{detail.label || detail.id}</p>
                                 {detail.status ? (
                                   <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-800">

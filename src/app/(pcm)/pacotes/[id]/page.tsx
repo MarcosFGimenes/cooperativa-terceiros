@@ -834,7 +834,7 @@ async function renderPackageDetailPage(
         </div>
       </div>
 
-      <section className="rounded-2xl border bg-card/80 p-5 shadow-sm space-y-8 print:space-y-6 print-no-border print:w-full print:rounded-none print:border-0 print:bg-white print:shadow-none print:p-4 print-no-radius print-full-width">
+      <section className="print-summary-blocks rounded-2xl border bg-card/80 p-5 shadow-sm space-y-8 print:space-y-6 print-no-border print:w-full print:rounded-none print:border-0 print:bg-white print:shadow-none print:p-4 print-no-radius print-full-width">
         <div className="space-y-3 print-keep-with-next">
           <h2 className="text-lg font-semibold">Resumo por Subpacote</h2>
           {subpackageMetrics.length ? (
