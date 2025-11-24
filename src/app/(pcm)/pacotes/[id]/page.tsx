@@ -460,11 +460,11 @@ async function renderPackageDetailPage(
   });
 
   const packageForCurve = { subpacotes: subpackagesForCurve };
-  const plannedCurvePoints = calcularCurvaSPlanejada(packageForCurve, referenceDate).map((point) => ({
+  const plannedCurvePoints = calcularCurvaSPlanejada(packageForCurve).map((point) => ({
     date: point.data.toISOString().slice(0, 10),
     percent: point.percentual,
   }));
-  const realizedSeriesData = calcularCurvaSRealizada(packageForCurve, referenceDate).map((point) => ({
+  const realizedSeriesData = calcularCurvaSRealizada(packageForCurve).map((point) => ({
     date: point.data.toISOString().slice(0, 10),
     percent: point.percentual,
   }));
