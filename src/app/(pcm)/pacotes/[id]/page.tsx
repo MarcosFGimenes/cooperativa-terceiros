@@ -264,8 +264,7 @@ async function renderPackageDetailPage(
 
   const refDateParamRaw = searchParams?.refDate;
   const refDateValue = Array.isArray(refDateParamRaw) ? refDateParamRaw[0] : refDateParamRaw ?? null;
-  const referenceDateResult = resolveReferenceDate(refDateValue);
-  const { date: referenceDate, inputValue: referenceDateInput } = referenceDateResult;
+  const { date: referenceDate, inputValue: referenceDateInput } = resolveReferenceDate(refDateValue);
   const referenceLabel = formatReferenceLabel(referenceDate);
 
   let pkg: Package | null = null;
