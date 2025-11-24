@@ -278,7 +278,7 @@ export default function SCurve({
                 <XAxis dataKey="dateLabel" stroke="hsl(var(--muted-foreground))" tick={{ fontSize: 12 }} />
                 <YAxis
                   domain={[0, 100]}
-                  ticks={[0, 20, 40, 60, 80, 100]}
+                  ticks={[0, 25, 50, 75, 100]}
                   tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
                   width={38}
                   stroke="hsl(var(--muted-foreground))"
