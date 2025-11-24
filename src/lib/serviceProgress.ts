@@ -950,10 +950,9 @@ export function calcularIndicadoresCurvaS(
   const referencia = toDate(dataHoje ?? new Date()) ?? new Date();
   const curvaPlanejada = calcularCurvaSPlanejada(pacote);
   const curvaRealizada = calcularCurvaSRealizada(pacote);
-  const planejadoAteHoje = obterValorCurvaNaData(curvaPlanejada, referencia);
+  const planejadoAteHoje = Math.round(obterValorCurvaNaData(curvaPlanejada, referencia));
   const realizadoRaw = obterValorCurvaNaData(curvaRealizada, referencia);
-  // Arredonda para baixo para corrigir problema de mostrar 1% a mais
-  const realizado = Math.floor(clampPercentage(realizadoRaw));
+  const realizado = Math.round(clampPercentage(realizadoRaw));
   return {
     planejadoTotal: 100,
     planejadoAteHoje,
@@ -1038,11 +1037,15 @@ export function calcularMetricasSubpacote(
     .map((grupo) => {
       const servicosNormalizados = normalizarServicosParaSubpacote(grupo.servicos);
       const subpacotePlanejado = { servicos: servicosNormalizados };
-      const plannedPercent = clampPercentageValue(
-        calcularPercentualSubpacote(subpacotePlanejado, currentDate) ?? 0,
+      const plannedPercent = Math.round(
+        clampPercentageValue(
+          calcularPercentualSubpacote(subpacotePlanejado, currentDate) ?? 0,
+        ),
       );
-      const realizedPercent = clampPercentageValue(
-        calcularPercentualRealizadoSubpacote(subpacotePlanejado, currentDate) ?? 0,
+      const realizedPercent = Math.round(
+        clampPercentageValue(
+          calcularPercentualRealizadoSubpacote(subpacotePlanejado, currentDate) ?? 0,
+        ),
       );
       const horasFaltando = grupo.totalHours * (100 - realizedPercent) * 0.01;
       const diferenca = grupo.totalHours * (realizedPercent - plannedPercent) * 0.01;
@@ -1119,9 +1122,9 @@ export function calcularMetricasPorSetor(
       });
 
       const plannedPercent =
-        totalHours > 0 ? Math.ceil(clampPercentageValue(sumWeightedPlanned / totalHours)) : 0;
+        totalHours > 0 ? Math.round(clampPercentageValue(sumWeightedPlanned / totalHours)) : 0;
       const realizedPercent =
-        totalHours > 0 ? Math.ceil(clampPercentageValue(sumWeightedRealized / totalHours)) : 0;
+        totalHours > 0 ? Math.round(clampPercentageValue(sumWeightedRealized / totalHours)) : 0;
       const horasFaltando = totalHours * (100 - realizedPercent) * 0.01;
       const diferenca = totalHours * (realizedPercent - plannedPercent) * 0.01;
 
