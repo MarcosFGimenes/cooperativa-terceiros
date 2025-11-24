@@ -70,7 +70,7 @@ export default function ServicesCompaniesSection({
   const containerClass = printLayout ? "space-y-6 p-4" : "card space-y-6 p-4";
 
   return (
-    <div className={containerClass}>
+    <div className={cn(containerClass, "services-companies space-y-6")}>
       <div>
         <h2 className="text-lg font-semibold">Serviços e Empresas</h2>
         <p className="text-xs text-muted-foreground">
@@ -105,72 +105,82 @@ export default function ServicesCompaniesSection({
                 } satisfies ServiceDetail;
               });
               const hasServices = folder.services.length > 0;
-            const plannedLabel = formatPercentLabel(folder.progressPercent, hasServices);
-            const realizedLabel = formatPercentLabel(folder.realizedPercent, hasServices);
-            const startLabel = formatDateLabel(folder.startDateMs);
-            const endLabel = formatDateLabel(folder.endDateMs);
-            const isAlwaysOpen = forceExpandAll;
-            const isOpen = isAlwaysOpen || openFolderId === folder.id;
-            const isExpanded = isAlwaysOpen || (expandedFolderServices[folder.id] ?? false);
-            const visibleServices = isExpanded
-              ? assignedServices
-              : assignedServices.slice(0, MAX_VISIBLE_SERVICES);
-            const hiddenCount = isAlwaysOpen ? 0 : assignedServices.length - visibleServices.length;
-            return (
-              <div key={folder.id} className="rounded-lg border">
-                <button
-                  type="button"
-                  className={cn(
-                    "flex w-full items-center justify-between gap-3 px-3 py-2 text-left transition",
-                    isOpen ? "bg-muted/60" : "hover:bg-muted/40",
-                    isAlwaysOpen ? "cursor-default" : "",
-                  )}
-                  onClick={() =>
-                    setOpenFolderId((current) => (isAlwaysOpen ? current : current === folder.id ? null : folder.id))
-                  }
-                >
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium text-foreground">{folder.name}</p>
-                      <p className="truncate text-xs text-muted-foreground">
+              const plannedLabel = formatPercentLabel(folder.progressPercent, hasServices);
+              const realizedLabel = formatPercentLabel(folder.realizedPercent, hasServices);
+              const startLabel = formatDateLabel(folder.startDateMs);
+              const endLabel = formatDateLabel(folder.endDateMs);
+              const isAlwaysOpen = forceExpandAll;
+              const isOpen = isAlwaysOpen || openFolderId === folder.id;
+              const isExpanded = isAlwaysOpen || (expandedFolderServices[folder.id] ?? false);
+              const visibleServices = isExpanded
+                ? assignedServices
+                : assignedServices.slice(0, MAX_VISIBLE_SERVICES);
+              const hiddenCount = isAlwaysOpen ? 0 : assignedServices.length - visibleServices.length;
+              return (
+                <div key={folder.id} className="subpackage-block rounded-lg border">
+                  <button
+                    type="button"
+                    className={cn(
+                      "company-header flex w-full items-center justify-between gap-3 px-3 py-3 text-left transition subpackage-header",
+                      "bg-slate-100 text-slate-900",
+                      !isAlwaysOpen ? "hover:bg-slate-200" : "",
+                      isAlwaysOpen ? "cursor-default" : "",
+                    )}
+                    onClick={() =>
+                      setOpenFolderId((current) => (isAlwaysOpen ? current : current === folder.id ? null : folder.id))
+                    }
+                  >
+                    <div className="min-w-0 space-y-0.5">
+                      <p className="truncate text-sm font-semibold text-slate-900">{folder.name}</p>
+                      <p className="truncate text-xs text-slate-700">
                         Empresa: {folder.companyId ? folder.companyId : "-"}
                       </p>
-                      <p className="truncate text-xs text-muted-foreground">
-                        Planejado hoje: <span className="font-semibold text-foreground">{plannedLabel}</span>
+                      <p className="truncate text-xs text-slate-700">
+                        Planejado hoje: <span className="font-semibold text-slate-900">{plannedLabel}</span>
                       </p>
-                      <p className="truncate text-xs text-muted-foreground">
-                        Realizado: <span className="font-semibold text-foreground">{realizedLabel}</span>
+                      <p className="truncate text-xs text-slate-700">
+                        Realizado: <span className="font-semibold text-slate-900">{realizedLabel}</span>
                       </p>
-                      <p className="truncate text-xs text-muted-foreground">
-                        Cronograma: <span className="font-semibold text-foreground">{startLabel}</span> —{' '}
-                        <span className="font-semibold text-foreground">{endLabel}</span>
+                      <p className="truncate text-xs text-slate-700">
+                        Cronograma: <span className="font-semibold text-slate-900">{startLabel}</span> —{' '}
+                        <span className="font-semibold text-slate-900">{endLabel}</span>
                       </p>
                     </div>
-                    <span className="rounded-full border px-2 py-0.5 text-xs text-muted-foreground">
+                    <span className="rounded-full border border-slate-300 bg-slate-200 px-2 py-0.5 text-xs font-medium text-slate-800">
                       {folder.services.length} serviço{folder.services.length === 1 ? "" : "s"}
                     </span>
                   </button>
                   {isOpen ? (
-                    <div className="space-y-2 border-t px-3 py-3 text-sm">
+                    <div className="service-list space-y-2 border-t px-3 py-3 text-sm">
                       {assignedServices.length === 0 ? (
                         <p className="text-muted-foreground">Nenhum serviço vinculado a este subpacote.</p>
                       ) : (
                         <>
                           {visibleServices.map((detail) => (
-                            <div key={detail.id} className="rounded border bg-background px-3 py-2">
-                              <p className="font-medium text-foreground">{detail.label || detail.id}</p>
-                              {detail.status ? (
-                                <p className="text-xs text-muted-foreground">{detail.status}</p>
-                              ) : null}
-                              <p className="text-xs text-muted-foreground">
-                                Planejado: {formatPercentLabel(detail.plannedPercent ?? null, true)} • Realizado: {" "}
-                                {formatPercentLabel(detail.realizedPercent ?? null, true)} • Dif.: {" "}
-                                <span className="font-semibold text-foreground">{formatDeltaLabel(detail.deltaPercent)}</span>
-                              </p>
-                              <p className="text-xs text-muted-foreground">
-                                Cronograma: <span className="font-semibold text-foreground">{formatDateLabel(detail.startDateMs)}</span>
-                                {" "}—{" "}
-                                <span className="font-semibold text-foreground">{formatDateLabel(detail.endDateMs)}</span>
-                              </p>
+                            <div
+                              key={detail.id}
+                              className="service-card service-entry rounded border border-slate-300 bg-slate-200/90 text-slate-900"
+                            >
+                              <div className="service-title flex items-center justify-between gap-2 rounded-t border-b border-slate-300 bg-slate-300/70 px-3 py-2">
+                                <p className="font-semibold text-slate-900">{detail.label || detail.id}</p>
+                                {detail.status ? (
+                                  <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-800">
+                                    {detail.status}
+                                  </span>
+                                ) : null}
+                              </div>
+                              <div className="service-content space-y-1 px-3 py-2 text-xs text-slate-800">
+                                <p>
+                                  Planejado: {formatPercentLabel(detail.plannedPercent ?? null, true)} • Realizado: {" "}
+                                  {formatPercentLabel(detail.realizedPercent ?? null, true)} • Dif.: {" "}
+                                  <span className="font-semibold text-slate-900">{formatDeltaLabel(detail.deltaPercent)}</span>
+                                </p>
+                                <p>
+                                  Cronograma: <span className="font-semibold text-slate-900">{formatDateLabel(detail.startDateMs)}</span>
+                                  {" "}—{" "}
+                                  <span className="font-semibold text-slate-900">{formatDateLabel(detail.endDateMs)}</span>
+                                </p>
+                              </div>
                             </div>
                           ))}
                           {!isAlwaysOpen && hiddenCount > 0 ? (
