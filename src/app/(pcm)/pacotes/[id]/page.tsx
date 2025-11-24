@@ -667,9 +667,9 @@ async function renderPackageDetailPage(
     : `${services.length} serviço${services.length === 1 ? "" : "s"}`;
 
   return (
-    <div className="container mx-auto max-w-6xl space-y-6 px-4 py-6 package-print-layout print:m-0 print:w-full print:max-w-none print:space-y-4 print:px-0 print:py-0">
-      <div className="print-summary-and-curve space-y-6 print:space-y-4">
-        <section className="rounded-2xl border bg-card/80 p-5 shadow-sm print-card print:w-full print:rounded-none print:border-0 print:bg-white print:shadow-none print:px-4 print:py-4">
+    <div className="container mx-auto max-w-6xl space-y-6 px-4 py-6 package-print-layout print:m-0 print:w-full print:max-w-none print:space-y-3 print:px-0 print:py-0">
+      <div className="print-summary-and-curve space-y-6 print:space-y-3">
+        <section className="package-header rounded-2xl border bg-card/80 p-5 shadow-sm print-card print:w-full print:rounded-none print:border-0 print:bg-white print:shadow-none print:px-4 print:py-4">
           <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between print:block print:gap-2">
             <div className="space-y-3">
               <div className="flex flex-wrap items-center gap-2">
@@ -748,7 +748,7 @@ async function renderPackageDetailPage(
           </div>
         ) : null}
 
-        <div className="grid gap-6 xl:grid-cols-[minmax(0,1.7fr)_minmax(320px,1fr)] print:block print:gap-4">
+        <div className="grid gap-6 xl:grid-cols-[minmax(0,1.7fr)_minmax(320px,1fr)] print:block print:gap-3">
           <section
             className="rounded-2xl border bg-card/80 p-5 shadow-sm scurve-card print-card print:w-full print:rounded-none print:border-0 print:bg-white print:shadow-none print:p-4"
           >
@@ -824,7 +824,7 @@ async function renderPackageDetailPage(
           <ServicesCompaniesSection folders={folders} serviceDetails={serviceDetails} />
         </div>
 
-        <div className="hidden print:block print-page-break-before" aria-hidden>
+        <div className="hidden print:block" aria-hidden>
           <ServicesCompaniesSection
             folders={folders}
             serviceDetails={serviceDetails}
@@ -834,7 +834,7 @@ async function renderPackageDetailPage(
         </div>
       </div>
 
-      <section className="rounded-2xl border bg-card/80 p-5 shadow-sm space-y-8 print:space-y-6 print-page-break-before print-no-border print:w-full print:rounded-none print:border-0 print:bg-white print:shadow-none print:p-4 print-no-radius print-full-width">
+      <section className="rounded-2xl border bg-card/80 p-5 shadow-sm space-y-8 print:space-y-6 print-no-border print:w-full print:rounded-none print:border-0 print:bg-white print:shadow-none print:p-4 print-no-radius print-full-width">
         <div className="space-y-3 print-keep-with-next">
           <h2 className="text-lg font-semibold">Resumo por Subpacote</h2>
           {subpackageMetrics.length ? (

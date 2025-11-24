@@ -117,11 +117,11 @@ export default function ServicesCompaniesSection({
                 : assignedServices.slice(0, MAX_VISIBLE_SERVICES);
               const hiddenCount = isAlwaysOpen ? 0 : assignedServices.length - visibleServices.length;
               return (
-                <div key={folder.id} className="rounded-lg border">
+                <div key={folder.id} className="subpackage-block rounded-lg border">
                   <button
                     type="button"
                     className={cn(
-                      "flex w-full items-center justify-between gap-3 px-3 py-3 text-left transition subpackage-header",
+                      "company-header flex w-full items-center justify-between gap-3 px-3 py-3 text-left transition subpackage-header",
                       "bg-slate-100 text-slate-900",
                       !isAlwaysOpen ? "hover:bg-slate-200" : "",
                       isAlwaysOpen ? "cursor-default" : "",
@@ -151,7 +151,7 @@ export default function ServicesCompaniesSection({
                     </span>
                   </button>
                   {isOpen ? (
-                    <div className="space-y-2 border-t px-3 py-3 text-sm">
+                    <div className="service-list space-y-2 border-t px-3 py-3 text-sm">
                       {assignedServices.length === 0 ? (
                         <p className="text-muted-foreground">Nenhum serviço vinculado a este subpacote.</p>
                       ) : (
@@ -159,22 +159,28 @@ export default function ServicesCompaniesSection({
                           {visibleServices.map((detail) => (
                             <div
                               key={detail.id}
-                              className="service-entry rounded border border-slate-300 bg-slate-200/90 px-3 py-2 text-slate-900"
+                              className="service-card service-entry rounded border border-slate-300 bg-slate-200/90 text-slate-900"
                             >
-                              <p className="font-medium text-slate-900">{detail.label || detail.id}</p>
-                              {detail.status ? (
-                                <p className="text-xs text-slate-800">{detail.status}</p>
-                              ) : null}
-                              <p className="text-xs text-slate-800">
-                                Planejado: {formatPercentLabel(detail.plannedPercent ?? null, true)} • Realizado: {" "}
-                                {formatPercentLabel(detail.realizedPercent ?? null, true)} • Dif.: {" "}
-                                <span className="font-semibold text-slate-900">{formatDeltaLabel(detail.deltaPercent)}</span>
-                              </p>
-                              <p className="text-xs text-slate-800">
-                                Cronograma: <span className="font-semibold text-slate-900">{formatDateLabel(detail.startDateMs)}</span>
-                                {" "}—{" "}
-                                <span className="font-semibold text-slate-900">{formatDateLabel(detail.endDateMs)}</span>
-                              </p>
+                              <div className="service-title flex items-center justify-between gap-2 rounded-t border-b border-slate-300 bg-slate-300/70 px-3 py-2">
+                                <p className="font-semibold text-slate-900">{detail.label || detail.id}</p>
+                                {detail.status ? (
+                                  <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-800">
+                                    {detail.status}
+                                  </span>
+                                ) : null}
+                              </div>
+                              <div className="service-content space-y-1 px-3 py-2 text-xs text-slate-800">
+                                <p>
+                                  Planejado: {formatPercentLabel(detail.plannedPercent ?? null, true)} • Realizado: {" "}
+                                  {formatPercentLabel(detail.realizedPercent ?? null, true)} • Dif.: {" "}
+                                  <span className="font-semibold text-slate-900">{formatDeltaLabel(detail.deltaPercent)}</span>
+                                </p>
+                                <p>
+                                  Cronograma: <span className="font-semibold text-slate-900">{formatDateLabel(detail.startDateMs)}</span>
+                                  {" "}—{" "}
+                                  <span className="font-semibold text-slate-900">{formatDateLabel(detail.endDateMs)}</span>
+                                </p>
+                              </div>
                             </div>
                           ))}
                           {!isAlwaysOpen && hiddenCount > 0 ? (
