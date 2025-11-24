@@ -1,11 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
-
-import ReferenceDateSelector from "@/components/ReferenceDateSelector";
-import { formatReferenceLabel, resolveReferenceDate } from "@/lib/referenceDate";
 import type { Package } from "@/types";
 
 function normaliseStatus(status: Package["status"]): "Aberto" | "Pendente" | "Concluído" {
@@ -16,22 +11,8 @@ function normaliseStatus(status: Package["status"]): "Aberto" | "Pendente" | "Co
 }
 
 export default function RecentPackagesPanel({ packages }: { packages: Package[] }) {
-  const searchParams = useSearchParams();
-  const refDateParam = searchParams?.get("refDate") ?? null;
-  const { date: referenceDate, inputValue: referenceDateInput } = useMemo(
-    () => resolveReferenceDate(refDateParam),
-    [refDateParam],
-  );
-  const referenceLabel = useMemo(() => formatReferenceLabel(referenceDate), [referenceDate]);
-
   return (
     <div className="space-y-2">
-      <div className="flex flex-wrap items-start justify-between gap-3 rounded-2xl border border-dashed border-border/70 bg-muted/20 p-3">
-        <div className="w-full max-w-[220px]">
-          <ReferenceDateSelector value={referenceDateInput} showTimeZoneNote={false} />
-        </div>
-      </div>
-
       {packages.length === 0 ? (
         <div className="rounded-lg border border-dashed p-6 text-sm text-muted-foreground">Nenhum pacote cadastrado.</div>
       ) : (
@@ -46,7 +27,7 @@ export default function RecentPackagesPanel({ packages }: { packages: Package[] 
             >
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium">{pkg.name || pkg.code || pkg.id}</p>
-                <p className="text-xs text-muted-foreground">{status} (ref. {referenceLabel})</p>
+                <p className="text-xs text-muted-foreground">{status}</p>
               </div>
             </Link>
           );

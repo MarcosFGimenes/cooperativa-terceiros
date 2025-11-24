@@ -211,7 +211,7 @@ export async function listServicesPCM(options?: {
       query = query.where("empresa", "==", empresa);
     }
 
-    query = query.orderBy("createdAt", "desc");
+    query = query.orderBy("updatedAt", "desc");
 
     if (cursor) {
       const lastDoc = await admin.collection("services").doc(cursor).get();
