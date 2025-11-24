@@ -245,6 +245,26 @@ input:-webkit-autofill:focus {
     height: 340px !important;
   }
 
+  .package-print-layout section,
+  .package-print-layout .card,
+  .package-print-layout .print-card,
+  .package-print-layout .summary-table,
+  .package-print-layout .summary-table tr,
+  .package-print-layout .summary-table td,
+  .package-print-layout .summary-table th {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .package-print-layout .summary-table th,
+  .package-print-layout .summary-table td {
+    padding-block: 12px !important;
+  }
+
+  .package-print-layout .summary-table tbody tr + tr td {
+    padding-top: 16px !important;
+  }
+
   .hide-for-print {
     display: none !important;
   }

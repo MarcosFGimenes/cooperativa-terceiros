@@ -394,6 +394,10 @@ function mapServiceData(
   const progress = toNumber(
     data.progress ?? data.realPercent ?? data.andamento ?? data.percentual ?? data.percent,
   );
+  const updatedAt =
+    toNumber(
+      data.updatedAt ?? data.updated_at ?? data.atualizadoEm ?? data.updatedAtMs ?? data.updatedAtMillis,
+    ) ?? createdAt;
 
   return {
     id,
@@ -425,6 +429,7 @@ function mapServiceData(
     updates,
     checklist,
     createdAt,
+    updatedAt,
     packageId: data.packageId ? String(data.packageId) : data.pacoteId ? String(data.pacoteId) : undefined,
     company: data.company ? String(data.company) : data.companyId ? String(data.companyId) : undefined,
     empresa: data.empresa ? String(data.empresa) : undefined,
@@ -580,8 +585,9 @@ export async function findServicesByOsList(
 }
 
 export async function listRecentServices(): Promise<Service[]> {
-  const snap = await servicesCollection().orderBy("createdAt", "desc").limit(20).get();
-  return snap.docs.map((doc) => mapServiceData(doc.id, (doc.data() ?? {}) as Record<string, unknown>));
+  const snap = await servicesCollection().orderBy("updatedAt", "desc").limit(20).get();
+  const services = snap.docs.map((doc) => mapServiceData(doc.id, (doc.data() ?? {}) as Record<string, unknown>));
+  return services.sort((a, b) => (b.updatedAt ?? b.createdAt ?? 0) - (a.updatedAt ?? a.createdAt ?? 0));
 }
 
 function isMissingAdminError(error: unknown) {

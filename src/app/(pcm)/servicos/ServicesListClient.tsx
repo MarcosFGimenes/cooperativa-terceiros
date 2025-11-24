@@ -115,6 +115,7 @@ export default function ServicesListClient({ initialItems, initialCursor }: Prop
           const statusTone = STATUS_TONE[statusLabel] ?? "border-border bg-muted text-foreground/80";
           const plannedPercent = Math.round(resolveServicoPercentualPlanejado(service, referenceDate));
           const realPercent = Math.round(resolveServicoRealPercent(service, referenceDate));
+          const isComplete = realPercent >= 100;
           const identifier = resolveIdentifier(service);
           const subtitle = resolveSubtitle(service);
           const companyLabel = resolveCompanyLabel(service);
@@ -130,7 +131,11 @@ export default function ServicesListClient({ initialItems, initialCursor }: Prop
                   <span className={`rounded-full border px-2 py-0.5 text-xs font-semibold ${statusTone}`}>
                     {statusLabel}
                   </span>
-                  <span className="rounded-full border border-transparent bg-muted/60 px-2 py-0.5 text-xs text-muted-foreground">
+                  <span
+                    className={`rounded-full border border-transparent px-2 py-0.5 text-xs ${
+                      isComplete ? "bg-emerald-100 text-emerald-700" : "bg-muted/60 text-muted-foreground"
+                    }`}
+                  >
                     {realPercent}% concluído (em {referenceLabel})
                   </span>
                 </div>
@@ -145,7 +150,12 @@ export default function ServicesListClient({ initialItems, initialCursor }: Prop
               </div>
               <div className="space-y-2">
                 <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
-                  <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${realPercent}%` }} />
+                  <div
+                    className={`h-full rounded-full transition-all ${
+                      isComplete ? "bg-emerald-500" : "bg-primary"
+                    }`}
+                    style={{ width: `${realPercent}%` }}
+                  />
                 </div>
                 <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
                   <span>{companyLabel ? `Empresa: ${companyLabel}` : `Pacote: ${service.packageId ?? "Não vinculado"}`}</span>

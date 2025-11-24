@@ -90,9 +90,11 @@ function mapDoc(id: string, rawData: Record<string, unknown> | undefined): PCMSe
     setor: toOptionalString(data.setor),
     sector: toOptionalString(data.sector) ?? toOptionalString(data.setor),
     status: normStatus(toOptionalString(data.status)),
-    andamento: toNumber(data.andamento ?? data.realPercent ?? data.progress),
-    progress: toNumber(data.progress),
-    realPercent: toNumber(data.realPercent),
+    andamento: toNumber(
+      data.andamento ?? data.realPercent ?? data.realPercentSnapshot ?? data.percent ?? data.progress,
+    ),
+    progress: toNumber(data.progress ?? data.percent),
+    realPercent: toNumber(data.realPercent ?? data.realPercentSnapshot ?? data.percent),
     manualPercent: toNumber(data.manualPercent ?? data.manual_percent ?? data.manualProgress),
     packageId: toOptionalString(data.packageId) ?? toOptionalString(data.pacoteId),
     empresa: toOptionalString(data.empresa) ?? toOptionalString(data.empresaId) ?? toOptionalString(data.company),
@@ -211,7 +213,7 @@ export async function listServicesPCM(options?: {
       query = query.where("empresa", "==", empresa);
     }
 
-    query = query.orderBy("createdAt", "desc");
+    query = query.orderBy("updatedAt", "desc");
 
     if (cursor) {
       const lastDoc = await admin.collection("services").doc(cursor).get();

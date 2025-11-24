@@ -7,7 +7,7 @@ import { DEFAULT_TIME_ZONE } from "@/lib/referenceDate";
 
 type Props = { value: string; label?: string; showTimeZoneNote?: boolean };
 
-export default function ReferenceDateSelector({ value, label = "Data de referência", showTimeZoneNote = true }: Props) {
+export default function ReferenceDateSelector({ value, label = "Data de referência", showTimeZoneNote = false }: Props) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
