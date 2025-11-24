@@ -188,6 +188,7 @@ input:-webkit-autofill:focus {
   body {
     background: #ffffff !important;
     color: #000000 !important;
+    font-size: 0.95rem !important;
   }
 
   body * {
@@ -245,6 +246,70 @@ input:-webkit-autofill:focus {
 
   .scurve-container {
     height: 340px !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    page-break-before: auto !important;
+    page-break-after: auto !important;
+  }
+
+  .print-summary-and-curve {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    page-break-before: auto !important;
+    page-break-after: auto !important;
+  }
+
+  .print-summary-and-curve .scurve-container {
+    height: 300px !important;
+  }
+
+  .package-header {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    page-break-before: auto !important;
+    page-break-after: avoid !important;
+  }
+
+  .services-companies .subpackage-block {
+    background: #f3f4f6 !important;
+    border: 1px solid #d4d4d8 !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    padding: 2px !important;
+  }
+
+  .services-companies .subpackage-header,
+  .company-header {
+    background: #f0f0f0 !important;
+    border-bottom: 1px solid #cbd5e1 !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  .services-companies .service-list {
+    background: #ffffff !important;
+    padding-left: 2px !important;
+    padding-right: 2px !important;
+  }
+
+  .services-companies .service-card {
+    background: #ffffff !important;
+    border: 1px solid #cbd5e1 !important;
+    border-radius: 8px !important;
+    overflow: hidden !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  .services-companies .service-title {
+    background: #e5e7eb !important;
+    border-bottom: 1px solid #cbd5e1 !important;
+    font-weight: 700 !important;
+  }
+
+  .services-companies .service-content {
+    background: #ffffff !important;
+    color: #1f2937 !important;
   }
 
   .hide-for-print {
@@ -308,6 +373,32 @@ input:-webkit-autofill:focus {
   .print-keep-with-next + * {
     page-break-inside: avoid;
     break-inside: avoid;
+  }
+
+  .subpackage-block,
+  .service-card,
+  .company-header,
+  .summary-table-wrapper,
+  .summary-table,
+  .scurve-container,
+  .package-header {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    page-break-before: auto !important;
+    page-break-after: auto !important;
+  }
+
+  .summary-table-wrapper table,
+  .summary-table-wrapper tr,
+  .summary-table-wrapper td,
+  .summary-table-wrapper th {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  .print-summary-blocks {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
   }
 
   .package-print-layout section,
