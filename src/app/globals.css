@@ -247,6 +247,25 @@ input:-webkit-autofill:focus {
     height: 340px !important;
   }
 
+  .print-summary-and-curve {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  .print-summary-and-curve .scurve-container {
+    height: 320px !important;
+  }
+
+  .services-companies .subpackage-header {
+    background: #f3f4f6 !important;
+    border-bottom: 1px solid #d1d5db !important;
+  }
+
+  .services-companies .service-entry {
+    background: #e5e7eb !important;
+    border: 1px solid #d1d5db !important;
+  }
+
   .hide-for-print {
     display: none !important;
   }

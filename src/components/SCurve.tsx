@@ -273,12 +273,16 @@ export default function SCurve({
         isClientReady ? (
           <div className={cn("w-full scurve-container")} style={{ height: resolvedChartHeight }}>
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={chartData} margin={{ left: 4, right: 16, top: 16, bottom: 8 }}>
+              <LineChart data={chartData} margin={{ left: 36, right: 16, top: 16, bottom: 12 }}>
                 <CartesianGrid stroke="transparent" vertical={false} horizontal={false} />
                 <XAxis dataKey="dateLabel" stroke="hsl(var(--muted-foreground))" tick={{ fontSize: 12 }} />
                 <YAxis
                   domain={[0, 100]}
-                  hide
+                  ticks={[0, 20, 40, 60, 80, 100]}
+                  tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+                  width={32}
+                  stroke="hsl(var(--muted-foreground))"
+                  tickLine={false}
                   allowDecimals={false}
                   tickFormatter={(value) => `${value}%`}
                 />
