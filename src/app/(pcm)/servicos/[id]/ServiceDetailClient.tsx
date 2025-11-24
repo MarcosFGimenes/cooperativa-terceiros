@@ -16,18 +16,10 @@ import {
 } from "firebase/firestore";
 import SCurveDeferred from "@/components/SCurveDeferred";
 import { plannedCurve } from "@/lib/curve";
-import { resolveServicoPercentualPlanejado, resolveServicoRealPercent } from "@/lib/serviceProgress";
+import { resolveServicoPercentualPlanejado } from "@/lib/serviceProgress";
 import { isFirestoreLongPollingForced, tryGetFirestore } from "@/lib/firebase";
 import { isConnectionResetError } from "@/lib/networkErrors";
 import { useFirebaseAuthSession } from "@/lib/useFirebaseAuthSession";
-import ReferenceDatePicker from "@/components/ReferenceDatePicker";
-import {
-  DEFAULT_REFERENCE_DATE_PARAM,
-  DEFAULT_REFERENCE_TIME_ZONE,
-  formatReferenceDateLabel,
-  getTodayReferenceInput,
-  toTimeZoneDateFromInput,
-} from "@/lib/referenceDate";
 import type { ChecklistItem, Service, ServiceUpdate } from "@/lib/types";
 import {
   ServiceRealtimeData,
@@ -111,21 +103,6 @@ export default function ServiceDetailClient({
   const [currentToken, setCurrentToken] = useState<ServiceDetailClientProps["latestToken"]>(latestToken);
   const [currentTokenLink, setCurrentTokenLink] = useState<string | null>(tokenLink);
   const normalizedInitialUpdates = useMemo(() => toNewUpdates(initialUpdates), [initialUpdates]);
-  const refDateFromQuery = searchParams?.get(DEFAULT_REFERENCE_DATE_PARAM);
-  const [referenceDateInput, setReferenceDateInput] = useState(
-    refDateFromQuery || getTodayReferenceInput(DEFAULT_REFERENCE_TIME_ZONE),
-  );
-  useEffect(() => {
-    if (refDateFromQuery && refDateFromQuery !== referenceDateInput) {
-      setReferenceDateInput(refDateFromQuery);
-    }
-  }, [refDateFromQuery, referenceDateInput]);
-  const referenceDate = useMemo(
-    () => toTimeZoneDateFromInput(referenceDateInput, DEFAULT_REFERENCE_TIME_ZONE, "end"),
-    [referenceDateInput],
-  );
-  const referenceDateLabel = useMemo(() => formatReferenceDateLabel(referenceDate), [referenceDate]);
-  const referenceHelperText = `Percentuais calculados para ${referenceDateLabel}.`;
   const longPollingForced = isFirestoreLongPollingForced;
   const { ready: isAuthReady, issue: authIssue, user } = useFirebaseAuthSession();
   const latestIdTokenRef = useRef<string | null>(null);
@@ -500,23 +477,14 @@ export default function ServiceDetailClient({
     return service.id;
   }, [service.id, service.os, service.code]);
 
-  const plannedPercentToDate = useMemo(
-    () =>
-      resolveServicoPercentualPlanejado(
-        {
-          ...service,
-          plannedStart: service.plannedStart ?? composedInitial.plannedStart,
-          plannedEnd: service.plannedEnd ?? composedInitial.plannedEnd,
-        },
-        referenceDate,
-      ),
-    [service, composedInitial, referenceDate],
-  );
-
-  const realizedPercentAtReference = useMemo(
-    () => resolveServicoRealPercent(service, referenceDate),
-    [service, referenceDate],
-  );
+  const plannedPercentToDate = useMemo(() => {
+    const today = new Date();
+    return resolveServicoPercentualPlanejado({
+      ...service,
+      plannedStart: service.plannedStart ?? composedInitial.plannedStart,
+      plannedEnd: service.plannedEnd ?? composedInitial.plannedEnd,
+    }, today);
+  }, [service, composedInitial]);
 
   const companyLabel = useMemo(() => {
     if (service.assignedTo?.companyName) return service.assignedTo.companyName;
@@ -590,16 +558,6 @@ export default function ServiceDetailClient({
         </div>
       ) : null}
 
-      <ReferenceDatePicker
-        value={referenceDateInput}
-        helperText={referenceHelperText}
-        persistQuery
-        align="left"
-        onChange={(nextValue) =>
-          setReferenceDateInput(nextValue || getTodayReferenceInput(DEFAULT_REFERENCE_TIME_ZONE))
-        }
-      />
-
       <div className="grid gap-4 lg:grid-cols-[1fr_minmax(320px,380px)] print-avoid-break">
         <div className="card p-4 print-avoid-break">
           <h2 className="mb-4 text-lg font-semibold">Informações gerais</h2>
@@ -609,12 +567,8 @@ export default function ServiceDetailClient({
               <dd className="font-medium">{statusLabel}</dd>
             </div>
             <div>
-              <dt className="text-muted-foreground">Andamento ({referenceDateLabel})</dt>
-              <dd className="font-medium">{Math.round(realizedPercentAtReference)}%</dd>
-            </div>
-            <div>
-              <dt className="text-muted-foreground">Planejado ({referenceDateLabel})</dt>
-              <dd className="font-medium">{Math.round(plannedPercentToDate)}%</dd>
+              <dt className="text-muted-foreground">Andamento</dt>
+              <dd className="font-medium">{Math.round(realizedPercent)}%</dd>
             </div>
             <div>
               <dt className="text-muted-foreground">Tag</dt>
@@ -695,19 +649,10 @@ export default function ServiceDetailClient({
           <SCurveDeferred
             planned={planned}
             realizedSeries={realizedSeries}
-            realizedPercent={Math.round(realizedPercentAtReference)}
+            realizedPercent={realizedPercent}
             title="Curva S do serviço"
             description="Evolução planejada versus realizado para este serviço."
-            headerAside={
-              <div className="text-sm font-medium text-foreground">
-                <p>
-                  Planejado ({referenceDateLabel}): {Math.round(plannedPercentToDate)}%
-                </p>
-                <p>
-                  Realizado ({referenceDateLabel}): {Math.round(realizedPercentAtReference)}%
-                </p>
-              </div>
-            }
+            headerAside={<span className="font-medium text-foreground">Realizado: {realizedPercent}%</span>}
             metrics={{ plannedToDate: plannedPercentToDate }}
             chartHeight={resolvedChartHeight}
             deferRendering={!isPdfExport}
