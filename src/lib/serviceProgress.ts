@@ -244,7 +244,8 @@ function resolveDateRange(servico: ServicoDoSubpacote): DateRange | null {
 function daysBetween(start: Date, end: Date): number {
   const diff = end.getTime() - start.getTime();
   if (!Number.isFinite(diff)) return 0;
-  return Math.max(0, diff / DAY_IN_MS);
+  const inclusiveDays = Math.floor(diff / DAY_IN_MS) + 1;
+  return Math.max(1, inclusiveDays);
 }
 
 type ServiceProgressEntry = { horasPrevistas: number; percentual: number };
