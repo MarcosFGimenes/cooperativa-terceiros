@@ -60,7 +60,15 @@ function toDate(value: DateInput): Date | null {
     return Number.isNaN(date.getTime()) ? null : date;
   }
   if (typeof value === "string" && value) {
-    const date = new Date(value);
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+    const brMatch = BR_DATE_ONLY.exec(trimmed);
+    if (brMatch) {
+      const [, day, month, year] = brMatch;
+      const parsed = new Date(`${year}-${month}-${day}T00:00:00Z`);
+      return Number.isNaN(parsed.getTime()) ? null : parsed;
+    }
+    const date = new Date(trimmed);
     return Number.isNaN(date.getTime()) ? null : date;
   }
   return null;

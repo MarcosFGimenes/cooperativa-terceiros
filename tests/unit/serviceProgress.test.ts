@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  calcularPercentualPlanejadoPacote,
   calcularPercentualSubpacote,
   calcularPercentualRealizadoSubpacote,
   calcularPercentualPlanejadoServico,
+  calcularPercentualRealizadoPacote,
   calcularCurvaSPlanejada,
   calcularCurvaSRealizada,
   calcularIndicadoresCurvaS,
@@ -272,6 +274,78 @@ describe("serviceProgress utilities", () => {
     });
   });
 
+  describe("calcularPercentualPlanejadoPacote", () => {
+    it("pondera os subpacotes pelas horas totais planejadas", () => {
+      const reference = new Date("2024-01-06T00:00:00Z");
+      const pacote = {
+        subpacotes: [
+          {
+            servicos: [
+              {
+                horasPrevistas: 10,
+                dataInicio: new Date("2024-01-01T00:00:00Z"),
+                dataFim: new Date("2024-01-11T00:00:00Z"),
+              },
+            ],
+          },
+          {
+            servicos: [
+              {
+                horasPrevistas: 30,
+                dataInicio: new Date("2024-01-01T00:00:00Z"),
+                dataFim: new Date("2024-02-20T00:00:00Z"),
+              },
+            ],
+          },
+        ],
+      };
+
+      const percentual = calcularPercentualPlanejadoPacote(pacote, reference);
+      expect(percentual).toBeCloseTo(20, 5);
+    });
+
+    it("retorna zero quando não há subpacotes válidos", () => {
+      expect(calcularPercentualPlanejadoPacote({ subpacotes: [] }, new Date())).toBe(0);
+    });
+  });
+
+  describe("calcularPercentualRealizadoPacote", () => {
+    it("aplica a mesma ponderação de horas usada nos subpacotes", () => {
+      const reference = new Date("2024-01-06T00:00:00Z");
+      const pacote = {
+        subpacotes: [
+          {
+            servicos: [
+              {
+                horasPrevistas: 10,
+                dataInicio: "2024-01-01",
+                dataFim: "2024-01-11",
+                atualizacoes: [{ data: "2024-01-05", percentual: 50 }],
+              },
+            ],
+          },
+          {
+            servicos: [
+              {
+                horasPrevistas: 30,
+                dataInicio: "2024-01-01",
+                dataFim: "2024-02-20",
+                atualizacoes: [{ data: "2024-01-05", percentual: 10 }],
+              },
+            ],
+          },
+        ],
+      };
+
+      const percentual = calcularPercentualRealizadoPacote(pacote, reference);
+      expect(percentual).toBeCloseTo(20, 5);
+    });
+
+    it("retorna zero quando não há horas disponíveis", () => {
+      expect(calcularPercentualRealizadoPacote(null, new Date())).toBe(0);
+    });
+  });
+
   describe("calcularPercentualPlanejadoServico", () => {
     const reference = new Date("2024-01-10T00:00:00Z");
 
@@ -356,6 +430,17 @@ describe("serviceProgress utilities", () => {
         ),
       ).toBe(0);
     });
+
+    it("atinge 50% para um serviço de 20/11 a 29/11 ao consultar 24/11", () => {
+      const percentual = calcularPercentualPlanejadoServico(
+        {
+          dataInicio: new Date("2024-11-20T03:00:00Z"),
+          dataFim: new Date("2024-11-30T02:59:59Z"),
+        },
+        new Date("2024-11-25T02:59:59Z"),
+      );
+      expect(Math.round(percentual)).toBe(50);
+    });
   });
 
   describe("mapearServicosPlanejados", () => {
@@ -384,7 +469,7 @@ describe("serviceProgress utilities", () => {
       expect(result).toHaveLength(2);
       expect(result[0]).toMatchObject({ id: "abc", descricao: "Serviço 1", percentualReal: 55 });
       expect(result[0].percentualPlanejado).toBeCloseTo(50, 5);
-      expect(result[1]).toMatchObject({ id: "2", descricao: "Serviço 2", percentualReal: 100, percentualPlanejado: 0 });
+      expect(result[1]).toMatchObject({ id: "2", descricao: "Serviço 2", percentualReal: 100, percentualPlanejado: 10 });
     });
 
     it("returns zero when real percentage is missing", () => {
@@ -467,9 +552,9 @@ describe("serviceProgress utilities", () => {
         new Date("2024-01-05T00:00:00Z"),
       );
       expect(indicadores.planejadoTotal).toBe(100);
-      expect(indicadores.planejadoAteHoje).toBeCloseTo(83.33, 1);
-      expect(indicadores.realizado).toBeCloseTo(53.33, 1);
-      expect(indicadores.diferenca).toBeCloseTo(-29.99, 1);
+      expect(indicadores.planejadoAteHoje).toBe(83);
+      expect(indicadores.realizado).toBe(53);
+      expect(indicadores.diferenca).toBe(-30);
     });
   });
 

@@ -3,10 +3,16 @@ export const revalidate = 0;
 
 import Link from "next/link";
 
+import ReferenceDatePicker from "@/components/ReferenceDatePicker";
 import { listRecentPackages } from "@/lib/repo/packages";
 import { listRecentServices } from "@/lib/repo/services";
 import { formatDateTime } from "@/lib/formatDateTime";
 import { resolveServicoPercentualPlanejado, resolveServicoRealPercent } from "@/lib/serviceProgress";
+import {
+  DEFAULT_REFERENCE_TIME_ZONE,
+  formatReferenceDateLabel,
+  resolveReferenceDateFromSearchParams,
+} from "@/lib/referenceDate";
 import type { Service } from "@/types";
 import ImportServicesButton from "./_components/ImportServicesButton";
 
@@ -22,7 +28,11 @@ function formatDate(value?: number) {
   return formatDateTime(value, { timeZone: "America/Sao_Paulo", fallback: "" });
 }
 
-export default async function DashboardPCM() {
+export default async function DashboardPCM({
+  searchParams,
+}: {
+  searchParams?: Record<string, string | string[] | undefined>;
+}) {
   const [services, packages] = await Promise.all([
     listRecentServices(),
     listRecentPackages(),
@@ -36,7 +46,12 @@ export default async function DashboardPCM() {
     },
     { Aberto: 0, Pendente: 0, "Concluído": 0 } as Record<"Aberto" | "Pendente" | "Concluído", number>,
   );
-  const today = new Date();
+  const { date: referenceDate, inputValue: referenceDateInput } = resolveReferenceDateFromSearchParams(
+    searchParams,
+    { timeZone: DEFAULT_REFERENCE_TIME_ZONE },
+  );
+  const referenceDateLabel = formatReferenceDateLabel(referenceDate);
+  const referenceHelperText = `Percentuais calculados para ${referenceDateLabel}.`;
 
   return (
     <div className="container mx-auto space-y-6 p-4">
@@ -74,6 +89,12 @@ export default async function DashboardPCM() {
           <p className="text-2xl font-semibold">{statusGroups["Concluído"]}</p>
         </div>
       </section>
+      <ReferenceDatePicker
+        value={referenceDateInput}
+        helperText={referenceHelperText}
+        persistQuery
+        align="left"
+      />
 
       <section className="grid gap-4 lg:grid-cols-2">
         <div className="card p-4">
@@ -94,9 +115,9 @@ export default async function DashboardPCM() {
             ) : (
               services.slice(0, 5).map((service) => {
                 const plannedPercent = Math.round(
-                  resolveServicoPercentualPlanejado(service, today),
+                  resolveServicoPercentualPlanejado(service, referenceDate),
                 );
-                  const realPercent = resolveServicoRealPercent(service);
+                const realPercent = resolveServicoRealPercent(service, referenceDate);
                 const createdAt = formatDate(service.createdAt);
                 const serviceHref = `/servicos/${encodeURIComponent(service.id)}`;
                 return (
@@ -118,8 +139,10 @@ export default async function DashboardPCM() {
                         {createdAt ? ` • ${createdAt}` : ""}
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        Planejado: <span className="font-semibold text-foreground">{plannedPercent}%</span>
-                        {" "}| Real: <span className="font-semibold text-foreground">{realPercent}%</span>
+                        Planejado ({referenceDateLabel}):{" "}
+                        <span className="font-semibold text-foreground">{plannedPercent}%</span>{" "}
+                        | Real ({referenceDateLabel}):{" "}
+                        <span className="font-semibold text-foreground">{realPercent}%</span>
                       </p>
                     </Link>
                   </div>

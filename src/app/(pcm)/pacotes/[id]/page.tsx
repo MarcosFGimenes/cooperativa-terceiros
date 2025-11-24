@@ -2,6 +2,7 @@ import Link from "next/link";
 import * as Navigation from "next/navigation";
 import { isRedirectError } from "next/dist/client/components/redirect";
 import DeletePackageButton from "@/components/DeletePackageButton.dynamic";
+import ReferenceDatePicker from "@/components/ReferenceDatePicker";
 import SCurveDeferred from "@/components/SCurveDeferred";
 import { decodeRouteParam } from "@/lib/decodeRouteParam";
 import { getPackageByIdCached, listPackageServices } from "@/lib/repo/packages";
@@ -14,12 +15,18 @@ import {
   calcularIndicadoresCurvaS,
   calcularMetricasPorSetor,
   calcularMetricasSubpacote,
+  calcularPercentualPlanejadoPacote,
   calcularPercentualPlanejadoServico,
   calcularPercentualSubpacote,
   calcularPercentualRealizadoSubpacote,
   obterIntervaloSubpacote,
   type ServicoDoSubpacote,
 } from "@/lib/serviceProgress";
+import {
+  DEFAULT_REFERENCE_TIME_ZONE,
+  formatReferenceDateLabel,
+  resolveReferenceDateFromSearchParams,
+} from "@/lib/referenceDate";
 import type { Package, PackageFolder, Service } from "@/types";
 
 import type { ServiceInfo as FolderServiceInfo, ServiceOption as FolderServiceOption } from "./PackageFoldersManager";
@@ -235,7 +242,10 @@ function buildServiceProgressSnapshot(service: Service, reference: Date) {
   return { plannedPercent, realizedPercent, deltaPercent, startDateMs, endDateMs };
 }
 
-async function renderPackageDetailPage(params: { id: string }) {
+async function renderPackageDetailPage(
+  params: { id: string },
+  searchParams?: Record<string, string | string[] | undefined>,
+) {
   const rawPackageId = params.id;
   const decodedPackageId = decodeRouteParam(rawPackageId);
   const packageIdCandidates = Array.from(
@@ -447,20 +457,27 @@ async function renderPackageDetailPage(params: { id: string }) {
   });
 
   const packageForCurve = { subpacotes: subpackagesForCurve };
-  const plannedCurvePoints = calcularCurvaSPlanejada(packageForCurve).map((point) => ({
+  const { date: referenceDate, inputValue: referenceDateInput } = resolveReferenceDateFromSearchParams(
+    searchParams,
+    { timeZone: DEFAULT_REFERENCE_TIME_ZONE },
+  );
+  const referenceDateLabel = formatReferenceDateLabel(referenceDate);
+  const referenceHelperText = `Percentuais calculados para ${referenceDateLabel}.`;
+  const plannedCurvePoints = calcularCurvaSPlanejada(packageForCurve, referenceDate).map((point) => ({
     date: point.data.toISOString().slice(0, 10),
     percent: point.percentual,
   }));
-  const realizedSeriesData = calcularCurvaSRealizada(packageForCurve).map((point) => ({
+  const realizedSeriesData = calcularCurvaSRealizada(packageForCurve, referenceDate).map((point) => ({
     date: point.data.toISOString().slice(0, 10),
     percent: point.percentual,
   }));
-  const curvaIndicators = calcularIndicadoresCurvaS(packageForCurve, today);
+  const curvaIndicators = calcularIndicadoresCurvaS(packageForCurve, referenceDate);
   const realizedPercent = curvaIndicators.realizado;
   const realizedValueLabel = `${realizedPercent}%`;
-  const realizedHeaderLabel = hasServiceOverflow
-    ? `Realizado (parcial): ${realizedValueLabel}`
-    : `Realizado: ${realizedValueLabel}`;
+  const plannedPercentAtReference = Math.round(calcularPercentualPlanejadoPacote(packageForCurve, referenceDate));
+  const realizedLabelPrefix = hasServiceOverflow ? "Realizado (parcial)" : "Realizado";
+  const realizedHeaderLabel = `${realizedLabelPrefix} (${referenceDateLabel}): ${realizedValueLabel}`;
+  const plannedHeaderLabel = `Planejado (${referenceDateLabel}): ${plannedPercentAtReference}%`;
   const curveMetrics = {
     plannedTotal: curvaIndicators.planejadoTotal,
     plannedToDate: curvaIndicators.planejadoAteHoje,
@@ -474,8 +491,8 @@ async function renderPackageDetailPage(params: { id: string }) {
   >();
   subpackagesForCurve.forEach((subpacote) => {
     if (!subpacote?.id) return;
-    const plannedPercentRaw = calcularPercentualSubpacote(subpacote, today);
-    const realizedPercentRaw = calcularPercentualRealizadoSubpacote(subpacote, today);
+    const plannedPercentRaw = calcularPercentualSubpacote(subpacote, referenceDate);
+    const realizedPercentRaw = calcularPercentualRealizadoSubpacote(subpacote, referenceDate);
     const plannedPercent = Math.round(plannedPercentRaw);
     const realizedPercent = Math.round(realizedPercentRaw);
     const intervalo = obterIntervaloSubpacote(subpacote);
@@ -513,10 +530,6 @@ async function renderPackageDetailPage(params: { id: string }) {
     });
   });
 
-  const saoPauloNow = new Date(
-    new Date().toLocaleString("en-US", { timeZone: "America/Sao_Paulo" }),
-  );
-
   const servicesWithFolderContext = services.map((service) => {
     const folderData = folderLookup.get(service.id);
     const directFolderId =
@@ -534,8 +547,8 @@ async function renderPackageDetailPage(params: { id: string }) {
     };
   });
 
-  const subpackageMetrics = calcularMetricasSubpacote(servicesWithFolderContext, saoPauloNow);
-  const sectorMetrics = calcularMetricasPorSetor(servicesWithFolderContext, saoPauloNow);
+  const subpackageMetrics = calcularMetricasSubpacote(servicesWithFolderContext, referenceDate);
+  const sectorMetrics = calcularMetricasPorSetor(servicesWithFolderContext, referenceDate);
 
   const formatMetricValue = (value: number): string => {
     const rounded = Math.round(value);
@@ -565,7 +578,7 @@ async function renderPackageDetailPage(params: { id: string }) {
 
   services.forEach((service) => {
     const baseLabel = service.os || service.code || service.id;
-    const snapshot = buildServiceProgressSnapshot(service, today);
+    const snapshot = buildServiceProgressSnapshot(service, referenceDate);
     const companyLabel =
       service.assignedTo?.companyName ||
       service.assignedTo?.companyId ||
@@ -592,7 +605,7 @@ async function renderPackageDetailPage(params: { id: string }) {
   availableOpenServices.forEach((service) => {
     const companyLabel =
       service.empresa || service.company || service.assignedTo?.companyName || service.assignedTo?.companyId || null;
-    const snapshot = buildServiceProgressSnapshot(service, today);
+    const snapshot = buildServiceProgressSnapshot(service, referenceDate);
     if (serviceDetails[service.id]) {
       if (!serviceDetails[service.id].companyLabel && companyLabel) {
         serviceDetails[service.id] = {
@@ -662,6 +675,9 @@ async function renderPackageDetailPage(params: { id: string }) {
                 {statusLabel}
               </span>
               <span className="rounded-full border border-transparent bg-muted/60 px-2 py-0.5 text-xs text-muted-foreground">
+                {plannedHeaderLabel}
+              </span>
+              <span className="rounded-full border border-transparent bg-muted/60 px-2 py-0.5 text-xs text-muted-foreground">
                 {realizedHeaderLabel}
               </span>
             </div>
@@ -702,6 +718,13 @@ async function renderPackageDetailPage(params: { id: string }) {
             <dd className="text-base font-semibold text-foreground">{totalHoursLabel}</dd>
           </div>
         </dl>
+        <ReferenceDatePicker
+          className="mt-4"
+          value={referenceDateInput}
+          helperText={referenceHelperText}
+          persistQuery
+          align="left"
+        />
       </section>
 
       {warningMessages.length ? (
@@ -726,7 +749,12 @@ async function renderPackageDetailPage(params: { id: string }) {
             realizedPercent={realizedPercent}
             title="Curva S consolidada"
             description="Planejado versus realizado considerando todos os serviços do pacote."
-            headerAside={<span className="font-medium text-foreground">{realizedHeaderLabel}</span>}
+            headerAside={
+              <div className="text-sm font-medium text-foreground">
+                <p>{plannedHeaderLabel}</p>
+                <p>{realizedHeaderLabel}</p>
+              </div>
+            }
             chartHeight={360}
             metrics={curveMetrics}
             deferRendering
@@ -810,8 +838,8 @@ async function renderPackageDetailPage(params: { id: string }) {
                 <thead className="bg-muted/80 text-foreground">
                   <tr>
                     <th className="border border-border p-3 text-left">Subpacote</th>
-                    <th className="border border-border p-3">% Atual</th>
-                    <th className="border border-border p-3">% Deveria Estar</th>
+                    <th className="border border-border p-3">% Atual ({referenceDateLabel})</th>
+                    <th className="border border-border p-3">% Planejado ({referenceDateLabel})</th>
                     <th className="border border-border p-3">Horas Faltando</th>
                     <th className="border border-border p-3">Diferença</th>
                   </tr>
@@ -852,8 +880,8 @@ async function renderPackageDetailPage(params: { id: string }) {
                 <thead className="bg-muted/80 text-foreground">
                   <tr>
                     <th className="border border-border p-3 text-left">Setor</th>
-                    <th className="border border-border p-3">% Atual</th>
-                    <th className="border border-border p-3">% Deveria Estar</th>
+                    <th className="border border-border p-3">% Atual ({referenceDateLabel})</th>
+                    <th className="border border-border p-3">% Planejado ({referenceDateLabel})</th>
                     <th className="border border-border p-3">Horas Faltando</th>
                     <th className="border border-border p-3">Diferença</th>
                   </tr>
@@ -911,9 +939,15 @@ function isNotFoundLikeError(error: unknown): boolean {
   return false;
 }
 
-export default async function PackageDetailPage({ params }: { params: { id: string } }) {
+export default async function PackageDetailPage({
+  params,
+  searchParams,
+}: {
+  params: { id: string };
+  searchParams?: Record<string, string | string[] | undefined>;
+}) {
   try {
-    return await renderPackageDetailPage(params);
+    return await renderPackageDetailPage(params, searchParams);
   } catch (error) {
     if (isNotFoundLikeError(error) || isRedirectDigestError(error)) {
       throw error;
