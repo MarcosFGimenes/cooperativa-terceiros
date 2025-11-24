@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 import {
   calcularPercentualSubpacote,
   calcularPercentualRealizadoSubpacote,
+  calcularPercentualPlanejadoPacote,
+  calcularPercentualRealizadoPacote,
   calcularPercentualPlanejadoServico,
   calcularCurvaSPlanejada,
   calcularCurvaSRealizada,
@@ -15,6 +17,7 @@ import {
   resolveServicoRealPercent,
   snapshotBeforeConclusion,
 } from "@/lib/serviceProgress";
+import { resolveReferenceDate } from "@/lib/referenceDate";
 
 describe("serviceProgress utilities", () => {
   it("clamps progress to 0-100 range", () => {
@@ -205,6 +208,70 @@ describe("serviceProgress utilities", () => {
     });
   });
 
+  describe("calcularPercentualPlanejadoPacote e calcularPercentualRealizadoPacote", () => {
+    const reference = new Date("2024-11-24T00:00:00Z");
+
+    it("applies hour-based weights across subpackages for planned progress", () => {
+      const percentual = calcularPercentualPlanejadoPacote(
+        {
+          subpacotes: [
+            {
+              servicos: [
+                { horasPrevistas: 10, dataInicio: "2024-11-20", dataFim: "2024-11-30" },
+              ],
+            },
+            {
+              servicos: [
+                { horasPrevistas: 30, dataInicio: "2024-11-20", dataFim: "2024-12-20" },
+              ],
+            },
+          ],
+        },
+        reference,
+      );
+
+      expect(percentual).toBeCloseTo((50 * 10 + 20 * 30) / 40, 5);
+    });
+
+    it("applies hour-based weights across subpackages for realized progress", () => {
+      const percentual = calcularPercentualRealizadoPacote(
+        {
+          subpacotes: [
+            {
+              servicos: [
+                {
+                  horasPrevistas: 10,
+                  dataInicio: "2024-11-20",
+                  dataFim: "2024-11-30",
+                  atualizacoes: [
+                    { data: "2024-11-22", percentual: 25 },
+                    { data: "2024-11-24", percentual: 50 },
+                  ],
+                },
+              ],
+            },
+            {
+              servicos: [
+                {
+                  horasPrevistas: 30,
+                  dataInicio: "2024-11-20",
+                  dataFim: "2024-12-20",
+                  atualizacoes: [
+                    { data: "2024-11-23", percentual: 10 },
+                    { data: "2024-11-24", percentual: 20 },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+        reference,
+      );
+
+      expect(percentual).toBeCloseTo((50 * 10 + 20 * 30) / 40, 5);
+    });
+  });
+
   describe("calcularPercentualRealizadoSubpacote", () => {
     const reference = new Date("2024-01-05T00:00:00Z");
 
@@ -355,6 +422,19 @@ describe("serviceProgress utilities", () => {
           reference,
         ),
       ).toBe(0);
+    });
+
+    it("handles mid-interval references using the selected date", () => {
+      const { date: referenceDate } = resolveReferenceDate("2025-11-24");
+      const percentual = calcularPercentualPlanejadoServico(
+        {
+          dataInicio: new Date("2025-11-20T00:00:00Z"),
+          dataFim: new Date("2025-11-29T00:00:00Z"),
+        },
+        referenceDate,
+      );
+
+      expect(percentual).toBeCloseTo(50, 5);
     });
   });
 

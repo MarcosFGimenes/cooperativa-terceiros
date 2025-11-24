@@ -5,21 +5,16 @@ import Link from "next/link";
 
 import { listRecentPackages } from "@/lib/repo/packages";
 import { listRecentServices } from "@/lib/repo/services";
-import { formatDateTime } from "@/lib/formatDateTime";
-import { resolveServicoPercentualPlanejado, resolveServicoRealPercent } from "@/lib/serviceProgress";
 import type { Service } from "@/types";
 import ImportServicesButton from "./_components/ImportServicesButton";
+import RecentPackagesPanel from "./_components/RecentPackagesPanel";
+import RecentServicesPanel from "./_components/RecentServicesPanel";
 
 function normaliseStatus(status: Service["status"]): "Aberto" | "Pendente" | "Concluído" {
   const raw = String(status ?? "").toLowerCase();
   if (raw === "concluido" || raw === "concluído" || raw === "encerrado") return "Concluído";
   if (raw === "pendente") return "Pendente";
   return "Aberto";
-}
-
-function formatDate(value?: number) {
-  if (value === null || value === undefined) return "";
-  return formatDateTime(value, { timeZone: "America/Sao_Paulo", fallback: "" });
 }
 
 export default async function DashboardPCM() {
@@ -36,7 +31,6 @@ export default async function DashboardPCM() {
     },
     { Aberto: 0, Pendente: 0, "Concluído": 0 } as Record<"Aberto" | "Pendente" | "Concluído", number>,
   );
-  const today = new Date();
 
   return (
     <div className="container mx-auto space-y-6 p-4">
@@ -87,45 +81,7 @@ export default async function DashboardPCM() {
             </Link>
           </div>
           <div className="space-y-2">
-            {services.length === 0 ? (
-              <div className="rounded-lg border border-dashed p-6 text-sm text-muted-foreground">
-                Nenhum serviço cadastrado.
-              </div>
-            ) : (
-              services.slice(0, 5).map((service) => {
-                const plannedPercent = Math.round(
-                  resolveServicoPercentualPlanejado(service, today),
-                );
-                  const realPercent = resolveServicoRealPercent(service);
-                const createdAt = formatDate(service.createdAt);
-                const serviceHref = `/servicos/${encodeURIComponent(service.id)}`;
-                return (
-                  <div
-                    key={service.id}
-                    className="flex flex-wrap items-center gap-3 rounded-lg border p-3 transition hover:border-primary/40 hover:bg-muted/40"
-                  >
-                    <Link className="min-w-0 flex-1" href={serviceHref}>
-                      <p className="truncate text-sm font-medium">
-                        {service.os || service.code || service.id}
-                        {service.equipmentName
-                          ? ` — ${service.equipmentName}`
-                          : service.tag
-                            ? ` — ${service.tag}`
-                            : ""}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {normaliseStatus(service.status)}
-                        {createdAt ? ` • ${createdAt}` : ""}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        Planejado: <span className="font-semibold text-foreground">{plannedPercent}%</span>
-                        {" "}| Real: <span className="font-semibold text-foreground">{realPercent}%</span>
-                      </p>
-                    </Link>
-                  </div>
-                );
-              })
-            )}
+            <RecentServicesPanel services={services} />
           </div>
         </div>
 
@@ -139,29 +95,7 @@ export default async function DashboardPCM() {
               Ver todos
             </Link>
           </div>
-          <div className="space-y-2">
-            {packages.length === 0 ? (
-              <div className="rounded-lg border border-dashed p-6 text-sm text-muted-foreground">
-                Nenhum pacote cadastrado.
-              </div>
-            ) : (
-              packages.slice(0, 5).map((pkg) => {
-                const packageHref = `/pacotes/${encodeURIComponent(pkg.id)}`;
-                return (
-                  <Link
-                    key={pkg.id}
-                    className="flex items-center justify-between gap-3 rounded-lg border p-3 transition hover:border-primary/40 hover:bg-muted/40"
-                    href={packageHref}
-                  >
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium">{pkg.name || pkg.code || pkg.id}</p>
-                      <p className="text-xs text-muted-foreground">{normaliseStatus(pkg.status)}</p>
-                    </div>
-                  </Link>
-                );
-              })
-            )}
-          </div>
+          <RecentPackagesPanel packages={packages} />
         </div>
       </section>
     </div>
