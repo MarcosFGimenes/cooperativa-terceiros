@@ -267,28 +267,6 @@ async function renderPackageDetailPage(
   const { date: referenceDate, inputValue: referenceDateInput } = resolveReferenceDate(refDateValue);
   const referenceLabel = formatReferenceLabel(referenceDate);
 
-  const refDateParamRaw = searchParams?.refDate;
-  const refDateValue = Array.isArray(refDateParamRaw) ? refDateParamRaw[0] : refDateParamRaw ?? null;
-  const { date: referenceDate, inputValue: referenceDateInput } = resolveReferenceDate(refDateValue);
-  const referenceLabel = formatReferenceLabel(referenceDate);
-
-  const refDateParamRaw = searchParams?.refDate;
-  const refDateValue = Array.isArray(refDateParamRaw) ? refDateParamRaw[0] : refDateParamRaw ?? null;
-  const referenceInfo = resolveReferenceDate(refDateValue);
-  const referenceDate = referenceInfo.date;
-  const referenceDateInput = referenceInfo.inputValue;
-  const referenceLabel = formatReferenceLabel(referenceDate);
-
-  const refDateParam = searchParams?.refDate;
-  const refDateValue = Array.isArray(refDateParam) ? refDateParam[0] : refDateParam ?? null;
-  const { date: referenceDate, inputValue: referenceDateInput } = resolveReferenceDate(refDateValue);
-  const referenceLabel = formatReferenceLabel(referenceDate);
-
-  const refDateParam = searchParams?.refDate;
-  const refDateValue = Array.isArray(refDateParam) ? refDateParam[0] : refDateParam ?? null;
-  const { date: referenceDate, inputValue: referenceDateInput } = resolveReferenceDate(refDateValue);
-  const referenceLabel = formatReferenceLabel(referenceDate);
-
   let pkg: Package | null = null;
   let resolvedPackageId = packageIdCandidates[0];
 
