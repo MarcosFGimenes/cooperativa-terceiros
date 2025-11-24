@@ -1,8 +1,16 @@
 "use client";
 
+import React from "react";
 import { useCallback, useMemo, useState } from "react";
 import Link from "next/link";
 
+import ReferenceDatePicker from "@/components/ReferenceDatePicker";
+import {
+  DEFAULT_REFERENCE_TIME_ZONE,
+  formatReferenceDateLabel,
+  getTodayReferenceInput,
+  toTimeZoneDateFromInput,
+} from "@/lib/referenceDate";
 import {
   resolveServicoPercentualPlanejado,
   resolveServicoRealPercent,
@@ -49,14 +57,26 @@ function resolveCompanyLabel(service: PCMServiceListItem) {
 type Props = {
   initialItems: PCMServiceListItem[];
   initialCursor: string | null;
+  initialReferenceDate: string;
 };
 
-export default function ServicesListClient({ initialItems, initialCursor }: Props) {
+export default function ServicesListClient({ initialItems, initialCursor, initialReferenceDate }: Props) {
   const [items, setItems] = useState(initialItems);
   const [cursor, setCursor] = useState(initialCursor);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const today = useMemo(() => new Date(), []);
+  const initialReferenceValue =
+    initialReferenceDate || getTodayReferenceInput(DEFAULT_REFERENCE_TIME_ZONE);
+  const [referenceDateInput, setReferenceDateInput] = useState(initialReferenceValue);
+  const referenceDate = useMemo(
+    () => toTimeZoneDateFromInput(referenceDateInput, DEFAULT_REFERENCE_TIME_ZONE, "end"),
+    [referenceDateInput],
+  );
+  const referenceDateLabel = useMemo(
+    () => formatReferenceDateLabel(referenceDate),
+    [referenceDate],
+  );
+  const referenceHelperText = `Percentuais exibidos consideram ${referenceDateLabel}.`;
 
   const handleLoadMore = useCallback(async () => {
     if (!cursor) return;
@@ -88,13 +108,22 @@ export default function ServicesListClient({ initialItems, initialCursor }: Prop
 
   return (
     <div className="space-y-4">
+      <ReferenceDatePicker
+        value={referenceDateInput}
+        helperText={referenceHelperText}
+        persistQuery
+        align="left"
+        onChange={(nextValue) =>
+          setReferenceDateInput(nextValue || getTodayReferenceInput(DEFAULT_REFERENCE_TIME_ZONE))
+        }
+      />
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {items.map((service) => {
           const serviceHref = `/servicos/${encodeURIComponent(service.id)}`;
           const statusLabel = normaliseStatus(service.status);
           const statusTone = STATUS_TONE[statusLabel] ?? "border-border bg-muted text-foreground/80";
-          const plannedPercent = Math.round(resolveServicoPercentualPlanejado(service, today));
-          const realPercent = resolveServicoRealPercent(service);
+          const plannedPercent = Math.round(resolveServicoPercentualPlanejado(service, referenceDate));
+          const realPercent = resolveServicoRealPercent(service, referenceDate);
           const identifier = resolveIdentifier(service);
           const subtitle = resolveSubtitle(service);
           const companyLabel = resolveCompanyLabel(service);
@@ -111,15 +140,16 @@ export default function ServicesListClient({ initialItems, initialCursor }: Prop
                     {statusLabel}
                   </span>
                   <span className="rounded-full border border-transparent bg-muted/60 px-2 py-0.5 text-xs text-muted-foreground">
-                    {realPercent}% concluído
+                    {referenceDateLabel}: {realPercent}% concluído
                   </span>
                 </div>
                 <div className="space-y-1">
                   <p className="line-clamp-2 text-base font-semibold text-foreground">{identifier}</p>
                   {subtitle ? <p className="text-sm text-muted-foreground">{subtitle}</p> : null}
                   <p className="text-xs text-muted-foreground">
-                    Planejado: <span className="font-semibold text-foreground">{plannedPercent}%</span> | Real:{" "}
-                    <span className="font-semibold text-foreground">{realPercent}%</span>
+                    Planejado ({referenceDateLabel}):{" "}
+                    <span className="font-semibold text-foreground">{plannedPercent}%</span> | Real ({referenceDateLabel}
+                    ): <span className="font-semibold text-foreground">{realPercent}%</span>
                   </p>
                 </div>
               </div>

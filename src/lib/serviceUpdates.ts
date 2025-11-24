@@ -88,11 +88,7 @@ function sanitiseKeyPart(part: string): string {
   return part.replace(/[^a-z0-9_-]/gi, "_");
 }
 
-export function buildStableUpdateKey(update: UpdateLike & WithDescription): string {
-  if (update.id) {
-    return `id:${update.id}`;
-  }
-
+function buildFallbackUpdateKey(update: UpdateLike & WithDescription): string {
   const bucket = normaliseTimestampBucket(update);
   const author = resolveAuthor(update);
   const mode = resolveMode(update);
@@ -109,6 +105,13 @@ export function buildStableUpdateKey(update: UpdateLike & WithDescription): stri
   ];
 
   return parts.join(":");
+}
+
+export function buildStableUpdateKey(update: UpdateLike & WithDescription): string {
+  if (update.id) {
+    return `id:${update.id}`;
+  }
+  return buildFallbackUpdateKey(update);
 }
 
 function mergeUpdates<T extends UpdateLike & WithDescription>(current: NormalisedUpdate<T>, next: NormalisedUpdate<T>): NormalisedUpdate<T> {
@@ -136,18 +139,34 @@ function mergeUpdates<T extends UpdateLike & WithDescription>(current: Normalise
 
 export function dedupeUpdates<T extends UpdateLike & WithDescription>(updates: T[]): NormalisedUpdate<T>[] {
   const map = new Map<string, NormalisedUpdate<T>>();
+  const fallbackIndex = new Map<string, string>();
   let duplicates = 0;
 
   updates.forEach((update) => {
     const normalisedPercent = resolvePercent(update);
     const withPercent = { ...update, percent: normalisedPercent } as NormalisedUpdate<T>;
-    const key = buildStableUpdateKey(update);
-    const existing = map.get(key);
+    const stableKey = buildStableUpdateKey(update);
+    const fallbackKey = buildFallbackUpdateKey(update);
+    let targetKey = stableKey;
+
+    if (update.id) {
+      fallbackIndex.set(fallbackKey, stableKey);
+    } else {
+      const mappedKey = fallbackIndex.get(fallbackKey);
+      if (mappedKey) {
+        targetKey = mappedKey;
+      } else {
+        fallbackIndex.set(fallbackKey, fallbackKey);
+        targetKey = fallbackKey;
+      }
+    }
+
+    const existing = map.get(targetKey);
     if (existing) {
       duplicates += 1;
-      map.set(key, mergeUpdates(existing, withPercent));
+      map.set(targetKey, mergeUpdates(existing, withPercent));
     } else {
-      map.set(key, withPercent);
+      map.set(targetKey, withPercent);
     }
   });
 
