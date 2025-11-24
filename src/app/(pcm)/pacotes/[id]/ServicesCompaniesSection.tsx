@@ -119,23 +119,27 @@ export default function ServicesCompaniesSection({
               return (
                 <div
                   key={folder.id}
-                  className="subpackage-block rounded-lg border border-slate-200 bg-slate-100 pb-1.5 sm:pb-2"
+                  className={cn(
+                    "subpackage-block rounded-xl border border-border/70 bg-card shadow-sm pb-1.5 sm:pb-2",
+                    "print:shadow-none print:border-slate-200 print:bg-slate-100",
+                  )}
                 >
                   <button
                     type="button"
                     className={cn(
                       "company-header flex w-full items-center justify-between gap-3 px-3 py-3 text-left transition subpackage-header",
-                      "bg-slate-100 text-slate-900",
-                      !isAlwaysOpen ? "hover:bg-slate-200" : "",
+                      "bg-muted/80 text-foreground",
+                      !isAlwaysOpen ? "hover:bg-muted" : "",
                       isAlwaysOpen ? "cursor-default" : "",
+                      "print:bg-slate-100 print:text-slate-900",
                     )}
                     onClick={() =>
                       setOpenFolderId((current) => (isAlwaysOpen ? current : current === folder.id ? null : folder.id))
                     }
                   >
                     <div className="min-w-0 space-y-0.5">
-                      <p className="truncate text-sm font-semibold text-slate-900">{folder.name}</p>
-                      <p className="truncate text-xs text-slate-700">
+                      <p className="truncate text-sm font-semibold text-foreground">{folder.name}</p>
+                      <p className="truncate text-xs text-muted-foreground">
                         Empresa: {folder.companyId ? folder.companyId : "-"}
                       </p>
                       <p className="truncate text-xs text-slate-700">
@@ -149,12 +153,12 @@ export default function ServicesCompaniesSection({
                         <span className="font-semibold text-slate-900">{endLabel}</span>
                       </p>
                     </div>
-                    <span className="rounded-full border border-slate-300 bg-slate-200 px-2 py-0.5 text-xs font-medium text-slate-800">
+                    <span className="rounded-full border border-border bg-muted px-2 py-0.5 text-xs font-medium text-foreground print:border-slate-300 print:bg-slate-200 print:text-slate-800">
                       {folder.services.length} serviço{folder.services.length === 1 ? "" : "s"}
                     </span>
                   </button>
                   {isOpen ? (
-                    <div className="service-list space-y-3 px-3 pb-4 pt-2 text-sm">
+                    <div className="service-list space-y-3 px-3 pb-4 pt-2 text-sm text-foreground">
                       {assignedServices.length === 0 ? (
                         <p className="text-muted-foreground">Nenhum serviço vinculado a este subpacote.</p>
                       ) : (
@@ -162,26 +166,28 @@ export default function ServicesCompaniesSection({
                           {visibleServices.map((detail) => (
                             <div
                               key={detail.id}
-                              className="service-card service-entry rounded border border-slate-200 bg-white text-slate-900 shadow-sm"
+                              className="service-card service-entry rounded-lg border border-border/70 bg-card text-foreground shadow-sm print:border-slate-200 print:bg-white print:text-slate-900 print:shadow-none"
                             >
-                              <div className="service-title flex items-center justify-between gap-2 rounded-t bg-slate-100 px-3 py-2">
-                                <p className="font-semibold text-slate-900">{detail.label || detail.id}</p>
+                              <div className="service-title flex items-center justify-between gap-2 rounded-t bg-muted/70 px-3 py-2 text-foreground print:bg-slate-100 print:text-slate-900">
+                                <p className="font-semibold">{detail.label || detail.id}</p>
                                 {detail.status ? (
-                                  <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-800">
+                                  <span className="text-[11px] font-semibold uppercase tracking-wide text-foreground print:text-slate-800">
                                     {detail.status}
                                   </span>
                                 ) : null}
                               </div>
-                              <div className="service-content space-y-1 px-3 py-2 text-xs text-slate-800">
+                              <div className="service-content space-y-1 px-3 py-2 text-xs text-muted-foreground print:text-slate-800">
                                 <p>
                                   Planejado: {formatPercentLabel(detail.plannedPercent ?? null, true)} • Realizado: {" "}
                                   {formatPercentLabel(detail.realizedPercent ?? null, true)} • Dif.: {" "}
-                                  <span className="font-semibold text-slate-900">{formatDeltaLabel(detail.deltaPercent)}</span>
+                                  <span className="font-semibold text-foreground print:text-slate-900">
+                                    {formatDeltaLabel(detail.deltaPercent)}
+                                  </span>
                                 </p>
                                 <p>
-                                  Cronograma: <span className="font-semibold text-slate-900">{formatDateLabel(detail.startDateMs)}</span>
+                                  Cronograma: <span className="font-semibold text-foreground print:text-slate-900">{formatDateLabel(detail.startDateMs)}</span>
                                   {" "}—{" "}
-                                  <span className="font-semibold text-slate-900">{formatDateLabel(detail.endDateMs)}</span>
+                                  <span className="font-semibold text-foreground print:text-slate-900">{formatDateLabel(detail.endDateMs)}</span>
                                 </p>
                               </div>
                             </div>

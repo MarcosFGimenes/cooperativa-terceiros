@@ -667,7 +667,7 @@ async function renderPackageDetailPage(
     : `${services.length} serviço${services.length === 1 ? "" : "s"}`;
 
   return (
-    <div className="container mx-auto max-w-6xl space-y-6 px-4 py-6 package-print-layout print:m-0 print:w-full print:max-w-none print:space-y-3 print:px-0 print:py-0">
+    <div className="container mx-auto max-w-7xl space-y-6 px-6 py-6 package-print-layout print:m-0 print:w-full print:max-w-none print:space-y-3 print:px-0 print:py-0">
       <div className="print-summary-and-curve space-y-6 print:space-y-3">
         <section className="package-header rounded-2xl border bg-card/80 p-5 shadow-sm print-card print:w-full print:rounded-none print:border-0 print:bg-white print:shadow-none print:px-4 print:py-4">
           <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between print:block print:gap-2">
