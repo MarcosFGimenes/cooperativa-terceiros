@@ -25,7 +25,16 @@ function extractParts(date: Date, timeZone: string) {
 }
 
 export function startOfDayInTimeZone(date: Date, timeZone: string = DEFAULT_TIME_ZONE): Date {
-  const { year, month, day, hour, minute, second } = extractParts(date, timeZone);
+  const utcMidday = Date.UTC(
+    date.getUTCFullYear(),
+    date.getUTCMonth(),
+    date.getUTCDate(),
+    12,
+    0,
+    0,
+  );
+
+  const { year, month, day, hour, minute, second } = extractParts(new Date(utcMidday), timeZone);
   if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) {
     return new Date(date.getTime());
   }
@@ -34,9 +43,8 @@ export function startOfDayInTimeZone(date: Date, timeZone: string = DEFAULT_TIME
   const safeMinute = Number.isFinite(minute) ? minute : 0;
   const safeSecond = Number.isFinite(second) ? second : 0;
 
-  const utcInstant = date.getTime();
-  const instantInTimeZone = Date.UTC(year, month - 1, day, safeHour, safeMinute, safeSecond);
-  const offset = instantInTimeZone - utcInstant;
+  const timezoneMiddayUtc = Date.UTC(year, month - 1, day, safeHour, safeMinute, safeSecond);
+  const offset = timezoneMiddayUtc - utcMidday;
   const targetUtc = Date.UTC(year, month - 1, day);
   return new Date(targetUtc - offset);
 }

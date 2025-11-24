@@ -14,4 +14,10 @@ describe("reference date utilities", () => {
     expect(result.inputValue).toBe("2025-11-24");
     expect(formatReferenceLabel(result.date)).toBe("24/11/2025");
   });
+
+  it("keeps the selected calendar day when interpreting user input", () => {
+    const { date } = resolveReferenceDate("2025-11-23");
+    expect(date.toISOString().startsWith("2025-11-23T03:00:00.000Z")).toBe(true);
+    expect(formatReferenceLabel(date)).toBe("23/11/2025");
+  });
 });

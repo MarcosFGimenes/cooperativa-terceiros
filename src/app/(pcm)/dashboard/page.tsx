@@ -7,6 +7,7 @@ import { listRecentPackages } from "@/lib/repo/packages";
 import { listRecentServices } from "@/lib/repo/services";
 import type { Service } from "@/types";
 import ImportServicesButton from "./_components/ImportServicesButton";
+import RecentPackagesPanel from "./_components/RecentPackagesPanel";
 import RecentServicesPanel from "./_components/RecentServicesPanel";
 
 function normaliseStatus(status: Service["status"]): "Aberto" | "Pendente" | "Concluído" {
@@ -94,29 +95,7 @@ export default async function DashboardPCM() {
               Ver todos
             </Link>
           </div>
-          <div className="space-y-2">
-            {packages.length === 0 ? (
-              <div className="rounded-lg border border-dashed p-6 text-sm text-muted-foreground">
-                Nenhum pacote cadastrado.
-              </div>
-            ) : (
-              packages.slice(0, 5).map((pkg) => {
-                const packageHref = `/pacotes/${encodeURIComponent(pkg.id)}`;
-                return (
-                  <Link
-                    key={pkg.id}
-                    className="flex items-center justify-between gap-3 rounded-lg border p-3 transition hover:border-primary/40 hover:bg-muted/40"
-                    href={packageHref}
-                  >
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium">{pkg.name || pkg.code || pkg.id}</p>
-                      <p className="text-xs text-muted-foreground">{normaliseStatus(pkg.status)}</p>
-                    </div>
-                  </Link>
-                );
-              })
-            )}
-          </div>
+          <RecentPackagesPanel packages={packages} />
         </div>
       </section>
     </div>

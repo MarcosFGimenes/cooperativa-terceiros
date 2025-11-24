@@ -29,13 +29,8 @@ export default function RecentServicesPanel({ services }: { services: Service[] 
   return (
     <div className="space-y-2">
       <div className="flex flex-wrap items-start justify-between gap-3 rounded-2xl border border-dashed border-border/70 bg-muted/20 p-3">
-        <div className="space-y-1 text-sm text-muted-foreground">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Data de referência</p>
-          <p className="font-semibold text-foreground">{referenceLabel}</p>
-          <p className="text-[13px]">Planejado e realizado calculados com pesos por horas previstas.</p>
-        </div>
         <div className="w-full max-w-[220px]">
-          <ReferenceDateSelector value={referenceDateInput} />
+          <ReferenceDateSelector value={referenceDateInput} showTimeZoneNote={false} />
         </div>
       </div>
 

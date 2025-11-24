@@ -5,9 +5,9 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import { DEFAULT_TIME_ZONE } from "@/lib/referenceDate";
 
-type Props = { value: string; label?: string };
+type Props = { value: string; label?: string; showTimeZoneNote?: boolean };
 
-export default function ReferenceDateSelector({ value, label = "Data de referência" }: Props) {
+export default function ReferenceDateSelector({ value, label = "Data de referência", showTimeZoneNote = true }: Props) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -32,10 +32,7 @@ export default function ReferenceDateSelector({ value, label = "Data de referên
 
   return (
     <label className="flex flex-col gap-1 text-xs font-medium text-muted-foreground">
-      <span>
-        {label}
-        <span className="ml-2 font-normal text-[11px] text-muted-foreground/80">{DEFAULT_TIME_ZONE}</span>
-      </span>
+      <span>{label}{showTimeZoneNote ? <span className="ml-2 font-normal text-[11px] text-muted-foreground/80">{DEFAULT_TIME_ZONE}</span> : null}</span>
       <input
         type="date"
         name="refDate"
