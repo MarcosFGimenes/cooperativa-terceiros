@@ -91,7 +91,7 @@ export default function ServicesCompaniesSection({
             entre empresas.
           </p>
         ) : (
-          <div className="space-y-2">
+          <div className="space-y-6">
             {folders.map((folder) => {
               const assignedServices = folder.services.map((serviceId) => {
                 const detail = serviceDetails[serviceId];
@@ -117,7 +117,10 @@ export default function ServicesCompaniesSection({
                 : assignedServices.slice(0, MAX_VISIBLE_SERVICES);
               const hiddenCount = isAlwaysOpen ? 0 : assignedServices.length - visibleServices.length;
               return (
-                <div key={folder.id} className="subpackage-block rounded-lg border border-slate-200 bg-slate-100">
+                <div
+                  key={folder.id}
+                  className="subpackage-block rounded-lg border border-slate-200 bg-slate-100 pb-1.5 sm:pb-2"
+                >
                   <button
                     type="button"
                     className={cn(
@@ -151,7 +154,7 @@ export default function ServicesCompaniesSection({
                     </span>
                   </button>
                   {isOpen ? (
-                    <div className="service-list space-y-2 px-3 pb-4 pt-2 text-sm">
+                    <div className="service-list space-y-3 px-3 pb-4 pt-2 text-sm">
                       {assignedServices.length === 0 ? (
                         <p className="text-muted-foreground">Nenhum serviço vinculado a este subpacote.</p>
                       ) : (
@@ -161,7 +164,7 @@ export default function ServicesCompaniesSection({
                               key={detail.id}
                               className="service-card service-entry rounded border border-slate-200 bg-white text-slate-900 shadow-sm"
                             >
-                              <div className="service-title flex items-center justify-between gap-2 rounded-t border-b border-slate-200 bg-slate-100 px-3 py-2">
+                              <div className="service-title flex items-center justify-between gap-2 rounded-t bg-slate-100 px-3 py-2">
                                 <p className="font-semibold text-slate-900">{detail.label || detail.id}</p>
                                 {detail.status ? (
                                   <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-800">
