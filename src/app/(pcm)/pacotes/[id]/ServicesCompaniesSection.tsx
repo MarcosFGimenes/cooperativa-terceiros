@@ -142,15 +142,15 @@ export default function ServicesCompaniesSection({
                       <p className="truncate text-xs text-muted-foreground">
                         Empresa: {folder.companyId ? folder.companyId : "-"}
                       </p>
-                      <p className="truncate text-xs text-muted-foreground">
-                        Planejado hoje: <span className="font-semibold text-foreground">{plannedLabel}</span>
+                      <p className="truncate text-xs text-slate-700">
+                        Planejado hoje: <span className="font-semibold text-slate-900">{plannedLabel}</span>
                       </p>
-                      <p className="truncate text-xs text-muted-foreground">
-                        Realizado: <span className="font-semibold text-foreground">{realizedLabel}</span>
+                      <p className="truncate text-xs text-slate-700">
+                        Realizado: <span className="font-semibold text-slate-900">{realizedLabel}</span>
                       </p>
-                      <p className="truncate text-xs text-muted-foreground">
-                        Cronograma: <span className="font-semibold text-foreground">{startLabel}</span> —{' '}
-                        <span className="font-semibold text-foreground">{endLabel}</span>
+                      <p className="truncate text-xs text-slate-700">
+                        Cronograma: <span className="font-semibold text-slate-900">{startLabel}</span> —{' '}
+                        <span className="font-semibold text-slate-900">{endLabel}</span>
                       </p>
                     </div>
                     <span className="rounded-full border border-border bg-muted px-2 py-0.5 text-xs font-medium text-foreground print:border-slate-300 print:bg-slate-200 print:text-slate-800">
