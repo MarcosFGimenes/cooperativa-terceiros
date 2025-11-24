@@ -667,9 +667,9 @@ async function renderPackageDetailPage(
     : `${services.length} serviço${services.length === 1 ? "" : "s"}`;
 
   return (
-    <div className="container mx-auto max-w-6xl space-y-6 px-4 py-6 package-print-layout print:mx-0 print:max-w-full print:px-0 print:py-0">
-      <section className="rounded-2xl border bg-card/80 p-5 shadow-sm print-card">
-        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+    <div className="container mx-auto max-w-6xl space-y-6 px-4 py-6 package-print-layout print:m-0 print:w-full print:max-w-none print:space-y-4 print:px-0 print:py-0">
+      <section className="rounded-2xl border bg-card/80 p-5 shadow-sm print-card print:w-full print:rounded-none print:border-0 print:bg-white print:shadow-none print:px-4 print:py-4">
+        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between print:block print:gap-2">
           <div className="space-y-3">
             <div className="flex flex-wrap items-center gap-2">
               <span className={`rounded-full border px-2 py-0.5 text-xs font-semibold ${statusTone}`}>
@@ -698,8 +698,8 @@ async function renderPackageDetailPage(
           </div>
         </div>
 
-        <div className="mt-4 rounded-2xl border border-dashed border-border/70 bg-muted/20 p-4">
-          <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="mt-4 rounded-2xl border border-dashed border-border/70 bg-muted/20 p-4 print:mt-2 print:w-full print:rounded-none print:border-0 print:bg-white print:p-2">
+          <div className="flex flex-wrap items-start justify-between gap-4 print:block print:w-full print:gap-2">
             <div className="space-y-1">
               <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 Data de referência
@@ -710,26 +710,26 @@ async function renderPackageDetailPage(
                 <span className="font-semibold text-foreground"> {realizedPercent}%</span>
               </p>
             </div>
-            <div className="w-full max-w-[240px]">
+            <div className="w-full max-w-[240px] print:max-w-none print:w-full">
               <ReferenceDateSelector value={referenceDateInput} />
             </div>
           </div>
         </div>
 
-        <dl className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4 summary-grid">
-          <div className="space-y-1 rounded-xl border border-dashed border-border/70 bg-muted/20 p-4">
+        <dl className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4 summary-grid print:mt-3 print:w-full print:grid-cols-2 print:gap-3">
+          <div className="space-y-1 rounded-xl border border-dashed border-border/70 bg-muted/20 p-4 print:border-0 print:bg-white print:rounded-none print:p-2">
             <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Início planejado</dt>
             <dd className="text-base font-semibold text-foreground">{plannedStartLabel}</dd>
           </div>
-          <div className="space-y-1 rounded-xl border border-dashed border-border/70 bg-muted/20 p-4">
+          <div className="space-y-1 rounded-xl border border-dashed border-border/70 bg-muted/20 p-4 print:border-0 print:bg-white print:rounded-none print:p-2">
             <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Fim planejado</dt>
             <dd className="text-base font-semibold text-foreground">{plannedEndLabel}</dd>
           </div>
-          <div className="space-y-1 rounded-xl border border-dashed border-border/70 bg-muted/20 p-4">
+          <div className="space-y-1 rounded-xl border border-dashed border-border/70 bg-muted/20 p-4 print:border-0 print:bg-white print:rounded-none print:p-2">
             <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Serviços vinculados</dt>
             <dd className="text-base font-semibold text-foreground">{totalServicesLabel}</dd>
           </div>
-          <div className="space-y-1 rounded-xl border border-dashed border-border/70 bg-muted/20 p-4">
+          <div className="space-y-1 rounded-xl border border-dashed border-border/70 bg-muted/20 p-4 print:border-0 print:bg-white print:rounded-none print:p-2">
             <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Horas totais</dt>
             <dd className="text-base font-semibold text-foreground">{totalHoursLabel}</dd>
           </div>
@@ -747,10 +747,10 @@ async function renderPackageDetailPage(
         </div>
       ) : null}
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.7fr)_minmax(320px,1fr)]">
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.7fr)_minmax(320px,1fr)] print:block print:gap-4">
         <section
-          className="rounded-2xl border bg-card/80 p-5 shadow-sm scurve-card print-card print-avoid-break"
-          style={{ breakInside: "avoid-page", pageBreakInside: "avoid" }}
+          className="rounded-2xl border bg-card/80 p-5 shadow-sm scurve-card print-card print:w-full print:rounded-none print:border-0 print:bg-white print:shadow-none"
+         
         >
           <SCurveDeferred
             planned={plannedCurvePoints}
@@ -833,13 +833,13 @@ async function renderPackageDetailPage(
         </div>
       </div>
 
-      <section className="rounded-2xl border bg-card/80 p-5 shadow-sm space-y-8 print:space-y-6 print-page-break-before print-avoid-break print-no-border">
-        <div className="space-y-3">
+      <section className="rounded-2xl border bg-card/80 p-5 shadow-sm space-y-8 print:space-y-6 print-page-break-before print-no-border print:w-full print:rounded-none print:border-0 print:bg-white print:shadow-none print:p-4 print-no-radius print-full-width">
+        <div className="space-y-3 print-keep-with-next">
           <h2 className="text-lg font-semibold">Resumo por Subpacote</h2>
           {subpackageMetrics.length ? (
-            <div className="summary-table-wrapper overflow-x-auto rounded-xl border bg-card">
-              <table className="summary-table mt-2 min-w-full border border-border border-collapse text-center">
-                <thead className="bg-muted/80 text-foreground">
+            <div className="summary-table-wrapper overflow-x-auto rounded-xl border bg-card print:overflow-visible print:border-0 print:bg-white print:rounded-none print-full-width">
+              <table className="summary-table mt-2 min-w-full border-collapse text-center print-plain-table">
+                <thead className="bg-muted/80 text-foreground print:bg-white">
                   <tr>
                     <th className="border border-border p-3 text-left">Subpacote</th>
                     <th className="border border-border p-3">% Atual ({referenceLabel})</th>
@@ -850,7 +850,7 @@ async function renderPackageDetailPage(
                 </thead>
                 <tbody className="text-foreground">
                   {subpackageMetrics.map((metric) => (
-                    <tr key={metric.nome} className="odd:bg-muted/40">
+                    <tr key={metric.nome} className="odd:bg-muted/40 print:bg-white">
                       <td className="border border-border p-3 text-left font-medium">{metric.nome}</td>
                       <td className="border border-border p-3 font-semibold">
                         {formatMetricValue(metric.realizedPercent)}%
@@ -876,12 +876,12 @@ async function renderPackageDetailPage(
           )}
         </div>
 
-        <div className="space-y-3">
+        <div className="space-y-3 print-keep-with-next">
           <h2 className="text-lg font-semibold">Resumo por Setor</h2>
           {sectorMetrics.length ? (
-            <div className="summary-table-wrapper overflow-x-auto rounded-xl border bg-card">
-              <table className="summary-table mt-2 min-w-full border border-border border-collapse text-center">
-                <thead className="bg-muted/80 text-foreground">
+            <div className="summary-table-wrapper overflow-x-auto rounded-xl border bg-card print:overflow-visible print:border-0 print:bg-white print:rounded-none print-full-width">
+              <table className="summary-table mt-2 min-w-full border-collapse text-center print-plain-table">
+                <thead className="bg-muted/80 text-foreground print:bg-white">
                   <tr>
                     <th className="border border-border p-3 text-left">Setor</th>
                     <th className="border border-border p-3">% Atual ({referenceLabel})</th>
@@ -892,7 +892,7 @@ async function renderPackageDetailPage(
                 </thead>
                 <tbody className="text-foreground">
                   {sectorMetrics.map((metric) => (
-                    <tr key={metric.setor} className="odd:bg-muted/40">
+                    <tr key={metric.setor} className="odd:bg-muted/40 print:bg-white">
                       <td className="border border-border p-3 text-left font-medium">{metric.setor}</td>
                       <td className="border border-border p-3 font-semibold">
                         {formatMetricValue(metric.realizedPercent)}%
