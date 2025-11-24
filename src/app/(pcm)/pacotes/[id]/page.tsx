@@ -667,7 +667,7 @@ async function renderPackageDetailPage(
     : `${services.length} serviço${services.length === 1 ? "" : "s"}`;
 
   return (
-    <div className="container mx-auto max-w-6xl space-y-6 px-4 py-6 package-print-layout">
+    <div className="container mx-auto max-w-6xl space-y-6 px-4 py-6 package-print-layout print:mx-0 print:max-w-full print:px-0 print:py-0">
       <section className="rounded-2xl border bg-card/80 p-5 shadow-sm print-card">
         <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
           <div className="space-y-3">
@@ -833,11 +833,11 @@ async function renderPackageDetailPage(
         </div>
       </div>
 
-      <section className="rounded-2xl border bg-card/80 p-5 shadow-sm space-y-8 print:space-y-6 print-page-break-before print-avoid-break">
+      <section className="rounded-2xl border bg-card/80 p-5 shadow-sm space-y-8 print:space-y-6 print-page-break-before print-avoid-break print-no-border">
         <div className="space-y-3">
           <h2 className="text-lg font-semibold">Resumo por Subpacote</h2>
           {subpackageMetrics.length ? (
-            <div className="overflow-x-auto rounded-xl border bg-card">
+            <div className="summary-table-wrapper overflow-x-auto rounded-xl border bg-card">
               <table className="summary-table mt-2 min-w-full border border-border border-collapse text-center">
                 <thead className="bg-muted/80 text-foreground">
                   <tr>
@@ -879,7 +879,7 @@ async function renderPackageDetailPage(
         <div className="space-y-3">
           <h2 className="text-lg font-semibold">Resumo por Setor</h2>
           {sectorMetrics.length ? (
-            <div className="overflow-x-auto rounded-xl border bg-card">
+            <div className="summary-table-wrapper overflow-x-auto rounded-xl border bg-card">
               <table className="summary-table mt-2 min-w-full border border-border border-collapse text-center">
                 <thead className="bg-muted/80 text-foreground">
                   <tr>
