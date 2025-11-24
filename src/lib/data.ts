@@ -33,6 +33,17 @@ function toNumber(value: unknown): number {
   return 0;
 }
 
+function toNumberOptional(...values: Array<unknown>): number | null {
+  for (const value of values) {
+    if (value === undefined || value === null || value === "") continue;
+    const parsed = toNumber(value);
+    if (Number.isFinite(parsed)) {
+      return parsed;
+    }
+  }
+  return null;
+}
+
 // Mapeia doc -> objeto comum
 function toTimestamp(value: unknown): number | null {
   if (typeof value === "number" && Number.isFinite(value)) {
@@ -90,12 +101,6 @@ function mapDoc(id: string, rawData: Record<string, unknown> | undefined): PCMSe
     setor: toOptionalString(data.setor),
     sector: toOptionalString(data.sector) ?? toOptionalString(data.setor),
     status: normStatus(toOptionalString(data.status)),
-    andamento: toNumber(
-      data.andamento ?? data.realPercent ?? data.realPercentSnapshot ?? data.percent ?? data.progress,
-    ),
-    progress: toNumber(data.progress ?? data.percent),
-    realPercent: toNumber(data.realPercent ?? data.realPercentSnapshot ?? data.percent),
-    manualPercent: toNumber(data.manualPercent ?? data.manual_percent ?? data.manualProgress),
     packageId: toOptionalString(data.packageId) ?? toOptionalString(data.pacoteId),
     empresa: toOptionalString(data.empresa) ?? toOptionalString(data.empresaId) ?? toOptionalString(data.company),
     company: toOptionalString(data.company) ?? toOptionalString(data.empresa),
@@ -129,6 +134,36 @@ function mapDoc(id: string, rawData: Record<string, unknown> | undefined): PCMSe
         )
       : null,
   };
+
+  const andamento = toNumberOptional(
+    data.andamento,
+    data.realPercent,
+    data.realPercentSnapshot,
+    data.percent,
+    data.progress,
+  );
+  if (andamento !== null) {
+    result.andamento = andamento;
+  }
+
+  const progress = toNumberOptional(data.progress, data.percent);
+  if (progress !== null) {
+    result.progress = progress;
+  }
+
+  const realPercent = toNumberOptional(data.realPercent, data.realPercentSnapshot, data.percent);
+  if (realPercent !== null) {
+    result.realPercent = realPercent;
+  }
+
+  const manualPercent = toNumberOptional(
+    data.manualPercent,
+    data.manual_percent,
+    data.manualProgress,
+  );
+  if (manualPercent !== null) {
+    result.manualPercent = manualPercent;
+  }
 
   const dateFields = [
     "dataInicio",
