@@ -875,6 +875,7 @@ export function resolveServicoRealPercent(
   const camposPercentual = [
     "progress",
     "realPercent",
+    "realPercentSnapshot",
     "percentualReal",
     "percentualRealAtual",
     "percentualInformado",
