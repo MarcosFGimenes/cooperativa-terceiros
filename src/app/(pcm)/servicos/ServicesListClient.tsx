@@ -2,11 +2,14 @@
 
 import { useCallback, useMemo, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 
 import {
   resolveServicoPercentualPlanejado,
   resolveServicoRealPercent,
 } from "@/lib/serviceProgress";
+import ReferenceDateSelector from "@/components/ReferenceDateSelector";
+import { formatReferenceLabel, resolveReferenceDate } from "@/lib/referenceDate";
 import type { PCMListResponse, PCMServiceListItem } from "@/types/pcm";
 
 const STATUS_LABEL: Record<string, string> = {
@@ -56,7 +59,13 @@ export default function ServicesListClient({ initialItems, initialCursor }: Prop
   const [cursor, setCursor] = useState(initialCursor);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const today = useMemo(() => new Date(), []);
+  const searchParams = useSearchParams();
+  const refDateParam = searchParams?.get("refDate") ?? null;
+  const { date: referenceDate, inputValue: referenceDateInput } = useMemo(
+    () => resolveReferenceDate(refDateParam),
+    [refDateParam],
+  );
+  const referenceLabel = useMemo(() => formatReferenceLabel(referenceDate), [referenceDate]);
 
   const handleLoadMore = useCallback(async () => {
     if (!cursor) return;
@@ -88,13 +97,24 @@ export default function ServicesListClient({ initialItems, initialCursor }: Prop
 
   return (
     <div className="space-y-4">
+      <div className="flex flex-wrap items-start justify-between gap-3 rounded-2xl border border-dashed border-border/70 bg-muted/20 p-4">
+        <div className="space-y-1 text-sm text-muted-foreground">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Data de referência</p>
+          <p className="font-semibold text-foreground">{referenceLabel}</p>
+          <p className="text-[13px]">Ajuste a data para ver percentuais planejados e realizados.</p>
+        </div>
+        <div className="w-full max-w-[220px]">
+          <ReferenceDateSelector value={referenceDateInput} />
+        </div>
+      </div>
+
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {items.map((service) => {
           const serviceHref = `/servicos/${encodeURIComponent(service.id)}`;
           const statusLabel = normaliseStatus(service.status);
           const statusTone = STATUS_TONE[statusLabel] ?? "border-border bg-muted text-foreground/80";
-          const plannedPercent = Math.round(resolveServicoPercentualPlanejado(service, today));
-          const realPercent = resolveServicoRealPercent(service);
+          const plannedPercent = Math.round(resolveServicoPercentualPlanejado(service, referenceDate));
+          const realPercent = Math.round(resolveServicoRealPercent(service, referenceDate));
           const identifier = resolveIdentifier(service);
           const subtitle = resolveSubtitle(service);
           const companyLabel = resolveCompanyLabel(service);
@@ -118,8 +138,8 @@ export default function ServicesListClient({ initialItems, initialCursor }: Prop
                   <p className="line-clamp-2 text-base font-semibold text-foreground">{identifier}</p>
                   {subtitle ? <p className="text-sm text-muted-foreground">{subtitle}</p> : null}
                   <p className="text-xs text-muted-foreground">
-                    Planejado: <span className="font-semibold text-foreground">{plannedPercent}%</span> | Real:{" "}
-                    <span className="font-semibold text-foreground">{realPercent}%</span>
+                    Planejado ({referenceLabel}): <span className="font-semibold text-foreground">{plannedPercent}%</span> |
+                    Real ({referenceLabel}): <span className="font-semibold text-foreground">{realPercent}%</span>
                   </p>
                 </div>
               </div>

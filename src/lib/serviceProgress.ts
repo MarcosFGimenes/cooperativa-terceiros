@@ -702,6 +702,70 @@ export function calcularPercentualRealizadoSubpacote(
   return clampPercentage(percentual);
 }
 
+export function calcularPercentualRealizadoPacote(
+  pacote: PacotePlanejado | null | undefined,
+  dataReferencia?: DateInput,
+): number {
+  const referencia = toDate(dataReferencia ?? new Date()) ?? new Date();
+  const subpacotes = coletarSubpacotesDoPacote(pacote);
+  if (!subpacotes.length) return 0;
+
+  let somaHoras = 0;
+  let somaPonderada = 0;
+
+  subpacotes.forEach((subpacote) => {
+    const horas = calcularHorasDoSubpacote(subpacote);
+    if (horas <= 0) return;
+    const percentual = calcularPercentualRealizadoSubpacote(subpacote, referencia);
+    somaHoras += horas;
+    somaPonderada += percentual * horas;
+  });
+
+  if (somaHoras <= 0) return 0;
+  return clampPercentage(somaPonderada / somaHoras);
+}
+
+function calcularHorasDoSubpacote(subpacote: SubpacotePlanejado | null | undefined): number {
+  const servicos = coletarServicosDoSubpacote(subpacote);
+  return servicos.reduce((total, servico) => total + (extractHorasPrevistas(servico) ?? 0), 0);
+}
+
+function coletarSubpacotesDoPacote(pacote: PacotePlanejado | null | undefined): SubpacotePlanejado[] {
+  if (!pacote) return [];
+  const subpacotes: SubpacotePlanejado[] = [];
+  if (Array.isArray(pacote.subpacotes)) {
+    subpacotes.push(...pacote.subpacotes);
+  }
+  const alternativa = (pacote as { subPackages?: SubpacotePlanejado[] | null }).subPackages;
+  if (Array.isArray(alternativa)) {
+    subpacotes.push(...alternativa);
+  }
+  return subpacotes;
+}
+
+export function calcularPercentualPlanejadoPacote(
+  pacote: PacotePlanejado | null | undefined,
+  dataReferencia?: DateInput,
+): number {
+  const referencia = toDate(dataReferencia ?? new Date()) ?? new Date();
+  const subpacotes = coletarSubpacotesDoPacote(pacote);
+  if (!subpacotes.length) return 0;
+
+  let somaHoras = 0;
+  let somaPonderada = 0;
+
+  subpacotes.forEach((subpacote) => {
+    const horas = calcularHorasDoSubpacote(subpacote);
+    if (horas <= 0) return;
+    const percentual = calcularPercentualSubpacote(subpacote, referencia);
+    somaHoras += horas;
+    somaPonderada += percentual * horas;
+  });
+
+  if (somaHoras <= 0) return 0;
+  return clampPercentage(somaPonderada / somaHoras);
+}
+
 export function calcularPercentualPlanejadoServico(
   servico: ServicoPlanejado | ServicoDoSubpacote | null | undefined,
   dataReferencia?: DateInput,
@@ -769,40 +833,7 @@ export function resolveServicoPercentualPlanejado(
     "pacote",
   ]);
   if (pacotePlanejado) {
-    const subpacotes =
-      (Array.isArray(pacotePlanejado.subpacotes) && pacotePlanejado.subpacotes) ||
-      (Array.isArray((pacotePlanejado as { subPackages?: SubpacotePlanejado[] }).subPackages) &&
-        (pacotePlanejado as { subPackages?: SubpacotePlanejado[] }).subPackages) ||
-      [];
-
-    if (subpacotes.length) {
-      const subpacoteId =
-        (source.subpacoteId as unknown) ??
-        (source.subPackageId as unknown) ??
-        (source.folderId as unknown) ??
-        (source.subpackageId as unknown) ??
-        (source.folder && typeof source.folder === "object"
-          ? (source.folder as { id?: unknown }).id
-          : undefined) ??
-        (source.subpacote && typeof source.subpacote === "object"
-          ? (source.subpacote as { id?: unknown }).id
-          : undefined);
-
-      if (typeof subpacoteId === "string" || typeof subpacoteId === "number") {
-        const matched = subpacotes.find((entry) => {
-          const id = (entry as { id?: unknown }).id;
-          if (typeof id === "string" || typeof id === "number") {
-            return String(id) === String(subpacoteId);
-          }
-          return false;
-        });
-        if (matched) {
-          return clampProgress(calcularPercentualSubpacote(matched, referencia));
-        }
-      }
-
-      return clampProgress(calcularPercentualSubpacote(subpacotes[0], referencia));
-    }
+    return clampProgress(calcularPercentualPlanejadoPacote(pacotePlanejado, referencia));
   }
 
   return 0;
@@ -822,11 +853,24 @@ export function resolveServicoRealPercent(
     inicioPlanejado ?? referencia,
   );
   if (atualizacoes.length) {
-    const ultima = atualizacoes[atualizacoes.length - 1];
-    return clampProgress(ultima.percentual);
+    const normalizado: ServicoRealizadoNormalizado = {
+      horasPrevistas: extractHorasPrevistas(servico as ServicoDoSubpacote) ?? 1,
+      atualizacoes,
+    };
+    return clampProgress(percentualRealizadoAte(normalizado, referencia));
   }
 
   const source = servico as Record<string, unknown>;
+  const pacotePlanejado = pickFirstObject<PacotePlanejado>(source, [
+    "pacotePlanejado",
+    "package",
+    "plannedPackage",
+    "pacote",
+  ]);
+  if (pacotePlanejado) {
+    return clampProgress(calcularPercentualRealizadoPacote(pacotePlanejado, referencia));
+  }
+
   const camposPercentual = [
     "progress",
     "realPercent",
@@ -890,11 +934,20 @@ export function mapearServicosPlanejados(
 
 export function calcularCurvaSPlanejada(
   pacote: PacotePlanejado | null | undefined,
+  dataReferencia?: DateInput,
 ): CurvaSPonto[] {
+  const referencia = dataReferencia ? toDate(dataReferencia) ?? new Date() : null;
   const servicos = coletarServicosDoPacote(pacote);
   const preparados = prepararServicosPlanejados(servicos);
-  const linhaDoTempo = gerarLinhaDoTempo(preparados);
+  let linhaDoTempo = gerarLinhaDoTempo(preparados);
   if (!linhaDoTempo.length) return [];
+  if (referencia) {
+    const limite = startOfDay(referencia).getTime();
+    linhaDoTempo = linhaDoTempo.filter((data) => data.getTime() <= limite);
+    if (!linhaDoTempo.length) {
+      linhaDoTempo = [startOfDay(referencia)];
+    }
+  }
   const somaHoras = preparados.reduce((total, servico) => total + servico.horasPrevistas, 0);
   return linhaDoTempo.map((data) => ({
     data,
@@ -905,7 +958,9 @@ export function calcularCurvaSPlanejada(
 
 export function calcularCurvaSRealizada(
   pacote: PacotePlanejado | null | undefined,
+  dataReferencia?: DateInput,
 ): CurvaSPonto[] {
+  const referencia = dataReferencia ? toDate(dataReferencia) ?? new Date() : null;
   const servicos = coletarServicosDoPacote(pacote);
   const preparados = prepararServicosPlanejados(servicos);
   let linhaDoTempo = gerarLinhaDoTempo(preparados);
@@ -925,11 +980,21 @@ export function calcularCurvaSRealizada(
     return maisRecente;
   }, null);
 
-  if (dataUltimaAtualizacao) {
-    const limite = startOfDay(dataUltimaAtualizacao).getTime();
-    linhaDoTempo = linhaDoTempo.filter((data) => data.getTime() <= limite);
+  const limiteReferencia = referencia ? startOfDay(referencia).getTime() : null;
+
+  const limiteData = (() => {
+    if (limiteReferencia !== null && dataUltimaAtualizacao) {
+      return Math.min(limiteReferencia, startOfDay(dataUltimaAtualizacao).getTime());
+    }
+    if (limiteReferencia !== null) return limiteReferencia;
+    if (dataUltimaAtualizacao) return startOfDay(dataUltimaAtualizacao).getTime();
+    return null;
+  })();
+
+  if (limiteData !== null) {
+    linhaDoTempo = linhaDoTempo.filter((data) => data.getTime() <= limiteData);
     if (!linhaDoTempo.length) {
-      linhaDoTempo = [startOfDay(dataUltimaAtualizacao)];
+      linhaDoTempo = [new Date(limiteData)];
     }
   }
 
@@ -948,8 +1013,8 @@ export function calcularIndicadoresCurvaS(
   dataHoje?: DateInput,
 ): IndicadoresCurvaS {
   const referencia = toDate(dataHoje ?? new Date()) ?? new Date();
-  const curvaPlanejada = calcularCurvaSPlanejada(pacote);
-  const curvaRealizada = calcularCurvaSRealizada(pacote);
+  const curvaPlanejada = calcularCurvaSPlanejada(pacote, referencia);
+  const curvaRealizada = calcularCurvaSRealizada(pacote, referencia);
   const planejadoAteHoje = Math.round(obterValorCurvaNaData(curvaPlanejada, referencia));
   const realizadoRaw = obterValorCurvaNaData(curvaRealizada, referencia);
   const realizado = Math.round(clampPercentage(realizadoRaw));
