@@ -269,6 +269,16 @@ async function renderPackageDetailPage(
   const referenceDateInput = referenceInfo.inputValue;
   const referenceLabel = formatReferenceLabel(referenceDate);
 
+  const refDateParam = searchParams?.refDate;
+  const refDateValue = Array.isArray(refDateParam) ? refDateParam[0] : refDateParam ?? null;
+  const { date: referenceDate, inputValue: referenceDateInput } = resolveReferenceDate(refDateValue);
+  const referenceLabel = formatReferenceLabel(referenceDate);
+
+  const refDateParam = searchParams?.refDate;
+  const refDateValue = Array.isArray(refDateParam) ? refDateParam[0] : refDateParam ?? null;
+  const { date: referenceDate, inputValue: referenceDateInput } = resolveReferenceDate(refDateValue);
+  const referenceLabel = formatReferenceLabel(referenceDate);
+
   let pkg: Package | null = null;
   let resolvedPackageId = packageIdCandidates[0];
 
