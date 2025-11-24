@@ -396,9 +396,17 @@ input:-webkit-autofill:focus {
     break-inside: avoid !important;
   }
 
-  .print-summary-blocks {
+  .print-summary-blocks,
+  .summary-blocks,
+  .summary-block-item {
     page-break-inside: avoid !important;
     break-inside: avoid !important;
+    page-break-before: auto !important;
+    page-break-after: auto !important;
+  }
+
+  .summary-block-item + .summary-block-item {
+    page-break-before: avoid !important;
   }
 
   .package-print-layout section,

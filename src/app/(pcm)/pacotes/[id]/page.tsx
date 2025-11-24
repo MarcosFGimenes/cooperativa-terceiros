@@ -835,7 +835,7 @@ async function renderPackageDetailPage(
       </div>
 
       <section className="summary-blocks print-summary-blocks mt-8 rounded-2xl border bg-card/80 p-5 shadow-sm space-y-8 print:mt-4 print:space-y-6 print-no-border print:w-full print:rounded-none print:border-0 print:bg-white print:shadow-none print:p-4 print-no-radius print-full-width">
-        <div className="space-y-3 print-keep-with-next">
+        <div className="summary-block-item space-y-3 print-keep-with-next">
           <h2 className="text-lg font-semibold">Resumo por Subpacote</h2>
           {subpackageMetrics.length ? (
             <div className="summary-table-wrapper overflow-x-auto rounded-xl border bg-card print:overflow-visible print:border-0 print:bg-white print:rounded-none print-full-width">
@@ -877,7 +877,7 @@ async function renderPackageDetailPage(
           )}
         </div>
 
-        <div className="space-y-3 print-keep-with-next">
+        <div className="summary-block-item space-y-3 print-keep-with-next">
           <h2 className="text-lg font-semibold">Resumo por Setor</h2>
           {sectorMetrics.length ? (
             <div className="summary-table-wrapper overflow-x-auto rounded-xl border bg-card print:overflow-visible print:border-0 print:bg-white print:rounded-none print-full-width">
