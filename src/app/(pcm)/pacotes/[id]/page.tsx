@@ -14,18 +14,23 @@ import {
   calcularIndicadoresCurvaS,
   calcularMetricasPorSetor,
   calcularMetricasSubpacote,
+  calcularPercentualPlanejadoPacote,
   calcularPercentualPlanejadoServico,
+  calcularPercentualRealizadoPacote,
   calcularPercentualSubpacote,
   calcularPercentualRealizadoSubpacote,
   obterIntervaloSubpacote,
+  toDate,
   type ServicoDoSubpacote,
 } from "@/lib/serviceProgress";
 import type { Package, PackageFolder, Service } from "@/types";
+import { formatReferenceLabel, resolveReferenceDate } from "@/lib/referenceDate";
 
 import type { ServiceInfo as FolderServiceInfo, ServiceOption as FolderServiceOption } from "./PackageFoldersManager";
 import ServicesCompaniesSection from "./ServicesCompaniesSection";
 import PackageFoldersManagerClient from "./PackageFoldersManager.client";
 import PackagePdfExportButton from "./PackagePdfExportButton";
+import ReferenceDateSelector from "@/components/ReferenceDateSelector";
 
 const { notFound } = Navigation;
 
@@ -206,8 +211,10 @@ function extractDateMs(value: unknown): number | null {
   return null;
 }
 
-function buildServiceProgressSnapshot(service: Service, reference: Date) {
-  const plannedPercent = calcularPercentualPlanejadoServico(mapServiceToSubpackageEntry(service), reference) ?? 0;
+function buildServiceProgressSnapshot(service: Service, dataReferencia?: Parameters<typeof toDate>[0]) {
+  const reference = toDate(dataReferencia ?? new Date()) ?? new Date();
+  const plannedPercent =
+    calcularPercentualPlanejadoServico(mapServiceToSubpackageEntry(service), reference) ?? 0;
   const percentCandidates: unknown[] = [
     service.realPercent,
     service.progress,
@@ -235,7 +242,10 @@ function buildServiceProgressSnapshot(service: Service, reference: Date) {
   return { plannedPercent, realizedPercent, deltaPercent, startDateMs, endDateMs };
 }
 
-async function renderPackageDetailPage(params: { id: string }) {
+async function renderPackageDetailPage(
+  params: { id: string },
+  searchParams?: Record<string, string | string[] | undefined>,
+) {
   const rawPackageId = params.id;
   const decodedPackageId = decodeRouteParam(rawPackageId);
   const packageIdCandidates = Array.from(
@@ -251,6 +261,13 @@ async function renderPackageDetailPage(params: { id: string }) {
     }
     warningSet.add(message);
   };
+
+  const refDateParamRaw = searchParams?.refDate;
+  const refDateValue = Array.isArray(refDateParamRaw) ? refDateParamRaw[0] : refDateParamRaw ?? null;
+  const referenceInfo = resolveReferenceDate(refDateValue);
+  const referenceDate = referenceInfo.date;
+  const referenceDateInput = referenceInfo.inputValue;
+  const referenceLabel = formatReferenceLabel(referenceDate);
 
   let pkg: Package | null = null;
   let resolvedPackageId = packageIdCandidates[0];
@@ -436,8 +453,6 @@ async function renderPackageDetailPage(params: { id: string }) {
   }
 
   const servicesById = new Map(services.map((service) => [service.id, service]));
-  const today = new Date();
-
   const subpackagesForCurve = folders.map((folder) => {
     const servicos = folder.services
       .map((serviceId) => servicesById.get(serviceId))
@@ -447,20 +462,25 @@ async function renderPackageDetailPage(params: { id: string }) {
   });
 
   const packageForCurve = { subpacotes: subpackagesForCurve };
-  const plannedCurvePoints = calcularCurvaSPlanejada(packageForCurve).map((point) => ({
+  const plannedCurvePoints = calcularCurvaSPlanejada(packageForCurve, referenceDate).map((point) => ({
     date: point.data.toISOString().slice(0, 10),
     percent: point.percentual,
   }));
-  const realizedSeriesData = calcularCurvaSRealizada(packageForCurve).map((point) => ({
+  const realizedSeriesData = calcularCurvaSRealizada(packageForCurve, referenceDate).map((point) => ({
     date: point.data.toISOString().slice(0, 10),
     percent: point.percentual,
   }));
-  const curvaIndicators = calcularIndicadoresCurvaS(packageForCurve, today);
-  const realizedPercent = curvaIndicators.realizado;
+  const curvaIndicators = calcularIndicadoresCurvaS(packageForCurve, referenceDate);
+  const plannedPercentAtReference = Math.round(
+    calcularPercentualPlanejadoPacote(packageForCurve, referenceDate),
+  );
+  const realizedPercent = Math.round(
+    calcularPercentualRealizadoPacote(packageForCurve, referenceDate),
+  );
   const realizedValueLabel = `${realizedPercent}%`;
   const realizedHeaderLabel = hasServiceOverflow
-    ? `Realizado (parcial): ${realizedValueLabel}`
-    : `Realizado: ${realizedValueLabel}`;
+    ? `Realizado em ${referenceLabel} (parcial): ${realizedValueLabel}`
+    : `Realizado em ${referenceLabel}: ${realizedValueLabel}`;
   const curveMetrics = {
     plannedTotal: curvaIndicators.planejadoTotal,
     plannedToDate: curvaIndicators.planejadoAteHoje,
@@ -474,8 +494,8 @@ async function renderPackageDetailPage(params: { id: string }) {
   >();
   subpackagesForCurve.forEach((subpacote) => {
     if (!subpacote?.id) return;
-    const plannedPercentRaw = calcularPercentualSubpacote(subpacote, today);
-    const realizedPercentRaw = calcularPercentualRealizadoSubpacote(subpacote, today);
+    const plannedPercentRaw = calcularPercentualSubpacote(subpacote, referenceDate);
+    const realizedPercentRaw = calcularPercentualRealizadoSubpacote(subpacote, referenceDate);
     const plannedPercent = Math.round(plannedPercentRaw);
     const realizedPercent = Math.round(realizedPercentRaw);
     const intervalo = obterIntervaloSubpacote(subpacote);
@@ -513,10 +533,6 @@ async function renderPackageDetailPage(params: { id: string }) {
     });
   });
 
-  const saoPauloNow = new Date(
-    new Date().toLocaleString("en-US", { timeZone: "America/Sao_Paulo" }),
-  );
-
   const servicesWithFolderContext = services.map((service) => {
     const folderData = folderLookup.get(service.id);
     const directFolderId =
@@ -534,8 +550,8 @@ async function renderPackageDetailPage(params: { id: string }) {
     };
   });
 
-  const subpackageMetrics = calcularMetricasSubpacote(servicesWithFolderContext, saoPauloNow);
-  const sectorMetrics = calcularMetricasPorSetor(servicesWithFolderContext, saoPauloNow);
+  const subpackageMetrics = calcularMetricasSubpacote(servicesWithFolderContext, referenceDate);
+  const sectorMetrics = calcularMetricasPorSetor(servicesWithFolderContext, referenceDate);
 
   const formatMetricValue = (value: number): string => {
     const rounded = Math.round(value);
@@ -565,7 +581,7 @@ async function renderPackageDetailPage(params: { id: string }) {
 
   services.forEach((service) => {
     const baseLabel = service.os || service.code || service.id;
-    const snapshot = buildServiceProgressSnapshot(service, today);
+    const snapshot = buildServiceProgressSnapshot(service, referenceDate);
     const companyLabel =
       service.assignedTo?.companyName ||
       service.assignedTo?.companyId ||
@@ -592,7 +608,7 @@ async function renderPackageDetailPage(params: { id: string }) {
   availableOpenServices.forEach((service) => {
     const companyLabel =
       service.empresa || service.company || service.assignedTo?.companyName || service.assignedTo?.companyId || null;
-    const snapshot = buildServiceProgressSnapshot(service, today);
+    const snapshot = buildServiceProgressSnapshot(service, referenceDate);
     if (serviceDetails[service.id]) {
       if (!serviceDetails[service.id].companyLabel && companyLabel) {
         serviceDetails[service.id] = {
@@ -681,6 +697,24 @@ async function renderPackageDetailPage(params: { id: string }) {
             </Link>
             <PackagePdfExportButton />
             <DeletePackageButton packageId={pkg.id} packageLabel={packageLabel} />
+          </div>
+        </div>
+
+        <div className="mt-4 rounded-2xl border border-dashed border-border/70 bg-muted/20 p-4">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div className="space-y-1">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Data de referência
+              </p>
+              <p className="text-base font-semibold text-foreground">{referenceLabel}</p>
+              <p className="text-xs text-muted-foreground">
+                Planejado: <span className="font-semibold text-foreground">{plannedPercentAtReference}%</span> | Real:
+                <span className="font-semibold text-foreground"> {realizedPercent}%</span>
+              </p>
+            </div>
+            <div className="w-full max-w-[240px]">
+              <ReferenceDateSelector value={referenceDateInput} />
+            </div>
           </div>
         </div>
 
@@ -810,8 +844,8 @@ async function renderPackageDetailPage(params: { id: string }) {
                 <thead className="bg-muted/80 text-foreground">
                   <tr>
                     <th className="border border-border p-3 text-left">Subpacote</th>
-                    <th className="border border-border p-3">% Atual</th>
-                    <th className="border border-border p-3">% Deveria Estar</th>
+                    <th className="border border-border p-3">% Atual ({referenceLabel})</th>
+                    <th className="border border-border p-3">% Deveria Estar ({referenceLabel})</th>
                     <th className="border border-border p-3">Horas Faltando</th>
                     <th className="border border-border p-3">Diferença</th>
                   </tr>
@@ -852,8 +886,8 @@ async function renderPackageDetailPage(params: { id: string }) {
                 <thead className="bg-muted/80 text-foreground">
                   <tr>
                     <th className="border border-border p-3 text-left">Setor</th>
-                    <th className="border border-border p-3">% Atual</th>
-                    <th className="border border-border p-3">% Deveria Estar</th>
+                    <th className="border border-border p-3">% Atual ({referenceLabel})</th>
+                    <th className="border border-border p-3">% Deveria Estar ({referenceLabel})</th>
                     <th className="border border-border p-3">Horas Faltando</th>
                     <th className="border border-border p-3">Diferença</th>
                   </tr>
@@ -911,9 +945,15 @@ function isNotFoundLikeError(error: unknown): boolean {
   return false;
 }
 
-export default async function PackageDetailPage({ params }: { params: { id: string } }) {
+export default async function PackageDetailPage({
+  params,
+  searchParams,
+}: {
+  params: { id: string };
+  searchParams?: Record<string, string | string[] | undefined>;
+}) {
   try {
-    return await renderPackageDetailPage(params);
+    return await renderPackageDetailPage(params, searchParams);
   } catch (error) {
     if (isNotFoundLikeError(error) || isRedirectDigestError(error)) {
       throw error;
