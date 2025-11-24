@@ -951,7 +951,9 @@ export function calcularIndicadoresCurvaS(
   const curvaPlanejada = calcularCurvaSPlanejada(pacote);
   const curvaRealizada = calcularCurvaSRealizada(pacote);
   const planejadoAteHoje = obterValorCurvaNaData(curvaPlanejada, referencia);
-  const realizado = obterValorCurvaNaData(curvaRealizada, referencia);
+  const realizadoRaw = obterValorCurvaNaData(curvaRealizada, referencia);
+  // Arredonda para baixo para corrigir problema de mostrar 1% a mais
+  const realizado = Math.floor(clampPercentage(realizadoRaw));
   return {
     planejadoTotal: 100,
     planejadoAteHoje,
@@ -1117,9 +1119,9 @@ export function calcularMetricasPorSetor(
       });
 
       const plannedPercent =
-        totalHours > 0 ? clampPercentageValue(sumWeightedPlanned / totalHours) : 0;
+        totalHours > 0 ? Math.ceil(clampPercentageValue(sumWeightedPlanned / totalHours)) : 0;
       const realizedPercent =
-        totalHours > 0 ? clampPercentageValue(sumWeightedRealized / totalHours) : 0;
+        totalHours > 0 ? Math.ceil(clampPercentageValue(sumWeightedRealized / totalHours)) : 0;
       const horasFaltando = totalHours * (100 - realizedPercent) * 0.01;
       const diferenca = totalHours * (realizedPercent - plannedPercent) * 0.01;
 
