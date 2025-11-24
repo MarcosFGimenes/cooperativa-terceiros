@@ -833,7 +833,7 @@ async function renderPackageDetailPage(
         </div>
       </div>
 
-      <section className="rounded-2xl border bg-card/80 p-5 shadow-sm space-y-8">
+      <section className="rounded-2xl border bg-card/80 p-5 shadow-sm space-y-8 print:space-y-6 print-page-break-before print-avoid-break">
         <div className="space-y-3">
           <h2 className="text-lg font-semibold">Resumo por Subpacote</h2>
           {subpackageMetrics.length ? (
