@@ -16,6 +16,8 @@ import {
 } from "firebase/firestore";
 import SCurveDeferred from "@/components/SCurveDeferred";
 import { plannedCurve } from "@/lib/curve";
+import ReferenceDateSelector from "@/components/ReferenceDateSelector";
+import { formatReferenceLabel, resolveReferenceDate } from "@/lib/referenceDate";
 import { resolveServicoPercentualPlanejado } from "@/lib/serviceProgress";
 import { isFirestoreLongPollingForced, tryGetFirestore } from "@/lib/firebase";
 import { isConnectionResetError } from "@/lib/networkErrors";
@@ -94,6 +96,12 @@ export default function ServiceDetailClient({
   const encodedServiceId = encodeURIComponent(serviceId);
   const searchParams = useSearchParams();
   const isPdfExport = searchParams?.get("export") === "pdf";
+  const refDateParam = searchParams?.get("refDate") ?? null;
+  const { date: referenceDate, inputValue: referenceDateInput } = useMemo(
+    () => resolveReferenceDate(refDateParam),
+    [refDateParam],
+  );
+  const referenceLabel = useMemo(() => formatReferenceLabel(referenceDate), [referenceDate]);
   const resolvedChartHeight = isPdfExport ? 480 : 288;
 
   const [service, setService] = useState<ServiceRealtimeData>(composedInitial);
@@ -478,13 +486,12 @@ export default function ServiceDetailClient({
   }, [service.id, service.os, service.code]);
 
   const plannedPercentToDate = useMemo(() => {
-    const today = new Date();
     return resolveServicoPercentualPlanejado({
       ...service,
       plannedStart: service.plannedStart ?? composedInitial.plannedStart,
       plannedEnd: service.plannedEnd ?? composedInitial.plannedEnd,
-    }, today);
-  }, [service, composedInitial]);
+    }, referenceDate);
+  }, [service, composedInitial, referenceDate]);
 
   const companyLabel = useMemo(() => {
     if (service.assignedTo?.companyName) return service.assignedTo.companyName;
@@ -552,6 +559,19 @@ export default function ServiceDetailClient({
         </div>
       </div>
 
+      <div className="flex flex-wrap items-start justify-between gap-3 rounded-2xl border border-dashed border-border/70 bg-muted/20 p-4 print:hidden">
+        <div className="space-y-1 text-sm text-muted-foreground">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Data de referência</p>
+          <p className="font-semibold text-foreground">{referenceLabel}</p>
+          <p className="text-[13px]">
+            Percentuais planejados e realizados são calculados com base nessa data.
+          </p>
+        </div>
+        <div className="w-full max-w-[220px]">
+          <ReferenceDateSelector value={referenceDateInput} />
+        </div>
+      </div>
+
       {authIssue || connectionIssue ? (
         <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-700">
           {authIssue ?? connectionIssue}
@@ -568,7 +588,9 @@ export default function ServiceDetailClient({
             </div>
             <div>
               <dt className="text-muted-foreground">Andamento</dt>
-              <dd className="font-medium">{Math.round(realizedPercent)}%</dd>
+              <dd className="font-medium">
+                {Math.round(realizedPercent)}% (em {referenceLabel})
+              </dd>
             </div>
             <div>
               <dt className="text-muted-foreground">Tag</dt>
@@ -652,7 +674,16 @@ export default function ServiceDetailClient({
             realizedPercent={realizedPercent}
             title="Curva S do serviço"
             description="Evolução planejada versus realizado para este serviço."
-            headerAside={<span className="font-medium text-foreground">Realizado: {realizedPercent}%</span>}
+            headerAside={
+              <div className="text-right text-sm">
+                <div className="font-semibold text-foreground">
+                  Realizado em {referenceLabel}: {Math.round(realizedPercent)}%
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  Planejado: {Math.round(plannedPercentToDate)}%
+                </div>
+              </div>
+            }
             metrics={{ plannedToDate: plannedPercentToDate }}
             chartHeight={resolvedChartHeight}
             deferRendering={!isPdfExport}
