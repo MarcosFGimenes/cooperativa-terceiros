@@ -457,7 +457,7 @@ async function renderPackageDetailPage(params: { id: string }) {
   }));
   const curvaIndicators = calcularIndicadoresCurvaS(packageForCurve, today);
   const realizedPercent = curvaIndicators.realizado;
-  const realizedValueLabel = `${Math.round(realizedPercent)}%`;
+  const realizedValueLabel = `${realizedPercent}%`;
   const realizedHeaderLabel = hasServiceOverflow
     ? `Realizado (parcial): ${realizedValueLabel}`
     : `Realizado: ${realizedValueLabel}`;
