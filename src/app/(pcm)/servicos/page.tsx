@@ -4,22 +4,11 @@ export const revalidate = 0;
 import Link from "next/link";
 
 import { listServicesPCM } from "@/lib/data";
-import {
-  DEFAULT_REFERENCE_TIME_ZONE,
-  resolveReferenceDateFromSearchParams,
-} from "@/lib/referenceDate";
 
 import ServicesListClient from "./ServicesListClient";
 
-export default async function ServicesListPage({
-  searchParams,
-}: {
-  searchParams?: Record<string, string | string[] | undefined>;
-}) {
+export default async function ServicesListPage() {
   const { items, nextCursor } = await listServicesPCM({ limit: 10 });
-  const { inputValue: referenceDateInput } = resolveReferenceDateFromSearchParams(searchParams, {
-    timeZone: DEFAULT_REFERENCE_TIME_ZONE,
-  });
 
   return (
     <div className="container mx-auto max-w-6xl space-y-6 px-4 py-6">
@@ -45,11 +34,7 @@ export default async function ServicesListPage({
           Nenhum serviço encontrado.
         </div>
       ) : (
-        <ServicesListClient
-          initialItems={items}
-          initialCursor={nextCursor}
-          initialReferenceDate={referenceDateInput}
-        />
+        <ServicesListClient initialItems={items} initialCursor={nextCursor} />
       )}
     </div>
   );
