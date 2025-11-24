@@ -198,7 +198,7 @@ export default function SCurve({
   const plannedToToday = useMemo(() => {
     const indicator = clampPercent(metrics?.plannedToDate);
     if (indicator !== null) {
-      return indicator;
+      return Math.round(indicator);
     }
     if (!planned.length) return 0;
     const today = new Date();
@@ -207,9 +207,13 @@ export default function SCurve({
       if (Number.isNaN(date.getTime())) return false;
       return date.getTime() <= today.getTime();
     });
-    if (!candidates.length) return clampPercent(planned[0]?.percent) ?? 0;
+    if (!candidates.length) {
+      const value = clampPercent(planned[0]?.percent) ?? 0;
+      return Math.round(value);
+    }
     const last = candidates[candidates.length - 1];
-    return clampPercent(last?.percent) ?? 0;
+    const value = clampPercent(last?.percent) ?? 0;
+    return Math.round(value);
   }, [metrics?.plannedToDate, planned]);
 
   const realisedLatest = useMemo(() => {
@@ -256,7 +260,7 @@ export default function SCurve({
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <MetricCard label="Planejado (total)" value={`${Math.round(plannedTotal)}%`} />
-        <MetricCard label="Planejado até hoje" value={`${Math.round(plannedToToday)}%`} />
+        <MetricCard label="Planejado até hoje" value={`${plannedToToday}%`} />
         <MetricCard label="Realizado" value={`${Math.round(realisedLatest)}%`} tone="positive" />
         <MetricCard
           label="Diferença"
