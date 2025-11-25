@@ -43,21 +43,30 @@ export default function RecentServicesPanel({ services }: { services: Service[] 
           const plannedPercent = Math.round(resolveServicoPercentualPlanejado(service, referenceDate));
           const realPercent = Math.round(resolveServicoRealPercent(service, referenceDate));
           const createdAt = (service as { createdAt?: number | null }).createdAt;
+          const lastUpdate = service.updatedAt ?? createdAt ?? null;
+          const lastUpdateLabel =
+            typeof lastUpdate === "number"
+              ? formatDateTime(lastUpdate, { timeZone: "America/Sao_Paulo", fallback: "" })
+              : "";
           const serviceHref = `/servicos/${encodeURIComponent(service.id)}`;
           return (
             <div
               key={service.id}
               className="flex flex-wrap items-center gap-3 rounded-lg border p-3 transition hover:border-primary/40 hover:bg-muted/40"
             >
-              <Link className="min-w-0 flex-1" href={serviceHref}>
-                <p className="truncate text-sm font-medium">
-                  {service.os || service.code || service.id}
-                  {service.equipmentName ? ` — ${service.equipmentName}` : service.tag ? ` — ${service.tag}` : ""}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {normaliseStatus(service.status)}
-                  {createdAt ? ` • ${formatDateTime(createdAt, { timeZone: "America/Sao_Paulo", fallback: "" })}` : ""}
-                </p>
+              <Link className="min-w-0 flex-1 space-y-1" href={serviceHref}>
+                <div className="flex items-start justify-between gap-2">
+                  <p className="truncate text-sm font-medium">
+                    {service.os || service.code || service.id}
+                    {service.equipmentName ? ` — ${service.equipmentName}` : service.tag ? ` — ${service.tag}` : ""}
+                  </p>
+                  {lastUpdateLabel ? (
+                    <span className="whitespace-nowrap text-[11px] text-muted-foreground">Última atualização {lastUpdateLabel}</span>
+                  ) : null}
+                </div>
+                <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                  <span>{normaliseStatus(service.status)}</span>
+                </div>
                 <p className="text-xs text-muted-foreground">
                   Planejado ({referenceLabel}): <span className="font-semibold text-foreground">{plannedPercent}%</span>
                   {" "}| Real ({referenceLabel}): <span className="font-semibold text-foreground">{realPercent}%</span>
