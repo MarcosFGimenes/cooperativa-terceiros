@@ -17,6 +17,13 @@ const SERVICE_CACHE_TTL_SECONDS = 180;
 const SERVICE_LIST_CACHE_TTL_SECONDS = 300;
 const DEFAULT_AVAILABLE_SERVICES_LIMIT = 200;
 
+export type ServiceStatusCounts = {
+  total: number;
+  aberto: number;
+  pendente: number;
+  concluido: number;
+};
+
 type ChecklistSeed = { id: string; descricao: string; peso: number };
 
 type CreateServicePayload = {
@@ -588,6 +595,40 @@ export async function listRecentServices(): Promise<Service[]> {
   const snap = await servicesCollection().orderBy("updatedAt", "desc").limit(20).get();
   const services = snap.docs.map((doc) => mapServiceData(doc.id, (doc.data() ?? {}) as Record<string, unknown>));
   return services.sort((a, b) => (b.updatedAt ?? b.createdAt ?? 0) - (a.updatedAt ?? a.createdAt ?? 0));
+}
+
+export async function countServicesByStatus(): Promise<ServiceStatusCounts> {
+  const counts: ServiceStatusCounts = { total: 0, aberto: 0, pendente: 0, concluido: 0 };
+
+  let snap: FirebaseFirestore.QuerySnapshot | null = null;
+  try {
+    snap = await servicesCollection().select("status").get();
+  } catch (error) {
+    if (isMissingAdminError(error)) {
+      console.warn(
+        "[services:countServicesByStatus] Firebase Admin não está configurado. Retornando contagem zerada.",
+        error,
+      );
+      return counts;
+    }
+    console.warn(
+      "[services:countServicesByStatus] Falha ao acessar o Firestore. Retornando contagem zerada.",
+      error,
+    );
+    return counts;
+  }
+
+  if (!snap) return counts;
+
+  snap.docs.forEach((doc) => {
+    counts.total += 1;
+    const status = normaliseServiceStatus((doc.data() ?? {}).status);
+    if (status === "Concluído") counts.concluido += 1;
+    else if (status === "Pendente") counts.pendente += 1;
+    else counts.aberto += 1;
+  });
+
+  return counts;
 }
 
 function isMissingAdminError(error: unknown) {
