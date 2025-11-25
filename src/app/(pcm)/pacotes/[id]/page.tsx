@@ -242,6 +242,28 @@ function buildServiceProgressSnapshot(service: Service, dataReferencia?: Paramet
   return { plannedPercent, realizedPercent, deltaPercent, startDateMs, endDateMs };
 }
 
+const LAST_UPDATE_KEYS = [
+  "dataUltimaAtualizacao",
+  "dataAtualizacao",
+  "dataAtualizacaoPercentual",
+  "atualizadoEm",
+  "lastUpdateDate",
+  "updatedAt",
+] as const;
+
+function resolveServiceLastUpdateMs(service: Service): number | null {
+  const record = service as Record<string, unknown>;
+  for (const key of LAST_UPDATE_KEYS) {
+    if (!Object.hasOwn(record, key)) continue;
+    const value = record[key];
+    const millis = extractDateMs(value);
+    if (millis !== null) return millis;
+  }
+
+  const created = extractDateMs((service as { createdAt?: unknown }).createdAt);
+  return created ?? null;
+}
+
 async function renderPackageDetailPage(
   params: { id: string },
   searchParams?: Record<string, string | string[] | undefined>,
@@ -589,6 +611,7 @@ async function renderPackageDetailPage(
       assignedCompanies?.find((item) => item.companyName)?.companyName ||
       undefined;
     const statusLabel = normaliseStatus(service.status);
+    const lastUpdateMs = resolveServiceLastUpdateMs(service);
     serviceDetails[service.id] = {
       id: service.id,
       label: companyLabel ? `${baseLabel} — ${companyLabel}` : baseLabel,
@@ -600,6 +623,7 @@ async function renderPackageDetailPage(
       startDateMs: snapshot.startDateMs,
       endDateMs: snapshot.endDateMs,
       isOpen: statusLabel === "Aberto" || statusLabel === "Pendente",
+      lastUpdateMs,
     };
   });
 
@@ -607,6 +631,7 @@ async function renderPackageDetailPage(
     const companyLabel =
       service.empresa || service.company || service.assignedTo?.companyName || service.assignedTo?.companyId || null;
     const snapshot = buildServiceProgressSnapshot(service, referenceDate);
+    const lastUpdateMs = resolveServiceLastUpdateMs(service);
     if (serviceDetails[service.id]) {
       if (!serviceDetails[service.id].companyLabel && companyLabel) {
         serviceDetails[service.id] = {
@@ -617,6 +642,7 @@ async function renderPackageDetailPage(
           deltaPercent: serviceDetails[service.id].deltaPercent ?? snapshot.deltaPercent,
           startDateMs: serviceDetails[service.id].startDateMs ?? snapshot.startDateMs,
           endDateMs: serviceDetails[service.id].endDateMs ?? snapshot.endDateMs,
+          lastUpdateMs: serviceDetails[service.id].lastUpdateMs ?? lastUpdateMs,
         };
       }
       return;
@@ -634,6 +660,7 @@ async function renderPackageDetailPage(
       startDateMs: snapshot.startDateMs,
       endDateMs: snapshot.endDateMs,
       isOpen: statusLabel === "Aberto" || statusLabel === "Pendente",
+      lastUpdateMs,
     };
   });
 
@@ -760,6 +787,7 @@ async function renderPackageDetailPage(
               description="Planejado versus realizado considerando todos os serviços do pacote."
               headerAside={<span className="font-medium text-foreground">{realizedHeaderLabel}</span>}
               chartHeight={360}
+              chartMargin={{ left: 28, right: 12, top: 16, bottom: 12 }}
               metrics={curveMetrics}
               deferRendering
               fallback={
