@@ -43,6 +43,7 @@ export type SCurveProps = {
   headerAside?: ReactNode;
   className?: string;
   chartHeight?: number;
+  chartMargin?: { left?: number; right?: number; top?: number; bottom?: number };
   deferRendering?: boolean;
   metrics?: SCurveMetrics;
 };
@@ -247,6 +248,13 @@ export default function SCurve({
   const resolvedDescription =
     description ?? "Comparativo entre o avanço planejado e o realizado ao longo do tempo.";
   const resolvedChartHeight = chartHeight && Number.isFinite(chartHeight) && chartHeight > 0 ? chartHeight : 288;
+  const resolvedChartMargin = {
+    left: 44,
+    right: 16,
+    top: 16,
+    bottom: 12,
+    ...chartMargin,
+  } satisfies { left: number; right: number; top: number; bottom: number };
 
   return (
     <div className={cn("card space-y-4 p-4", className)}>
@@ -273,7 +281,7 @@ export default function SCurve({
         isClientReady ? (
           <div className={cn("w-full scurve-container")} style={{ height: resolvedChartHeight }}>
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={chartData} margin={{ left: 44, right: 16, top: 16, bottom: 12 }}>
+              <LineChart data={chartData} margin={resolvedChartMargin}>
                 <CartesianGrid stroke="transparent" vertical={false} horizontal={false} />
                 <XAxis dataKey="dateLabel" stroke="hsl(var(--muted-foreground))" tick={{ fontSize: 12 }} />
                 <YAxis

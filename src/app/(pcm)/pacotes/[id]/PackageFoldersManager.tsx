@@ -33,6 +33,7 @@ export type ServiceInfo = {
   status: string;
   companyLabel?: string;
   isOpen: boolean;
+  lastUpdateMs?: number | null;
 };
 
 const MAX_VISIBLE_SERVICES = 5;

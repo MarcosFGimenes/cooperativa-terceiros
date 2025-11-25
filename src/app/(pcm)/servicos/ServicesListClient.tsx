@@ -8,6 +8,7 @@ import {
   resolveServicoPercentualPlanejado,
   resolveServicoRealPercent,
 } from "@/lib/serviceProgress";
+import { formatDateTime } from "@/lib/formatDateTime";
 import ReferenceDateSelector from "@/components/ReferenceDateSelector";
 import { formatReferenceLabel, resolveReferenceDate } from "@/lib/referenceDate";
 import type { PCMListResponse, PCMServiceListItem } from "@/types/pcm";
@@ -119,6 +120,11 @@ export default function ServicesListClient({ initialItems, initialCursor }: Prop
           const identifier = resolveIdentifier(service);
           const subtitle = resolveSubtitle(service);
           const companyLabel = resolveCompanyLabel(service);
+          const lastUpdate = service.updatedAt ?? service.createdAt ?? null;
+          const lastUpdateLabel =
+            typeof lastUpdate === "number"
+              ? formatDateTime(lastUpdate, { timeZone: "America/Sao_Paulo", fallback: "" })
+              : "";
 
           return (
             <Link
@@ -127,17 +133,24 @@ export default function ServicesListClient({ initialItems, initialCursor }: Prop
               href={serviceHref}
             >
               <div className="space-y-3">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className={`rounded-full border px-2 py-0.5 text-xs font-semibold ${statusTone}`}>
-                    {statusLabel}
-                  </span>
-                  <span
-                    className={`rounded-full border border-transparent px-2 py-0.5 text-xs ${
-                      isComplete ? "bg-emerald-100 text-emerald-700" : "bg-muted/60 text-muted-foreground"
-                    }`}
-                  >
-                    {realPercent}% concluído (em {referenceLabel})
-                  </span>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className={`rounded-full border px-2 py-0.5 text-xs font-semibold ${statusTone}`}>
+                      {statusLabel}
+                    </span>
+                    <span
+                      className={`rounded-full border border-transparent px-2 py-0.5 text-xs ${
+                        isComplete ? "bg-emerald-100 text-emerald-700" : "bg-muted/60 text-muted-foreground"
+                      }`}
+                    >
+                      {realPercent}% concluído (em {referenceLabel})
+                    </span>
+                  </div>
+                  {lastUpdateLabel ? (
+                    <span className="whitespace-nowrap text-[11px] font-medium text-muted-foreground">
+                      Atualizado em {lastUpdateLabel}
+                    </span>
+                  ) : null}
                 </div>
                 <div className="space-y-1">
                   <p className="line-clamp-2 text-base font-semibold text-foreground">{identifier}</p>
