@@ -17,6 +17,13 @@ const SERVICE_CACHE_TTL_SECONDS = 180;
 const SERVICE_LIST_CACHE_TTL_SECONDS = 300;
 const DEFAULT_AVAILABLE_SERVICES_LIMIT = 200;
 
+export type ServiceStatusCounts = {
+  total: number;
+  aberto: number;
+  pendente: number;
+  concluido: number;
+};
+
 type ChecklistSeed = { id: string; descricao: string; peso: number };
 
 type CreateServicePayload = {
@@ -590,6 +597,40 @@ export async function listRecentServices(): Promise<Service[]> {
   return services.sort((a, b) => (b.updatedAt ?? b.createdAt ?? 0) - (a.updatedAt ?? a.createdAt ?? 0));
 }
 
+export async function countServicesByStatus(): Promise<ServiceStatusCounts> {
+  const counts: ServiceStatusCounts = { total: 0, aberto: 0, pendente: 0, concluido: 0 };
+
+  let snap: FirebaseFirestore.QuerySnapshot | null = null;
+  try {
+    snap = await servicesCollection().select("status").get();
+  } catch (error) {
+    if (isMissingAdminError(error)) {
+      console.warn(
+        "[services:countServicesByStatus] Firebase Admin não está configurado. Retornando contagem zerada.",
+        error,
+      );
+      return counts;
+    }
+    console.warn(
+      "[services:countServicesByStatus] Falha ao acessar o Firestore. Retornando contagem zerada.",
+      error,
+    );
+    return counts;
+  }
+
+  if (!snap) return counts;
+
+  snap.docs.forEach((doc) => {
+    counts.total += 1;
+    const status = normaliseServiceStatus((doc.data() ?? {}).status);
+    if (status === "Concluído") counts.concluido += 1;
+    else if (status === "Pendente") counts.pendente += 1;
+    else counts.aberto += 1;
+  });
+
+  return counts;
+}
+
 function isMissingAdminError(error: unknown) {
   if (error instanceof Error) {
     if (error.message === "FIREBASE_ADMIN_NOT_CONFIGURED") {
@@ -919,6 +960,92 @@ function mapUpdateDoc(
         : undefined,
     audit: mapAudit((data as Record<string, unknown>).audit),
     createdAt: toMillis((data as Record<string, unknown>).createdAt) ?? 0,
+  };
+}
+
+function buildChecklistWeights(checklist: ChecklistItem[]): Map<string, number> {
+  const weights = new Map<string, number>();
+  checklist.forEach((item) => {
+    const id = String(item.id ?? "").trim();
+    if (!id) return;
+    const weight = typeof item.weight === "number" && Number.isFinite(item.weight) ? item.weight : 0;
+    weights.set(id, weight);
+  });
+  return weights;
+}
+
+function computeThirdPartyPercent(
+  record: Record<string, unknown>,
+  weights: Map<string, number>,
+): { percent: number; totalPct?: number | null; items?: Array<{ itemId: string; pct: number }> } {
+  const totalPct = toNumber(record.totalPct ?? record.totalPercent ?? record.andamento);
+  const itemsRaw = Array.isArray(record.items) ? record.items : [];
+  const items = itemsRaw
+    .map((item) => {
+      if (!item || typeof item !== "object") return null;
+      const itemId = String((item as Record<string, unknown>).itemId ?? (item as Record<string, unknown>).id ?? "").trim();
+      const pct = toNumber((item as Record<string, unknown>).pct);
+      if (!itemId || !Number.isFinite(pct ?? NaN)) return null;
+      return { itemId, pct: Number(pct) };
+    })
+    .filter(Boolean) as Array<{ itemId: string; pct: number }>;
+
+  const weighted = (() => {
+    if (!items.length) return null;
+    if (weights.size === 0) {
+      const valid = items.map((item) => item.pct).filter((value) => Number.isFinite(value));
+      if (!valid.length) return null;
+      return valid.reduce((acc, value) => acc + value, 0) / valid.length;
+    }
+
+    let sum = 0;
+    let total = 0;
+    items.forEach((item) => {
+      const weight = weights.get(item.itemId);
+      if (!Number.isFinite(weight ?? NaN) || !weight) return;
+      sum += weight * item.pct;
+      total += weight;
+    });
+    if (!total) return null;
+    return sum / total;
+  })();
+
+  const percentCandidate = Number.isFinite(totalPct ?? NaN) ? Number(totalPct) : null;
+  const percent = Math.max(0, Math.min(100, weighted ?? percentCandidate ?? 0));
+
+  return {
+    percent,
+    totalPct: Number.isFinite(totalPct ?? NaN) ? Number(totalPct) : null,
+    items: items.length ? items : undefined,
+  };
+}
+
+function mapThirdPartyUpdateDoc(
+  doc: FirebaseFirestore.QueryDocumentSnapshot,
+  weights: Map<string, number>,
+): ServiceUpdate & { totalPct?: number | null; items?: Array<{ itemId: string; pct: number }> } {
+  const data = (doc.data() ?? {}) as Record<string, unknown>;
+  const percentData = computeThirdPartyPercent(data, weights);
+  const createdAt = toNumber(data.date ?? data.createdAt) ?? 0;
+  const description = (() => {
+    const raw = data.note ?? data.description;
+    if (typeof raw === "string") {
+      const trimmed = raw.trim();
+      return trimmed.length ? trimmed : "";
+    }
+    return "";
+  })();
+
+  return {
+    id: doc.id,
+    serviceId: doc.ref.parent.parent?.id,
+    percent: percentData.percent,
+    realPercentSnapshot: percentData.percent,
+    manualPercent: percentData.totalPct ?? undefined,
+    description,
+    createdAt,
+    totalPct: percentData.totalPct,
+    items: percentData.items,
   };
 }
 
@@ -1428,6 +1555,22 @@ export async function listUpdates(
 
   const updates = await serviceUpdatesCache(trimmedId, safeLimit);
   return updates ?? [];
+}
+
+export async function listThirdPartyUpdates(
+  serviceId: string,
+  checklist: ChecklistItem[],
+  limit = 120,
+): Promise<ServiceUpdate[]> {
+  const trimmedId = typeof serviceId === "string" ? serviceId.trim() : "";
+  if (!trimmedId) return [];
+
+  const safeLimit = Number.isFinite(limit) && limit > 0 ? Math.min(Math.floor(limit), 200) : 120;
+  const weights = buildChecklistWeights(checklist);
+  const col = servicesCollection().doc(trimmedId).collection("serviceUpdates");
+  const snap = await col.orderBy("date", "desc").limit(safeLimit).get();
+
+  return snap.docs.map((doc) => mapThirdPartyUpdateDoc(doc, weights));
 }
 
 export async function listServices(filter?: {

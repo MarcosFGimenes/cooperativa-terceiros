@@ -18,6 +18,7 @@ import {
   getService,
   getServiceById,
   listUpdates,
+  listThirdPartyUpdates,
 } from "@/lib/repo/services";
 
 export default async function ServiceDetailPage({ params }: { params: { id: string } }) {
@@ -61,12 +62,15 @@ export default async function ServiceDetailPage({ params }: { params: { id: stri
     }),
   ]);
 
+  const thirdPartyUpdates = await listThirdPartyUpdates(resolvedServiceId, rawChecklist).catch(() => []);
+
   const checklist = baseService.checklist?.length
     ? toNewChecklist(baseService.checklist)
     : toNewChecklist(rawChecklist);
   const updates = baseService.updates?.length
     ? toNewUpdates(baseService.updates)
     : toNewUpdates(rawUpdates);
+  const combinedUpdates = toNewUpdates([...updates, ...thirdPartyUpdates]);
 
   const totalHours = Number.isFinite(baseService.totalHours)
     ? Number(baseService.totalHours)
@@ -81,11 +85,11 @@ export default async function ServiceDetailPage({ params }: { params: { id: stri
   const realizedPercent = deriveRealizedPercent(
     composeServiceRealtimeData(baseService, legacyService ?? undefined),
     checklist,
-    updates,
+    combinedUpdates,
   );
 
   const realizedSeries = buildRealizedSeries({
-    updates,
+    updates: combinedUpdates,
     planned,
     realizedPercent,
     plannedStart: baseService.plannedStart || legacyService?.plannedStart,
@@ -105,6 +109,7 @@ export default async function ServiceDetailPage({ params }: { params: { id: stri
       initialPlanned={planned}
       initialRealizedSeries={realizedSeries}
       initialRealizedPercent={realizedPercent}
+      initialThirdPartyUpdates={thirdPartyUpdates}
       latestToken={latestToken ? { code: latestToken.code, company: latestToken.company ?? null } : null}
       tokenLink={tokenLink}
     />
