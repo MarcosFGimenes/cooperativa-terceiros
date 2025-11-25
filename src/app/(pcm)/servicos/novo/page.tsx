@@ -13,13 +13,13 @@ type ChecklistDraft = Array<{ id: string; descricao: string; peso: number | "" }
 
 const STATUS_OPTIONS = ["Aberto", "Pendente", "Concluído"] as const;
 
-const newChecklistItem = (): ChecklistDraft[number] => ({
+const newChecklistItem = (descricao = "", peso: number | "" = ""): ChecklistDraft[number] => ({
   id:
     typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
       ? crypto.randomUUID()
       : Math.random().toString(36).slice(2, 11),
-  descricao: "",
-  peso: "",
+  descricao,
+  peso,
 });
 
 export default function NovoServico() {
@@ -37,8 +37,8 @@ export default function NovoServico() {
     empresaId: "",
     status: "Aberto" as (typeof STATUS_OPTIONS)[number],
   });
-  const [withChecklist, setWithChecklist] = useState(false);
-  const [checklist, setChecklist] = useState<ChecklistDraft>([]);
+  const [withChecklist, setWithChecklist] = useState(true);
+  const [checklist, setChecklist] = useState<ChecklistDraft>(() => [newChecklistItem("GERAL", 100)]);
   const [saving, setSaving] = useState(false);
   const { ready: isAuthReady, issue: authIssue } = useFirebaseAuthSession();
 
@@ -66,6 +66,13 @@ export default function NovoServico() {
 
   function addChecklistItem() {
     setChecklist((prev) => [...prev, newChecklistItem()]);
+  }
+
+  function toggleChecklist(enabled: boolean) {
+    setWithChecklist(enabled);
+    if (enabled && checklist.length === 0) {
+      setChecklist([newChecklistItem("GERAL", 100)]);
+    }
   }
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
@@ -303,7 +310,7 @@ export default function NovoServico() {
             <input
               type="checkbox"
               checked={withChecklist}
-              onChange={(event) => setWithChecklist(event.target.checked)}
+              onChange={(event) => toggleChecklist(event.target.checked)}
               className="h-4 w-4 rounded border-border"
             />
             Definir checklist agora?

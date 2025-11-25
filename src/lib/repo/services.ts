@@ -922,6 +922,92 @@ function mapUpdateDoc(
   };
 }
 
+function buildChecklistWeights(checklist: ChecklistItem[]): Map<string, number> {
+  const weights = new Map<string, number>();
+  checklist.forEach((item) => {
+    const id = String(item.id ?? "").trim();
+    if (!id) return;
+    const weight = typeof item.weight === "number" && Number.isFinite(item.weight) ? item.weight : 0;
+    weights.set(id, weight);
+  });
+  return weights;
+}
+
+function computeThirdPartyPercent(
+  record: Record<string, unknown>,
+  weights: Map<string, number>,
+): { percent: number; totalPct?: number | null; items?: Array<{ itemId: string; pct: number }> } {
+  const totalPct = toNumber(record.totalPct ?? record.totalPercent ?? record.andamento);
+  const itemsRaw = Array.isArray(record.items) ? record.items : [];
+  const items = itemsRaw
+    .map((item) => {
+      if (!item || typeof item !== "object") return null;
+      const itemId = String((item as Record<string, unknown>).itemId ?? (item as Record<string, unknown>).id ?? "").trim();
+      const pct = toNumber((item as Record<string, unknown>).pct);
+      if (!itemId || !Number.isFinite(pct ?? NaN)) return null;
+      return { itemId, pct: Number(pct) };
+    })
+    .filter(Boolean) as Array<{ itemId: string; pct: number }>;
+
+  const weighted = (() => {
+    if (!items.length) return null;
+    if (weights.size === 0) {
+      const valid = items.map((item) => item.pct).filter((value) => Number.isFinite(value));
+      if (!valid.length) return null;
+      return valid.reduce((acc, value) => acc + value, 0) / valid.length;
+    }
+
+    let sum = 0;
+    let total = 0;
+    items.forEach((item) => {
+      const weight = weights.get(item.itemId);
+      if (!Number.isFinite(weight ?? NaN) || !weight) return;
+      sum += weight * item.pct;
+      total += weight;
+    });
+    if (!total) return null;
+    return sum / total;
+  })();
+
+  const percentCandidate = Number.isFinite(totalPct ?? NaN) ? Number(totalPct) : null;
+  const percent = Math.max(0, Math.min(100, weighted ?? percentCandidate ?? 0));
+
+  return {
+    percent,
+    totalPct: Number.isFinite(totalPct ?? NaN) ? Number(totalPct) : null,
+    items: items.length ? items : undefined,
+  };
+}
+
+function mapThirdPartyUpdateDoc(
+  doc: FirebaseFirestore.QueryDocumentSnapshot,
+  weights: Map<string, number>,
+): ServiceUpdate & { totalPct?: number | null; items?: Array<{ itemId: string; pct: number }> } {
+  const data = (doc.data() ?? {}) as Record<string, unknown>;
+  const percentData = computeThirdPartyPercent(data, weights);
+  const createdAt = toNumber(data.date ?? data.createdAt) ?? 0;
+  const description = (() => {
+    const raw = data.note ?? data.description;
+    if (typeof raw === "string") {
+      const trimmed = raw.trim();
+      return trimmed.length ? trimmed : "";
+    }
+    return "";
+  })();
+
+  return {
+    id: doc.id,
+    serviceId: doc.ref.parent.parent?.id,
+    percent: percentData.percent,
+    realPercentSnapshot: percentData.percent,
+    manualPercent: percentData.totalPct ?? undefined,
+    description,
+    createdAt,
+    totalPct: percentData.totalPct,
+    items: percentData.items,
+  };
+}
+
 export async function getService(serviceId: string): Promise<Service | null> {
   const trimmedId = typeof serviceId === "string" ? serviceId.trim() : "";
   if (!trimmedId) return null;
@@ -1428,6 +1514,22 @@ export async function listUpdates(
 
   const updates = await serviceUpdatesCache(trimmedId, safeLimit);
   return updates ?? [];
+}
+
+export async function listThirdPartyUpdates(
+  serviceId: string,
+  checklist: ChecklistItem[],
+  limit = 120,
+): Promise<ServiceUpdate[]> {
+  const trimmedId = typeof serviceId === "string" ? serviceId.trim() : "";
+  if (!trimmedId) return [];
+
+  const safeLimit = Number.isFinite(limit) && limit > 0 ? Math.min(Math.floor(limit), 200) : 120;
+  const weights = buildChecklistWeights(checklist);
+  const col = servicesCollection().doc(trimmedId).collection("serviceUpdates");
+  const snap = await col.orderBy("date", "desc").limit(safeLimit).get();
+
+  return snap.docs.map((doc) => mapThirdPartyUpdateDoc(doc, weights));
 }
 
 export async function listServices(filter?: {
