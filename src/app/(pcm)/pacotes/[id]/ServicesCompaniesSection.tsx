@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-import { formatDate } from "@/lib/formatDateTime";
+import { formatDate, formatDateTime } from "@/lib/formatDateTime";
 import { cn } from "@/lib/utils";
 
 export type FolderDisplay = {
@@ -26,6 +26,7 @@ export type ServiceDetail = {
   deltaPercent?: number | null;
   startDateMs?: number | null;
   endDateMs?: number | null;
+  lastUpdateMs?: number | null;
 };
 
 export type ServiceDetailsMap = Record<string, ServiceDetail | undefined>;
@@ -58,6 +59,11 @@ export default function ServicesCompaniesSection({
   const formatDateLabel = (value?: number | null) => {
     if (typeof value !== "number" || !Number.isFinite(value)) return "-";
     return formatDate(value, { timeZone: "America/Sao_Paulo", fallback: "-" }) || "-";
+  };
+
+  const formatDateTimeLabel = (value?: number | null) => {
+    if (typeof value !== "number" || !Number.isFinite(value)) return "-";
+    return formatDateTime(value, { timeZone: "America/Sao_Paulo", fallback: "-" }) || "-";
   };
 
   const formatDeltaLabel = (value?: number | null) => {
@@ -142,15 +148,15 @@ export default function ServicesCompaniesSection({
                       <p className="truncate text-xs text-muted-foreground">
                         Empresa: {folder.companyId ? folder.companyId : "-"}
                       </p>
-                      <p className="truncate text-xs text-slate-700">
-                        Planejado hoje: <span className="font-semibold text-slate-900">{plannedLabel}</span>
+                      <p className="truncate text-xs text-muted-foreground">
+                        Planejado hoje: <span className="font-semibold text-foreground">{plannedLabel}</span>
                       </p>
-                      <p className="truncate text-xs text-slate-700">
-                        Realizado: <span className="font-semibold text-slate-900">{realizedLabel}</span>
+                      <p className="truncate text-xs text-muted-foreground">
+                        Realizado: <span className="font-semibold text-foreground">{realizedLabel}</span>
                       </p>
-                      <p className="truncate text-xs text-slate-700">
-                        Cronograma: <span className="font-semibold text-slate-900">{startLabel}</span> —{' '}
-                        <span className="font-semibold text-slate-900">{endLabel}</span>
+                      <p className="truncate text-xs text-muted-foreground">
+                        Cronograma: <span className="font-semibold text-foreground">{startLabel}</span> —{' '}
+                        <span className="font-semibold text-foreground">{endLabel}</span>
                       </p>
                     </div>
                     <span className="rounded-full border border-border bg-muted px-2 py-0.5 text-xs font-medium text-foreground print:border-slate-300 print:bg-slate-200 print:text-slate-800">
@@ -168,13 +174,20 @@ export default function ServicesCompaniesSection({
                               key={detail.id}
                               className="service-card service-entry rounded-lg border border-border/70 bg-card text-foreground shadow-sm print:border-slate-200 print:bg-white print:text-slate-900 print:shadow-none"
                             >
-                              <div className="service-title flex items-center justify-between gap-2 rounded-t bg-muted/70 px-3 py-2 text-foreground print:bg-slate-100 print:text-slate-900">
+                              <div className="service-title flex flex-wrap items-center justify-between gap-2 rounded-t bg-muted/70 px-3 py-2 text-foreground print:bg-slate-100 print:text-slate-900">
                                 <p className="font-semibold">{detail.label || detail.id}</p>
-                                {detail.status ? (
-                                  <span className="text-[11px] font-semibold uppercase tracking-wide text-foreground print:text-slate-800">
-                                    {detail.status}
-                                  </span>
-                                ) : null}
+                                <div className="flex flex-wrap items-center gap-2">
+                                  {detail.status ? (
+                                    <span className="text-[11px] font-semibold uppercase tracking-wide text-foreground print:text-slate-800">
+                                      {detail.status}
+                                    </span>
+                                  ) : null}
+                                  {detail.lastUpdateMs ? (
+                                    <span className="whitespace-nowrap text-[11px] font-medium text-muted-foreground print:text-slate-700">
+                                      Atualizado em {formatDateTimeLabel(detail.lastUpdateMs)}
+                                    </span>
+                                  ) : null}
+                                </div>
                               </div>
                               <div className="service-content space-y-1 px-3 py-2 text-xs text-muted-foreground print:text-slate-800">
                                 <p>

@@ -242,6 +242,13 @@ input:-webkit-autofill:focus {
 
   .package-print-layout .scurve-card {
     margin-top: 10px !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+  }
+
+  .package-print-layout .scurve-card .scurve-container {
+    margin-left: 0 !important;
+    width: 100% !important;
   }
 
   .scurve-container {
