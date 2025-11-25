@@ -147,9 +147,10 @@ export default function SCurve({
   headerAside,
   className,
   chartHeight,
+  chartMargin,
   deferRendering = false,
   metrics,
-}: Props) {
+}: SCurveProps) {
   const chartData = useMemo<ChartEntry[]>(() => {
     const map = new Map<string, ChartEntry>();
 
