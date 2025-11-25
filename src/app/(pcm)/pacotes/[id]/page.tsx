@@ -787,6 +787,7 @@ async function renderPackageDetailPage(
               description="Planejado versus realizado considerando todos os serviços do pacote."
               headerAside={<span className="font-medium text-foreground">{realizedHeaderLabel}</span>}
               chartHeight={360}
+              chartMargin={{ left: 28, right: 12, top: 16, bottom: 12 }}
               metrics={curveMetrics}
               deferRendering
               fallback={
