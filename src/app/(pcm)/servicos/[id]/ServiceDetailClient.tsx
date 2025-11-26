@@ -115,6 +115,7 @@ export default function ServiceDetailClient({
   const { ready: isAuthReady, issue: authIssue, user } = useFirebaseAuthSession();
   const latestIdTokenRef = useRef<string | null>(null);
   const retryTimeoutRef = useRef<number | null>(null);
+  const retryCountRef = useRef(0);
   const [shouldListenToSecondaryRealtime, setShouldListenToSecondaryRealtime] = useState(false);
 
   useEffect(() => {
@@ -176,6 +177,13 @@ export default function ServiceDetailClient({
     const scheduleReconnect = (reason: string) => {
       if (cancelled) return;
       if (retryTimeoutRef.current !== null) return;
+      if (retryCountRef.current >= 2) {
+        console.warn(
+          `[service-detail] Limite de tentativas de reconexão atingido para ${serviceId} (motivo: ${reason}).`,
+        );
+        return;
+      }
+      retryCountRef.current += 1;
       const delayMs = 4000;
       console.info(
         `[service-detail] Tentando reconectar ao Firestore em ${delayMs}ms (motivo: ${reason}).`,
@@ -261,6 +269,11 @@ export default function ServiceDetailClient({
     async function bootstrapRealtime(isRetry = false) {
       if (!isAuthReady || !user) {
         setConnectionIssue(null);
+        return;
+      }
+
+      if (typeof navigator !== "undefined" && navigator.onLine === false) {
+        setConnectionIssue("Sem conexão com a internet. Aguardando restabelecimento para sincronizar.");
         return;
       }
 
@@ -351,6 +364,7 @@ export default function ServiceDetailClient({
             const mapped = mapServiceSnapshot(snapshot);
             setService((current) => mergeServiceRealtime(current, mapped));
             setConnectionIssue(null);
+            retryCountRef.current = 0;
             if (retryTimeoutRef.current !== null) {
               clearTimeout(retryTimeoutRef.current);
               retryTimeoutRef.current = null;
@@ -369,6 +383,7 @@ export default function ServiceDetailClient({
               const mapped = snapshot.docs.map((docSnap) => mapUpdateSnapshot(docSnap));
               setUpdates(toNewUpdates(mapped));
               setConnectionIssue(null);
+              retryCountRef.current = 0;
               if (retryTimeoutRef.current !== null) {
                 clearTimeout(retryTimeoutRef.current);
                 retryTimeoutRef.current = null;
@@ -386,6 +401,7 @@ export default function ServiceDetailClient({
               const mapped = snapshot.docs.map((docSnap) => mapChecklistSnapshot(docSnap));
               setChecklist(toNewChecklist(mapped));
               setConnectionIssue(null);
+              retryCountRef.current = 0;
               if (retryTimeoutRef.current !== null) {
                 clearTimeout(retryTimeoutRef.current);
                 retryTimeoutRef.current = null;
@@ -667,6 +683,35 @@ export default function ServiceDetailClient({
             </div>
           </dl>
         </div>
+        <div className="card p-4 print-avoid-break">
+          <div className="flex flex-col gap-1">
+            <h2 className="text-lg font-semibold">Checklists Recentes</h2>
+            <span className="text-xs text-muted-foreground">Serviço {serviceLabel}</span>
+          </div>
+          {recentChecklist.length === 0 ? (
+            <p className="mt-2 text-sm text-muted-foreground">Nenhum checklist cadastrado.</p>
+          ) : (
+            <ul className="mt-3 space-y-2 text-sm">
+              {recentChecklist.map((item) => (
+                <li key={item.id} className="space-y-2 rounded-lg border p-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="font-medium">{item.description}</span>
+                    <span className="text-xs text-muted-foreground">{formatDateTime(item.updatedAt)}</span>
+                  </div>
+                  <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+                    <span>
+                      Status: {item.status === "em-andamento" ? "Em andamento" : item.status === "concluido" ? "Concluído" : "Não iniciado"}
+                    </span>
+                    <span className="text-sm font-semibold text-primary">{Math.round(item.progress)}%</span>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2 print-page-break-before">
         <div className="print-avoid-break">
           <SCurveDeferred
             planned={planned}
@@ -697,46 +742,25 @@ export default function ServiceDetailClient({
             }
           />
         </div>
-      </div>
-
-      <div className="grid gap-4 lg:grid-cols-2 print-page-break-before">
-        <div className="card p-4 print-avoid-break">
-          <div className="flex flex-col gap-1">
-            <h2 className="text-lg font-semibold">Checklists Recentes</h2>
-            <span className="text-xs text-muted-foreground">Serviço {serviceLabel}</span>
-          </div>
-          {recentChecklist.length === 0 ? (
-            <p className="mt-2 text-sm text-muted-foreground">Nenhum checklist cadastrado.</p>
-          ) : (
-            <ul className="mt-3 space-y-2 text-sm">
-              {recentChecklist.map((item) => (
-                <li key={item.id} className="space-y-2 rounded-lg border p-3">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <span className="font-medium">{item.description}</span>
-                    <span className="text-xs text-muted-foreground">{formatDateTime(item.updatedAt)}</span>
-                  </div>
-                  <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
-                    <span>
-                      Status: {item.status === "em-andamento" ? "Em andamento" : item.status === "concluido" ? "Concluído" : "Não iniciado"}
-                    </span>
-                    <span className="text-sm font-semibold text-primary">{Math.round(item.progress)}%</span>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
 
         <div className="card space-y-2 p-4 print-avoid-break">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h2 className="text-lg font-semibold">Atualizações recentes</h2>
-            <Link
-              href={`/servicos/${encodeURIComponent(serviceId)}/editar`}
-              className="btn btn-outline btn-xs gap-2 sm:btn-sm"
-            >
-              <Pencil className="h-4 w-4" />
-              Editar lançamentos
-            </Link>
+            <div className="flex items-center gap-2">
+              <Link
+                href={`/servicos/${encodeURIComponent(serviceId)}/atualizacoes`}
+                className="btn btn-ghost btn-xs sm:btn-sm"
+              >
+                Ver todas
+              </Link>
+              <Link
+                href={`/servicos/${encodeURIComponent(serviceId)}/editar`}
+                className="btn btn-outline btn-xs gap-2 sm:btn-sm"
+              >
+                <Pencil className="h-4 w-4" />
+                Editar lançamentos
+              </Link>
+            </div>
           </div>
           {displayedUpdates.length === 0 ? (
             <p className="mt-2 text-sm text-muted-foreground">Nenhuma atualização registrada.</p>
@@ -751,7 +775,6 @@ export default function ServiceDetailClient({
                       <span className="text-base font-semibold text-foreground">{summary.title}</span>
                       <span className="text-sm font-semibold text-primary">{summary.percentLabel}</span>
                     </div>
-                    <p className="text-xs text-muted-foreground">Atualizado em {formatDateTime(update.createdAt)}</p>
                     {update.subactivity?.label ? (
                       <p className="text-xs text-muted-foreground">
                         Subatividade: <span className="font-medium text-foreground">{update.subactivity.label}</span>

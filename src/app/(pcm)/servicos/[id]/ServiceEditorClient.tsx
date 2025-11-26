@@ -29,9 +29,11 @@ type PackageOption = { id: string; nome: string };
 type UpdateHistoryItem = {
   id: string;
   date: Date | null;
+  reportDate?: Date | null;
   note?: string;
   totalPct?: number;
   items?: Array<{ itemId: string; pct: number }>;
+  source: "updates" | "serviceUpdates";
 };
 
 function toDateTimeLocalInput(value: Date | null): string {
@@ -154,6 +156,7 @@ export default function ServiceEditorClient({ serviceId }: ServiceEditorClientPr
   const [updatesLoading, setUpdatesLoading] = useState(false);
   const [updates, setUpdates] = useState<UpdateHistoryItem[]>([]);
   const [editingUpdateId, setEditingUpdateId] = useState<string | null>(null);
+  const [editingUpdateSource, setEditingUpdateSource] = useState<UpdateHistoryItem["source"] | null>(null);
   const [editDateValue, setEditDateValue] = useState("");
   const [editPercentValue, setEditPercentValue] = useState("");
   const [savingUpdateEdit, setSavingUpdateEdit] = useState(false);
@@ -184,24 +187,63 @@ export default function ServiceEditorClient({ serviceId }: ServiceEditorClientPr
       setUpdatesLoading(true);
       try {
         const ref = doc(firestore, "services", serviceId);
-        const updatesRef = collection(ref, "serviceUpdates");
-        const snap = await getDocs(query(updatesRef, orderBy("date", "desc"), limit(25)));
-        const mapped: UpdateHistoryItem[] = snap.docs.map((docSnap) => {
-          const data = docSnap.data() ?? {};
-          let date: Date | null = null;
-          if (data.date instanceof Timestamp) {
-            date = data.date.toDate();
-          } else if (data.date && typeof data.date.toDate === "function") {
-            date = data.date.toDate();
+        const parseDate = (value: unknown): Date | null => {
+          if (value instanceof Timestamp) return value.toDate();
+          if (value && typeof (value as { toDate?: () => Date }).toDate === "function") {
+            return (value as { toDate: () => Date }).toDate();
           }
+          if (typeof value === "number" && Number.isFinite(value)) {
+            const parsed = new Date(value);
+            return Number.isNaN(parsed.getTime()) ? null : parsed;
+          }
+          if (typeof value === "string" && value.trim()) {
+            const parsed = new Date(value);
+            return Number.isNaN(parsed.getTime()) ? null : parsed;
+          }
+          return null;
+        };
+
+        const mapUpdate = (
+          docSnap: Awaited<ReturnType<typeof getDocs>>["docs"][number],
+          source: UpdateHistoryItem["source"],
+        ): UpdateHistoryItem => {
+          const data = docSnap.data() ?? {};
+          const reportDateSource = data.reportDate ?? data.date ?? data.createdAt;
+          const fallbackDate = docSnap.metadata.hasPendingWrites ? null : docSnap.createTime;
+          const date = parseDate(reportDateSource ?? fallbackDate);
+
+          const rawPercent =
+            typeof data.realPercentSnapshot === "number"
+              ? data.realPercentSnapshot
+              : typeof data.manualPercent === "number"
+                ? data.manualPercent
+                : typeof data.percent === "number"
+                  ? data.percent
+                  : typeof data.totalPct === "number"
+                    ? data.totalPct
+                    : undefined;
+
           return {
             id: docSnap.id,
             date,
-            note: data.note ?? undefined,
-            totalPct: typeof data.totalPct === "number" ? data.totalPct : undefined,
+            reportDate: date,
+            note: typeof data.note === "string" ? data.note : typeof data.description === "string" ? data.description : undefined,
+            totalPct: typeof rawPercent === "number" ? rawPercent : undefined,
             items: Array.isArray(data.items) ? data.items : undefined,
+            source,
           };
-        });
+        };
+
+        const [newUpdatesSnap, legacyUpdatesSnap] = await Promise.all([
+          getDocs(query(collection(ref, "updates"), orderBy("createdAt", "desc"), limit(50))),
+          getDocs(query(collection(ref, "serviceUpdates"), orderBy("date", "desc"), limit(50))),
+        ]);
+
+        const mapped: UpdateHistoryItem[] = [
+          ...newUpdatesSnap.docs.map((docSnap) => mapUpdate(docSnap, "updates")),
+          ...legacyUpdatesSnap.docs.map((docSnap) => mapUpdate(docSnap, "serviceUpdates")),
+        ].sort((a, b) => (b.date?.getTime() ?? 0) - (a.date?.getTime() ?? 0));
+
         if (!cancelledRef?.current) setUpdates(mapped);
       } catch (error) {
         console.error("[servicos/:id] Falha ao carregar histórico", error);
@@ -298,6 +340,7 @@ export default function ServiceEditorClient({ serviceId }: ServiceEditorClientPr
 
   const startEditingUpdate = useCallback((update: UpdateHistoryItem) => {
     setEditingUpdateId(update.id);
+    setEditingUpdateSource(update.source);
     setEditDateValue(toDateTimeLocalInput(update.date));
     setEditPercentValue(
       typeof update.totalPct === "number" && Number.isFinite(update.totalPct) ? String(update.totalPct) : "",
@@ -306,13 +349,14 @@ export default function ServiceEditorClient({ serviceId }: ServiceEditorClientPr
 
   const cancelEditingUpdate = useCallback(() => {
     setEditingUpdateId(null);
+    setEditingUpdateSource(null);
     setEditDateValue("");
     setEditPercentValue("");
     setSavingUpdateEdit(false);
   }, []);
 
   const saveEditingUpdate = useCallback(async () => {
-    if (!firestore || !isAuthReady || !editingUpdateId) return;
+    if (!firestore || !isAuthReady || !editingUpdateId || !editingUpdateSource) return;
 
     const parsedDate = parseDateTimeLocal(editDateValue);
     if (!parsedDate) {
@@ -329,12 +373,28 @@ export default function ServiceEditorClient({ serviceId }: ServiceEditorClientPr
 
     setSavingUpdateEdit(true);
     try {
-      const ref = doc(firestore, "services", serviceId, "serviceUpdates", editingUpdateId);
-      await updateDoc(ref, {
-        date: Timestamp.fromDate(parsedDate),
-        totalPct: clampedPercent,
+      const baseRef = doc(firestore, "services", serviceId);
+      const collectionName = editingUpdateSource === "updates" ? "updates" : "serviceUpdates";
+      const ref = doc(baseRef, collectionName, editingUpdateId);
+
+      const payload: Record<string, unknown> = {
         updatedAt: serverTimestamp(),
-      });
+      };
+
+      if (editingUpdateSource === "updates") {
+        payload.createdAt = Timestamp.fromDate(parsedDate);
+        payload.date = Timestamp.fromDate(parsedDate);
+        payload.reportDate = Timestamp.fromDate(parsedDate);
+        payload.realPercentSnapshot = clampedPercent;
+        payload.manualPercent = clampedPercent;
+        payload.percent = clampedPercent;
+      } else {
+        payload.date = Timestamp.fromDate(parsedDate);
+        payload.reportDate = Timestamp.fromDate(parsedDate);
+        payload.totalPct = clampedPercent;
+      }
+
+      await updateDoc(ref, payload);
       toast.success("Lançamento atualizado com sucesso.");
       await refreshUpdates();
       cancelEditingUpdate();

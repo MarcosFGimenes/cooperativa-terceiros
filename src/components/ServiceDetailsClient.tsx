@@ -124,7 +124,7 @@ function computeTimeWindowHours(update: ThirdServiceUpdate): number | null {
 }
 
 function buildThirdUpdateSummary(update: ThirdServiceUpdate) {
-  const title = formatDateLabel(update.timeWindow?.start ?? update.createdAt ?? null);
+  const title = formatDateLabel(update.reportDate ?? update.timeWindow?.start ?? update.createdAt ?? null);
   const percentLabel = `${Math.round(update.percent)}%`;
   const description = update.description ? `Descrição do dia: ${update.description}` : null;
   const hours = computeTimeWindowHours(update);
@@ -313,6 +313,10 @@ function toThirdUpdate(update: unknown): ThirdServiceUpdate {
 
   const previousPercent = toNullableNumber(record.previousPercent);
 
+  const reportDate = toTimestampMs(record.reportDate ?? record.timeWindow?.start ?? record.createdAt);
+  const createdAt = toTimestampMs(record.createdAt ?? record.createdAtMillis ?? record.createdAtMs ?? undefined)
+    ?? reportDate;
+
   return {
     id: String(record.id ?? crypto.randomUUID()),
     percent: clampPercent(record.percent ?? record.realPercentSnapshot ?? record.manualPercent ?? 0),
@@ -322,7 +326,8 @@ function toThirdUpdate(update: unknown): ThirdServiceUpdate {
         : typeof record.note === "string"
           ? record.note
           : undefined,
-    createdAt: toTimestampMs(record.createdAt ?? record.createdAtMillis ?? record.createdAtMs ?? undefined),
+    reportDate,
+    createdAt,
     timeWindow,
     subactivity,
     mode: record.mode === "detailed" || record.mode === "simple" ? record.mode : undefined,
@@ -534,6 +539,15 @@ export default function ServiceDetailsClient({ service, updates: initialUpdates,
 
       const startDate = new Date(payload.start);
       const endDate = new Date(payload.end);
+      const reportDateMillis = (() => {
+        if (typeof payload.reportDate === "number" && Number.isFinite(payload.reportDate)) {
+          return payload.reportDate;
+        }
+        const fallback = new Date(`${payload.date}T12:00:00Z`);
+        if (Number.isFinite(fallback.getTime())) return fallback.getTime();
+        if (Number.isFinite(startDate.getTime())) return startDate.getTime();
+        return Date.now();
+      })();
       const durationHours = Number.isFinite(startDate.getTime()) && Number.isFinite(endDate.getTime())
         ? Math.max(0, Math.round(((endDate.getTime() - startDate.getTime()) / 3_600_000) * 100) / 100)
         : null;
@@ -551,6 +565,7 @@ export default function ServiceDetailsClient({ service, updates: initialUpdates,
         workforce: payload.workforce,
         shiftConditions: payload.shiftConditions,
         declarationAccepted: payload.declarationAccepted,
+        reportDate: reportDateMillis,
       };
 
       let errorMessage = "Não foi possível registrar a atualização.";
@@ -579,13 +594,14 @@ export default function ServiceDetailsClient({ service, updates: initialUpdates,
           const mapped = sanitiseResourceQuantities(toThirdUpdate(json.update));
           setUpdates((prev) => dedupeUpdates([mapped, ...prev]).slice(0, MAX_UPDATES));
         } else {
-          const createdAt = Date.now();
+          const createdAt = reportDateMillis || Date.now();
           setUpdates((prev) => {
             const optimistic = sanitiseResourceQuantities({
               id: `local-${createdAt}`,
               percent: nextPercent,
               description: payload.description,
               createdAt,
+              reportDate: reportDateMillis,
               timeWindow: {
                 start: startDate.getTime(),
                 end: endDate.getTime(),
@@ -751,7 +767,6 @@ export default function ServiceDetailsClient({ service, updates: initialUpdates,
                       <span className="text-base font-semibold text-foreground">{summary.title}</span>
                       <span className="text-sm font-semibold text-primary">{summary.percentLabel}</span>
                     </div>
-                    <p className="text-xs text-muted-foreground">Atualizado em {formatDateLabel(update.createdAt, true)}</p>
                     {update.subactivity?.label ? (
                       <p className="text-xs text-muted-foreground">
                         Subatividade: <span className="font-medium text-foreground">{update.subactivity.label}</span>
