@@ -730,13 +730,21 @@ export default function ServiceDetailClient({
         <div className="card space-y-2 p-4 print-avoid-break">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h2 className="text-lg font-semibold">Atualizações recentes</h2>
-            <Link
-              href={`/servicos/${encodeURIComponent(serviceId)}/editar`}
-              className="btn btn-outline btn-xs gap-2 sm:btn-sm"
-            >
-              <Pencil className="h-4 w-4" />
-              Editar lançamentos
-            </Link>
+            <div className="flex items-center gap-2">
+              <Link
+                href={`/servicos/${encodeURIComponent(serviceId)}/atualizacoes`}
+                className="btn btn-ghost btn-xs sm:btn-sm"
+              >
+                Ver todas
+              </Link>
+              <Link
+                href={`/servicos/${encodeURIComponent(serviceId)}/editar`}
+                className="btn btn-outline btn-xs gap-2 sm:btn-sm"
+              >
+                <Pencil className="h-4 w-4" />
+                Editar lançamentos
+              </Link>
+            </div>
           </div>
           {displayedUpdates.length === 0 ? (
             <p className="mt-2 text-sm text-muted-foreground">Nenhuma atualização registrada.</p>
