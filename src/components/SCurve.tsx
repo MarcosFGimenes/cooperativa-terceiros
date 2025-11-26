@@ -45,6 +45,7 @@ export type SCurveProps = {
   chartHeight?: number;
   deferRendering?: boolean;
   metrics?: SCurveMetrics;
+  showMetrics?: boolean;
 };
 
 type ChartEntry = {
@@ -148,6 +149,7 @@ export default function SCurve({
   chartHeight,
   deferRendering = false,
   metrics,
+  showMetrics = true,
 }: Props) {
   const chartData = useMemo<ChartEntry[]>(() => {
     const map = new Map<string, ChartEntry>();
@@ -258,16 +260,18 @@ export default function SCurve({
         {headerAside ? <div className="text-xs text-muted-foreground">{headerAside}</div> : null}
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <MetricCard label="Planejado (total)" value={`${Math.round(plannedTotal)}%`} />
-        <MetricCard label="Planejado até hoje" value={`${plannedToToday}%`} />
-        <MetricCard label="Realizado" value={`${Math.round(realisedLatest)}%`} tone="positive" />
-        <MetricCard
-          label="Diferença"
-          value={`${delta > 0 ? "+" : ""}${Math.round(delta)}%`}
-          tone={deltaTone === "positive" ? "positive" : deltaTone === "warning" ? "warning" : "neutral"}
-        />
-      </div>
+      {showMetrics ? (
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <MetricCard label="Planejado (total)" value={`${Math.round(plannedTotal)}%`} />
+          <MetricCard label="Planejado até hoje" value={`${plannedToToday}%`} />
+          <MetricCard label="Realizado" value={`${Math.round(realisedLatest)}%`} tone="positive" />
+          <MetricCard
+            label="Diferença"
+            value={`${delta > 0 ? "+" : ""}${Math.round(delta)}%`}
+            tone={deltaTone === "positive" ? "positive" : deltaTone === "warning" ? "warning" : "neutral"}
+          />
+        </div>
+      ) : null}
 
       {hasData ? (
         isClientReady ? (
