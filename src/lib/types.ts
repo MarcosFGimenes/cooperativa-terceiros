@@ -18,7 +18,6 @@ export type ChecklistItem = BaseChecklistItem & {
 export type ServiceUpdate = BaseServiceUpdate & {
   serviceId?: string;
   token?: string;
-  reportDate?: number | null;
   manualPercent?: number;
   realPercentSnapshot?: number;
   timeWindow?: BaseServiceUpdate["timeWindow"];

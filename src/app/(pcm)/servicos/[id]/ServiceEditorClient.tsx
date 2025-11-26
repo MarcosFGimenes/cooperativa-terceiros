@@ -29,7 +29,6 @@ type PackageOption = { id: string; nome: string };
 type UpdateHistoryItem = {
   id: string;
   date: Date | null;
-  reportDate?: Date | null;
   note?: string;
   totalPct?: number;
   items?: Array<{ itemId: string; pct: number }>;
@@ -208,9 +207,9 @@ export default function ServiceEditorClient({ serviceId }: ServiceEditorClientPr
           source: UpdateHistoryItem["source"],
         ): UpdateHistoryItem => {
           const data = docSnap.data() ?? {};
-          const reportDateSource = data.reportDate ?? data.date ?? data.createdAt;
-          const fallbackDate = docSnap.metadata.hasPendingWrites ? null : docSnap.createTime;
-          const date = parseDate(reportDateSource ?? fallbackDate);
+          const dateSource =
+            data.createdAt ?? data.date ?? (docSnap.metadata.hasPendingWrites ? null : docSnap.createTime);
+          const date = parseDate(dateSource);
 
           const rawPercent =
             typeof data.realPercentSnapshot === "number"
@@ -226,7 +225,6 @@ export default function ServiceEditorClient({ serviceId }: ServiceEditorClientPr
           return {
             id: docSnap.id,
             date,
-            reportDate: date,
             note: typeof data.note === "string" ? data.note : typeof data.description === "string" ? data.description : undefined,
             totalPct: typeof rawPercent === "number" ? rawPercent : undefined,
             items: Array.isArray(data.items) ? data.items : undefined,
@@ -384,13 +382,11 @@ export default function ServiceEditorClient({ serviceId }: ServiceEditorClientPr
       if (editingUpdateSource === "updates") {
         payload.createdAt = Timestamp.fromDate(parsedDate);
         payload.date = Timestamp.fromDate(parsedDate);
-        payload.reportDate = Timestamp.fromDate(parsedDate);
         payload.realPercentSnapshot = clampedPercent;
         payload.manualPercent = clampedPercent;
         payload.percent = clampedPercent;
       } else {
         payload.date = Timestamp.fromDate(parsedDate);
-        payload.reportDate = Timestamp.fromDate(parsedDate);
         payload.totalPct = clampedPercent;
       }
 

@@ -73,7 +73,6 @@ export type ServiceUpdateAudit = {
 export type ServiceUpdate = {
   id: string;
   createdAt: number; // unix ms
-  reportDate?: number | null;
   description: string;
   percent?: number; // 0..100 (usado quando NÃO há checklist)
   by?: ServiceUpdateAuthor;
