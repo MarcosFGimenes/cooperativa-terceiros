@@ -164,7 +164,7 @@ export default async function FolderPublicPage({
                       href={`/s/${service.id}?token=${encodeURIComponent(token)}`}
                       className="btn btn-primary"
                     >
-                      Ver detalhes do serviço
+                      PREENCHER RDO
                     </Link>
                   </div>
                 </article>

@@ -667,6 +667,35 @@ export default function ServiceDetailClient({
             </div>
           </dl>
         </div>
+        <div className="card p-4 print-avoid-break">
+          <div className="flex flex-col gap-1">
+            <h2 className="text-lg font-semibold">Checklists Recentes</h2>
+            <span className="text-xs text-muted-foreground">Serviço {serviceLabel}</span>
+          </div>
+          {recentChecklist.length === 0 ? (
+            <p className="mt-2 text-sm text-muted-foreground">Nenhum checklist cadastrado.</p>
+          ) : (
+            <ul className="mt-3 space-y-2 text-sm">
+              {recentChecklist.map((item) => (
+                <li key={item.id} className="space-y-2 rounded-lg border p-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="font-medium">{item.description}</span>
+                    <span className="text-xs text-muted-foreground">{formatDateTime(item.updatedAt)}</span>
+                  </div>
+                  <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+                    <span>
+                      Status: {item.status === "em-andamento" ? "Em andamento" : item.status === "concluido" ? "Concluído" : "Não iniciado"}
+                    </span>
+                    <span className="text-sm font-semibold text-primary">{Math.round(item.progress)}%</span>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2 print-page-break-before">
         <div className="print-avoid-break">
           <SCurveDeferred
             planned={planned}
@@ -696,35 +725,6 @@ export default function ServiceDetailClient({
               </div>
             }
           />
-        </div>
-      </div>
-
-      <div className="grid gap-4 lg:grid-cols-2 print-page-break-before">
-        <div className="card p-4 print-avoid-break">
-          <div className="flex flex-col gap-1">
-            <h2 className="text-lg font-semibold">Checklists Recentes</h2>
-            <span className="text-xs text-muted-foreground">Serviço {serviceLabel}</span>
-          </div>
-          {recentChecklist.length === 0 ? (
-            <p className="mt-2 text-sm text-muted-foreground">Nenhum checklist cadastrado.</p>
-          ) : (
-            <ul className="mt-3 space-y-2 text-sm">
-              {recentChecklist.map((item) => (
-                <li key={item.id} className="space-y-2 rounded-lg border p-3">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <span className="font-medium">{item.description}</span>
-                    <span className="text-xs text-muted-foreground">{formatDateTime(item.updatedAt)}</span>
-                  </div>
-                  <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
-                    <span>
-                      Status: {item.status === "em-andamento" ? "Em andamento" : item.status === "concluido" ? "Concluído" : "Não iniciado"}
-                    </span>
-                    <span className="text-sm font-semibold text-primary">{Math.round(item.progress)}%</span>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
         </div>
 
         <div className="card space-y-2 p-4 print-avoid-break">
