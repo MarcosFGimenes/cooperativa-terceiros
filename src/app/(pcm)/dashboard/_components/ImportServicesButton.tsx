@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { UploadCloud } from "lucide-react";
 import { toast } from "sonner";
+import { useRouter } from "next/navigation";
 
 import {
   Dialog,
@@ -14,6 +15,7 @@ import {
 } from "@/components/ui/dialog";
 
 export default function ImportServicesButton() {
+  const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [open, setOpen] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -58,6 +60,7 @@ export default function ImportServicesButton() {
         skipped: payload.skipped ?? 0,
       });
       toast.success(`Importação concluída: ${payload.created ?? 0} serviço(s) criado(s).`);
+      router.refresh();
     } catch (error) {
       const message = error instanceof Error ? error.message : "Não foi possível importar a planilha.";
       toast.error(message);
