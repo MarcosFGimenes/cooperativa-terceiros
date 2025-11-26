@@ -775,7 +775,7 @@ async function renderPackageDetailPage(
           </div>
         ) : null}
 
-        <div className="grid gap-6 xl:grid-cols-[minmax(0,1.7fr)_minmax(320px,1fr)] print:block print:gap-3">
+        <div className="grid gap-6 xl:grid-cols-[minmax(0,2.2fr)_minmax(260px,0.9fr)] print:block print:gap-3">
           <section
             className="rounded-2xl border bg-card/80 p-5 shadow-sm scurve-card print-card print:w-full print:rounded-none print:border-0 print:bg-white print:shadow-none print:p-4"
           >
@@ -786,11 +786,12 @@ async function renderPackageDetailPage(
               title="Curva S consolidada"
               description="Planejado versus realizado considerando todos os serviços do pacote."
               headerAside={<span className="font-medium text-foreground">{realizedHeaderLabel}</span>}
-              chartHeight={360}
+              chartHeight={420}
               metrics={curveMetrics}
+              showMetrics={false}
               deferRendering
               fallback={
-                <div className="flex h-[360px] w-full items-center justify-center rounded-xl border border-dashed border-border/70 bg-muted/40">
+                <div className="flex h-[420px] w-full items-center justify-center rounded-xl border border-dashed border-border/70 bg-muted/40">
                   <span className="text-sm text-muted-foreground">Carregando gráfico...</span>
                 </div>
               }
@@ -798,40 +799,39 @@ async function renderPackageDetailPage(
           </section>
 
           <section className="rounded-2xl border bg-card/80 p-5 shadow-sm print:hidden">
-            <h2 className="mb-4 text-lg font-semibold">Informações do pacote</h2>
-            <dl className="grid gap-4 text-sm sm:grid-cols-2">
-              <div className="space-y-1">
-                <dt className="text-muted-foreground">Status</dt>
-                <dd className="font-medium">{statusLabel}</dd>
-              </div>
-              <div className="space-y-1">
-                <dt className="text-muted-foreground">Código</dt>
-                <dd className="font-medium">{pkg.code || "-"}</dd>
-              </div>
-              <div className="space-y-1 sm:col-span-2">
-                <dt className="text-muted-foreground">Descrição</dt>
-                <dd className="whitespace-pre-wrap text-sm text-foreground/90">
-                  {pkg.description && pkg.description.trim() ? pkg.description : "-"}
+            <h2 className="mb-4 text-lg font-semibold">Indicadores da curva</h2>
+            <dl className="space-y-4 text-sm">
+              <div className="rounded-xl border bg-muted/30 p-3">
+                <dt className="text-muted-foreground">Planejado (total)</dt>
+                <dd className="text-lg font-semibold text-foreground">
+                  {Math.round(curveMetrics.plannedTotal ?? 0)}%
                 </dd>
               </div>
-              <div className="space-y-1">
-                <dt className="text-muted-foreground">Início planejado</dt>
-                <dd className="font-medium">{plannedStartLabel}</dd>
+              <div className="rounded-xl border bg-muted/30 p-3">
+                <dt className="text-muted-foreground">Planejado até hoje</dt>
+                <dd className="text-lg font-semibold text-foreground">
+                  {Math.round(curveMetrics.plannedToDate ?? 0)}%
+                </dd>
               </div>
-              <div className="space-y-1">
-                <dt className="text-muted-foreground">Fim planejado</dt>
-                <dd className="font-medium">{plannedEndLabel}</dd>
+              <div className="rounded-xl border bg-muted/30 p-3">
+                <dt className="text-muted-foreground">Realizado</dt>
+                <dd className="text-lg font-semibold text-emerald-600 dark:text-emerald-400">
+                  {Math.round(curveMetrics.realized ?? 0)}%
+                </dd>
               </div>
-              <div className="space-y-1">
-                <dt className="text-muted-foreground">Horas totais (serviços)</dt>
-                <dd className="font-medium">{totalHoursLabel}</dd>
-              </div>
-              <div className="space-y-1 sm:col-span-2">
-                <dt className="text-muted-foreground">Empresas atribuídas</dt>
-                <dd className="font-medium">
-                  {assignedCompanies && assignedCompanies.length
-                    ? assignedCompanies.map((item) => item.companyName || item.companyId).join(", ")
-                    : "-"}
+              <div className="rounded-xl border bg-muted/30 p-3">
+                <dt className="text-muted-foreground">Diferença</dt>
+                <dd
+                  className={`text-lg font-semibold ${
+                    (curveMetrics.delta ?? 0) < -2
+                      ? "text-amber-600 dark:text-amber-400"
+                      : (curveMetrics.delta ?? 0) > 2
+                        ? "text-emerald-600 dark:text-emerald-400"
+                        : "text-foreground"
+                  }`}
+                >
+                  {(curveMetrics.delta ?? 0) > 0 ? "+" : ""}
+                  {Math.round(curveMetrics.delta ?? 0)}%
                 </dd>
               </div>
             </dl>
