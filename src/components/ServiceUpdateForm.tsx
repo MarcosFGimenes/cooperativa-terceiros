@@ -14,6 +14,7 @@ export type ServiceUpdateFormPayload = {
   start: string;
   end: string;
   date: string;
+  reportDate: number | null;
   subactivities: Array<{ id: string; label: string; progress?: number }>;
   resources: Array<{ name: string }>;
   workforce: Array<{ role: string; quantity: number }>;
@@ -306,6 +307,12 @@ export default function ServiceUpdateForm({ serviceId, lastProgress, checklist, 
       return;
     }
 
+    const reportDate = (() => {
+      if (!values.date) return null;
+      const parsed = new Date(`${values.date}T12:00:00Z`);
+      return Number.isNaN(parsed.getTime()) ? null : parsed.getTime();
+    })();
+
     const subactivityUpdates = values.subactivities
       .map((item, index) => {
         const meta = checklist[index];
@@ -329,6 +336,7 @@ export default function ServiceUpdateForm({ serviceId, lastProgress, checklist, 
       start: range.start,
       end: range.end,
       date: values.date,
+      reportDate,
       subactivities: subactivityUpdates,
       resources: (values.resources ?? [])
         .map((resourceId) => RESOURCE_OPTIONS.find((option) => option.id === resourceId)?.label ?? resourceId)

@@ -115,6 +115,7 @@ export default function ServiceDetailClient({
   const { ready: isAuthReady, issue: authIssue, user } = useFirebaseAuthSession();
   const latestIdTokenRef = useRef<string | null>(null);
   const retryTimeoutRef = useRef<number | null>(null);
+  const retryCountRef = useRef(0);
   const [shouldListenToSecondaryRealtime, setShouldListenToSecondaryRealtime] = useState(false);
 
   useEffect(() => {
@@ -176,6 +177,13 @@ export default function ServiceDetailClient({
     const scheduleReconnect = (reason: string) => {
       if (cancelled) return;
       if (retryTimeoutRef.current !== null) return;
+      if (retryCountRef.current >= 2) {
+        console.warn(
+          `[service-detail] Limite de tentativas de reconexão atingido para ${serviceId} (motivo: ${reason}).`,
+        );
+        return;
+      }
+      retryCountRef.current += 1;
       const delayMs = 4000;
       console.info(
         `[service-detail] Tentando reconectar ao Firestore em ${delayMs}ms (motivo: ${reason}).`,
@@ -261,6 +269,11 @@ export default function ServiceDetailClient({
     async function bootstrapRealtime(isRetry = false) {
       if (!isAuthReady || !user) {
         setConnectionIssue(null);
+        return;
+      }
+
+      if (typeof navigator !== "undefined" && navigator.onLine === false) {
+        setConnectionIssue("Sem conexão com a internet. Aguardando restabelecimento para sincronizar.");
         return;
       }
 
@@ -351,6 +364,7 @@ export default function ServiceDetailClient({
             const mapped = mapServiceSnapshot(snapshot);
             setService((current) => mergeServiceRealtime(current, mapped));
             setConnectionIssue(null);
+            retryCountRef.current = 0;
             if (retryTimeoutRef.current !== null) {
               clearTimeout(retryTimeoutRef.current);
               retryTimeoutRef.current = null;
@@ -369,6 +383,7 @@ export default function ServiceDetailClient({
               const mapped = snapshot.docs.map((docSnap) => mapUpdateSnapshot(docSnap));
               setUpdates(toNewUpdates(mapped));
               setConnectionIssue(null);
+              retryCountRef.current = 0;
               if (retryTimeoutRef.current !== null) {
                 clearTimeout(retryTimeoutRef.current);
                 retryTimeoutRef.current = null;
@@ -386,6 +401,7 @@ export default function ServiceDetailClient({
               const mapped = snapshot.docs.map((docSnap) => mapChecklistSnapshot(docSnap));
               setChecklist(toNewChecklist(mapped));
               setConnectionIssue(null);
+              retryCountRef.current = 0;
               if (retryTimeoutRef.current !== null) {
                 clearTimeout(retryTimeoutRef.current);
                 retryTimeoutRef.current = null;

@@ -534,6 +534,15 @@ export default function ServiceDetailsClient({ service, updates: initialUpdates,
 
       const startDate = new Date(payload.start);
       const endDate = new Date(payload.end);
+      const reportDateMillis = (() => {
+        if (typeof payload.reportDate === "number" && Number.isFinite(payload.reportDate)) {
+          return payload.reportDate;
+        }
+        const fallback = new Date(`${payload.date}T12:00:00Z`);
+        if (Number.isFinite(fallback.getTime())) return fallback.getTime();
+        if (Number.isFinite(startDate.getTime())) return startDate.getTime();
+        return Date.now();
+      })();
       const durationHours = Number.isFinite(startDate.getTime()) && Number.isFinite(endDate.getTime())
         ? Math.max(0, Math.round(((endDate.getTime() - startDate.getTime()) / 3_600_000) * 100) / 100)
         : null;
@@ -551,6 +560,7 @@ export default function ServiceDetailsClient({ service, updates: initialUpdates,
         workforce: payload.workforce,
         shiftConditions: payload.shiftConditions,
         declarationAccepted: payload.declarationAccepted,
+        reportDate: reportDateMillis,
       };
 
       let errorMessage = "Não foi possível registrar a atualização.";
@@ -579,7 +589,7 @@ export default function ServiceDetailsClient({ service, updates: initialUpdates,
           const mapped = sanitiseResourceQuantities(toThirdUpdate(json.update));
           setUpdates((prev) => dedupeUpdates([mapped, ...prev]).slice(0, MAX_UPDATES));
         } else {
-          const createdAt = Date.now();
+          const createdAt = reportDateMillis || Date.now();
           setUpdates((prev) => {
             const optimistic = sanitiseResourceQuantities({
               id: `local-${createdAt}`,

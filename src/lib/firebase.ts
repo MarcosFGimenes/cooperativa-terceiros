@@ -84,7 +84,7 @@ if (!globalForFirebase.__FIREBASE_CLIENT_APP__ && !globalForFirebase.__FIREBASE_
     logNetworkStrategy();
 
     if (process.env.NODE_ENV !== "production") {
-      setLogLevel("debug");
+      setLogLevel("error");
     }
 
     const db = initializeFirestore(app, firestoreSettings);
