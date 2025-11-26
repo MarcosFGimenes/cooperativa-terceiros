@@ -983,6 +983,7 @@ function mapLegacyServiceUpdateDoc(
   const data = doc.data() ?? {};
 
   const dateMillis = toMillis((data as Record<string, unknown>).date) ?? 0;
+  const createdAtMillis = toMillis((data as Record<string, unknown>).createdAt) ?? dateMillis;
   const rawPercent = toNumber((data as Record<string, unknown>).totalPct);
   const percent = Number.isFinite(rawPercent ?? NaN)
     ? Math.max(0, Math.min(100, Number(rawPercent)))
@@ -1000,14 +1001,14 @@ function mapLegacyServiceUpdateDoc(
     percent,
     realPercentSnapshot: percent,
     description: note,
-    createdAt: dateMillis,
+    createdAt: createdAtMillis,
     token: tokenId,
     audit: {
       submittedBy: tokenId ?? null,
       submittedByType: "token",
       token: tokenId,
       ip,
-      submittedAt: dateMillis || null,
+      submittedAt: createdAtMillis || null,
       newPercent: Number.isFinite(percent) ? percent : null,
       previousPercent: toNumber((data as Record<string, unknown>).previousPercent) ?? null,
     },

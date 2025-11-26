@@ -1,6 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { Pencil } from "lucide-react";
 import { toast } from "sonner";
 
 import ServiceUpdateForm, { type ServiceUpdateFormPayload } from "@/components/ServiceUpdateForm";
@@ -725,8 +727,17 @@ export default function ServiceDetailsClient({ service, updates: initialUpdates,
           )}
         </div>
 
-        <div className="card p-4">
-          <h2 className="text-lg font-semibold">Atualizações recentes</h2>
+        <div className="card space-y-2 p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 className="text-lg font-semibold">Atualizações recentes</h2>
+            <Link
+              href={`/servicos/${encodeURIComponent(service.id)}/editar`}
+              className="btn btn-outline btn-xs gap-2 sm:btn-sm"
+            >
+              <Pencil className="h-4 w-4" />
+              Editar lançamentos
+            </Link>
+          </div>
           {updates.length === 0 ? (
             <p className="mt-2 text-sm text-muted-foreground">Nenhuma atualização registrada.</p>
           ) : (
