@@ -83,9 +83,9 @@ function MetricCard({ label, value, tone }: { label: string; value: string; tone
         ? "text-amber-600 dark:text-amber-400"
         : "text-foreground";
   return (
-    <div className="rounded-xl border border-dashed p-3">
-      <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
-      <p className={`mt-1 text-lg font-semibold ${toneClass}`}>{value}</p>
+    <div className="rounded-lg border border-dashed bg-background/60 p-2 shadow-[0_1px_3px_rgba(0,0,0,0.08)]">
+      <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
+      <p className={`mt-0.5 text-base font-semibold leading-tight ${toneClass}`}>{value}</p>
     </div>
   );
 }
@@ -261,7 +261,7 @@ export default function SCurve({
       </div>
 
       {showMetrics ? (
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
           <MetricCard label="Planejado (total)" value={`${Math.round(plannedTotal)}%`} />
           <MetricCard label="Planejado até hoje" value={`${plannedToToday}%`} />
           <MetricCard label="Realizado" value={`${Math.round(realisedLatest)}%`} tone="positive" />
