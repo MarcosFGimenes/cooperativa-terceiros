@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
   Timestamp,
@@ -33,6 +33,20 @@ type UpdateHistoryItem = {
   totalPct?: number;
   items?: Array<{ itemId: string; pct: number }>;
 };
+
+function toDateTimeLocalInput(value: Date | null): string {
+  if (!value) return "";
+  const timezoneOffset = value.getTimezoneOffset();
+  const localDate = new Date(value.getTime() - timezoneOffset * 60 * 1000);
+  return localDate.toISOString().slice(0, 16);
+}
+
+function parseDateTimeLocal(value: string): Date | null {
+  if (!value) return null;
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed;
+}
 
 const STATUS_OPTIONS = ["Aberto", "Pendente", "Concluído"] as const;
 
@@ -139,6 +153,10 @@ export default function ServiceEditorClient({ serviceId }: ServiceEditorClientPr
   const [loadingPackages, setLoadingPackages] = useState(false);
   const [updatesLoading, setUpdatesLoading] = useState(false);
   const [updates, setUpdates] = useState<UpdateHistoryItem[]>([]);
+  const [editingUpdateId, setEditingUpdateId] = useState<string | null>(null);
+  const [editDateValue, setEditDateValue] = useState("");
+  const [editPercentValue, setEditPercentValue] = useState("");
+  const [savingUpdateEdit, setSavingUpdateEdit] = useState(false);
   const { db: firestore, error: firestoreError } = useMemo(() => tryGetFirestore(), []);
   const { ready: isAuthReady, issue: authIssue } = useFirebaseAuthSession();
 
@@ -157,6 +175,42 @@ export default function ServiceEditorClient({ serviceId }: ServiceEditorClientPr
         return acc + Math.max(0, Math.min(100, numeric));
       }, 0),
     [checklist],
+  );
+
+  const refreshUpdates = useCallback(
+    async (options?: { cancelledRef?: { current: boolean } }) => {
+      if (!firestore || !isAuthReady) return;
+      const cancelledRef = options?.cancelledRef;
+      setUpdatesLoading(true);
+      try {
+        const ref = doc(firestore, "services", serviceId);
+        const updatesRef = collection(ref, "serviceUpdates");
+        const snap = await getDocs(query(updatesRef, orderBy("date", "desc"), limit(25)));
+        const mapped: UpdateHistoryItem[] = snap.docs.map((docSnap) => {
+          const data = docSnap.data() ?? {};
+          let date: Date | null = null;
+          if (data.date instanceof Timestamp) {
+            date = data.date.toDate();
+          } else if (data.date && typeof data.date.toDate === "function") {
+            date = data.date.toDate();
+          }
+          return {
+            id: docSnap.id,
+            date,
+            note: data.note ?? undefined,
+            totalPct: typeof data.totalPct === "number" ? data.totalPct : undefined,
+            items: Array.isArray(data.items) ? data.items : undefined,
+          };
+        });
+        if (!cancelledRef?.current) setUpdates(mapped);
+      } catch (error) {
+        console.error("[servicos/:id] Falha ao carregar histórico", error);
+        if (!cancelledRef?.current) toast.error("Não foi possível carregar o histórico de atualizações.");
+      } finally {
+        if (!cancelledRef?.current) setUpdatesLoading(false);
+      }
+    },
+    [firestore, isAuthReady, serviceId],
   );
 
   useEffect(() => {
@@ -186,39 +240,13 @@ export default function ServiceEditorClient({ serviceId }: ServiceEditorClientPr
   }, [firestore, isAuthReady]);
 
   useEffect(() => {
-    let cancelled = false;
     if (!firestore || !isAuthReady) return;
+    const cancelledRef = { current: false };
+    refreshUpdates({ cancelledRef }).catch((error) => {
+      console.error("[servicos/:id] Falha ao carregar histórico", error);
+    });
 
-    async function loadUpdates() {
-      setUpdatesLoading(true);
-      try {
-        const ref = doc(firestore, "services", serviceId);
-        const updatesRef = collection(ref, "serviceUpdates");
-        const snap = await getDocs(query(updatesRef, orderBy("date", "desc"), limit(25)));
-        const mapped: UpdateHistoryItem[] = snap.docs.map((docSnap) => {
-          const data = docSnap.data() ?? {};
-          let date: Date | null = null;
-          if (data.date instanceof Timestamp) {
-            date = data.date.toDate();
-          } else if (data.date && typeof data.date.toDate === "function") {
-            date = data.date.toDate();
-          }
-          return {
-            id: docSnap.id,
-            date,
-            note: data.note ?? undefined,
-            totalPct: typeof data.totalPct === "number" ? data.totalPct : undefined,
-            items: Array.isArray(data.items) ? data.items : undefined,
-          };
-        });
-        if (!cancelled) setUpdates(mapped);
-      } catch (error) {
-        console.error("[servicos/:id] Falha ao carregar histórico", error);
-        if (!cancelled) toast.error("Não foi possível carregar o histórico de atualizações.");
-      } finally {
-        if (!cancelled) setUpdatesLoading(false);
-      }
-    }
+    let cancelled = false;
 
     async function load() {
       setLoading(true);
@@ -251,7 +279,7 @@ export default function ServiceEditorClient({ serviceId }: ServiceEditorClientPr
         setAndamento(Number(data.andamento ?? data.realPercent ?? 0));
         const prevProgressValue = Number(data.previousProgress ?? data.progressBeforeConclusion ?? data.previousPercent ?? NaN);
         setPreviousProgress(Number.isFinite(prevProgressValue) ? prevProgressValue : null);
-        await loadUpdates();
+        await refreshUpdates({ cancelledRef: { current: cancelled } });
       } catch (error) {
         console.error("[servicos/:id] Falha ao carregar serviço", error);
         toast.error("Não foi possível carregar os dados do serviço.");
@@ -264,8 +292,68 @@ export default function ServiceEditorClient({ serviceId }: ServiceEditorClientPr
 
     return () => {
       cancelled = true;
+      cancelledRef.current = true;
     };
-  }, [firestore, serviceId, isAuthReady]);
+  }, [firestore, isAuthReady, refreshUpdates, serviceId]);
+
+  const startEditingUpdate = useCallback((update: UpdateHistoryItem) => {
+    setEditingUpdateId(update.id);
+    setEditDateValue(toDateTimeLocalInput(update.date));
+    setEditPercentValue(
+      typeof update.totalPct === "number" && Number.isFinite(update.totalPct) ? String(update.totalPct) : "",
+    );
+  }, []);
+
+  const cancelEditingUpdate = useCallback(() => {
+    setEditingUpdateId(null);
+    setEditDateValue("");
+    setEditPercentValue("");
+    setSavingUpdateEdit(false);
+  }, []);
+
+  const saveEditingUpdate = useCallback(async () => {
+    if (!firestore || !isAuthReady || !editingUpdateId) return;
+
+    const parsedDate = parseDateTimeLocal(editDateValue);
+    if (!parsedDate) {
+      toast.error("Informe uma data e hora válidas.");
+      return;
+    }
+
+    const parsedPercent = Number(editPercentValue);
+    if (!Number.isFinite(parsedPercent)) {
+      toast.error("Informe um percentual válido entre 0 e 100.");
+      return;
+    }
+    const clampedPercent = Math.max(0, Math.min(100, parsedPercent));
+
+    setSavingUpdateEdit(true);
+    try {
+      const ref = doc(firestore, "services", serviceId, "serviceUpdates", editingUpdateId);
+      await updateDoc(ref, {
+        date: Timestamp.fromDate(parsedDate),
+        totalPct: clampedPercent,
+        updatedAt: serverTimestamp(),
+      });
+      toast.success("Lançamento atualizado com sucesso.");
+      await refreshUpdates();
+      cancelEditingUpdate();
+    } catch (error) {
+      console.error("[servicos/:id] Falha ao alterar lançamento do terceiro", error);
+      toast.error("Não foi possível alterar o lançamento.");
+    } finally {
+      setSavingUpdateEdit(false);
+    }
+  }, [
+    cancelEditingUpdate,
+    editDateValue,
+    editPercentValue,
+    editingUpdateId,
+    firestore,
+    isAuthReady,
+    refreshUpdates,
+    serviceId,
+  ]);
 
   function updateForm<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -731,6 +819,65 @@ export default function ServiceEditorClient({ serviceId }: ServiceEditorClientPr
                   ) : null}
                   {update.note ? <p className="text-sm text-muted-foreground">{update.note}</p> : null}
                 </div>
+                {editingUpdateId === update.id ? (
+                  <div className="mt-3 space-y-3">
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <div className="space-y-1">
+                        <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                          Data e hora do lançamento
+                        </label>
+                        <input
+                          type="datetime-local"
+                          value={editDateValue}
+                          onChange={(event) => setEditDateValue(event.target.value)}
+                          className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm shadow-sm focus-visible:ring-2 focus-visible:ring-primary/40"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                          Percentual total (%)
+                        </label>
+                        <input
+                          type="number"
+                          min={0}
+                          max={100}
+                          step="0.5"
+                          value={editPercentValue}
+                          onChange={(event) => setEditPercentValue(event.target.value)}
+                          className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm shadow-sm focus-visible:ring-2 focus-visible:ring-primary/40"
+                        />
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        className="btn btn-secondary btn-sm"
+                        onClick={saveEditingUpdate}
+                        disabled={savingUpdateEdit}
+                      >
+                        {savingUpdateEdit ? "Salvando..." : "Salvar alterações"}
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-ghost btn-sm"
+                        onClick={cancelEditingUpdate}
+                        disabled={savingUpdateEdit}
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="mt-3 flex justify-end">
+                    <button
+                      type="button"
+                      className="btn btn-outline btn-sm"
+                      onClick={() => startEditingUpdate(update)}
+                    >
+                      Alterar lançamento
+                    </button>
+                  </div>
+                )}
               </li>
             ))}
           </ul>
