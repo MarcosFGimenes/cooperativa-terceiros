@@ -4,7 +4,7 @@ export const revalidate = 0;
 import Link from "next/link";
 
 import { listRecentPackages } from "@/lib/repo/packages";
-import { listRecentServices } from "@/lib/repo/services";
+import { getServiceStatusSummary, listRecentServices } from "@/lib/repo/services";
 import type { Service } from "@/types";
 import ImportServicesButton from "./_components/ImportServicesButton";
 import RecentPackagesPanel from "./_components/RecentPackagesPanel";
@@ -18,9 +18,10 @@ function normaliseStatus(status: Service["status"]): "Aberto" | "Pendente" | "Co
 }
 
 export default async function DashboardPCM() {
-  const [services, packages] = await Promise.all([
+  const [services, packages, statusSummary] = await Promise.all([
     listRecentServices(),
     listRecentPackages(),
+    getServiceStatusSummary(),
   ]);
 
   const statusGroups = services.reduce(
@@ -31,6 +32,13 @@ export default async function DashboardPCM() {
     },
     { Aberto: 0, Pendente: 0, "Concluído": 0 } as Record<"Aberto" | "Pendente" | "Concluído", number>,
   );
+
+  const metrics = statusSummary ?? {
+    total: services.length,
+    open: statusGroups.Aberto,
+    pending: statusGroups.Pendente,
+    concluded: statusGroups["Concluído"],
+  };
 
   return (
     <div className="container mx-auto space-y-6 p-4">
@@ -52,20 +60,20 @@ export default async function DashboardPCM() {
 
       <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <div className="card space-y-1 p-4">
-          <p className="text-xs uppercase tracking-wide text-muted-foreground">Serviços (recentes)</p>
-          <p className="text-2xl font-semibold">{services.length}</p>
+          <p className="text-xs uppercase tracking-wide text-muted-foreground">Serviços</p>
+          <p className="text-2xl font-semibold">{metrics.total}</p>
         </div>
         <div className="card space-y-1 p-4">
           <p className="text-xs uppercase tracking-wide text-muted-foreground">Abertos</p>
-          <p className="text-2xl font-semibold">{statusGroups.Aberto}</p>
+          <p className="text-2xl font-semibold">{metrics.open}</p>
         </div>
         <div className="card space-y-1 p-4">
           <p className="text-xs uppercase tracking-wide text-muted-foreground">Pendentes</p>
-          <p className="text-2xl font-semibold">{statusGroups.Pendente}</p>
+          <p className="text-2xl font-semibold">{metrics.pending}</p>
         </div>
         <div className="card space-y-1 p-4">
           <p className="text-xs uppercase tracking-wide text-muted-foreground">Concluídos</p>
-          <p className="text-2xl font-semibold">{statusGroups["Concluído"]}</p>
+          <p className="text-2xl font-semibold">{metrics.concluded}</p>
         </div>
       </section>
 

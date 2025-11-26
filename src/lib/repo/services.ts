@@ -590,6 +590,47 @@ export async function listRecentServices(): Promise<Service[]> {
   return services.sort((a, b) => (b.updatedAt ?? b.createdAt ?? 0) - (a.updatedAt ?? a.createdAt ?? 0));
 }
 
+export type ServiceStatusSummary = {
+  total: number;
+  open: number;
+  pending: number;
+  concluded: number;
+};
+
+export async function getServiceStatusSummary(): Promise<ServiceStatusSummary | null> {
+  try {
+    const collection = servicesCollection();
+    const statusGroups: Record<keyof Omit<ServiceStatusSummary, "total">, ServiceStatus[]> = {
+      open: ["Aberto", "aberto"],
+      pending: ["Pendente", "pendente"],
+      concluded: ["Concluído", "concluido", "concluído", "encerrado"],
+    };
+
+    const [open, pending, concluded] = await Promise.all(
+      Object.values(statusGroups).map(async (values) => {
+        const snapshots = await Promise.all(
+          values.map(async (status) => {
+            const snapshot = await collection.where("status", "==", status).count().get();
+            return snapshot.data().count ?? 0;
+          }),
+        );
+
+        return snapshots.reduce((total, value) => total + value, 0);
+      }),
+    );
+
+    return {
+      open,
+      pending,
+      concluded,
+      total: open + pending + concluded,
+    };
+  } catch (error) {
+    console.warn("[services:getServiceStatusSummary] Failed to count service statuses", error);
+    return null;
+  }
+}
+
 function isMissingAdminError(error: unknown) {
   if (error instanceof Error) {
     if (error.message === "FIREBASE_ADMIN_NOT_CONFIGURED") {
