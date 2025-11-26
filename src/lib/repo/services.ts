@@ -87,6 +87,19 @@ const serviceUpdatesCache = unstable_cache(
   },
 );
 
+const legacyServiceUpdatesCache = unstable_cache(
+  async (serviceId: string, limit: number) => {
+    const updatesCol = servicesCollection().doc(serviceId).collection("serviceUpdates");
+    const snap = await updatesCol.orderBy("date", "desc").limit(limit).get();
+    return snap.docs.map((doc) => mapLegacyServiceUpdateDoc(serviceId, doc));
+  },
+  ["services", "legacy-updates"],
+  {
+    revalidate: SERVICE_CACHE_TTL_SECONDS,
+    tags: ["services:legacy-updates"],
+  },
+);
+
 const listAvailableOpenServicesCache = unstable_cache(
   async (limit: number, mode: ServiceMapMode) => fetchAvailableOpenServices(limit, mode),
   ["services", "available"],
@@ -963,6 +976,44 @@ function mapUpdateDoc(
   };
 }
 
+function mapLegacyServiceUpdateDoc(
+  serviceId: string,
+  doc: FirebaseFirestore.QueryDocumentSnapshot | FirebaseFirestore.DocumentSnapshot,
+): ServiceUpdate {
+  const data = doc.data() ?? {};
+
+  const dateMillis = toMillis((data as Record<string, unknown>).date) ?? 0;
+  const rawPercent = toNumber((data as Record<string, unknown>).totalPct);
+  const percent = Number.isFinite(rawPercent ?? NaN)
+    ? Math.max(0, Math.min(100, Number(rawPercent)))
+    : 0;
+  const note = typeof (data as Record<string, unknown>).note === "string" ? data.note.trim() : "";
+  const tokenId =
+    typeof (data as Record<string, unknown>).tokenId === "string" && data.tokenId.trim()
+      ? data.tokenId.trim()
+      : undefined;
+  const ip = typeof (data as Record<string, unknown>).ip === "string" ? data.ip.trim() : null;
+
+  return {
+    id: doc.id,
+    serviceId,
+    percent,
+    realPercentSnapshot: percent,
+    description: note,
+    createdAt: dateMillis,
+    token: tokenId,
+    audit: {
+      submittedBy: tokenId ?? null,
+      submittedByType: "token",
+      token: tokenId,
+      ip,
+      submittedAt: dateMillis || null,
+      newPercent: Number.isFinite(percent) ? percent : null,
+      previousPercent: toNumber((data as Record<string, unknown>).previousPercent) ?? null,
+    },
+  };
+}
+
 export async function getService(serviceId: string): Promise<Service | null> {
   const trimmedId = typeof serviceId === "string" ? serviceId.trim() : "";
   if (!trimmedId) return null;
@@ -1467,8 +1518,14 @@ export async function listUpdates(
 
   const safeLimit = Number.isFinite(limit) && limit > 0 ? Math.min(Math.floor(limit), 200) : 50;
 
-  const updates = await serviceUpdatesCache(trimmedId, safeLimit);
-  return updates ?? [];
+  const [updates, legacyUpdates] = await Promise.all([
+    serviceUpdatesCache(trimmedId, safeLimit),
+    legacyServiceUpdatesCache(trimmedId, safeLimit),
+  ]);
+
+  return [...(updates ?? []), ...(legacyUpdates ?? [])]
+    .sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0))
+    .slice(0, safeLimit);
 }
 
 export async function listServices(filter?: {
