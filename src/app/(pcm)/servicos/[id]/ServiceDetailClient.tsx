@@ -1,11 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
 import { ArrowLeft, Pencil } from "lucide-react";
-import { toast } from "sonner";
 import {
   collection,
   doc,
@@ -13,9 +12,6 @@ import {
   onSnapshot,
   orderBy,
   query,
-  serverTimestamp,
-  Timestamp,
-  updateDoc,
   type FirestoreError,
 } from "firebase/firestore";
 import SCurveDeferred from "@/components/SCurveDeferred";
@@ -41,8 +37,6 @@ import {
   mapUpdateSnapshot,
   mergeServiceRealtime,
   normaliseStatus,
-  computeChecklistWeights,
-  mapThirdPartyUpdate,
   toNewChecklist,
   toNewUpdates,
 } from "./shared";
@@ -68,7 +62,6 @@ type ServiceDetailClientProps = {
   initialPlanned: Array<{ date: string; percent: number; hoursAccum?: number }>;
   initialRealizedSeries: Array<{ date: string; percent: number }>;
   initialRealizedPercent: number;
-  initialThirdPartyUpdates: ServiceUpdate[];
   latestToken: { code: string; company?: string | null } | null;
   tokenLink: string | null;
 };
@@ -93,7 +86,6 @@ export default function ServiceDetailClient({
   initialPlanned,
   initialRealizedSeries,
   initialRealizedPercent,
-  initialThirdPartyUpdates,
   latestToken,
   tokenLink,
 }: ServiceDetailClientProps) {
@@ -115,29 +107,15 @@ export default function ServiceDetailClient({
   const [service, setService] = useState<ServiceRealtimeData>(composedInitial);
   const [checklist, setChecklist] = useState<ChecklistItem[]>(toNewChecklist(initialChecklist));
   const [updates, setUpdates] = useState<ServiceUpdate[]>(toNewUpdates(initialUpdates));
-  const [thirdPartyUpdates, setThirdPartyUpdates] = useState<ServiceUpdate[]>(
-    toNewUpdates(initialThirdPartyUpdates),
-  );
   const [connectionIssue, setConnectionIssue] = useState<string | null>(null);
   const [currentToken, setCurrentToken] = useState<ServiceDetailClientProps["latestToken"]>(latestToken);
   const [currentTokenLink, setCurrentTokenLink] = useState<string | null>(tokenLink);
-  const normalizedInitialCombinedUpdates = useMemo(
-    () => toNewUpdates([...initialUpdates, ...initialThirdPartyUpdates]),
-    [initialUpdates, initialThirdPartyUpdates],
-  );
+  const normalizedInitialUpdates = useMemo(() => toNewUpdates(initialUpdates), [initialUpdates]);
   const longPollingForced = isFirestoreLongPollingForced;
   const { ready: isAuthReady, issue: authIssue, user } = useFirebaseAuthSession();
   const latestIdTokenRef = useRef<string | null>(null);
   const retryTimeoutRef = useRef<number | null>(null);
   const [shouldListenToSecondaryRealtime, setShouldListenToSecondaryRealtime] = useState(false);
-  const checklistWeights = useMemo(() => computeChecklistWeights(checklist), [checklist]);
-  const [editingThirdParty, setEditingThirdParty] = useState<{
-    id: string;
-    percent: string;
-    date: string;
-    note: string;
-  } | null>(null);
-  const [savingThirdParty, setSavingThirdParty] = useState(false);
 
   useEffect(() => {
     setCurrentToken(latestToken);
@@ -402,25 +380,6 @@ export default function ServiceDetailClient({
 
         unsubscribers.push(
           onSnapshot(
-            query(collection(serviceRef, "serviceUpdates"), orderBy("date", "desc"), limit(120)),
-            (snapshot) => {
-              if (cancelled) return;
-              const mapped = snapshot.docs.map((docSnap) =>
-                mapThirdPartyUpdate(docSnap.id, (docSnap.data() ?? {}) as Record<string, unknown>, checklistWeights),
-              );
-              setThirdPartyUpdates(toNewUpdates(mapped));
-              setConnectionIssue(null);
-              if (retryTimeoutRef.current !== null) {
-                clearTimeout(retryTimeoutRef.current);
-                retryTimeoutRef.current = null;
-              }
-            },
-            handleError,
-          ),
-        );
-
-        unsubscribers.push(
-          onSnapshot(
             query(collection(serviceRef, "checklist"), orderBy("description", "asc")),
             (snapshot) => {
               if (cancelled) return;
@@ -454,7 +413,6 @@ export default function ServiceDetailClient({
     isAuthReady,
     user,
     shouldListenToSecondaryRealtime,
-    checklistWeights,
   ]);
 
   const planned = useMemo(() => {
@@ -485,24 +443,19 @@ export default function ServiceDetailClient({
     initialPlanned,
   ]);
 
-  const combinedUpdates = useMemo(
-    () => toNewUpdates([...updates, ...thirdPartyUpdates]),
-    [updates, thirdPartyUpdates],
-  );
-
   const realizedPercent = useMemo(() => {
     try {
-      return deriveRealizedPercent(service, checklist, combinedUpdates);
+      return deriveRealizedPercent(service, checklist, updates);
     } catch (error) {
       console.warn("[service-detail] Falha ao calcular andamento realizado", error);
       return initialRealizedPercent;
     }
-  }, [service, checklist, combinedUpdates, initialRealizedPercent]);
+  }, [service, checklist, updates, initialRealizedPercent]);
 
   const realizedSeries = useMemo(() => {
     try {
       return buildRealizedSeries({
-        combinedUpdates,
+        updates,
         planned,
         realizedPercent,
         plannedStart: service.plannedStart ?? composedInitial.plannedStart,
@@ -514,7 +467,7 @@ export default function ServiceDetailClient({
       return initialRealizedSeries;
     }
   }, [
-    combinedUpdates,
+    updates,
     planned,
     realizedPercent,
     service.plannedStart,
@@ -556,114 +509,11 @@ export default function ServiceDetailClient({
   const statusLabel = useMemo(() => normaliseStatus(service.status), [service.status]);
 
   const displayedUpdates = useMemo(() => {
-    if (combinedUpdates.length === 0) {
-      return normalizedInitialCombinedUpdates;
+    if (updates.length === 0) {
+      return normalizedInitialUpdates;
     }
-    return combinedUpdates;
-  }, [combinedUpdates, normalizedInitialCombinedUpdates]);
-
-  const recomputeThirdPartyProgress = useCallback(
-    (entries: ServiceUpdate[]): number => {
-      if (!entries.length) return 0;
-      const sorted = [...entries].sort((a, b) => {
-        const left = typeof a.createdAt === "number" ? a.createdAt : 0;
-        const right = typeof b.createdAt === "number" ? b.createdAt : 0;
-        return right - left;
-      });
-      const latest = sorted[0];
-      const percent = typeof latest.percent === "number" && Number.isFinite(latest.percent) ? latest.percent : 0;
-      return Math.max(0, Math.min(100, percent));
-    },
-    [],
-  );
-
-  const handleEditThirdParty = useCallback((entry: ServiceUpdate) => {
-    const dateValue =
-      typeof entry.createdAt === "number"
-        ? new Date(entry.createdAt).toISOString().slice(0, 10)
-        : "";
-    setEditingThirdParty({
-      id: entry.id,
-      percent: typeof entry.percent === "number" ? String(entry.percent) : "",
-      date: dateValue,
-      note: entry.description ?? "",
-    });
-  }, []);
-
-  const handleCancelThirdParty = useCallback(() => {
-    setEditingThirdParty(null);
-  }, []);
-
-  const handleSubmitThirdParty = useCallback(
-    async (event: FormEvent<HTMLFormElement>) => {
-      event.preventDefault();
-      if (!editingThirdParty) return;
-      const { db } = tryGetFirestore();
-      if (!db) {
-        toast.error("Firestore indisponível para salvar a edição.");
-        return;
-      }
-
-      const percentValue = Number(editingThirdParty.percent);
-      if (!Number.isFinite(percentValue)) {
-        toast.error("Informe um percentual válido.");
-        return;
-      }
-      const clampedPercent = Math.max(0, Math.min(100, percentValue));
-      const note = editingThirdParty.note.trim();
-      const parsedDate = editingThirdParty.date
-        ? new Date(`${editingThirdParty.date}T00:00:00`)
-        : null;
-      if (parsedDate && Number.isNaN(parsedDate.getTime())) {
-        toast.error("Data inválida para o lançamento.");
-        return;
-      }
-
-      setSavingThirdParty(true);
-      try {
-        const serviceRef = doc(db, "services", serviceId);
-        const updateRef = doc(serviceRef, "serviceUpdates", editingThirdParty.id);
-        const payload: Record<string, unknown> = { totalPct: clampedPercent };
-        if (parsedDate) {
-          payload.date = Timestamp.fromDate(parsedDate);
-        }
-        if (note) {
-          payload.note = note;
-        }
-
-        await updateDoc(updateRef, payload);
-
-        const nextEntries = toNewUpdates(
-          thirdPartyUpdates.map((entry) =>
-            entry.id === editingThirdParty.id
-              ? {
-                  ...entry,
-                  percent: clampedPercent,
-                  manualPercent: clampedPercent,
-                  createdAt: parsedDate ? parsedDate.getTime() : entry.createdAt,
-                  description: note,
-                }
-              : entry,
-          ),
-        );
-        const latestProgress = recomputeThirdPartyProgress(nextEntries);
-        await updateDoc(serviceRef, {
-          andamento: latestProgress,
-          realPercent: latestProgress,
-          updatedAt: serverTimestamp(),
-        });
-        setThirdPartyUpdates(nextEntries);
-        setEditingThirdParty(null);
-        toast.success("Lançamento atualizado com sucesso.");
-      } catch (error) {
-        console.error("[service-detail] Falha ao editar lançamento do terceiro", error);
-        toast.error("Não foi possível atualizar o lançamento do terceiro.");
-      } finally {
-        setSavingThirdParty(false);
-      }
-    },
-    [editingThirdParty, serviceId, thirdPartyUpdates, recomputeThirdPartyProgress],
-  );
+    return updates;
+  }, [updates, normalizedInitialUpdates]);
 
   const recentChecklist = useMemo(
     () =>
@@ -848,111 +698,6 @@ export default function ServiceDetailClient({
           />
         </div>
       </div>
-
-      <section className="card space-y-4 p-4 print-avoid-break">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h2 className="text-lg font-semibold">Atualizações de terceiros</h2>
-            <p className="text-sm text-muted-foreground">
-              Corrija datas ou percentuais lançados via token para manter a Curva S alinhada.
-            </p>
-          </div>
-          {editingThirdParty ? (
-            <button className="btn btn-ghost text-sm" type="button" onClick={handleCancelThirdParty}>
-              Cancelar edição
-            </button>
-          ) : null}
-        </div>
-
-        {thirdPartyUpdates.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Nenhum lançamento de terceiro disponível.</p>
-        ) : (
-          <ul className="space-y-2">
-            {thirdPartyUpdates.slice(0, 6).map((entry) => (
-              <li key={entry.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-3">
-                <div className="space-y-1">
-                  <div className="flex flex-wrap items-center gap-2 text-sm font-semibold text-foreground">
-                    <span>{formatDate(entry.createdAt ?? null)}</span>
-                    <span className="inline-flex items-center rounded-md bg-primary/10 px-2 py-1 text-xs font-bold text-primary">
-                      {Math.round(entry.percent ?? 0)}%
-                    </span>
-                  </div>
-                  {entry.description ? (
-                    <p className="text-xs text-muted-foreground">{entry.description}</p>
-                  ) : null}
-                </div>
-                <button
-                  type="button"
-                  className="btn btn-outline btn-sm"
-                  onClick={() => handleEditThirdParty(entry)}
-                >
-                  Editar
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-
-        {editingThirdParty ? (
-          <form className="space-y-3 rounded-lg border bg-muted/40 p-3" onSubmit={handleSubmitThirdParty}>
-            <div className="grid gap-3 md:grid-cols-2">
-              <label className="space-y-1 text-sm">
-                <span className="font-medium">Percentual</span>
-                <input
-                  type="number"
-                  step="0.1"
-                  min="0"
-                  max="100"
-                  value={editingThirdParty.percent}
-                  onChange={(event) =>
-                    setEditingThirdParty((current) =>
-                      current ? { ...current, percent: event.target.value } : current,
-                    )
-                  }
-                  className="input"
-                  required
-                />
-              </label>
-              <label className="space-y-1 text-sm">
-                <span className="font-medium">Data do lançamento</span>
-                <input
-                  type="date"
-                  value={editingThirdParty.date}
-                  onChange={(event) =>
-                    setEditingThirdParty((current) =>
-                      current ? { ...current, date: event.target.value } : current,
-                    )
-                  }
-                  className="input"
-                />
-              </label>
-            </div>
-            <label className="space-y-1 text-sm">
-              <span className="font-medium">Anotações</span>
-              <textarea
-                className="textarea"
-                rows={3}
-                value={editingThirdParty.note}
-                onChange={(event) =>
-                  setEditingThirdParty((current) => (current ? { ...current, note: event.target.value } : current))
-                }
-                placeholder="Contexto ou correção do lançamento"
-              />
-            </label>
-            <div className="flex flex-wrap items-center gap-2">
-              <button type="submit" className="btn btn-primary" disabled={savingThirdParty}>
-                {savingThirdParty ? "Salvando..." : "Salvar correção"}
-              </button>
-              <button type="button" className="btn btn-ghost" onClick={handleCancelThirdParty} disabled={savingThirdParty}>
-                Voltar
-              </button>
-              <span className="text-xs text-muted-foreground">
-                A correção atualiza a Curva S com o novo percentual informado.
-              </span>
-            </div>
-          </form>
-        ) : null}
-      </section>
 
       <div className="grid gap-4 lg:grid-cols-2 print-page-break-before">
         <div className="card p-4 print-avoid-break">

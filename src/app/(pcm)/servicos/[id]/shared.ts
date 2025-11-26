@@ -49,8 +49,6 @@ type FirestoreLikeTimestamp = { toMillis?: () => number } | { seconds?: number; 
 
 type ServiceRecord = Record<string, unknown>;
 
-export type ChecklistWeights = Map<string, number>;
-
 const DEFAULT_TIME_ZONE = "America/Sao_Paulo";
 
 type FirestoreAudit = {
@@ -126,71 +124,6 @@ function toIsoDate(value: unknown): string | null {
   const date = new Date(millis);
   if (Number.isNaN(date.getTime())) return null;
   return date.toISOString();
-}
-
-export function computeChecklistWeights(checklist: ChecklistItem[]): ChecklistWeights {
-  const weights: ChecklistWeights = new Map();
-  checklist.forEach((item) => {
-    const id = item.id?.trim();
-    if (!id) return;
-    const weight = typeof item.weight === "number" && Number.isFinite(item.weight) ? item.weight : 0;
-    weights.set(id, weight);
-  });
-  return weights;
-}
-
-function computeWeightedPercent(
-  items: Array<{ itemId?: unknown; pct?: unknown }> | undefined,
-  weights: ChecklistWeights,
-): number | null {
-  if (!items || items.length === 0) return null;
-  if (weights.size === 0) {
-    const valid = items
-      .map((item) => (typeof item.pct === "number" && Number.isFinite(item.pct) ? item.pct : null))
-      .filter((value): value is number => Number.isFinite(value ?? NaN));
-    if (!valid.length) return null;
-    const avg = valid.reduce((acc, value) => acc + value, 0) / valid.length;
-    return Math.max(0, Math.min(100, avg));
-  }
-
-  let sum = 0;
-  let total = 0;
-  items.forEach((item) => {
-    const id = typeof item.itemId === "string" ? item.itemId.trim() : null;
-    if (!id) return;
-    const weight = weights.get(id);
-    if (!Number.isFinite(weight ?? NaN) || !weight) return;
-    const pct = typeof item.pct === "number" ? item.pct : Number(item.pct ?? 0);
-    if (!Number.isFinite(pct)) return;
-    sum += weight * pct;
-    total += weight;
-  });
-  if (!total) return null;
-  const percent = sum / total;
-  return Math.max(0, Math.min(100, percent));
-}
-
-export function normaliseThirdPartyPercent(
-  record: ServiceRecord,
-  weights: ChecklistWeights,
-): { percent: number; totalPct?: number | null; items?: Array<{ itemId: string; pct: number }> } {
-  const totalPct = toNumber(record.totalPct ?? record.totalPercent ?? record.andamento);
-  const itemsRaw = Array.isArray(record.items) ? record.items : [];
-  const items = itemsRaw
-    .map((item) => {
-      if (!item || typeof item !== "object") return null;
-      const itemId = toOptionalString((item as ServiceRecord).itemId ?? (item as ServiceRecord).id);
-      const pct = toNumber((item as ServiceRecord).pct);
-      if (!itemId || !Number.isFinite(pct ?? NaN)) return null;
-      return { itemId, pct: Number(pct) };
-    })
-    .filter(Boolean) as Array<{ itemId: string; pct: number }>;
-
-  const weighted = computeWeightedPercent(items, weights);
-  const percentCandidate = Number.isFinite(totalPct ?? NaN) ? Number(totalPct) : null;
-  const percent = Math.max(0, Math.min(100, weighted ?? percentCandidate ?? 0));
-
-  return { percent, totalPct: Number.isFinite(totalPct ?? NaN) ? Number(totalPct) : null, items: items.length ? items : undefined };
 }
 
 function pickDateField(data: ServiceRecord, keys: string[]): string | null {
@@ -533,28 +466,6 @@ export function mapUpdateSnapshot(
       typeof data.declarationAccepted === "boolean" ? data.declarationAccepted : undefined,
     audit: mapAudit(data.audit),
     createdAt,
-  };
-}
-
-export function mapThirdPartyUpdate(
-  id: string,
-  record: ServiceRecord,
-  weights: ChecklistWeights,
-): ServiceUpdate & { totalPct?: number | null; items?: Array<{ itemId: string; pct: number }> } {
-  const percentData = normaliseThirdPartyPercent(record, weights);
-  const createdAt = toMillis(record.date ?? record.createdAt) ?? 0;
-  const description = typeof record.note === "string" && record.note.trim() ? record.note.trim() : "";
-
-  return {
-    id,
-    serviceId: toOptionalString(record.serviceId) ?? undefined,
-    percent: percentData.percent,
-    realPercentSnapshot: percentData.percent,
-    manualPercent: percentData.totalPct ?? undefined,
-    description,
-    createdAt,
-    totalPct: percentData.totalPct,
-    items: percentData.items,
   };
 }
 
