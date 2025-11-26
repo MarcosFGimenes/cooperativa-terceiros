@@ -175,6 +175,10 @@ export async function POST(req: Request) {
 
     const ipHeader = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || req.headers.get("x-real-ip")?.trim() || null;
 
+    const reportDateMillis = Number.isFinite(Number(body.reportDate))
+      ? Number(body.reportDate)
+      : startDate.getTime();
+
     const { realPercent, update } = await addManualUpdate(service.id, {
       manualPercent: percentRaw,
       description,
@@ -186,6 +190,7 @@ export async function POST(req: Request) {
         end: endDate.getTime(),
         hours,
       },
+      reportDate: reportDateMillis,
       subactivity: subactivityId || subactivityLabel ? { id: subactivityId, label: subactivityLabel } : undefined,
       impediments,
       resources,

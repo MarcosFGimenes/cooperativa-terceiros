@@ -1239,6 +1239,7 @@ type ManualUpdateInput = {
   token?: string;
   mode: "simple" | "detailed";
   declarationAccepted: boolean;
+  reportDate?: number | null;
   timeWindow?: { start?: number | null; end?: number | null; hours?: number | null };
   subactivity?: { id?: string | null; label?: string | null };
   impediments?: Array<{ type: string; durationHours?: number | null }>;
@@ -1275,9 +1276,12 @@ function buildComputedUpdatePayload(params: { realPercent: number; note?: string
 }
 
 function buildUpdatePayload(serviceId: string, params: ManualUpdateInput & { realPercent: number }) {
+  const explicitDateMillis =
+    typeof params.reportDate === "number" && Number.isFinite(params.reportDate) ? params.reportDate : null;
   const payload: Record<string, unknown> = {
     realPercentSnapshot: params.realPercent,
-    createdAt: FieldValue.serverTimestamp(),
+    createdAt: explicitDateMillis ? Timestamp.fromMillis(explicitDateMillis) : FieldValue.serverTimestamp(),
+    date: explicitDateMillis ? Timestamp.fromMillis(explicitDateMillis) : undefined,
     description: params.description,
     manualPercent: params.manualPercent,
     percent: params.realPercent,
@@ -1391,7 +1395,7 @@ function buildUpdatePayload(serviceId: string, params: ManualUpdateInput & { rea
   }
 
   const audit: Record<string, unknown> = {
-    submittedAt: FieldValue.serverTimestamp(),
+    submittedAt: explicitDateMillis ? Timestamp.fromMillis(explicitDateMillis) : FieldValue.serverTimestamp(),
     newPercent: params.realPercent,
   };
   if (params.token) {
