@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import {
   Timestamp,
@@ -131,6 +132,8 @@ type ServiceEditorClientProps = {
 };
 
 export default function ServiceEditorClient({ serviceId }: ServiceEditorClientProps) {
+  const searchParams = useSearchParams();
+  const updateIdParam = searchParams?.get("updateId") ?? null;
   const [loading, setLoading] = useState(true);
   const [form, setForm] = useState({
     os: "",
@@ -344,6 +347,12 @@ export default function ServiceEditorClient({ serviceId }: ServiceEditorClientPr
       typeof update.totalPct === "number" && Number.isFinite(update.totalPct) ? String(update.totalPct) : "",
     );
   }, []);
+
+  useEffect(() => {
+    if (!updateIdParam) return;
+    const target = updates.find((u) => u.id === updateIdParam);
+    if (target) startEditingUpdate(target);
+  }, [updateIdParam, updates, startEditingUpdate]);
 
   const cancelEditingUpdate = useCallback(() => {
     setEditingUpdateId(null);
@@ -875,7 +884,7 @@ export default function ServiceEditorClient({ serviceId }: ServiceEditorClientPr
                   ) : null}
                   {update.note ? <p className="text-sm text-muted-foreground">{update.note}</p> : null}
                 </div>
-                {editingUpdateId === update.id ? (
+                {updateIdParam && update.id !== updateIdParam ? null : editingUpdateId === update.id ? (
                   <div className="mt-3 space-y-3">
                     <div className="grid gap-3 sm:grid-cols-2">
                       <div className="space-y-1">

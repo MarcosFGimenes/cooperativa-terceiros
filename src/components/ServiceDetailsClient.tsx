@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Pencil } from "lucide-react";
 import { toast } from "sonner";
 
 import ServiceUpdateForm, { type ServiceUpdateFormPayload } from "@/components/ServiceUpdateForm";
@@ -121,6 +120,19 @@ function computeTimeWindowHours(update: ThirdServiceUpdate): number | null {
   const diff = (endDate.getTime() - startDate.getTime()) / 3_600_000;
   if (!Number.isFinite(diff) || diff < 0) return null;
   return Math.round(diff * 100) / 100;
+}
+
+function shouldDisplayUpdate(update: ThirdServiceUpdate): boolean {
+  const hasStart = update.timeWindow?.start !== null && update.timeWindow?.start !== undefined;
+  const hasDescription = Boolean(update.description && update.description.trim());
+  const hasDetails =
+    (Array.isArray(update.resources) && update.resources.length > 0) ||
+    (Array.isArray(update.workforce) && update.workforce.length > 0) ||
+    (Array.isArray(update.impediments) && update.impediments.length > 0) ||
+    (Array.isArray(update.shiftConditions) && update.shiftConditions.length > 0);
+  const hasHours = computeTimeWindowHours(update) !== null;
+
+  return hasStart || hasDescription || hasDetails || hasHours;
 }
 
 function buildThirdUpdateSummary(update: ThirdServiceUpdate) {
@@ -350,6 +362,7 @@ export default function ServiceDetailsClient({ service, updates: initialUpdates,
   useEffect(() => {
     setUpdates(normalisedInitialUpdates);
   }, [normalisedInitialUpdates]);
+  const recentUpdates = useMemo(() => updates.filter(shouldDisplayUpdate), [updates]);
   const [progress, setProgress] = useState(() => computeInitialProgress(service, normalisedInitialUpdates));
   const [checklistItems, setChecklistItems] = useState<ThirdChecklistItem[]>(() =>
     normaliseChecklistItems(checklist),
@@ -740,19 +753,12 @@ export default function ServiceDetailsClient({ service, updates: initialUpdates,
         <div className="card space-y-2 p-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h2 className="text-lg font-semibold">Atualizações recentes</h2>
-            <Link
-              href={`/servicos/${encodeURIComponent(service.id)}/editar`}
-              className="btn btn-outline btn-xs gap-2 sm:btn-sm"
-            >
-              <Pencil className="h-4 w-4" />
-              Editar lançamentos
-            </Link>
           </div>
-          {updates.length === 0 ? (
+          {recentUpdates.length === 0 ? (
             <p className="mt-2 text-sm text-muted-foreground">Nenhuma atualização registrada.</p>
           ) : (
             <ul className="mt-3 space-y-2 text-sm">
-              {updates.slice(0, 10).map((update) => {
+              {recentUpdates.slice(0, 10).map((update) => {
                 const summary = buildThirdUpdateSummary(update);
                 const hours = computeTimeWindowHours(update);
                 return (
@@ -845,6 +851,14 @@ export default function ServiceDetailsClient({ service, updates: initialUpdates,
                     {update.criticality ? (
                       <p className="text-xs text-muted-foreground">Criticidade observada: {update.criticality}/5</p>
                     ) : null}
+                    <div className="mt-2 flex justify-end">
+                      <Link
+                        href={`/servicos/${encodeURIComponent(service.id)}/editar?updateId=${update.id}&refDate=${update.timeWindow?.start ?? update.createdAt}`}
+                        className="btn btn-outline btn-xs"
+                      >
+                        Editar
+                      </Link>
+                    </div>
                   </li>
                 );
               })}
