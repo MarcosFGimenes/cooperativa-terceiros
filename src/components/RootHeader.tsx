@@ -27,10 +27,10 @@ export default function RootHeader() {
           <Image
             alt="Cooperativa Lar"
             src="/lar-logo.svg"
-            width={32}
+            width={96}
             height={32}
             priority
-            className="h-8 w-8"
+            className="h-8 w-auto"
           />
           <span>
             PCM <span className="text-primary">Terceiros</span>

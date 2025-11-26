@@ -1,3 +1,5 @@
+import { randomUUID } from "crypto";
+
 import { revalidateTag } from "next/cache";
 import { NextResponse } from "next/server";
 
@@ -23,6 +25,18 @@ const HEADER_ALIASES: Record<string, string[]> = {
   empresa: ["EMPRESA"],
   horas: ["TOTAL DE HORA HOMEM", "TOTAL HORA HOMEM", "TOTAL DE HORA-HOMEM"],
 };
+
+function generateChecklistId() {
+  try {
+    return randomUUID();
+  } catch (error) {
+    return Math.random().toString(36).slice(2, 11);
+  }
+}
+
+function buildDefaultChecklist() {
+  return [{ id: generateChecklistId(), descricao: "GERAL", peso: 100 }];
+}
 
 function normaliseHeaderKey(value: string): string {
   return value
@@ -275,7 +289,7 @@ export async function POST(request: Request) {
         horasPrevistas: row.horas,
         empresaId: row.empresa,
         status: "Aberto",
-        checklist: [],
+        checklist: buildDefaultChecklist(),
         description: row.descricao,
         importKey: row.importKey,
       });
