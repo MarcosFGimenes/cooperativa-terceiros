@@ -230,7 +230,7 @@ function computeHoursFromWindow(update: UpdateLike & { timeWindow?: { start?: nu
 }
 
 export function formatUpdateSummary(update: ServiceUpdate): FormattedUpdateSummary {
-  const title = formatDateLabel(update.timeWindow?.start ?? update.createdAt ?? null);
+  const title = formatDateLabel(update.reportDate ?? update.timeWindow?.start ?? update.createdAt ?? null);
   const percentLabel = `${Math.round(update.percent ?? 0)}%`;
   const description = update.description ? `Descrição do dia: ${update.description}` : undefined;
 

@@ -1282,6 +1282,7 @@ function buildUpdatePayload(serviceId: string, params: ManualUpdateInput & { rea
     realPercentSnapshot: params.realPercent,
     createdAt: explicitDateMillis ? Timestamp.fromMillis(explicitDateMillis) : FieldValue.serverTimestamp(),
     date: explicitDateMillis ? Timestamp.fromMillis(explicitDateMillis) : undefined,
+    reportDate: explicitDateMillis ? Timestamp.fromMillis(explicitDateMillis) : undefined,
     description: params.description,
     manualPercent: params.manualPercent,
     percent: params.realPercent,
