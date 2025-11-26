@@ -23,7 +23,6 @@ export type ThirdServiceUpdate = {
   id: string;
   percent: number;
   description?: string;
-  reportDate?: number | null;
   createdAt?: number | null;
   timeWindow?: {
     start?: number | null;

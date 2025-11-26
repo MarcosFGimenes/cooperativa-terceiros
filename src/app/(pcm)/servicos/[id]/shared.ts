@@ -436,7 +436,7 @@ export function mapUpdateSnapshot(
       ? toMillis((data.audit as ServiceRecord).submittedAt)
       : null;
 
-  const reportDate = toMillis(data.reportDate ?? data.date ?? data.createdAt) ?? auditSubmittedAt ?? 0;
+  const createdAt = toMillis(data.date ?? data.createdAt) ?? auditSubmittedAt ?? 0;
 
   return {
     id: doc.id,
@@ -465,8 +465,7 @@ export function mapUpdateSnapshot(
     declarationAccepted:
       typeof data.declarationAccepted === "boolean" ? data.declarationAccepted : undefined,
     audit: mapAudit(data.audit),
-    reportDate,
-    createdAt: reportDate,
+    createdAt,
   };
 }
 

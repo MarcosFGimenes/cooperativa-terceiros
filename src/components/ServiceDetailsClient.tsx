@@ -124,7 +124,7 @@ function computeTimeWindowHours(update: ThirdServiceUpdate): number | null {
 }
 
 function buildThirdUpdateSummary(update: ThirdServiceUpdate) {
-  const title = formatDateLabel(update.reportDate ?? update.timeWindow?.start ?? update.createdAt ?? null);
+  const title = formatDateLabel(update.timeWindow?.start ?? update.createdAt ?? null);
   const percentLabel = `${Math.round(update.percent)}%`;
   const description = update.description ? `Descrição do dia: ${update.description}` : null;
   const hours = computeTimeWindowHours(update);
@@ -313,10 +313,6 @@ function toThirdUpdate(update: unknown): ThirdServiceUpdate {
 
   const previousPercent = toNullableNumber(record.previousPercent);
 
-  const reportDate = toTimestampMs(record.reportDate ?? record.timeWindow?.start ?? record.createdAt);
-  const createdAt = toTimestampMs(record.createdAt ?? record.createdAtMillis ?? record.createdAtMs ?? undefined)
-    ?? reportDate;
-
   return {
     id: String(record.id ?? crypto.randomUUID()),
     percent: clampPercent(record.percent ?? record.realPercentSnapshot ?? record.manualPercent ?? 0),
@@ -326,8 +322,7 @@ function toThirdUpdate(update: unknown): ThirdServiceUpdate {
         : typeof record.note === "string"
           ? record.note
           : undefined,
-    reportDate,
-    createdAt,
+    createdAt: toTimestampMs(record.createdAt ?? record.createdAtMillis ?? record.createdAtMs ?? undefined),
     timeWindow,
     subactivity,
     mode: record.mode === "detailed" || record.mode === "simple" ? record.mode : undefined,
@@ -601,7 +596,6 @@ export default function ServiceDetailsClient({ service, updates: initialUpdates,
               percent: nextPercent,
               description: payload.description,
               createdAt,
-              reportDate: reportDateMillis,
               timeWindow: {
                 start: startDate.getTime(),
                 end: endDate.getTime(),
@@ -767,6 +761,7 @@ export default function ServiceDetailsClient({ service, updates: initialUpdates,
                       <span className="text-base font-semibold text-foreground">{summary.title}</span>
                       <span className="text-sm font-semibold text-primary">{summary.percentLabel}</span>
                     </div>
+                    <p className="text-xs text-muted-foreground">Atualizado em {formatDateLabel(update.createdAt, true)}</p>
                     {update.subactivity?.label ? (
                       <p className="text-xs text-muted-foreground">
                         Subatividade: <span className="font-medium text-foreground">{update.subactivity.label}</span>
