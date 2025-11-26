@@ -203,15 +203,16 @@ function getDateFromKeys(service: ServicoDoSubpacote, keys: string[]): Date | nu
 }
 
 function extractHorasPrevistas(servico: ServicoDoSubpacote): number | null {
-  return (
+  const resolved =
     toPositiveNumber(servico.horasPrevistas) ??
     toPositiveNumber(servico.totalHours) ??
     toPositiveNumber(servico.horas) ??
     toPositiveNumber(servico.hours) ??
     toPositiveNumber(servico.peso) ??
-    toPositiveNumber(servico.weight) ??
-    null
-  );
+    toPositiveNumber(servico.weight);
+
+  if (resolved === null) return 1;
+  return resolved;
 }
 
 type DateRange = { inicio: Date; fim: Date };

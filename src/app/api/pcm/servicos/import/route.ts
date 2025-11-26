@@ -1,3 +1,5 @@
+import { randomUUID } from "crypto";
+
 import { revalidateTag } from "next/cache";
 import { NextResponse } from "next/server";
 
@@ -23,6 +25,18 @@ const HEADER_ALIASES: Record<string, string[]> = {
   empresa: ["EMPRESA"],
   horas: ["TOTAL DE HORA HOMEM", "TOTAL HORA HOMEM", "TOTAL DE HORA-HOMEM"],
 };
+
+function generateChecklistId() {
+  try {
+    return randomUUID();
+  } catch (error) {
+    return Math.random().toString(36).slice(2, 11);
+  }
+}
+
+function buildDefaultChecklist() {
+  return [{ id: generateChecklistId(), descricao: "GERAL", peso: 100 }];
+}
 
 function normaliseHeaderKey(value: string): string {
   return value
@@ -82,21 +96,34 @@ function parseDateValue(value: unknown): number | null {
 function parseHours(value: unknown): number | null {
   if (typeof value === "number" && Number.isFinite(value)) {
     const numeric = value;
-    const isLikelyExcelTime =
-      numeric > 0 &&
-      ((numeric < 1 && !Number.isInteger(numeric)) || (numeric < 48 && !Number.isInteger(numeric)) || numeric <= 5);
+    const hasFraction = !Number.isInteger(numeric);
+    const isLikelyExcelTime = numeric > 0 && numeric < 365 && (hasFraction || Number.isInteger(numeric));
 
     // When the column is formatted as [h]:mm:ss, Excel stores the duration as days.
-    // Convert those serials back to hours so values such as 0.5 (12h) or 1.67 (40h)
+    // Convert those serials back to hours so values such as 0.5 (12h) or 2 (48h)
     // are interpreted correctly.
     if (isLikelyExcelTime) {
       return numeric * 24;
     }
+
     return numeric;
   }
 
   if (typeof value === "string") {
-    const cleaned = value.replace(/[^0-9,\.\-]+/g, "").replace(",", ".");
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+
+    const timeMatch = trimmed.match(/^(\d{1,3})(?::(\d{1,2}))?(?::(\d{1,2}))?$/);
+    if (timeMatch) {
+      const hours = Number(timeMatch[1] ?? 0);
+      const minutes = Number(timeMatch[2] ?? 0);
+      const seconds = Number(timeMatch[3] ?? 0);
+      if ([hours, minutes, seconds].every((part) => Number.isFinite(part))) {
+        return hours + minutes / 60 + seconds / 3600;
+      }
+    }
+
+    const cleaned = trimmed.replace(/[^0-9,\.\-]+/g, "").replace(",", ".");
     const numeric = Number(cleaned);
     if (Number.isFinite(numeric)) return numeric;
   }
@@ -262,7 +289,7 @@ export async function POST(request: Request) {
         horasPrevistas: row.horas,
         empresaId: row.empresa,
         status: "Aberto",
-        checklist: [],
+        checklist: buildDefaultChecklist(),
         description: row.descricao,
         importKey: row.importKey,
       });
