@@ -264,7 +264,8 @@ function parsePercentual(value: unknown): number | null {
   if (typeof value === "string") {
     const trimmed = value.trim();
     if (!trimmed) return null;
-    const parsed = Number(trimmed.replace(",", "."));
+    const normalized = trimmed.replace(/%/g, "").replace(/\s+/g, " ");
+    const parsed = Number(normalized.replace(",", "."));
     if (Number.isFinite(parsed)) {
       return clampPercentage(parsed);
     }
