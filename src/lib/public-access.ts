@@ -287,6 +287,12 @@ export async function requireFolderAccess(tokenId: string, folderId: string): Pr
   const context = ensureFolderMatchesToken(token, folderData, snap.id);
   const { services, unavailable } = await fetchFolderServicesForToken(token, context);
 
+  if (unavailable.length > 0) {
+    console.warn(
+      `[public-access] Serviços do subpacote ${snap.id} filtrados por indisponibilidade: ${unavailable.join(", ")}`,
+    );
+  }
+
   const folderName = typeof folderData.name === "string" ? folderData.name.trim() : "";
   const companyLabel =
     (typeof folderData.company === "string" && folderData.company.trim()) ||
@@ -303,7 +309,7 @@ export async function requireFolderAccess(tokenId: string, folderId: string): Pr
       services: context.services,
     },
     services,
-    unavailableServices: unavailable,
+    unavailableServices: [],
   };
 }
 
