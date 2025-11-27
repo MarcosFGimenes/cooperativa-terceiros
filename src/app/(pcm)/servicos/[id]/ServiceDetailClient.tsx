@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
-import { ArrowLeft, Pencil } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Loader2, Pencil } from "lucide-react";
 import {
   collection,
   doc,
@@ -23,6 +23,7 @@ import { isFirestoreLongPollingForced, tryGetFirestore } from "@/lib/firebase";
 import { isConnectionResetError } from "@/lib/networkErrors";
 import { useFirebaseAuthSession } from "@/lib/useFirebaseAuthSession";
 import type { ChecklistItem, Service, ServiceUpdate } from "@/lib/types";
+import { toast } from "sonner";
 import {
   ServiceRealtimeData,
   buildRealizedSeries,
@@ -117,6 +118,7 @@ export default function ServiceDetailClient({
   const retryTimeoutRef = useRef<number | null>(null);
   const retryCountRef = useRef(0);
   const [shouldListenToSecondaryRealtime, setShouldListenToSecondaryRealtime] = useState(false);
+  const [isCompleting, setIsCompleting] = useState(false);
 
   useEffect(() => {
     setCurrentToken(latestToken);
@@ -524,12 +526,95 @@ export default function ServiceDetailClient({
 
   const statusLabel = useMemo(() => normaliseStatus(service.status), [service.status]);
 
+  const isServiceConcluded = useMemo(
+    () => statusLabel === "Concluído" || realizedPercent >= 100,
+    [realizedPercent, statusLabel],
+  );
+
   const displayedUpdates = useMemo(() => {
     if (updates.length === 0) {
       return normalizedInitialUpdates;
     }
     return updates;
   }, [updates, normalizedInitialUpdates]);
+
+  const handleCompleteService = useCallback(async () => {
+    if (isCompleting || isServiceConcluded) return;
+
+    const confirmed = window.confirm(
+      "Deseja marcar este serviço como concluído? Esta ação registrará 100% de andamento.",
+    );
+    if (!confirmed) return;
+
+    setIsCompleting(true);
+    try {
+      let token = latestIdTokenRef.current;
+      if (!token && user) {
+        token = await user.getIdToken().catch(() => null);
+        latestIdTokenRef.current = token ?? null;
+      }
+
+      if (!token) {
+        throw new Error("Não foi possível validar sua sessão PCM.");
+      }
+
+      const response = await fetch(`/api/public/service/complete?serviceId=${encodedServiceId}`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      const json = (await response.json().catch(() => null)) as { ok?: boolean; error?: string } | null;
+      if (!response.ok || !json?.ok) {
+        const message = json?.error ?? "Não foi possível concluir o serviço.";
+        throw new Error(message);
+      }
+
+      const now = Date.now();
+      const completionUpdate: ServiceUpdate = {
+        id: typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+          ? crypto.randomUUID()
+          : `completion-${now}`,
+        serviceId,
+        createdAt: now,
+        percent: 100,
+        manualPercent: 100,
+        realPercentSnapshot: 100,
+        description: "Concluído pelo PCM",
+        audit: {
+          submittedAt: now,
+          submittedBy: user?.email ?? "pcm",
+          submittedByType: "user",
+          previousPercent: realizedPercent,
+          newPercent: 100,
+        },
+      };
+
+      setService((current) =>
+        mergeServiceRealtime(current, {
+          status: "concluido",
+          manualPercent: 100,
+          realPercent: 100,
+          andamento: 100,
+          progress: 100,
+          updatedAt: now,
+        }),
+      );
+      setUpdates((current) => [completionUpdate, ...current]);
+      toast.success("Serviço marcado como concluído!");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Não foi possível concluir o serviço.";
+      toast.error(message);
+    } finally {
+      setIsCompleting(false);
+    }
+  }, [
+    encodedServiceId,
+    isCompleting,
+    isServiceConcluded,
+    realizedPercent,
+    serviceId,
+    user,
+  ]);
 
   const recentChecklist = useMemo(
     () =>
@@ -596,7 +681,22 @@ export default function ServiceDetailClient({
 
       <div className="grid gap-4 lg:grid-cols-[1fr_minmax(320px,380px)] print-avoid-break">
         <div className="card p-4 print-avoid-break">
-          <h2 className="mb-4 text-lg font-semibold">Informações gerais</h2>
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <h2 className="text-lg font-semibold">Informações gerais</h2>
+            <button
+              type="button"
+              onClick={handleCompleteService}
+              disabled={isServiceConcluded || isCompleting}
+              className="inline-flex items-center justify-center gap-2 rounded-md bg-emerald-600 px-3 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {isCompleting ? (
+                <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />
+              ) : (
+                <CheckCircle2 aria-hidden="true" className="h-4 w-4" />
+              )}
+              <span>{isServiceConcluded ? "Serviço concluído" : "Marcar como concluído"}</span>
+            </button>
+          </div>
           <dl className="grid grid-cols-1 gap-4 text-sm sm:grid-cols-2">
             <div>
               <dt className="text-muted-foreground">Status</dt>

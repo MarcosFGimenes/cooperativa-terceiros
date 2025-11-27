@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { CheckCircle2, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 import ServiceUpdateForm, { type ServiceUpdateFormPayload } from "@/components/ServiceUpdateForm";
@@ -360,44 +360,7 @@ export default function ServiceDetailsClient({
   service,
   updates: initialUpdates,
   checklist,
-  allowCompletion = false,
 }: ServiceDetailsClientProps) {
-  const { user, ready: authReady } = useFirebaseAuthSession();
-  const [pcmToken, setPcmToken] = useState<string | null>(null);
-
-  const isPcmUser = useMemo(() => {
-    const email = user?.email?.trim().toLowerCase();
-    return Boolean(email && isPCMUser(email));
-  }, [user?.email]);
-
-  useEffect(() => {
-    let mounted = true;
-    if (!authReady || !user) {
-      setPcmToken(null);
-      return () => {
-        mounted = false;
-      };
-    }
-
-    user
-      .getIdToken()
-      .then((token) => {
-        if (mounted) setPcmToken(token ?? null);
-      })
-      .catch(() => {
-        if (mounted) setPcmToken(null);
-      });
-
-    return () => {
-      mounted = false;
-    };
-  }, [authReady, user]);
-
-  const canCompleteService = useMemo(
-    () => Boolean(allowCompletion || isPcmUser),
-    [allowCompletion, isPcmUser],
-  );
-
   const normalisedInitialUpdates = useMemo(
     () => dedupeUpdates(initialUpdates.map((item) => sanitiseResourceQuantities(item))).slice(0, MAX_UPDATES),
     [initialUpdates],
@@ -413,7 +376,6 @@ export default function ServiceDetailsClient({
   const [checklistItems, setChecklistItems] = useState<ThirdChecklistItem[]>(() =>
     normaliseChecklistItems(checklist),
   );
-  const [isCompleting, setIsCompleting] = useState(false);
 
   const serviceLabel = useMemo(() => {
     if (service.os && service.os.trim()) return service.os.trim();
@@ -687,46 +649,6 @@ export default function ServiceDetailsClient({
     [progress, service.id, submitChecklistUpdates],
   );
 
-  const isServiceCompleted = useMemo(
-    () => statusLabel === "Concluído" || progress >= 100,
-    [progress, statusLabel],
-  );
-
-  const handleCompleteService = useCallback(async () => {
-    if (isServiceCompleted || isCompleting) return;
-    const confirmed = window.confirm(
-      "Deseja marcar este serviço como concluído? Esta ação registrará 100% de andamento.",
-    );
-    if (!confirmed) return;
-
-    setIsCompleting(true);
-    const url = new URL(`/api/public/service/complete`, window.location.origin);
-    url.searchParams.set("serviceId", service.id);
-
-    try {
-      const headers: HeadersInit = {};
-      if (isPcmUser && pcmToken) {
-        headers.Authorization = `Bearer ${pcmToken}`;
-      }
-
-      const response = await fetch(url.toString(), { method: "POST", headers });
-      const json = (await response.json().catch(() => null)) as { ok?: boolean; error?: string } | null;
-      if (!response.ok || !json?.ok) {
-        const message = json?.error ?? "Não foi possível concluir o serviço.";
-        throw new Error(message);
-      }
-
-      setProgress(100);
-      setServiceStatus("concluido");
-      toast.success("Serviço marcado como concluído!");
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Não foi possível concluir o serviço.";
-      toast.error(message);
-    } finally {
-      setIsCompleting(false);
-    }
-  }, [isCompleting, isPcmUser, isServiceCompleted, pcmToken, service.id]);
-
   return (
     <div className="space-y-8">
       <div className="card overflow-hidden">
@@ -777,26 +699,7 @@ export default function ServiceDetailsClient({
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(360px,460px)] xl:gap-8">
         <div className="card p-4">
-          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
-            {canCompleteService ? (
-              <button
-                type="button"
-                onClick={handleCompleteService}
-                disabled={isServiceCompleted || isCompleting}
-                className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-emerald-600 px-3 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 disabled:cursor-not-allowed disabled:opacity-70 sm:w-auto"
-              >
-                {isCompleting ? (
-                  <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />
-                ) : (
-                  <CheckCircle2 aria-hidden="true" className="h-4 w-4" />
-                )}
-                <span>
-                  {isServiceCompleted ? "Serviço concluído" : "Marcar como concluído"}
-                </span>
-              </button>
-            ) : null}
-            <h2 className="text-lg font-semibold">Informações gerais</h2>
-          </div>
+          <h2 className="mb-4 text-lg font-semibold">Informações gerais</h2>
           <dl className="grid grid-cols-1 gap-4 text-sm sm:grid-cols-2 xl:grid-cols-3">
             {detailItems.map((item) => (
               <div key={item.label} className="space-y-1 rounded-xl border border-border/60 bg-muted/20 p-3 shadow-sm">
