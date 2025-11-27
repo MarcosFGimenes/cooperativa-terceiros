@@ -6,6 +6,7 @@ import { Check } from "lucide-react";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 
+import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 
 export type ServiceUpdateFormPayload = {
@@ -227,6 +228,8 @@ const formSchema = z
 type FormValues = z.infer<typeof formSchema>;
 
 export default function ServiceUpdateForm({ serviceId, lastProgress, checklist, onSubmit }: ServiceUpdateFormProps) {
+  const router = useRouter();
+
   const checklistDefaults = useMemo(
     () =>
       checklist.map((item) => ({
@@ -659,6 +662,9 @@ export default function ServiceUpdateForm({ serviceId, lastProgress, checklist, 
 
       <button type="submit" className="btn btn-primary w-full" disabled={isSubmitting}>
         {isSubmitting ? "Enviando..." : "Registrar atualização"}
+      </button>
+      <button type="button" className="btn btn-ghost w-full" onClick={() => router.back()}>
+        Voltar
       </button>
     </form>
   );
