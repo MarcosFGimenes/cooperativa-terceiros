@@ -8,6 +8,8 @@ import { toast } from "sonner";
 import ServiceUpdateForm, { type ServiceUpdateFormPayload } from "@/components/ServiceUpdateForm";
 import { dedupeUpdates, formatResourcesLine, sanitiseResourceQuantities } from "@/lib/serviceUpdates";
 import { formatDate as formatDateOnly, formatDateTime } from "@/lib/formatDateTime";
+import { useFirebaseAuthSession } from "@/lib/useFirebaseAuthSession";
+import { isPCMUser } from "@/lib/pcmAuth";
 
 import type { ThirdChecklistItem, ThirdService, ThirdServiceUpdate } from "@/app/(third)/terceiro/servico/[id]/types";
 import { cn } from "@/lib/utils";
@@ -16,6 +18,7 @@ type ServiceDetailsClientProps = {
   service: ThirdService;
   updates: ThirdServiceUpdate[];
   checklist: ThirdChecklistItem[];
+  allowCompletion?: boolean;
 };
 
 const MAX_UPDATES = 20;
@@ -353,7 +356,48 @@ function toThirdUpdate(update: unknown): ThirdServiceUpdate {
   };
 }
 
-export default function ServiceDetailsClient({ service, updates: initialUpdates, checklist }: ServiceDetailsClientProps) {
+export default function ServiceDetailsClient({
+  service,
+  updates: initialUpdates,
+  checklist,
+  allowCompletion = false,
+}: ServiceDetailsClientProps) {
+  const { user, ready: authReady } = useFirebaseAuthSession();
+  const [pcmToken, setPcmToken] = useState<string | null>(null);
+
+  const isPcmUser = useMemo(() => {
+    const email = user?.email?.trim().toLowerCase();
+    return Boolean(email && isPCMUser(email));
+  }, [user?.email]);
+
+  useEffect(() => {
+    let mounted = true;
+    if (!authReady || !user) {
+      setPcmToken(null);
+      return () => {
+        mounted = false;
+      };
+    }
+
+    user
+      .getIdToken()
+      .then((token) => {
+        if (mounted) setPcmToken(token ?? null);
+      })
+      .catch(() => {
+        if (mounted) setPcmToken(null);
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, [authReady, user]);
+
+  const canCompleteService = useMemo(
+    () => Boolean(allowCompletion || isPcmUser),
+    [allowCompletion, isPcmUser],
+  );
+
   const normalisedInitialUpdates = useMemo(
     () => dedupeUpdates(initialUpdates.map((item) => sanitiseResourceQuantities(item))).slice(0, MAX_UPDATES),
     [initialUpdates],
@@ -660,7 +704,12 @@ export default function ServiceDetailsClient({ service, updates: initialUpdates,
     url.searchParams.set("serviceId", service.id);
 
     try {
-      const response = await fetch(url.toString(), { method: "POST" });
+      const headers: HeadersInit = {};
+      if (isPcmUser && pcmToken) {
+        headers.Authorization = `Bearer ${pcmToken}`;
+      }
+
+      const response = await fetch(url.toString(), { method: "POST", headers });
       const json = (await response.json().catch(() => null)) as { ok?: boolean; error?: string } | null;
       if (!response.ok || !json?.ok) {
         const message = json?.error ?? "Não foi possível concluir o serviço.";
@@ -676,7 +725,7 @@ export default function ServiceDetailsClient({ service, updates: initialUpdates,
     } finally {
       setIsCompleting(false);
     }
-  }, [isCompleting, isServiceCompleted, service.id]);
+  }, [isCompleting, isPcmUser, isServiceCompleted, pcmToken, service.id]);
 
   return (
     <div className="space-y-8">
@@ -695,7 +744,7 @@ export default function ServiceDetailsClient({ service, updates: initialUpdates,
                   className={cn(
                     "rounded-full px-3 py-1 font-semibold shadow-sm ring-1 ring-inset",
                     item.highlight
-                      ? "bg-primary/15 text-primary-foreground ring-primary/25"
+                      ? "bg-primary/15 text-primary ring-primary/30 dark:bg-primary/20 dark:text-primary-foreground"
                       : "bg-muted/30 text-muted-foreground ring-white/10",
                   )}
                 >
@@ -729,21 +778,23 @@ export default function ServiceDetailsClient({ service, updates: initialUpdates,
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(360px,460px)] xl:gap-8">
         <div className="card p-4">
           <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
-            <button
-              type="button"
-              onClick={handleCompleteService}
-              disabled={isServiceCompleted || isCompleting}
-              className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-emerald-600 px-3 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 disabled:cursor-not-allowed disabled:opacity-70 sm:w-auto"
-            >
-              {isCompleting ? (
-                <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />
-              ) : (
-                <CheckCircle2 aria-hidden="true" className="h-4 w-4" />
-              )}
-              <span>
-                {isServiceCompleted ? "Serviço concluído" : "Marcar como concluído"}
-              </span>
-            </button>
+            {canCompleteService ? (
+              <button
+                type="button"
+                onClick={handleCompleteService}
+                disabled={isServiceCompleted || isCompleting}
+                className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-emerald-600 px-3 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 disabled:cursor-not-allowed disabled:opacity-70 sm:w-auto"
+              >
+                {isCompleting ? (
+                  <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />
+                ) : (
+                  <CheckCircle2 aria-hidden="true" className="h-4 w-4" />
+                )}
+                <span>
+                  {isServiceCompleted ? "Serviço concluído" : "Marcar como concluído"}
+                </span>
+              </button>
+            ) : null}
             <h2 className="text-lg font-semibold">Informações gerais</h2>
           </div>
           <dl className="grid grid-cols-1 gap-4 text-sm sm:grid-cols-2 xl:grid-cols-3">
