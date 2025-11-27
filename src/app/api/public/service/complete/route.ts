@@ -2,7 +2,6 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
 import { PublicAccessError, requireServiceAccess } from "@/lib/public-access";
-import { addComputedUpdate } from "@/lib/repo/services";
 
 export async function POST(req: Request) {
   const { searchParams } = new URL(req.url);
@@ -14,16 +13,11 @@ export async function POST(req: Request) {
   const token = queryToken && queryToken.trim() ? queryToken.trim() : cookieToken;
 
   try {
-    const { service } = await requireServiceAccess(token, serviceId);
-
-    await addComputedUpdate(
-      service.id,
-      100,
-      "Serviço marcado como concluído pelo portal",
-      token || undefined,
+    await requireServiceAccess(token, serviceId);
+    return NextResponse.json(
+      { ok: false, error: "Conclusão permitida apenas para usuários PCM." },
+      { status: 403 },
     );
-
-    return NextResponse.json({ ok: true, realPercent: 100 });
   } catch (error) {
     if (error instanceof PublicAccessError) {
       return NextResponse.json({ ok: false, error: error.message }, { status: error.status });
