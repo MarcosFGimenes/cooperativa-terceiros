@@ -556,3 +556,61 @@ function mapHttpsErrorCode(code: functions.https.FunctionsErrorCode): number {
       return 500;
   }
 }
+
+async function deactivateTokensByTarget(targetType: string, targetId: string): Promise<number> {
+  if (!targetType || !targetId) return 0;
+
+  const snap = await admin
+    .firestore()
+    .collection("accessTokens")
+    .where("targetType", "==", targetType)
+    .where("targetId", "==", targetId)
+    .get();
+
+  if (snap.empty) return 0;
+
+  const now = admin.firestore.FieldValue.serverTimestamp();
+  const batch = admin.firestore().batch();
+
+  snap.docs.forEach((doc) => {
+    batch.set(
+      doc.ref,
+      {
+        active: false,
+        revoked: true,
+        status: "revoked",
+        updatedAt: now,
+      },
+      { merge: true },
+    );
+  });
+
+  await batch.commit();
+  return snap.size;
+}
+
+export const onServiceDelete = functions
+  .region(REGION)
+  .firestore.document("services/{serviceId}")
+  .onDelete(async (_snap, context) => {
+    const serviceId = context.params.serviceId as string;
+
+    try {
+      await deactivateTokensByTarget("service", serviceId);
+    } catch (error) {
+      console.error(`[cleanup] Falha ao revogar tokens do serviço ${serviceId}`, error);
+    }
+  });
+
+export const onPackageFolderDelete = functions
+  .region(REGION)
+  .firestore.document("packageFolders/{folderId}")
+  .onDelete(async (_snap, context) => {
+    const folderId = context.params.folderId as string;
+
+    try {
+      await deactivateTokensByTarget("folder", folderId);
+    } catch (error) {
+      console.error(`[cleanup] Falha ao revogar tokens do subpacote ${folderId}`, error);
+    }
+  });
