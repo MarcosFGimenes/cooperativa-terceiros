@@ -41,14 +41,9 @@ export default function HeaderClient() {
           </button>
         </>
       ) : (
-        <>
-          <Link className="link-btn whitespace-nowrap" href="/login">
-            Login
-          </Link>
-          <Link className="link-btn whitespace-nowrap" href="/acesso">
-            Acesso por token
-          </Link>
-        </>
+        <Link className="link-btn whitespace-nowrap" href="/login">
+          Login
+        </Link>
       )}
       <ThemeToggle className="shrink-0" />
     </nav>

@@ -170,9 +170,14 @@ export default async function TerceiroPacotePublicoPage({ params }: { params: { 
                     </dl>
                   </div>
 
-                  <div className="flex items-center justify-between gap-4 border-t bg-muted/40 px-6 py-4 text-sm text-muted-foreground">
-                    <span>ID interno: {service.id}</span>
-                    <span>Pacote vinculado: {service.packageId ?? "Não informado"}</span>
+                  <div className="flex flex-wrap items-center justify-between gap-4 border-t bg-muted/40 px-6 py-4 text-sm text-muted-foreground">
+                    <Link
+                      href={`/s/${service.id}?token=${encodeURIComponent(token)}`}
+                      className="btn btn-primary"
+                    >
+                      PREENCHER RDO
+                    </Link>
+                    <span className="text-foreground">Pacote vinculado: {service.packageId ?? "Não informado"}</span>
                   </div>
                 </article>
               );
