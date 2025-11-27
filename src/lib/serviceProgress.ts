@@ -362,6 +362,8 @@ const UPDATE_PERCENT_KEYS = [
   "percentualInformado",
   "percentualReal",
   "percentualRealAtual",
+  "realPercent",
+  "andamento",
   "percent",
   "valor",
   "value",
@@ -414,6 +416,9 @@ function coletarAtualizacoesDoServico(
     parsePercentual((servico as Record<string, unknown>).percentualRealAtual) ??
     parsePercentual((servico as Record<string, unknown>).percentualReal) ??
     parsePercentual((servico as Record<string, unknown>).percentualInformado) ??
+    parsePercentual((servico as Record<string, unknown>).realPercent) ??
+    parsePercentual((servico as Record<string, unknown>).andamento) ??
+    parsePercentual((servico as Record<string, unknown>).progress) ??
     parsePercentual((servico as Record<string, unknown>).progressoReal) ??
     parsePercentual((servico as Record<string, unknown>).realProgress) ??
     parsePercentual((servico as Record<string, unknown>).currentProgress);
