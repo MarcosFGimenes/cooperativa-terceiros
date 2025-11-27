@@ -24,11 +24,10 @@ export default function RootHeader() {
       <div className="mx-auto flex h-14 w-full max-w-screen-xl items-center justify-between gap-3 px-4 sm:h-16 sm:px-6">
         <Link href="/" className="flex shrink-0 items-center gap-3 font-semibold tracking-tight text-slate-800">
           <div className="logo-lar">
-            <span aria-hidden className="logo-lar-heart">
-              ♥
+            <span className="logo-lar-word">
+              L<span className="logo-lar-a">a</span>r
             </span>
-            <span className="logo-lar-text">Lar</span>
-            <span className="logo-lar-subtitle">- Acompanhamento de Terceiros</span>
+            <span className="logo-lar-subtitle">Acompanhamento de Terceiros</span>
           </div>
         </Link>
         <HeaderClientBoundary />

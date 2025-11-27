@@ -141,32 +141,37 @@ h3 {
 
 /* Marca Lar no cabeçalho */
 .logo-lar {
-  position: relative;
   display: inline-flex;
   align-items: center;
   font-family: "Helvetica Neue", Arial, sans-serif;
 }
 
-.logo-lar-text {
-  position: relative;
+.logo-lar-word {
   font-weight: 700;
   font-size: 22px;
   line-height: 1.1;
   color: #333333;
+  position: relative;
 }
 
-.dark .logo-lar-text {
-  color: #f8fafc;
+.logo-lar-a {
+  position: relative;
+  display: inline-block;
 }
 
-.logo-lar-heart {
+.logo-lar-a::before {
+  content: "♥";
   position: absolute;
-  left: 17px;
-  top: -10px;
-  font-size: 24px;
-  line-height: 1;
+  top: -0.85em;
+  left: 0.05em;
+  font-size: 18px;
   color: #ff4b5c;
+  line-height: 1;
   pointer-events: none;
+}
+
+.dark .logo-lar-word {
+  color: #f8fafc;
 }
 
 .logo-lar-subtitle {
@@ -175,6 +180,7 @@ h3 {
   font-weight: 400;
   line-height: 1.2;
   color: #4b5563;
+  white-space: nowrap;
 }
 
 .dark .logo-lar-subtitle {
