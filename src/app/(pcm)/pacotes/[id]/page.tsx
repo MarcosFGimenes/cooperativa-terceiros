@@ -840,28 +840,6 @@ async function renderPackageDetailPage(
         </div>
       </div>
 
-      <div className="space-y-6">
-        <div className="space-y-6 print:hidden">
-          <PackageFoldersManagerClient
-            packageId={pkg.id}
-            services={availableServiceOptions}
-            serviceDetails={serviceDetails}
-            initialFolders={folders}
-          />
-
-          <ServicesCompaniesSection folders={folders} serviceDetails={serviceDetails} />
-        </div>
-
-        <div className="hidden print:block" aria-hidden>
-          <ServicesCompaniesSection
-            folders={folders}
-            serviceDetails={serviceDetails}
-            forceExpandAll
-            printLayout
-          />
-        </div>
-      </div>
-
       <section className="summary-blocks print-summary-blocks mt-8 rounded-2xl border bg-card/80 p-5 shadow-sm space-y-8 print:mt-4 print:space-y-6 print-no-border print:w-full print:rounded-none print:border-0 print:bg-white print:shadow-none print:p-4 print-no-radius print-full-width">
         <div className="summary-block-item space-y-3 print-keep-with-next">
           <h2 className="text-lg font-semibold">Resumo por Subpacote</h2>
@@ -947,7 +925,30 @@ async function renderPackageDetailPage(
           )}
         </div>
       </section>
-    </div>
+
+      <div className="space-y-6">
+        <div className="space-y-6 print:hidden">
+          <PackageFoldersManagerClient
+            packageId={pkg.id}
+            services={availableServiceOptions}
+            serviceDetails={serviceDetails}
+            initialFolders={folders}
+          />
+
+          <ServicesCompaniesSection folders={folders} serviceDetails={serviceDetails} />
+        </div>
+
+        <div className="hidden print:block" aria-hidden>
+          <ServicesCompaniesSection
+            folders={folders}
+            serviceDetails={serviceDetails}
+            forceExpandAll
+            printLayout
+          />
+        </div>
+      </div>
+
+   </div>
   );
 }
 
