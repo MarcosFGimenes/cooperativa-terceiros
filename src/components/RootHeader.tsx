@@ -28,20 +28,20 @@ export default function RootHeader() {
         >
           <span className="flex items-center gap-3 font-sans leading-none">
             <span className="flex items-center gap-2 whitespace-nowrap">
-              <span className="relative inline-flex items-center">
+              <span className="inline-flex items-center gap-2">
                 <svg
                   aria-hidden
-                  viewBox="0 0 24 24"
-                  className="absolute -left-4 -top-2 h-7 w-7 text-[#ff4b5c] sm:-left-[18px] sm:-top-2 sm:h-8 sm:w-8"
+                  viewBox="0 0 64 64"
+                  className="h-8 w-8 text-[#e3223b] sm:h-9 sm:w-9"
                   fill="none"
                   stroke="currentColor"
-                  strokeWidth="2.2"
                   strokeLinecap="round"
                   strokeLinejoin="round"
+                  strokeWidth="3.6"
                 >
-                  <path d="M12 20.5c-4.3-2.4-9-6.9-9-11.4C3 5.7 4.9 3.5 7.3 3.5c1.7 0 3.1 1 3.9 2.4.8-1.4 2.2-2.4 3.9-2.4 2.4 0 4.3 2.2 4.3 5.6 0 4.5-4.7 9-9 11.4Z" />
+                  <path d="M32 12.5c2.6-5.4 9.2-7.3 13.7-3 3.8 3.6 4 9.9.1 13.7L32 37 18.2 23.2c-3.9-3.8-3.7-10.1.1-13.7 4.5-4.3 11.1-2.4 13.7 3Z" />
                 </svg>
-                <span className="pl-2 text-[23px] font-semibold leading-tight tracking-tight text-slate-900 dark:text-slate-50 sm:text-[25px]">
+                <span className="text-[23px] font-semibold leading-tight tracking-tight text-slate-900 dark:text-slate-50 sm:text-[25px]">
                   Lar
                 </span>
               </span>
