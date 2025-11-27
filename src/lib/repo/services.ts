@@ -12,6 +12,7 @@ import { revalidateTag, unstable_cache } from "next/cache";
 
 const getDb = () => getAdmin().db;
 const servicesCollection = () => getDb().collection("services");
+const accessTokensCollection = () => getDb().collection("accessTokens");
 
 const SERVICE_CACHE_TTL_SECONDS = 180;
 const SERVICE_LIST_CACHE_TTL_SECONDS = 300;
@@ -1562,12 +1563,42 @@ async function deleteSubcollection(
   await Promise.all(snap.docs.map((doc) => doc.ref.delete()));
 }
 
+async function revokeServiceTokens(serviceId: string): Promise<number> {
+  if (!serviceId) return 0;
+
+  const snap = await accessTokensCollection()
+    .where("targetType", "==", "service")
+    .where("targetId", "==", serviceId)
+    .get();
+
+  if (snap.empty) return 0;
+
+  const now = FieldValue.serverTimestamp();
+  const batch = getDb().batch();
+
+  snap.docs.forEach((doc) => {
+    batch.set(
+      doc.ref,
+      { active: false, revoked: true, status: "revoked", updatedAt: now },
+      { merge: true },
+    );
+  });
+
+  await batch.commit();
+  return snap.size;
+}
+
 export async function deleteService(serviceId: string): Promise<boolean> {
   const ref = servicesCollection().doc(serviceId);
   const snap = await ref.get();
   if (!snap.exists) {
     return false;
   }
+
+  await revokeServiceTokens(serviceId).catch((error) => {
+    console.error(`[services] Falha ao revogar tokens do serviço ${serviceId}`, error);
+    throw error;
+  });
 
   await deleteSubcollection(ref, "checklist").catch((error) => {
     console.error(`[services] Falha ao excluir checklist do serviço ${serviceId}`, error);
