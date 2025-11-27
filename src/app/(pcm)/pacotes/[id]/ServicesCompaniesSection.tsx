@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 
 import { formatDate, formatDateTime } from "@/lib/formatDateTime";
@@ -170,9 +171,11 @@ export default function ServicesCompaniesSection({
                       ) : (
                         <>
                           {visibleServices.map((detail) => (
-                            <div
+                            <Link
                               key={detail.id}
-                              className="service-card service-entry rounded-lg border border-border/70 bg-card text-foreground shadow-sm print:border-slate-200 print:bg-white print:text-slate-900 print:shadow-none"
+                              href={`/servicos/${detail.id}`}
+                              prefetch={false}
+                              className="service-card service-entry block rounded-lg border border-border/70 bg-card text-foreground shadow-sm transition hover:border-primary/70 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background print:border-slate-200 print:bg-white print:text-slate-900 print:shadow-none"
                             >
                               <div className="service-title flex flex-wrap items-center justify-between gap-2 rounded-t bg-muted/70 px-3 py-2 text-foreground print:bg-slate-100 print:text-slate-900">
                                 <p className="font-semibold">{detail.label || detail.id}</p>
@@ -203,7 +206,7 @@ export default function ServicesCompaniesSection({
                                   <span className="font-semibold text-foreground print:text-slate-900">{formatDateLabel(detail.endDateMs)}</span>
                                 </p>
                               </div>
-                            </div>
+                            </Link>
                           ))}
                           {!isAlwaysOpen && hiddenCount > 0 ? (
                             <div className="flex flex-wrap items-center justify-between gap-2 rounded border border-dashed bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
