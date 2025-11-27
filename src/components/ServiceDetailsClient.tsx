@@ -8,6 +8,8 @@ import { toast } from "sonner";
 import ServiceUpdateForm, { type ServiceUpdateFormPayload } from "@/components/ServiceUpdateForm";
 import { dedupeUpdates, formatResourcesLine, sanitiseResourceQuantities } from "@/lib/serviceUpdates";
 import { formatDate as formatDateOnly, formatDateTime } from "@/lib/formatDateTime";
+import { useFirebaseAuthSession } from "@/lib/useFirebaseAuthSession";
+import { isPCMUser } from "@/lib/pcmAuth";
 
 import type { ThirdChecklistItem, ThirdService, ThirdServiceUpdate } from "@/app/(third)/terceiro/servico/[id]/types";
 import { cn } from "@/lib/utils";
@@ -16,6 +18,7 @@ type ServiceDetailsClientProps = {
   service: ThirdService;
   updates: ThirdServiceUpdate[];
   checklist: ThirdChecklistItem[];
+  allowCompletion?: boolean;
 };
 
 const MAX_UPDATES = 20;
