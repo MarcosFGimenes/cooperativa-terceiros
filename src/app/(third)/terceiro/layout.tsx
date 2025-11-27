@@ -8,7 +8,7 @@ export default function TerceiroLayout({ children }: { children: ReactNode }) {
   return (
     <>
       {/* Header fix: keep the toolbar globally fixed and above all content */}
-      <header className="fixed top-0 left-0 right-0 z-[1000] w-full border-b border-border/70 bg-white/80 shadow-sm backdrop-blur-md supports-[backdrop-filter]:bg-white/70 dark:border-slate-800/80 dark:bg-[#0b1220]/80">
+      <header className="fixed top-0 left-0 right-0 z-[1000] w-full border-b border-border/70 bg-white/80 shadow-sm backdrop-blur-md supports-[backdrop-filter]:bg-white/70 dark:border-[rgba(0,99,76,0.55)] dark:bg-[rgba(0,99,76,0.85)]">
         <div className="container mx-auto flex h-14 items-center justify-between px-4">
           <Link href="/terceiro" className="font-semibold tracking-tight">
             Portal <span className="text-primary">Terceiro</span>

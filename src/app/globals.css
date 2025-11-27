@@ -5,65 +5,65 @@
 /* Tema claro (default) */
 :root {
   color-scheme: light dark;
-  --background: 212 55% 97%;
-  --foreground: 223 35% 12%;
+  --background: 104 45% 97%;
+  --foreground: 166 35% 18%;
 
   --card: 0 0% 100%;
-  --card-foreground: 223 35% 12%;
+  --card-foreground: 166 35% 18%;
 
   --popover: 0 0% 100%;
-  --popover-foreground: 223 35% 12%;
+  --popover-foreground: 166 35% 18%;
 
-  --primary: 160 64% 41%;
+  --primary: 103 50% 53%; /* Pantone 360 C */
   --primary-foreground: 0 0% 100%;
 
-  --secondary: 206 72% 95%;
-  --secondary-foreground: 223 35% 16%;
+  --secondary: 123 43% 40%; /* Pantone 7740 C */
+  --secondary-foreground: 0 0% 100%;
 
-  --muted: 210 35% 95%;
-  --muted-foreground: 219 20% 36%;
+  --muted: 111 34% 93%;
+  --muted-foreground: 166 22% 34%;
 
-  --accent: 160 60% 90%;
-  --accent-foreground: 160 64% 24%;
+  --accent: 166 100% 19%; /* Pantone 626 C */
+  --accent-foreground: 136 55% 90%;
 
   --destructive: 0 72% 51%;
   --destructive-foreground: 0 0% 100%;
 
-  --border: 209 30% 88%;
-  --input: 209 30% 88%;
-  --ring: 160 64% 41%;
-  --surface: 210 60% 99%;
+  --border: 115 28% 85%;
+  --input: 115 28% 85%;
+  --ring: 103 50% 53%;
+  --surface: 110 45% 99%;
 }
 
 /* Tema escuro */
 :root.dark {
-  --background: 222 47% 7%;
-  --foreground: 210 40% 98%;
+  --background: 166 62% 8%;
+  --foreground: 137 32% 92%;
 
-  --card: 222 47% 9%;
-  --card-foreground: 210 40% 98%;
+  --card: 166 58% 10%;
+  --card-foreground: 137 32% 92%;
 
-  --popover: 222 47% 9%;
-  --popover-foreground: 210 40% 98%;
+  --popover: 166 58% 10%;
+  --popover-foreground: 137 32% 92%;
 
-  --primary: 160 64% 41%;
+  --primary: 103 50% 53%;
   --primary-foreground: 0 0% 100%;
 
-  --secondary: 215 27% 17%;
-  --secondary-foreground: 210 40% 98%;
+  --secondary: 123 43% 46%;
+  --secondary-foreground: 0 0% 100%;
 
-  --muted: 215 27% 17%;
-  --muted-foreground: 215 20% 65%;
+  --muted: 166 35% 16%;
+  --muted-foreground: 140 15% 70%;
 
-  --accent: 160 22% 18%;
-  --accent-foreground: 160 60% 84%;
+  --accent: 166 80% 18%;
+  --accent-foreground: 134 45% 88%;
 
   --destructive: 0 84% 63%;
   --destructive-foreground: 0 0% 98%;
 
-  --border: 215 25% 20%;
-  --input: 215 25% 20%;
-  --ring: 160 64% 41%;
+  --border: 166 32% 22%;
+  --input: 166 32% 22%;
+  --ring: 103 50% 53%;
 }
 
 /* Base */
@@ -86,7 +86,7 @@
     background-color: hsl(var(--background));
     background-image:
       radial-gradient(circle at -10% -20%, hsl(var(--primary) / 0.18), transparent 55%),
-      radial-gradient(circle at 110% -10%, hsl(var(--accent) / 0.25), transparent 55%),
+      radial-gradient(circle at 110% -10%, hsl(var(--secondary) / 0.22), transparent 55%),
       linear-gradient(180deg, hsl(var(--surface)) 0%, hsl(var(--background)) 45%, hsl(var(--background)) 100%);
     background-attachment: scroll;
   }
@@ -140,22 +140,22 @@ h3 {
 }
 
 /* Improve dark contrast */
-:root.dark {
-  --background: 222 47% 8%;
-  --foreground: 210 40% 96%;
-  --card: 222 47% 11%;
-  --card-foreground: 210 40% 96%;
-  --muted: 215 27% 16%;
-  --muted-foreground: 215 18% 72%;
-  --border: 215 25% 22%;
-  --input: 215 25% 22%;
-}
+  :root.dark {
+    --background: 166 62% 8%;
+    --foreground: 137 32% 92%;
+    --card: 166 58% 10%;
+    --card-foreground: 137 32% 92%;
+    --muted: 166 35% 16%;
+    --muted-foreground: 140 15% 70%;
+    --border: 166 32% 22%;
+    --input: 166 32% 22%;
+  }
 
 :root.dark body {
   background-color: hsl(var(--background));
   background-image:
     radial-gradient(circle at -15% -20%, hsl(var(--primary) / 0.35), transparent 55%),
-    radial-gradient(circle at 120% -15%, hsla(210, 40%, 16%, 0.7), transparent 55%);
+    radial-gradient(circle at 120% -15%, hsl(var(--accent) / 0.5), transparent 55%);
 }
 
 /* Inputs default look */
@@ -489,7 +489,7 @@ input:-webkit-autofill:focus {
 }
 .input { @apply h-11 w-full rounded-md border border-input bg-background px-3 text-sm placeholder:text-muted-foreground/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30; }
 .card {
-  @apply rounded-3xl border border-border/70 bg-card/95 text-card-foreground shadow-lg shadow-primary/5 backdrop-blur-sm dark:border-slate-800/70 dark:bg-card/70;
+  @apply rounded-3xl border border-border/70 bg-card/95 text-card-foreground shadow-lg shadow-primary/5 backdrop-blur-sm dark:border-[rgba(0,99,76,0.55)] dark:bg-card/70;
   content-visibility: auto;
   contain: layout paint style;
 }
