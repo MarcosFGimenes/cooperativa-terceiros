@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { CheckCircle2, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 import ServiceUpdateForm, { type ServiceUpdateFormPayload } from "@/components/ServiceUpdateForm";
@@ -353,7 +353,11 @@ function toThirdUpdate(update: unknown): ThirdServiceUpdate {
   };
 }
 
-export default function ServiceDetailsClient({ service, updates: initialUpdates, checklist }: ServiceDetailsClientProps) {
+export default function ServiceDetailsClient({
+  service,
+  updates: initialUpdates,
+  checklist,
+}: ServiceDetailsClientProps) {
   const normalisedInitialUpdates = useMemo(
     () => dedupeUpdates(initialUpdates.map((item) => sanitiseResourceQuantities(item))).slice(0, MAX_UPDATES),
     [initialUpdates],
@@ -369,7 +373,6 @@ export default function ServiceDetailsClient({ service, updates: initialUpdates,
   const [checklistItems, setChecklistItems] = useState<ThirdChecklistItem[]>(() =>
     normaliseChecklistItems(checklist),
   );
-  const [isCompleting, setIsCompleting] = useState(false);
 
   const serviceLabel = useMemo(() => {
     if (service.os && service.os.trim()) return service.os.trim();
@@ -413,7 +416,12 @@ export default function ServiceDetailsClient({ service, updates: initialUpdates,
     setServiceStatus(service.status);
   }, [service.status]);
 
-  const statusLabel = useMemo(() => normaliseStatus(serviceStatus), [serviceStatus]);
+  const statusLabel = useMemo(() => {
+    const normalised = normaliseStatus(serviceStatus);
+    if (normalised === "Pendente") return normalised;
+    if (progress >= 100) return "Concluído";
+    return normalised;
+  }, [progress, serviceStatus]);
 
   const isServiceOpen = useMemo(() => {
     const rawStatus = String(serviceStatus ?? "").toLowerCase();
@@ -643,41 +651,6 @@ export default function ServiceDetailsClient({ service, updates: initialUpdates,
     [progress, service.id, submitChecklistUpdates],
   );
 
-  const isServiceCompleted = useMemo(
-    () => statusLabel === "Concluído" || progress >= 100,
-    [progress, statusLabel],
-  );
-
-  const handleCompleteService = useCallback(async () => {
-    if (isServiceCompleted || isCompleting) return;
-    const confirmed = window.confirm(
-      "Deseja marcar este serviço como concluído? Esta ação registrará 100% de andamento.",
-    );
-    if (!confirmed) return;
-
-    setIsCompleting(true);
-    const url = new URL(`/api/public/service/complete`, window.location.origin);
-    url.searchParams.set("serviceId", service.id);
-
-    try {
-      const response = await fetch(url.toString(), { method: "POST" });
-      const json = (await response.json().catch(() => null)) as { ok?: boolean; error?: string } | null;
-      if (!response.ok || !json?.ok) {
-        const message = json?.error ?? "Não foi possível concluir o serviço.";
-        throw new Error(message);
-      }
-
-      setProgress(100);
-      setServiceStatus("concluido");
-      toast.success("Serviço marcado como concluído!");
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Não foi possível concluir o serviço.";
-      toast.error(message);
-    } finally {
-      setIsCompleting(false);
-    }
-  }, [isCompleting, isServiceCompleted, service.id]);
-
   return (
     <div className="space-y-8">
       <div className="card overflow-hidden">
@@ -695,7 +668,7 @@ export default function ServiceDetailsClient({ service, updates: initialUpdates,
                   className={cn(
                     "rounded-full px-3 py-1 font-semibold shadow-sm ring-1 ring-inset",
                     item.highlight
-                      ? "bg-primary/15 text-primary-foreground ring-primary/25"
+                      ? "bg-primary/15 text-primary ring-primary/30 dark:bg-primary/20 dark:text-primary-foreground"
                       : "bg-muted/30 text-muted-foreground ring-white/10",
                   )}
                 >
@@ -704,7 +677,16 @@ export default function ServiceDetailsClient({ service, updates: initialUpdates,
               ))}
             </div>
             <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
-              <span className="rounded-full bg-muted px-3 py-1 font-medium text-foreground">{statusLabel}</span>
+              <span
+                className={cn(
+                  "rounded-full px-3 py-1 font-semibold",
+                  statusLabel === "Concluído"
+                    ? "border border-emerald-200 bg-emerald-100 text-emerald-800 ring-1 ring-inset ring-emerald-200/80 dark:border-emerald-700/70 dark:bg-emerald-900/30 dark:text-emerald-50 dark:ring-emerald-700/60"
+                    : "bg-muted font-medium text-foreground",
+                )}
+              >
+                {statusLabel}
+              </span>
               {companyLabel ? <span>Empresa: {companyLabel}</span> : null}
               <span>Última atualização: {formatDateLabel(lastUpdateAt, true)}</span>
             </div>
@@ -728,29 +710,21 @@ export default function ServiceDetailsClient({ service, updates: initialUpdates,
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(360px,460px)] xl:gap-8">
         <div className="card p-4">
-          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
-            <button
-              type="button"
-              onClick={handleCompleteService}
-              disabled={isServiceCompleted || isCompleting}
-              className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-emerald-600 px-3 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 disabled:cursor-not-allowed disabled:opacity-70 sm:w-auto"
-            >
-              {isCompleting ? (
-                <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />
-              ) : (
-                <CheckCircle2 aria-hidden="true" className="h-4 w-4" />
-              )}
-              <span>
-                {isServiceCompleted ? "Serviço concluído" : "Marcar como concluído"}
-              </span>
-            </button>
-            <h2 className="text-lg font-semibold">Informações gerais</h2>
-          </div>
+          <h2 className="mb-4 text-lg font-semibold">Informações gerais</h2>
           <dl className="grid grid-cols-1 gap-4 text-sm sm:grid-cols-2 xl:grid-cols-3">
             {detailItems.map((item) => (
               <div key={item.label} className="space-y-1 rounded-xl border border-border/60 bg-muted/20 p-3 shadow-sm">
                 <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{item.label}</dt>
-                <dd className="text-base font-semibold text-foreground">{item.value}</dd>
+                <dd
+                  className={cn(
+                    "text-base font-semibold text-foreground",
+                    item.label === "Status" && item.value === "Concluído"
+                      ? "text-emerald-700 dark:text-emerald-200"
+                      : null,
+                  )}
+                >
+                  {item.value}
+                </dd>
               </div>
             ))}
           </dl>

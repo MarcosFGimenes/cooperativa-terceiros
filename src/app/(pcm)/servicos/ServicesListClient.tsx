@@ -22,7 +22,8 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 const STATUS_TONE: Record<string, string> = {
-  Concluído: "bg-emerald-100 text-emerald-700 border-emerald-200",
+  Concluído:
+    "border-emerald-200 bg-emerald-100 text-emerald-800 ring-1 ring-inset ring-emerald-200/80 dark:border-emerald-700/80 dark:bg-emerald-900/40 dark:text-emerald-100 dark:ring-emerald-700/70",
   Pendente: "bg-amber-100 text-amber-700 border-amber-200",
   Aberto: "bg-sky-100 text-sky-700 border-sky-200",
 };
@@ -30,6 +31,13 @@ const STATUS_TONE: Record<string, string> = {
 function normaliseStatus(status: PCMServiceListItem["status"]): string {
   const raw = String(status ?? "").trim().toLowerCase();
   return STATUS_LABEL[raw] ?? "Aberto";
+}
+
+function deriveStatusLabel(status: PCMServiceListItem["status"], realizedPercent: number) {
+  const normalised = normaliseStatus(status);
+  if (normalised === "Pendente") return normalised;
+  if (realizedPercent >= 100) return "Concluído";
+  return normalised;
 }
 
 function resolveIdentifier(service: PCMServiceListItem) {
@@ -138,10 +146,10 @@ export default function ServicesListClient({ initialItems, initialCursor }: Prop
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {filteredItems.map((service) => {
             const serviceHref = `/servicos/${encodeURIComponent(service.id)}`;
-            const statusLabel = normaliseStatus(service.status);
-            const statusTone = STATUS_TONE[statusLabel] ?? "border-border bg-muted text-foreground/80";
           const plannedPercent = Math.round(resolveServicoPercentualPlanejado(service, referenceDate));
           const realPercent = Math.round(resolveServicoRealPercent(service, referenceDate));
+            const statusLabel = deriveStatusLabel(service.status, realPercent);
+            const statusTone = STATUS_TONE[statusLabel] ?? "border-border bg-muted text-foreground/80";
           const isComplete = realPercent >= 100;
           const identifier = resolveIdentifier(service);
           const subtitle = resolveSubtitle(service);

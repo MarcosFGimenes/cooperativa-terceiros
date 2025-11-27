@@ -20,6 +20,13 @@ function normaliseStatus(value?: string | null): string {
   return "Aberto";
 }
 
+function deriveStatusLabel(status: Service["status"], progress: number): string {
+  const normalised = normaliseStatus(status);
+  if (normalised === "Pendente") return normalised;
+  if (progress >= 100) return "Concluído";
+  return normalised;
+}
+
 function resolveProgress(service: Service): number {
   const candidates = [service.realPercent, service.progress, service.andamento, service.previousProgress];
   for (const value of candidates) {
@@ -112,7 +119,7 @@ export default async function TerceiroPacotePublicoPage({ params }: { params: { 
           <div className="mt-6 space-y-6">
             {sortedServices.map((service) => {
               const progress = resolveProgress(service);
-              const statusLabel = normaliseStatus(service.status);
+              const statusLabel = deriveStatusLabel(service.status, progress);
               const subtitle = serviceSubtitle(service);
               return (
                 <article key={service.id} className="card border shadow-sm">
@@ -122,7 +129,15 @@ export default async function TerceiroPacotePublicoPage({ params }: { params: { 
                       <p className="text-sm text-muted-foreground">{subtitle ?? `ID: ${service.id}`}</p>
                     </div>
                     <div className="flex flex-col items-end gap-2 text-sm font-semibold">
-                      <span className="rounded-full border border-primary/40 bg-primary/10 px-3 py-1 text-primary">{statusLabel}</span>
+                      <span
+                        className={`rounded-full px-3 py-1 ${
+                          statusLabel === "Concluído"
+                            ? "border border-emerald-200 bg-emerald-100 text-emerald-800 ring-1 ring-emerald-200/70 dark:border-emerald-700/70 dark:bg-emerald-900/40 dark:text-emerald-50 dark:ring-emerald-700/60"
+                            : "border border-primary/40 bg-primary/10 text-primary"
+                        }`}
+                      >
+                        {statusLabel}
+                      </span>
                       <span className="text-muted-foreground">{progress}% concluído</span>
                     </div>
                   </div>
@@ -170,9 +185,14 @@ export default async function TerceiroPacotePublicoPage({ params }: { params: { 
                     </dl>
                   </div>
 
-                  <div className="flex items-center justify-between gap-4 border-t bg-muted/40 px-6 py-4 text-sm text-muted-foreground">
-                    <span>ID interno: {service.id}</span>
-                    <span>Pacote vinculado: {service.packageId ?? "Não informado"}</span>
+                  <div className="flex flex-wrap items-center justify-between gap-4 border-t bg-muted/40 px-6 py-4 text-sm text-muted-foreground">
+                    <Link
+                      href={`/s/${service.id}?token=${encodeURIComponent(token)}`}
+                      className="btn btn-primary"
+                    >
+                      PREENCHER RDO
+                    </Link>
+                    <span className="text-foreground">Pacote vinculado: {service.packageId ?? "Não informado"}</span>
                   </div>
                 </article>
               );
