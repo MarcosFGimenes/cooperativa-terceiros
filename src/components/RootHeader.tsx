@@ -27,15 +27,14 @@ export default function RootHeader() {
           className="flex shrink-0 items-center gap-3 font-semibold tracking-tight text-slate-800"
         >
           <span className="flex items-center gap-3 font-sans leading-none">
-            <span
-              aria-hidden
-              className="flex h-9 w-9 items-center justify-center rounded-full bg-rose-50 text-2xl text-[#ff4b5c] shadow-sm"
-            >
-              ♥
-            </span>
-            <span className="flex items-center gap-2 whitespace-nowrap">
-              <span className="text-[24px] font-semibold leading-tight tracking-tight text-[#262626] sm:text-[26px]">Lar</span>
-              <span className="text-sm font-medium leading-tight text-slate-500 sm:text-[15px]">- Acompanhamento de Terceiros</span>
+            <span aria-hidden className="text-[22px] text-[#ff4b5c] sm:text-[23px]">♥</span>
+            <span className="flex items-baseline gap-2 whitespace-nowrap">
+              <span className="text-[23px] font-semibold leading-tight tracking-tight text-slate-900 dark:text-slate-50 sm:text-[25px]">
+                Lar
+              </span>
+              <span className="text-sm font-medium leading-tight text-slate-600 dark:text-slate-400 sm:text-[15px]">
+                - Acompanhamento de Terceiros
+              </span>
             </span>
           </span>
         </Link>
