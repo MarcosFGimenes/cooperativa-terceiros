@@ -701,7 +701,7 @@ export default function ServiceDetailsClient({
                   className={cn(
                     "rounded-full px-3 py-1 font-semibold shadow-sm ring-1 ring-inset",
                     item.highlight
-                      ? "bg-primary/15 text-primary-foreground ring-primary/25"
+                      ? "bg-primary/15 text-primary ring-primary/30 dark:bg-primary/20 dark:text-primary-foreground"
                       : "bg-muted/30 text-muted-foreground ring-white/10",
                   )}
                 >

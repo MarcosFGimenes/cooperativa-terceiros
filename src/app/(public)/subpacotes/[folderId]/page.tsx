@@ -158,8 +158,7 @@ export default async function FolderPublicPage({
                     </dl>
                   </div>
 
-                  <div className="flex items-center justify-between gap-4 border-t bg-muted/40 px-6 py-4 text-sm">
-                    <span className="text-muted-foreground">ID interno: {service.id}</span>
+                  <div className="flex flex-wrap items-center justify-end gap-3 border-t bg-muted/40 px-6 py-4 text-sm">
                     <Link
                       href={`/s/${service.id}?token=${encodeURIComponent(token)}`}
                       className="btn btn-primary"
