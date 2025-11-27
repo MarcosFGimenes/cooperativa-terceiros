@@ -419,7 +419,12 @@ export default function ServiceDetailsClient({
     setServiceStatus(service.status);
   }, [service.status]);
 
-  const statusLabel = useMemo(() => normaliseStatus(serviceStatus), [serviceStatus]);
+  const statusLabel = useMemo(() => {
+    const normalised = normaliseStatus(serviceStatus);
+    if (normalised === "Pendente") return normalised;
+    if (progress >= 100) return "Concluído";
+    return normalised;
+  }, [progress, serviceStatus]);
 
   const isServiceOpen = useMemo(() => {
     const rawStatus = String(serviceStatus ?? "").toLowerCase();
@@ -675,7 +680,16 @@ export default function ServiceDetailsClient({
               ))}
             </div>
             <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
-              <span className="rounded-full bg-muted px-3 py-1 font-medium text-foreground">{statusLabel}</span>
+              <span
+                className={cn(
+                  "rounded-full px-3 py-1 font-semibold",
+                  statusLabel === "Concluído"
+                    ? "border border-emerald-200 bg-emerald-100 text-emerald-800 ring-1 ring-inset ring-emerald-200/80 dark:border-emerald-700/70 dark:bg-emerald-900/30 dark:text-emerald-50 dark:ring-emerald-700/60"
+                    : "bg-muted font-medium text-foreground",
+                )}
+              >
+                {statusLabel}
+              </span>
               {companyLabel ? <span>Empresa: {companyLabel}</span> : null}
               <span>Última atualização: {formatDateLabel(lastUpdateAt, true)}</span>
             </div>
@@ -704,7 +718,16 @@ export default function ServiceDetailsClient({
             {detailItems.map((item) => (
               <div key={item.label} className="space-y-1 rounded-xl border border-border/60 bg-muted/20 p-3 shadow-sm">
                 <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{item.label}</dt>
-                <dd className="text-base font-semibold text-foreground">{item.value}</dd>
+                <dd
+                  className={cn(
+                    "text-base font-semibold text-foreground",
+                    item.label === "Status" && item.value === "Concluído"
+                      ? "text-emerald-700 dark:text-emerald-200"
+                      : null,
+                  )}
+                >
+                  {item.value}
+                </dd>
               </div>
             ))}
           </dl>

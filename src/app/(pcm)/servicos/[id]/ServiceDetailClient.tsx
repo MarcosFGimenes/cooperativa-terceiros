@@ -524,7 +524,17 @@ export default function ServiceDetailClient({
     return typeof resolved === "string" ? resolved.trim() : "";
   }, [composedInitial.description, service.description]);
 
-  const statusLabel = useMemo(() => normaliseStatus(service.status), [service.status]);
+  const statusLabel = useMemo(() => {
+    const normalised = normaliseStatus(service.status);
+    if (normalised === "Pendente") return normalised;
+    if (realizedPercent >= 100) return "Concluído";
+    return normalised;
+  }, [realizedPercent, service.status]);
+
+  const isServiceConcluded = useMemo(
+    () => statusLabel === "Concluído" || realizedPercent >= 100,
+    [realizedPercent, statusLabel],
+  );
 
   const isServiceConcluded = useMemo(
     () => statusLabel === "Concluído" || realizedPercent >= 100,
@@ -700,7 +710,15 @@ export default function ServiceDetailClient({
           <dl className="grid grid-cols-1 gap-4 text-sm sm:grid-cols-2">
             <div>
               <dt className="text-muted-foreground">Status</dt>
-              <dd className="font-medium">{statusLabel}</dd>
+              <dd
+                className={`font-semibold ${
+                  statusLabel === "Concluído"
+                    ? "text-emerald-700 dark:text-emerald-200"
+                    : "text-foreground"
+                }`}
+              >
+                {statusLabel}
+              </dd>
             </div>
             <div>
               <dt className="text-muted-foreground">Andamento</dt>
