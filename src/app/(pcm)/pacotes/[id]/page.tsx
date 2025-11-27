@@ -776,7 +776,7 @@ async function renderPackageDetailPage(
           </div>
         ) : null}
 
-        <div className="grid gap-6 xl:grid-cols-[minmax(0,2.2fr)_minmax(260px,0.9fr)] print:block print:gap-3">
+        <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-start print:block print:gap-3">
           <section
             className="rounded-2xl border bg-card/80 p-5 shadow-sm scurve-card print-card print:w-full print:rounded-none print:border-0 print:bg-white print:shadow-none print:p-4"
           >
@@ -799,28 +799,28 @@ async function renderPackageDetailPage(
             />
           </section>
 
-          <section className="rounded-2xl border bg-card/80 p-5 shadow-sm print:hidden">
-            <h2 className="mb-4 text-lg font-semibold">Indicadores da curva</h2>
-            <dl className="space-y-4 text-sm">
-              <div className="rounded-xl border bg-muted/30 p-3">
+          <section className="w-full rounded-2xl border bg-card/80 px-4 py-3 shadow-sm xl:max-w-[260px] print:hidden">
+            <h2 className="mb-3 text-lg font-semibold">Indicadores da curva</h2>
+            <dl className="space-y-3 text-sm">
+              <div className="rounded-xl border bg-muted/30 px-3 py-2.5">
                 <dt className="text-muted-foreground">Planejado (total)</dt>
                 <dd className="text-lg font-semibold text-foreground">
                   {Math.round(curveMetrics.plannedTotal ?? 0)}%
                 </dd>
               </div>
-              <div className="rounded-xl border bg-muted/30 p-3">
+              <div className="rounded-xl border bg-muted/30 px-3 py-2.5">
                 <dt className="text-muted-foreground">Planejado até hoje</dt>
                 <dd className="text-lg font-semibold text-foreground">
                   {Math.round(curveMetrics.plannedToDate ?? 0)}%
                 </dd>
               </div>
-              <div className="rounded-xl border bg-muted/30 p-3">
+              <div className="rounded-xl border bg-muted/30 px-3 py-2.5">
                 <dt className="text-muted-foreground">Realizado</dt>
                 <dd className="text-lg font-semibold text-emerald-600 dark:text-emerald-400">
                   {Math.round(curveMetrics.realized ?? 0)}%
                 </dd>
               </div>
-              <div className="rounded-xl border bg-muted/30 p-3">
+              <div className="rounded-xl border bg-muted/30 px-3 py-2.5">
                 <dt className="text-muted-foreground">Diferença</dt>
                 <dd
                   className={`text-lg font-semibold ${
