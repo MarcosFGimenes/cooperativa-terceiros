@@ -161,9 +161,9 @@ h3 {
 .logo-lar-a::before {
   content: "♥";
   position: absolute;
-  top: -0.9em;
-  left: 0.25em;
-  font-size: 18px;
+  top: -1em;
+  left: -0.1em;
+  font-size: 19px;
   color: #ff4b5c;
   line-height: 1;
   pointer-events: none;
