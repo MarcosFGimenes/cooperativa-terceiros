@@ -852,7 +852,25 @@ export function resolveServicoRealPercent(
   dataReferencia?: DateInput,
 ): number {
   if (!servico || typeof servico !== "object") return 0;
+  const source = servico as Record<string, unknown>;
   const referencia = toDate(dataReferencia ?? new Date()) ?? new Date();
+
+  const rawStatus = String(source.status ?? "").trim().toLowerCase();
+  const previousProgressFields = [
+    source.previousProgress,
+    source.progressBeforeConclusion,
+    source.previousPercent,
+  ];
+  const previousProgress = previousProgressFields
+    .map((value) => parsePercentual(value))
+    .find((value): value is number => value !== null);
+
+  if (rawStatus === "pendente" && previousProgress !== null) {
+    const clamped = clampProgress(previousProgress);
+    if (clamped < 100) {
+      return clamped;
+    }
+  }
 
   const range = resolveDateRange(servico as ServicoDoSubpacote);
   const inicioPlanejado = range?.inicio ?? null;
@@ -868,7 +886,6 @@ export function resolveServicoRealPercent(
     return clampProgress(percentualRealizadoAte(normalizado, referencia));
   }
 
-  const source = servico as Record<string, unknown>;
   const pacotePlanejado = pickFirstObject<PacotePlanejado>(source, [
     "pacotePlanejado",
     "package",
