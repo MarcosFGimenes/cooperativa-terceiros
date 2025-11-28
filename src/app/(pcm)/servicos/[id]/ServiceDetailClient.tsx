@@ -536,11 +536,6 @@ export default function ServiceDetailClient({
     [realizedPercent, statusLabel],
   );
 
-  const isServiceConcluded = useMemo(
-    () => statusLabel === "Concluído" || realizedPercent >= 100,
-    [realizedPercent, statusLabel],
-  );
-
   const displayedUpdates = useMemo(() => {
     if (updates.length === 0) {
       return normalizedInitialUpdates;

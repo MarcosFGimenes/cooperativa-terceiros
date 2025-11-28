@@ -722,19 +722,9 @@ async function fetchAvailableOpenServices(limit: number, mode: ServiceMapMode): 
     }
   };
 
-  // Caso o Firestore solicite um índice composto para (status, createdAt), siga o link sugerido pelo console e atualize firestore.indexes.json.
-  const statusQueries = allowedStatuses.map((status) => ({
-    scope: `status:${status}`,
-    promise: collection.where("status", "==", status).orderBy("createdAt", "desc").limit(baseLimit).get(),
-  }));
-  await Promise.all(statusQueries.map(({ scope, promise }) => runQuery(scope, promise)));
-
-  if (results.length < limit) {
-    await runQuery(
-      "createdAt:recent",
-      collection.orderBy("createdAt", "desc").limit(baseLimit * 2).get(),
-    );
-  }
+  // Use a single createdAt-sorted query to avoid Firestore composite index requirements when filtering by status.
+  const fetchCount = baseLimit * allowedStatuses.length;
+  await runQuery("createdAt:recent", collection.orderBy("createdAt", "desc").limit(fetchCount).get());
 
   if (results.length === 0 && errors.length > 0) {
     const firstError = errors[0];
