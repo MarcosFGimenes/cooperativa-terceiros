@@ -33,6 +33,7 @@ import {
   formatDate,
   formatDateTime,
   formatUpdateSummary,
+  filterUpdatesWithRelevantContent,
   mapChecklistSnapshot,
   mapServiceSnapshot,
   mapUpdateSnapshot,
@@ -537,10 +538,8 @@ export default function ServiceDetailClient({
   );
 
   const displayedUpdates = useMemo(() => {
-    if (updates.length === 0) {
-      return normalizedInitialUpdates;
-    }
-    return updates;
+    const source = updates.length === 0 ? normalizedInitialUpdates : updates;
+    return filterUpdatesWithRelevantContent(source);
   }, [updates, normalizedInitialUpdates]);
 
   const handleCompleteService = useCallback(async () => {
