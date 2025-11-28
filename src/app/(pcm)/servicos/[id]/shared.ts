@@ -581,6 +581,19 @@ function hasMeaningfulEvidence(update: ServiceUpdate): boolean {
   return update.evidences.some((evidence) => hasText(evidence.url) || hasText(evidence.label));
 }
 
+function hasRelevantContent(update: ServiceUpdate): boolean {
+  return (
+    hasText(update.description) ||
+    hasText(update.justification) ||
+    hasMeaningfulTimeWindow(update) ||
+    hasMeaningfulResources(update) ||
+    hasMeaningfulWorkforce(update) ||
+    hasMeaningfulImpediment(update) ||
+    hasMeaningfulShift(update) ||
+    hasMeaningfulEvidence(update)
+  );
+}
+
 function hasMeaningfulPercent(update: ServiceUpdate): boolean {
   const percent = hasFiniteNumber(update.percent) ? Number(update.percent) : null;
   const previousPercent = hasFiniteNumber(update.previousPercent) ? Number(update.previousPercent) : null;
@@ -606,6 +619,12 @@ function isMeaningfulUpdate(update: ServiceUpdate): boolean {
     hasMeaningfulEvidence(update) ||
     hasFiniteNumber(update.forecastDate)
   );
+}
+
+export function filterUpdatesWithRelevantContent(updates: ServiceUpdate[]): ServiceUpdate[] {
+  // Lançamentos sem informações relevantes (apenas data/hora/percentual) são filtrados
+  // da listagem para não poluir as Atualizações recentes.
+  return updates.filter(hasRelevantContent);
 }
 
 export function toNewUpdates(updates: ServiceUpdate[]): ServiceUpdate[] {

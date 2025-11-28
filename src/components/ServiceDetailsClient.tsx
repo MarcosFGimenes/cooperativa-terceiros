@@ -74,7 +74,31 @@ function normaliseChecklistItems(items: ThirdChecklistItem[]): ThirdChecklistIte
   }));
 }
 
+function resolveReopenedProgress(service: ThirdService): number | null {
+  const rawStatus = String(service.status ?? "").trim().toLowerCase();
+  if (rawStatus !== "pendente") return null;
+
+  const source = service as Record<string, unknown>;
+  const candidates = [source.previousProgress, source.progressBeforeConclusion, source.previousPercent];
+
+  for (const candidate of candidates) {
+    const parsed = Number(candidate);
+    if (!Number.isFinite(parsed)) continue;
+    const clamped = clampPercent(parsed);
+    if (clamped < 100) {
+      return clamped;
+    }
+  }
+
+  return null;
+}
+
 function computeInitialProgress(service: ThirdService, updates: ThirdServiceUpdate[]): number {
+  const reopenedProgress = resolveReopenedProgress(service);
+  if (reopenedProgress !== null) {
+    return reopenedProgress;
+  }
+
   if (updates.length > 0) {
     return clampPercent(updates[0]?.percent ?? 0);
   }
@@ -529,7 +553,6 @@ export default function ServiceDetailsClient({
       if (json?.realPercent !== undefined) {
         const numericPercent = Number(json.realPercent);
         if (Number.isFinite(numericPercent)) {
-          setProgress(clampPercent(numericPercent));
           return clampPercent(numericPercent);
         }
       }
@@ -552,6 +575,14 @@ export default function ServiceDetailsClient({
           error instanceof Error ? error.message : "Não foi possível salvar o checklist.";
         toast.error(message);
         throw error instanceof Error ? error : new Error(message);
+      }
+
+      if (percentToSend <= progress) {
+        const message = `O percentual informado (${percentToSend.toFixed(1)}%) deve ser maior que o último registrado (${progress.toFixed(
+          1,
+        )}%).`;
+        toast.error(message);
+        throw new Error(message);
       }
 
       const url = new URL(`/api/public/service/update-manual`, window.location.origin);
@@ -608,7 +639,11 @@ export default function ServiceDetailsClient({
           | null;
 
         if (!response.ok || !json?.ok) {
-          errorMessage = json?.error ?? errorMessage;
+          if (json?.error === "percent_must_increase") {
+            errorMessage = `O percentual informado deve ser maior que o último registrado (${progress.toFixed(1)}%).`;
+          } else {
+            errorMessage = json?.error ?? errorMessage;
+          }
           throw new Error(errorMessage);
         }
 
