@@ -7,6 +7,7 @@ import type {
   ServiceStatus,
   ServiceUpdate,
 } from "@/lib/types";
+import { resolveDisplayedServiceStatus } from "@/lib/serviceStatus";
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
 import { revalidateTag, unstable_cache } from "next/cache";
 
@@ -449,6 +450,8 @@ function mapServiceData(
     empresa: data.empresa ? String(data.empresa) : undefined,
     andamento: progress ?? undefined,
     realPercent: progress ?? undefined,
+    previousProgress:
+      toNumber(data.previousProgress ?? data.progressBeforeConclusion ?? data.previousPercent) ?? null,
     importKey: data.importKey ? String(data.importKey) : undefined,
   };
 }
@@ -614,31 +617,52 @@ export type ServiceStatusSummary = {
 export async function getServiceStatusSummary(): Promise<ServiceStatusSummary | null> {
   try {
     const collection = servicesCollection();
-    const statusGroups: Record<keyof Omit<ServiceStatusSummary, "total">, ServiceStatus[]> = {
-      open: ["Aberto", "aberto"],
-      pending: ["Pendente", "pendente"],
-      concluded: ["Concluído", "concluido", "concluído", "encerrado"],
-    };
+    const snapshot = await collection
+      .select(
+        "status",
+        "realPercent",
+        "andamento",
+        "manualPercent",
+        "progress",
+        "percentual",
+        "percent",
+        "previousProgress",
+        "progressBeforeConclusion",
+        "previousPercent",
+        "plannedStart",
+        "inicioPrevisto",
+        "plannedEnd",
+        "fimPrevisto",
+        "inicioPlanejado",
+        "fimPlanejado",
+        "dataInicio",
+        "dataFim",
+        "totalHours",
+        "totalHoras",
+        "horasPrevistas",
+        "hours",
+        "createdAt",
+        "updatedAt",
+      )
+      .get();
 
-    const [open, pending, concluded] = await Promise.all(
-      Object.values(statusGroups).map(async (values) => {
-        const snapshots = await Promise.all(
-          values.map(async (status) => {
-            const snapshot = await collection.where("status", "==", status).count().get();
-            return snapshot.data().count ?? 0;
-          }),
-        );
+    const summary: ServiceStatusSummary = { total: 0, open: 0, pending: 0, concluded: 0 };
 
-        return snapshots.reduce((total, value) => total + value, 0);
-      }),
-    );
+    snapshot.docs.forEach((doc) => {
+      const service = mapServiceData(doc.id, (doc.data() ?? {}) as Record<string, unknown>, "summary");
+      const displayedStatus = resolveDisplayedServiceStatus(service);
 
-    return {
-      open,
-      pending,
-      concluded,
-      total: open + pending + concluded,
-    };
+      summary.total += 1;
+      if (displayedStatus === "Concluído") {
+        summary.concluded += 1;
+      } else if (displayedStatus === "Pendente") {
+        summary.pending += 1;
+      } else {
+        summary.open += 1;
+      }
+    });
+
+    return summary;
   } catch (error) {
     console.warn("[services:getServiceStatusSummary] Failed to count service statuses", error);
     return null;

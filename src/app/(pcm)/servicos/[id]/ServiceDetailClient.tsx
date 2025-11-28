@@ -33,6 +33,7 @@ import {
   formatDate,
   formatDateTime,
   formatUpdateSummary,
+  filterUpdatesWithRelevantContent,
   mapChecklistSnapshot,
   mapServiceSnapshot,
   mapUpdateSnapshot,
@@ -77,6 +78,12 @@ type ServiceFallbackSuccess = {
 };
 
 type ServiceFallbackError = { ok: false; error?: string };
+
+const formatHoursValue = (value?: number | null): string => {
+  if (typeof value !== "number" || !Number.isFinite(value)) return "-";
+  const rounded = Math.round(value * 100) / 100;
+  return (Object.is(rounded, -0) ? 0 : rounded).toFixed(2);
+};
 
 export default function ServiceDetailClient({
   serviceId,
@@ -537,10 +544,8 @@ export default function ServiceDetailClient({
   );
 
   const displayedUpdates = useMemo(() => {
-    if (updates.length === 0) {
-      return normalizedInitialUpdates;
-    }
-    return updates;
+    const source = updates.length === 0 ? normalizedInitialUpdates : updates;
+    return filterUpdatesWithRelevantContent(source);
   }, [updates, normalizedInitialUpdates]);
 
   const handleCompleteService = useCallback(async () => {
@@ -746,9 +751,7 @@ export default function ServiceDetailClient({
             <div>
               <dt className="text-muted-foreground">Horas Totais</dt>
               <dd className="font-medium">
-                {typeof service.totalHours === "number" && Number.isFinite(service.totalHours)
-                  ? service.totalHours
-                  : "-"}
+                {formatHoursValue(service.totalHours)}
               </dd>
             </div>
             <div className="hide-for-print">

@@ -15,14 +15,16 @@ import {
   calcularMetricasPorSetor,
   calcularMetricasSubpacote,
   calcularPercentualPlanejadoPacote,
-  calcularPercentualPlanejadoServico,
   calcularPercentualRealizadoPacote,
   calcularPercentualSubpacote,
   calcularPercentualRealizadoSubpacote,
   obterIntervaloSubpacote,
+  resolveServicoPercentualPlanejado,
+  resolveServicoRealPercent,
   toDate,
   type ServicoDoSubpacote,
 } from "@/lib/serviceProgress";
+import { normaliseServiceStatus, resolveDisplayedServiceStatus } from "@/lib/serviceStatus";
 import type { Package, PackageFolder, Service } from "@/types";
 import { formatReferenceLabel, resolveReferenceDate } from "@/lib/referenceDate";
 
@@ -79,14 +81,6 @@ function renderPackageLoadFailure(packageLabel: string, warnings: string[] = [])
       </div>
     </div>
   );
-}
-
-function normaliseStatus(status: Package["status"] | Service["status"]): string {
-  const raw = String(status ?? "").toLowerCase();
-  if (raw === "concluido" || raw === "concluído") return "Concluído";
-  if (raw === "encerrado") return "Encerrado";
-  if (raw === "pendente") return "Pendente";
-  return "Aberto";
 }
 
 function parseISO(value?: string | null) {
@@ -214,18 +208,11 @@ function extractDateMs(value: unknown): number | null {
 
 function buildServiceProgressSnapshot(service: Service, dataReferencia?: Parameters<typeof toDate>[0]) {
   const reference = toDate(dataReferencia ?? new Date()) ?? new Date();
-  const plannedPercent =
-    calcularPercentualPlanejadoServico(mapServiceToSubpackageEntry(service), reference) ?? 0;
-  const percentCandidates: unknown[] = [
-    service.realPercent,
-    service.progress,
-    service.andamento,
-    (service as Record<string, unknown>).percentual,
-    (service as Record<string, unknown>).percent,
-    (service as Record<string, unknown>).pct,
-    (service as Record<string, unknown>).percentualRealAtual,
-  ];
-  const realizedPercent = clampPercent(percentCandidates.map((candidate) => parsePercent(candidate)).find((value) => value !== null)) ?? 0;
+  const plannedPercent = resolveServicoPercentualPlanejado(service, reference);
+  // Use the shared progress resolver so reopened/pendente services reuse their stored progress
+  // and concluded ones only reach 100% when their real updates do, keeping parity with the
+  // dashboard and other service listings.
+  const realizedPercent = resolveServicoRealPercent(service, reference);
   const deltaPercent = Number.isFinite(realizedPercent - plannedPercent) ? realizedPercent - plannedPercent : null;
   const startDateMs =
     extractDateMs(service.dataInicio) ??
@@ -439,10 +426,12 @@ async function renderPackageDetailPage(
     );
   }
 
-  const hoursFromServices = services.reduce((acc, service) => {
-    const hours = Number(service.totalHours ?? 0);
-    return acc + (Number.isFinite(hours) ? hours : 0);
-  }, 0);
+  const hoursFromServices = Math.round(
+    services.reduce((acc, service) => {
+      const hours = Number(service.totalHours ?? 0);
+      return acc + (Number.isFinite(hours) ? hours : 0);
+    }, 0) * 100,
+  ) / 100;
 
   const assignedCompanies = pkg.assignedCompanies?.filter((item) => item.companyId);
   let folders: PackageFolderWithProgress[] = [];
@@ -574,10 +563,16 @@ async function renderPackageDetailPage(
   const subpackageMetrics = calcularMetricasSubpacote(servicesWithFolderContext, referenceDate);
   const sectorMetrics = calcularMetricasPorSetor(servicesWithFolderContext, referenceDate);
 
-  const formatMetricValue = (value: number): string => {
+  const formatPercentValue = (value: number): string => {
     const rounded = Math.round(value);
     if (!Number.isFinite(rounded)) return "0";
     return Object.is(rounded, -0) ? "0" : String(rounded);
+  };
+
+  const formatHoursValue = (value: number): string => {
+    if (!Number.isFinite(value)) return "0.00";
+    const rounded = Math.round(value * 100) / 100;
+    return (Object.is(rounded, -0) ? 0 : rounded).toFixed(2);
   };
 
   const availableServiceOptions: FolderServiceOption[] = availableOpenServices
@@ -588,7 +583,7 @@ async function renderPackageDetailPage(
       const companyLabel = service.empresa || service.company || service.assignedTo?.companyName;
       if (companyLabel) descriptionParts.push(`Empresa: ${companyLabel}`);
       if (service.setor) descriptionParts.push(`Setor: ${service.setor}`);
-      const statusLabel = normaliseStatus(service.status);
+      const statusLabel = resolveDisplayedServiceStatus(service, { referenceDate });
       return {
         id: service.id,
         label: baseLabel && baseLabel.length ? baseLabel : service.id,
@@ -611,7 +606,9 @@ async function renderPackageDetailPage(
       assignedCompanies?.find((item) => item.companyId === service.assignedTo?.companyId)?.companyName ||
       assignedCompanies?.find((item) => item.companyName)?.companyName ||
       undefined;
-    const statusLabel = normaliseStatus(service.status);
+    const statusLabel = resolveDisplayedServiceStatus(service, {
+      realizedPercent: snapshot.realizedPercent,
+    });
     const lastUpdateMs = resolveServiceLastUpdateMs(service);
     serviceDetails[service.id] = {
       id: service.id,
@@ -649,7 +646,9 @@ async function renderPackageDetailPage(
       return;
     }
     const baseLabel = service.os || service.oc || service.tag || service.id;
-    const statusLabel = normaliseStatus(service.status);
+    const statusLabel = resolveDisplayedServiceStatus(service, {
+      realizedPercent: snapshot.realizedPercent,
+    });
     serviceDetails[service.id] = {
       id: service.id,
       label: companyLabel ? `${baseLabel} — ${companyLabel}` : baseLabel,
@@ -681,13 +680,16 @@ async function renderPackageDetailPage(
   const warningMessages = Array.from(warningSet);
   const encodedPackageId = encodeURIComponent(pkg.id);
   const packageLabel = pkg.name || pkg.code || pkg.id;
-  const statusLabel = normaliseStatus(pkg.status);
+  const statusLabel = normaliseServiceStatus(pkg.status);
   const statusTone = PACKAGE_STATUS_TONE[statusLabel] ?? "border-border bg-muted text-foreground/80";
   const plannedStartLabel = formatDate(pkg.plannedStart);
   const plannedEndLabel = formatDate(pkg.plannedEnd);
-  const totalHoursLabel = hasServiceOverflow
-    ? pkg.totalHours || hoursFromServices || "-"
-    : hoursFromServices || pkg.totalHours || "-";
+  const resolvedTotalHours = hasServiceOverflow
+    ? pkg.totalHours ?? hoursFromServices
+    : hoursFromServices || pkg.totalHours;
+  const totalHoursLabel = Number.isFinite(resolvedTotalHours ?? NaN)
+    ? formatHoursValue(Number(resolvedTotalHours))
+    : "-";
   const totalServicesLabel = serviceCountReference
     ? serviceCountIsExact
       ? `${serviceCountReference} serviço${serviceCountReference === 1 ? "" : "s"}`
@@ -860,16 +862,16 @@ async function renderPackageDetailPage(
                     <tr key={metric.nome} className="odd:bg-muted/40 print:bg-white">
                       <td className="border border-border p-3 text-left font-medium">{metric.nome}</td>
                       <td className="border border-border p-3 font-semibold">
-                        {formatMetricValue(metric.realizedPercent)}%
+                        {formatPercentValue(metric.realizedPercent)}%
                       </td>
                       <td className="border border-border p-3 font-semibold">
-                        {formatMetricValue(metric.plannedPercent)}%
+                        {formatPercentValue(metric.plannedPercent)}%
                       </td>
                       <td className="border border-border p-3 font-semibold">
-                        {formatMetricValue(metric.horasFaltando)}
+                        {formatHoursValue(metric.horasFaltando)}
                       </td>
                       <td className="border border-border p-3 font-semibold">
-                        {formatMetricValue(metric.diferenca)}
+                        {formatHoursValue(metric.diferenca)}
                       </td>
                     </tr>
                   ))}
@@ -902,16 +904,16 @@ async function renderPackageDetailPage(
                     <tr key={metric.setor} className="odd:bg-muted/40 print:bg-white">
                       <td className="border border-border p-3 text-left font-medium">{metric.setor}</td>
                       <td className="border border-border p-3 font-semibold">
-                        {formatMetricValue(metric.realizedPercent)}%
+                        {formatPercentValue(metric.realizedPercent)}%
                       </td>
                       <td className="border border-border p-3 font-semibold">
-                        {formatMetricValue(metric.plannedPercent)}%
+                        {formatPercentValue(metric.plannedPercent)}%
                       </td>
                       <td className="border border-border p-3 font-semibold">
-                        {formatMetricValue(metric.horasFaltando)}
+                        {formatHoursValue(metric.horasFaltando)}
                       </td>
                       <td className="border border-border p-3 font-semibold">
-                        {formatMetricValue(metric.diferenca)}
+                        {formatHoursValue(metric.diferenca)}
                       </td>
                     </tr>
                   ))}

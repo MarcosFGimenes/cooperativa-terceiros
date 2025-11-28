@@ -8,14 +8,14 @@ import ReferenceDateSelector from "@/components/ReferenceDateSelector";
 import { formatDateTime } from "@/lib/formatDateTime";
 import { formatReferenceLabel, resolveReferenceDate } from "@/lib/referenceDate";
 import { resolveServicoPercentualPlanejado, resolveServicoRealPercent } from "@/lib/serviceProgress";
+import { resolveDisplayedServiceStatus } from "@/lib/serviceStatus";
 import type { Service } from "@/types";
 
-function normaliseStatus(status: Service["status"]): "Aberto" | "Pendente" | "Concluído" {
-  const raw = String(status ?? "").toLowerCase();
-  if (raw === "concluido" || raw === "concluído" || raw === "encerrado") return "Concluído";
-  if (raw === "pendente") return "Pendente";
-  return "Aberto";
-}
+const STATUS_TONE: Record<string, string> = {
+  Aberto: "bg-sky-100 text-sky-700 border-sky-200",
+  Pendente: "bg-amber-100 text-amber-700 border-amber-200",
+  Concluído: "bg-emerald-100 text-emerald-700 border-emerald-200",
+};
 
 export default function RecentServicesPanel({ services }: { services: Service[] }) {
   const searchParams = useSearchParams();
@@ -42,6 +42,8 @@ export default function RecentServicesPanel({ services }: { services: Service[] 
         services.slice(0, 5).map((service) => {
           const plannedPercent = Math.round(resolveServicoPercentualPlanejado(service, referenceDate));
           const realPercent = Math.round(resolveServicoRealPercent(service, referenceDate));
+          const statusLabel = resolveDisplayedServiceStatus(service, { referenceDate });
+          const statusTone = STATUS_TONE[statusLabel] ?? "border-border bg-muted text-foreground/80";
           const createdAt = (service as { createdAt?: number | null }).createdAt;
           const lastUpdate = service.updatedAt ?? createdAt ?? null;
           const lastUpdateLabel =
@@ -65,7 +67,9 @@ export default function RecentServicesPanel({ services }: { services: Service[] 
                   ) : null}
                 </div>
                 <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                  <span>{normaliseStatus(service.status)}</span>
+                  <span className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold ${statusTone}`}>
+                    {statusLabel}
+                  </span>
                 </div>
                 <p className="text-xs text-muted-foreground">
                   Planejado ({referenceLabel}): <span className="font-semibold text-foreground">{plannedPercent}%</span>
