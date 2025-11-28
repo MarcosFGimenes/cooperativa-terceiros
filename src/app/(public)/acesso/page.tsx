@@ -65,6 +65,23 @@ function formatPercent(value: number | undefined) {
   return `${Math.round(Number(value ?? 0))}%`;
 }
 
+function isServiceOpen(service: ServiceSummary) {
+  if (service.andamento >= 100) return false;
+
+  const statusRaw = typeof service.status === "string" ? service.status.trim().toLowerCase() : "";
+  const statusNormalised = statusRaw || "aberto";
+
+  if (statusNormalised === "pendente") return true;
+  if (statusNormalised === "aberto" || statusNormalised === "aberta" || statusNormalised === "open") {
+    return service.andamento < 100;
+  }
+
+  const closedKeywords = ["conclu", "encerr", "fechad", "finaliz", "cancel"];
+  if (closedKeywords.some((keyword) => statusNormalised.includes(keyword))) return false;
+
+  return service.andamento < 100;
+}
+
 const MAX_VISIBLE_SERVICES = 5;
 
 export default function AcessoPorTokenPage() {
@@ -175,7 +192,7 @@ export default function AcessoPorTokenPage() {
         const entries = await Promise.all(serviceIds.map((id) => fetchService(tokenValue, id)));
         const onlyOpen = entries
           .filter((service): service is ServiceSummary => Boolean(service))
-          .filter((service) => (service.status || "").toLowerCase() === "aberto");
+          .filter((service) => isServiceOpen(service));
         setServices(onlyOpen);
         if (onlyOpen.length > 0) {
           setSelectedServiceId(onlyOpen[0].id);
