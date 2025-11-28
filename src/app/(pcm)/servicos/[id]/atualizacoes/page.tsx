@@ -6,6 +6,7 @@ import {
   computeTimeWindowHours,
   formatDateTime,
   formatUpdateSummary,
+  filterUpdatesWithRelevantContent,
   toNewUpdates,
 } from "../shared";
 import { decodeRouteParam } from "@/lib/decodeRouteParam";
@@ -46,6 +47,7 @@ export default async function ServiceUpdatesPage({ params }: { params: { id: str
   const updates = baseService.updates?.length
     ? toNewUpdates(baseService.updates)
     : toNewUpdates(await listUpdates(resolvedServiceId, 200));
+  const updatesWithContent = filterUpdatesWithRelevantContent(updates);
 
   const serviceLabel =
     baseService.os?.trim() || baseService.tag?.trim() || baseService.code?.trim() || resolvedServiceId;
@@ -72,11 +74,11 @@ export default async function ServiceUpdatesPage({ params }: { params: { id: str
       </div>
 
       <div className="rounded-2xl border bg-card/80 p-6 shadow-sm">
-        {updates.length === 0 ? (
+        {updatesWithContent.length === 0 ? (
           <p className="text-sm text-muted-foreground">Nenhuma atualização registrada até o momento.</p>
         ) : (
           <ul className="space-y-3">
-            {updates.map((update) => {
+            {updatesWithContent.map((update) => {
               const summary = formatUpdateSummary(update);
               const hours = computeTimeWindowHours(update);
               return (

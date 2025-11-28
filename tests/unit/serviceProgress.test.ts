@@ -84,6 +84,20 @@ describe("serviceProgress utilities", () => {
       expect(resolveServicoRealPercent({ progress: 150 })).toBe(100);
       expect(resolveServicoRealPercent({ progress: -20 })).toBe(0);
     });
+
+    it("restores the stored progress when reopening a pending service", () => {
+      const percent = resolveServicoRealPercent({
+        status: "pendente",
+        previousProgress: 37,
+        progress: 100,
+        updates: [
+          { percentual: 80, data: "2024-01-01" },
+          { percentual: 100, data: "2024-01-02" },
+        ],
+      });
+
+      expect(percent).toBe(37);
+    });
   });
 
   describe("resolveServicoPercentualPlanejado", () => {
