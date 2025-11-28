@@ -122,7 +122,7 @@ export async function POST(req: Request) {
             };
           })
           .filter(Boolean)
-          .slice(0, 2) as Array<{
+          .slice(0, 3) as Array<{
           shift: "manha" | "tarde" | "noite";
           weather: "claro" | "nublado" | "chuvoso";
           condition: "praticavel" | "impraticavel";
@@ -169,8 +169,8 @@ export async function POST(req: Request) {
         return Math.max(acc, value);
       }, null);
     const justification = typeof body.justification === "string" ? body.justification.trim() : "";
-    if (previousPercent !== null && percentRaw < previousPercent && !justification) {
-      throw new PublicAccessError(400, "justification_required");
+    if (previousPercent !== null && percentRaw <= previousPercent) {
+      throw new PublicAccessError(400, "percent_must_increase");
     }
 
     const ipHeader = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || req.headers.get("x-real-ip")?.trim() || null;
