@@ -68,6 +68,24 @@ function toNumber(value: unknown): number | undefined {
   return undefined;
 }
 
+function resolveProgressFromDoc(data: FirebaseFirestore.DocumentData): number {
+  const progressCandidates = [
+    data.realPercent,
+    data.progress,
+    data.andamento,
+    (data as Record<string, unknown>).previousProgress,
+  ];
+
+  for (const candidate of progressCandidates) {
+    const numeric = toNumber(candidate);
+    if (typeof numeric === "number" && Number.isFinite(numeric)) {
+      return Math.min(100, Math.max(0, Math.round(numeric)));
+    }
+  }
+
+  return 0;
+}
+
 function getTokenCompany(token: AccessTokenData): string | undefined {
   if (typeof token.companyId === "string" && token.companyId.trim()) return token.companyId.trim();
   if (typeof token.company === "string" && token.company.trim()) return token.company.trim();
@@ -148,14 +166,21 @@ function mapServiceDoc(doc: FirebaseFirestore.DocumentSnapshot): Service {
 }
 
 function isServiceOpen(data: FirebaseFirestore.DocumentData): boolean {
+  const progress = resolveProgressFromDoc(data);
+  if (progress >= 100) return false;
+
   const statusRaw = typeof data.status === "string" ? data.status.trim().toLowerCase() : "";
   const statusNormalised = statusRaw || "aberto";
-  return (
-    statusNormalised === "aberto" ||
-    statusNormalised === "aberta" ||
-    statusNormalised === "open" ||
-    statusNormalised === "pendente"
-  );
+
+  if (statusNormalised === "pendente") return true;
+  if (statusNormalised === "aberto" || statusNormalised === "aberta" || statusNormalised === "open") {
+    return true;
+  }
+
+  const closedKeywords = ["conclu", "encerr", "fechad", "finaliz", "cancel"];
+  if (closedKeywords.some((keyword) => statusNormalised.includes(keyword))) return false;
+
+  return false;
 }
 
 function ensureCompanyMatch(token: AccessTokenData, data: FirebaseFirestore.DocumentData) {

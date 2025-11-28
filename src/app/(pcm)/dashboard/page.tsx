@@ -5,17 +5,11 @@ import Link from "next/link";
 
 import { listRecentPackages } from "@/lib/repo/packages";
 import { getServiceStatusSummary, listRecentServices } from "@/lib/repo/services";
+import { resolveDisplayedServiceStatus } from "@/lib/serviceStatus";
 import type { Service } from "@/types";
 import ImportServicesButton from "./_components/ImportServicesButton";
 import RecentPackagesPanel from "./_components/RecentPackagesPanel";
 import RecentServicesPanel from "./_components/RecentServicesPanel";
-
-function normaliseStatus(status: Service["status"]): "Aberto" | "Pendente" | "Concluído" {
-  const raw = String(status ?? "").toLowerCase();
-  if (raw === "concluido" || raw === "concluído" || raw === "encerrado") return "Concluído";
-  if (raw === "pendente") return "Pendente";
-  return "Aberto";
-}
 
 export default async function DashboardPCM() {
   const [services, packages, statusSummary] = await Promise.all([
@@ -26,7 +20,8 @@ export default async function DashboardPCM() {
 
   const statusGroups = services.reduce(
     (acc, service) => {
-      const key = normaliseStatus(service.status);
+      const status = resolveDisplayedServiceStatus(service);
+      const key = status === "Pendente" ? "Pendente" : status === "Concluído" ? "Concluído" : "Aberto";
       acc[key] += 1;
       return acc;
     },
