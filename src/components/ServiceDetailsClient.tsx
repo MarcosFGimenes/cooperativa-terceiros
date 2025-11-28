@@ -74,7 +74,31 @@ function normaliseChecklistItems(items: ThirdChecklistItem[]): ThirdChecklistIte
   }));
 }
 
+function resolveReopenedProgress(service: ThirdService): number | null {
+  const rawStatus = String(service.status ?? "").trim().toLowerCase();
+  if (rawStatus !== "pendente") return null;
+
+  const source = service as Record<string, unknown>;
+  const candidates = [source.previousProgress, source.progressBeforeConclusion, source.previousPercent];
+
+  for (const candidate of candidates) {
+    const parsed = Number(candidate);
+    if (!Number.isFinite(parsed)) continue;
+    const clamped = clampPercent(parsed);
+    if (clamped < 100) {
+      return clamped;
+    }
+  }
+
+  return null;
+}
+
 function computeInitialProgress(service: ThirdService, updates: ThirdServiceUpdate[]): number {
+  const reopenedProgress = resolveReopenedProgress(service);
+  if (reopenedProgress !== null) {
+    return reopenedProgress;
+  }
+
   if (updates.length > 0) {
     return clampPercent(updates[0]?.percent ?? 0);
   }
