@@ -147,6 +147,17 @@ function mapServiceDoc(doc: FirebaseFirestore.DocumentSnapshot): Service {
   };
 }
 
+function isServiceOpen(data: FirebaseFirestore.DocumentData): boolean {
+  const statusRaw = typeof data.status === "string" ? data.status.trim().toLowerCase() : "";
+  const statusNormalised = statusRaw || "aberto";
+  return (
+    statusNormalised === "aberto" ||
+    statusNormalised === "aberta" ||
+    statusNormalised === "open" ||
+    statusNormalised === "pendente"
+  );
+}
+
 function ensureCompanyMatch(token: AccessTokenData, data: FirebaseFirestore.DocumentData) {
   const tokenCompany = getTokenCompany(token);
   if (!tokenCompany) return;
@@ -231,6 +242,10 @@ async function fetchFolderServicesForToken(
       }
 
       const data = snap.data() ?? {};
+      if (!isServiceOpen(data)) {
+        unavailable.push(serviceId);
+        return null;
+      }
       if (folderContext.packageId) {
         const record = data as Record<string, unknown>;
         const servicePackageId =
@@ -383,15 +398,7 @@ export async function requireServiceAccess(
   }
 
   const data = snap.data() ?? {};
-  const statusRaw = typeof data.status === "string" ? data.status.trim().toLowerCase() : "";
-  const statusNormalised = statusRaw || "aberto";
-  const isOpen =
-    statusNormalised === "aberto" ||
-    statusNormalised === "aberta" ||
-    statusNormalised === "open" ||
-    statusNormalised === "pendente";
-
-  if (!isOpen) {
+  if (!isServiceOpen(data)) {
     throw new PublicAccessError(403, "Serviço fechado");
   }
 
