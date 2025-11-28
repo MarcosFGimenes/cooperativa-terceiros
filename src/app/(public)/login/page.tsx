@@ -14,6 +14,19 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const { auth: authInstance, error: authError } = useMemo(() => tryGetAuth(), []);
+  const lastLoginStorageKey = "pcm_last_login_email";
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const savedEmail = window.localStorage.getItem(lastLoginStorageKey);
+      if (savedEmail) {
+        setEmail((current) => current || savedEmail);
+      }
+    } catch (storageError) {
+      console.warn("[login] Falha ao ler último login", storageError);
+    }
+  }, [lastLoginStorageKey]);
 
   useEffect(() => {
     if (authError) {
@@ -62,6 +75,12 @@ export default function LoginPage() {
         await signOut(authInstance);
         setErr(message);
         return;
+      }
+
+      try {
+        window.localStorage.setItem(lastLoginStorageKey, email.trim());
+      } catch (storageError) {
+        console.warn("[login] Não foi possível salvar último login", storageError);
       }
 
       router.replace("/dashboard");

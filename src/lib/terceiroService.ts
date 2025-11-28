@@ -35,7 +35,19 @@ function normaliseToLower(value: unknown): string | null {
 function isServiceOpen(data: Record<string, unknown>): boolean {
   const status = normaliseToLower(data.status);
   if (!status) return true;
-  return status === "aberto" || status === "aberta" || status === "open" || status === "pendente";
+
+  const closedStatuses = [
+    "concluido",
+    "concluído",
+    "encerrado",
+    "fechado",
+    "finalizado",
+    "cancelado",
+  ];
+
+  if (closedStatuses.includes(status)) return false;
+
+  return true;
 }
 
 function matchesCompanyConstraint(data: Record<string, unknown>, company: string | undefined): boolean {
