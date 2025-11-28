@@ -529,7 +529,6 @@ export default function ServiceDetailsClient({
       if (json?.realPercent !== undefined) {
         const numericPercent = Number(json.realPercent);
         if (Number.isFinite(numericPercent)) {
-          setProgress(clampPercent(numericPercent));
           return clampPercent(numericPercent);
         }
       }
