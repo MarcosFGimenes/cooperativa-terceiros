@@ -1513,11 +1513,17 @@ export async function addComputedUpdate(
       }),
     );
 
-    tx.update(serviceRef, {
+    const serviceUpdate: Record<string, unknown> = {
       realPercent: percent,
       manualPercent: FieldValue.delete(),
       updatedAt: FieldValue.serverTimestamp(),
-    });
+    };
+
+    if (percent >= 100) {
+      serviceUpdate.status = "concluido";
+    }
+
+    tx.update(serviceRef, serviceUpdate);
 
     return updateRef.id;
   });
