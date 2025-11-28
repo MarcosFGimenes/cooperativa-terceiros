@@ -69,12 +69,23 @@ function toNumber(value: unknown): number | undefined {
 }
 
 function resolveProgressFromDoc(data: FirebaseFirestore.DocumentData): number {
-  const progressCandidates = [
-    data.realPercent,
-    data.progress,
-    data.andamento,
+  const statusRaw = typeof data.status === "string" ? data.status.trim().toLowerCase() : "";
+  const previousProgress = [
     (data as Record<string, unknown>).previousProgress,
-  ];
+    (data as Record<string, unknown>).progressBeforeConclusion,
+    (data as Record<string, unknown>).previousPercent,
+  ]
+    .map((value) => toNumber(value))
+    .find((value): value is number => typeof value === "number" && Number.isFinite(value));
+
+  if (statusRaw === "pendente" && typeof previousProgress === "number") {
+    const clamped = Math.min(100, Math.max(0, Math.round(previousProgress)));
+    if (clamped < 100) {
+      return clamped;
+    }
+  }
+
+  const progressCandidates = [data.realPercent, data.progress, data.andamento, previousProgress];
 
   for (const candidate of progressCandidates) {
     const numeric = toNumber(candidate);
@@ -161,6 +172,9 @@ function mapServiceDoc(doc: FirebaseFirestore.DocumentSnapshot): Service {
     updatedAt: toMillis(data.updatedAt),
     hasChecklist: data.hasChecklist ?? false,
     realPercent: data.realPercent ?? 0,
+    previousProgress:
+      toNumber((data as Record<string, unknown>).previousProgress ?? (data as Record<string, unknown>).progressBeforeConclusion ?? (data as Record<string, unknown>).previousPercent) ??
+      null,
     packageId: data.packageId ?? undefined,
   };
 }
@@ -174,13 +188,13 @@ function isServiceOpen(data: FirebaseFirestore.DocumentData): boolean {
 
   if (statusNormalised === "pendente") return true;
   if (statusNormalised === "aberto" || statusNormalised === "aberta" || statusNormalised === "open") {
-    return true;
+    return resolveProgressFromDoc(data) < 100;
   }
 
   const closedKeywords = ["conclu", "encerr", "fechad", "finaliz", "cancel"];
   if (closedKeywords.some((keyword) => statusNormalised.includes(keyword))) return false;
 
-  return false;
+  return resolveProgressFromDoc(data) < 100;
 }
 
 function ensureCompanyMatch(token: AccessTokenData, data: FirebaseFirestore.DocumentData) {
