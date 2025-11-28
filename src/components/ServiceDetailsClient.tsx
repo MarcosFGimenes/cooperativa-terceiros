@@ -529,7 +529,6 @@ export default function ServiceDetailsClient({
       if (json?.realPercent !== undefined) {
         const numericPercent = Number(json.realPercent);
         if (Number.isFinite(numericPercent)) {
-          setProgress(clampPercent(numericPercent));
           return clampPercent(numericPercent);
         }
       }
@@ -552,6 +551,14 @@ export default function ServiceDetailsClient({
           error instanceof Error ? error.message : "Não foi possível salvar o checklist.";
         toast.error(message);
         throw error instanceof Error ? error : new Error(message);
+      }
+
+      if (percentToSend <= progress) {
+        const message = `O percentual informado (${percentToSend.toFixed(1)}%) deve ser maior que o último registrado (${progress.toFixed(
+          1,
+        )}%).`;
+        toast.error(message);
+        throw new Error(message);
       }
 
       const url = new URL(`/api/public/service/update-manual`, window.location.origin);
@@ -608,7 +615,11 @@ export default function ServiceDetailsClient({
           | null;
 
         if (!response.ok || !json?.ok) {
-          errorMessage = json?.error ?? errorMessage;
+          if (json?.error === "percent_must_increase") {
+            errorMessage = `O percentual informado deve ser maior que o último registrado (${progress.toFixed(1)}%).`;
+          } else {
+            errorMessage = json?.error ?? errorMessage;
+          }
           throw new Error(errorMessage);
         }
 
