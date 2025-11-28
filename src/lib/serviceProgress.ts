@@ -852,7 +852,25 @@ export function resolveServicoRealPercent(
   dataReferencia?: DateInput,
 ): number {
   if (!servico || typeof servico !== "object") return 0;
+  const source = servico as Record<string, unknown>;
   const referencia = toDate(dataReferencia ?? new Date()) ?? new Date();
+
+  const rawStatus = String(source.status ?? "").trim().toLowerCase();
+  const previousProgressFields = [
+    source.previousProgress,
+    source.progressBeforeConclusion,
+    source.previousPercent,
+  ];
+  const previousProgress = previousProgressFields
+    .map((value) => parsePercentual(value))
+    .find((value): value is number => value !== null);
+
+  if (rawStatus === "pendente" && previousProgress !== null) {
+    const clamped = clampProgress(previousProgress);
+    if (clamped < 100) {
+      return clamped;
+    }
+  }
 
   const range = resolveDateRange(servico as ServicoDoSubpacote);
   const inicioPlanejado = range?.inicio ?? null;
@@ -868,7 +886,6 @@ export function resolveServicoRealPercent(
     return clampProgress(percentualRealizadoAte(normalizado, referencia));
   }
 
-  const source = servico as Record<string, unknown>;
   const pacotePlanejado = pickFirstObject<PacotePlanejado>(source, [
     "pacotePlanejado",
     "package",
@@ -1049,6 +1066,12 @@ function normalizarHorasTotal(servico: PcmService): number {
   return horas ?? 0;
 }
 
+function roundToTwoDecimals(value: number): number {
+  if (!Number.isFinite(value)) return 0;
+  const rounded = Math.round(value * 100) / 100;
+  return Object.is(rounded, -0) ? 0 : rounded;
+}
+
 function clampPercentageValue(value: number): number {
   if (!Number.isFinite(value)) return 0;
   return Math.max(0, Math.min(100, value));
@@ -1114,18 +1137,20 @@ export function calcularMetricasSubpacote(
     .map((grupo) => {
       const servicosNormalizados = normalizarServicosParaSubpacote(grupo.servicos);
       const subpacotePlanejado = { servicos: servicosNormalizados };
-      const plannedPercent = Math.round(
-        clampPercentageValue(
-          calcularPercentualSubpacote(subpacotePlanejado, currentDate) ?? 0,
-        ),
+      const plannedPercentRaw = clampPercentageValue(
+        calcularPercentualSubpacote(subpacotePlanejado, currentDate) ?? 0,
       );
-      const realizedPercent = Math.round(
-        clampPercentageValue(
-          calcularPercentualRealizadoSubpacote(subpacotePlanejado, currentDate) ?? 0,
-        ),
+      const realizedPercentRaw = clampPercentageValue(
+        calcularPercentualRealizadoSubpacote(subpacotePlanejado, currentDate) ?? 0,
       );
-      const horasFaltando = grupo.totalHours * (100 - realizedPercent) * 0.01;
-      const diferenca = grupo.totalHours * (realizedPercent - plannedPercent) * 0.01;
+      const plannedPercent = Math.round(plannedPercentRaw);
+      const realizedPercent = Math.round(realizedPercentRaw);
+      const horasFaltando = roundToTwoDecimals(
+        grupo.totalHours * (100 - realizedPercentRaw) * 0.01,
+      );
+      const diferenca = roundToTwoDecimals(
+        grupo.totalHours * (realizedPercentRaw - plannedPercentRaw) * 0.01,
+      );
 
       return {
         nome: grupo.nome,
@@ -1200,12 +1225,18 @@ export function calcularMetricasPorSetor(
         sumWeightedRealized += realizedPercent * horas;
       });
 
-      const plannedPercent =
-        totalHours > 0 ? Math.round(clampPercentageValue(sumWeightedPlanned / totalHours)) : 0;
-      const realizedPercent =
-        totalHours > 0 ? Math.round(clampPercentageValue(sumWeightedRealized / totalHours)) : 0;
-      const horasFaltando = totalHours * (100 - realizedPercent) * 0.01;
-      const diferenca = totalHours * (realizedPercent - plannedPercent) * 0.01;
+      const plannedPercentRaw =
+        totalHours > 0 ? clampPercentageValue(sumWeightedPlanned / totalHours) : 0;
+      const realizedPercentRaw =
+        totalHours > 0 ? clampPercentageValue(sumWeightedRealized / totalHours) : 0;
+      const plannedPercent = Math.round(plannedPercentRaw);
+      const realizedPercent = Math.round(realizedPercentRaw);
+      const horasFaltando = roundToTwoDecimals(
+        totalHours * (100 - realizedPercentRaw) * 0.01,
+      );
+      const diferenca = roundToTwoDecimals(
+        totalHours * (realizedPercentRaw - plannedPercentRaw) * 0.01,
+      );
 
       return {
         setor: grupo.setor,
