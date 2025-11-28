@@ -15,11 +15,12 @@ import {
   calcularMetricasPorSetor,
   calcularMetricasSubpacote,
   calcularPercentualPlanejadoPacote,
-  calcularPercentualPlanejadoServico,
   calcularPercentualRealizadoPacote,
   calcularPercentualSubpacote,
   calcularPercentualRealizadoSubpacote,
   obterIntervaloSubpacote,
+  resolveServicoPercentualPlanejado,
+  resolveServicoRealPercent,
   toDate,
   type ServicoDoSubpacote,
 } from "@/lib/serviceProgress";
@@ -207,18 +208,11 @@ function extractDateMs(value: unknown): number | null {
 
 function buildServiceProgressSnapshot(service: Service, dataReferencia?: Parameters<typeof toDate>[0]) {
   const reference = toDate(dataReferencia ?? new Date()) ?? new Date();
-  const plannedPercent =
-    calcularPercentualPlanejadoServico(mapServiceToSubpackageEntry(service), reference) ?? 0;
-  const percentCandidates: unknown[] = [
-    service.realPercent,
-    service.progress,
-    service.andamento,
-    (service as Record<string, unknown>).percentual,
-    (service as Record<string, unknown>).percent,
-    (service as Record<string, unknown>).pct,
-    (service as Record<string, unknown>).percentualRealAtual,
-  ];
-  const realizedPercent = clampPercent(percentCandidates.map((candidate) => parsePercent(candidate)).find((value) => value !== null)) ?? 0;
+  const plannedPercent = resolveServicoPercentualPlanejado(service, reference);
+  // Use the shared progress resolver so reopened/pendente services reuse their stored progress
+  // and concluded ones only reach 100% when their real updates do, keeping parity with the
+  // dashboard and other service listings.
+  const realizedPercent = resolveServicoRealPercent(service, reference);
   const deltaPercent = Number.isFinite(realizedPercent - plannedPercent) ? realizedPercent - plannedPercent : null;
   const startDateMs =
     extractDateMs(service.dataInicio) ??
