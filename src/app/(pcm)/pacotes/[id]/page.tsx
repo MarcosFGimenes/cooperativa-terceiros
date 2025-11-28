@@ -23,6 +23,7 @@ import {
   toDate,
   type ServicoDoSubpacote,
 } from "@/lib/serviceProgress";
+import { normaliseServiceStatus, resolveDisplayedServiceStatus } from "@/lib/serviceStatus";
 import type { Package, PackageFolder, Service } from "@/types";
 import { formatReferenceLabel, resolveReferenceDate } from "@/lib/referenceDate";
 
@@ -79,14 +80,6 @@ function renderPackageLoadFailure(packageLabel: string, warnings: string[] = [])
       </div>
     </div>
   );
-}
-
-function normaliseStatus(status: Package["status"] | Service["status"]): string {
-  const raw = String(status ?? "").toLowerCase();
-  if (raw === "concluido" || raw === "concluído") return "Concluído";
-  if (raw === "encerrado") return "Encerrado";
-  if (raw === "pendente") return "Pendente";
-  return "Aberto";
 }
 
 function parseISO(value?: string | null) {
@@ -588,7 +581,7 @@ async function renderPackageDetailPage(
       const companyLabel = service.empresa || service.company || service.assignedTo?.companyName;
       if (companyLabel) descriptionParts.push(`Empresa: ${companyLabel}`);
       if (service.setor) descriptionParts.push(`Setor: ${service.setor}`);
-      const statusLabel = normaliseStatus(service.status);
+      const statusLabel = resolveDisplayedServiceStatus(service, { referenceDate });
       return {
         id: service.id,
         label: baseLabel && baseLabel.length ? baseLabel : service.id,
@@ -611,7 +604,9 @@ async function renderPackageDetailPage(
       assignedCompanies?.find((item) => item.companyId === service.assignedTo?.companyId)?.companyName ||
       assignedCompanies?.find((item) => item.companyName)?.companyName ||
       undefined;
-    const statusLabel = normaliseStatus(service.status);
+    const statusLabel = resolveDisplayedServiceStatus(service, {
+      realizedPercent: snapshot.realizedPercent,
+    });
     const lastUpdateMs = resolveServiceLastUpdateMs(service);
     serviceDetails[service.id] = {
       id: service.id,
@@ -649,7 +644,9 @@ async function renderPackageDetailPage(
       return;
     }
     const baseLabel = service.os || service.oc || service.tag || service.id;
-    const statusLabel = normaliseStatus(service.status);
+    const statusLabel = resolveDisplayedServiceStatus(service, {
+      realizedPercent: snapshot.realizedPercent,
+    });
     serviceDetails[service.id] = {
       id: service.id,
       label: companyLabel ? `${baseLabel} — ${companyLabel}` : baseLabel,
@@ -681,7 +678,7 @@ async function renderPackageDetailPage(
   const warningMessages = Array.from(warningSet);
   const encodedPackageId = encodeURIComponent(pkg.id);
   const packageLabel = pkg.name || pkg.code || pkg.id;
-  const statusLabel = normaliseStatus(pkg.status);
+  const statusLabel = normaliseServiceStatus(pkg.status);
   const statusTone = PACKAGE_STATUS_TONE[statusLabel] ?? "border-border bg-muted text-foreground/80";
   const plannedStartLabel = formatDate(pkg.plannedStart);
   const plannedEndLabel = formatDate(pkg.plannedEnd);
