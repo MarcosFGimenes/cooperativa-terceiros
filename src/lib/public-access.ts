@@ -180,6 +180,9 @@ function mapServiceDoc(doc: FirebaseFirestore.DocumentSnapshot): Service {
 }
 
 function isServiceOpen(data: FirebaseFirestore.DocumentData): boolean {
+  const progress = resolveProgressFromDoc(data);
+  if (progress >= 100) return false;
+
   const statusRaw = typeof data.status === "string" ? data.status.trim().toLowerCase() : "";
   const statusNormalised = statusRaw || "aberto";
 
