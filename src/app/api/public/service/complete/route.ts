@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 
 import { HttpError, requirePcmUser } from "@/app/api/management/tokens/_lib/auth";
 import { PublicAccessError, requireServiceAccess } from "@/lib/public-access";
+import { addComputedUpdate } from "@/lib/repo/services";
 
 export async function POST(req: Request) {
   const { searchParams } = new URL(req.url);
