@@ -231,8 +231,6 @@ async function fetchFolderServicesForToken(
       }
 
       const data = snap.data() ?? {};
-      ensureCompanyMatch(token, data);
-
       if (folderContext.packageId) {
         const record = data as Record<string, unknown>;
         const servicePackageId =
@@ -309,7 +307,7 @@ export async function requireFolderAccess(tokenId: string, folderId: string): Pr
       services: context.services,
     },
     services,
-    unavailableServices: [],
+    unavailableServices: unavailable,
   };
 }
 
