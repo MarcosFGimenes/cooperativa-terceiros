@@ -204,7 +204,7 @@ const formSchema = z
     shifts: z
       .array(shiftDetailSchema)
       .min(1, "Selecione ao menos um turno")
-      .max(2, "Selecione até dois turnos"),
+      .max(3, "Selecione até três turnos"),
     subactivities: z.array(subactivitySchema).default([]),
   })
   .superRefine((values, ctx) => {
@@ -304,7 +304,7 @@ export default function ServiceUpdateForm({ serviceId, lastProgress, checklist, 
       shiftArray.remove(index);
       return;
     }
-    if (shiftArray.fields.length >= 2) {
+    if (shiftArray.fields.length >= 3) {
       return;
     }
     shiftArray.append({ shift: shiftId, weather: "claro", condition: "praticavel" });
@@ -559,17 +559,17 @@ export default function ServiceUpdateForm({ serviceId, lastProgress, checklist, 
         ) : null}
       </div>
 
-      <div className="space-y-3">
-        <h3 className="text-sm font-semibold text-foreground">Períodos trabalhados</h3>
-        <div className="grid gap-3 sm:grid-cols-3">
-          {SHIFT_OPTIONS.map((option) => {
-            const checked = selectedShifts.includes(option.id);
-            const disabled = !checked && shiftArray.fields.length >= 2;
-            return (
-              <label
-                key={option.id}
-                className={cn(
-                  "group relative block",
+        <div className="space-y-3">
+          <h3 className="text-sm font-semibold text-foreground">Períodos trabalhados</h3>
+          <div className="grid gap-3 sm:grid-cols-3">
+            {SHIFT_OPTIONS.map((option) => {
+              const checked = selectedShifts.includes(option.id);
+              const disabled = !checked && shiftArray.fields.length >= 3;
+              return (
+                <label
+                  key={option.id}
+                  className={cn(
+                    "group relative block",
                   disabled && !checked && "cursor-not-allowed opacity-60",
                 )}
               >
@@ -645,7 +645,7 @@ export default function ServiceUpdateForm({ serviceId, lastProgress, checklist, 
             ))}
           </div>
         ) : (
-          <p className="text-xs text-muted-foreground">Selecione até dois turnos trabalhados e informe as condições.</p>
+          <p className="text-xs text-muted-foreground">Selecione até três turnos trabalhados e informe as condições.</p>
         )}
         {Array.isArray(errors.shifts)
           ? errors.shifts.map((error, index) => (
