@@ -79,6 +79,12 @@ type ServiceFallbackSuccess = {
 
 type ServiceFallbackError = { ok: false; error?: string };
 
+const formatHoursValue = (value?: number | null): string => {
+  if (typeof value !== "number" || !Number.isFinite(value)) return "-";
+  const rounded = Math.round(value * 100) / 100;
+  return (Object.is(rounded, -0) ? 0 : rounded).toFixed(2);
+};
+
 export default function ServiceDetailClient({
   serviceId,
   baseService,
@@ -745,9 +751,7 @@ export default function ServiceDetailClient({
             <div>
               <dt className="text-muted-foreground">Horas Totais</dt>
               <dd className="font-medium">
-                {typeof service.totalHours === "number" && Number.isFinite(service.totalHours)
-                  ? service.totalHours
-                  : "-"}
+                {formatHoursValue(service.totalHours)}
               </dd>
             </div>
             <div className="hide-for-print">

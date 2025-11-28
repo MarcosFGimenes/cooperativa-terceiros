@@ -432,10 +432,12 @@ async function renderPackageDetailPage(
     );
   }
 
-  const hoursFromServices = services.reduce((acc, service) => {
-    const hours = Number(service.totalHours ?? 0);
-    return acc + (Number.isFinite(hours) ? hours : 0);
-  }, 0);
+  const hoursFromServices = Math.round(
+    services.reduce((acc, service) => {
+      const hours = Number(service.totalHours ?? 0);
+      return acc + (Number.isFinite(hours) ? hours : 0);
+    }, 0) * 100,
+  ) / 100;
 
   const assignedCompanies = pkg.assignedCompanies?.filter((item) => item.companyId);
   let folders: PackageFolderWithProgress[] = [];
@@ -567,10 +569,16 @@ async function renderPackageDetailPage(
   const subpackageMetrics = calcularMetricasSubpacote(servicesWithFolderContext, referenceDate);
   const sectorMetrics = calcularMetricasPorSetor(servicesWithFolderContext, referenceDate);
 
-  const formatMetricValue = (value: number): string => {
+  const formatPercentValue = (value: number): string => {
     const rounded = Math.round(value);
     if (!Number.isFinite(rounded)) return "0";
     return Object.is(rounded, -0) ? "0" : String(rounded);
+  };
+
+  const formatHoursValue = (value: number): string => {
+    if (!Number.isFinite(value)) return "0.00";
+    const rounded = Math.round(value * 100) / 100;
+    return (Object.is(rounded, -0) ? 0 : rounded).toFixed(2);
   };
 
   const availableServiceOptions: FolderServiceOption[] = availableOpenServices
@@ -682,9 +690,12 @@ async function renderPackageDetailPage(
   const statusTone = PACKAGE_STATUS_TONE[statusLabel] ?? "border-border bg-muted text-foreground/80";
   const plannedStartLabel = formatDate(pkg.plannedStart);
   const plannedEndLabel = formatDate(pkg.plannedEnd);
-  const totalHoursLabel = hasServiceOverflow
-    ? pkg.totalHours || hoursFromServices || "-"
-    : hoursFromServices || pkg.totalHours || "-";
+  const resolvedTotalHours = hasServiceOverflow
+    ? pkg.totalHours ?? hoursFromServices
+    : hoursFromServices || pkg.totalHours;
+  const totalHoursLabel = Number.isFinite(resolvedTotalHours ?? NaN)
+    ? formatHoursValue(Number(resolvedTotalHours))
+    : "-";
   const totalServicesLabel = serviceCountReference
     ? serviceCountIsExact
       ? `${serviceCountReference} serviço${serviceCountReference === 1 ? "" : "s"}`
@@ -857,16 +868,16 @@ async function renderPackageDetailPage(
                     <tr key={metric.nome} className="odd:bg-muted/40 print:bg-white">
                       <td className="border border-border p-3 text-left font-medium">{metric.nome}</td>
                       <td className="border border-border p-3 font-semibold">
-                        {formatMetricValue(metric.realizedPercent)}%
+                        {formatPercentValue(metric.realizedPercent)}%
                       </td>
                       <td className="border border-border p-3 font-semibold">
-                        {formatMetricValue(metric.plannedPercent)}%
+                        {formatPercentValue(metric.plannedPercent)}%
                       </td>
                       <td className="border border-border p-3 font-semibold">
-                        {formatMetricValue(metric.horasFaltando)}
+                        {formatHoursValue(metric.horasFaltando)}
                       </td>
                       <td className="border border-border p-3 font-semibold">
-                        {formatMetricValue(metric.diferenca)}
+                        {formatHoursValue(metric.diferenca)}
                       </td>
                     </tr>
                   ))}
@@ -899,16 +910,16 @@ async function renderPackageDetailPage(
                     <tr key={metric.setor} className="odd:bg-muted/40 print:bg-white">
                       <td className="border border-border p-3 text-left font-medium">{metric.setor}</td>
                       <td className="border border-border p-3 font-semibold">
-                        {formatMetricValue(metric.realizedPercent)}%
+                        {formatPercentValue(metric.realizedPercent)}%
                       </td>
                       <td className="border border-border p-3 font-semibold">
-                        {formatMetricValue(metric.plannedPercent)}%
+                        {formatPercentValue(metric.plannedPercent)}%
                       </td>
                       <td className="border border-border p-3 font-semibold">
-                        {formatMetricValue(metric.horasFaltando)}
+                        {formatHoursValue(metric.horasFaltando)}
                       </td>
                       <td className="border border-border p-3 font-semibold">
-                        {formatMetricValue(metric.diferenca)}
+                        {formatHoursValue(metric.diferenca)}
                       </td>
                     </tr>
                   ))}
