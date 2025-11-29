@@ -285,18 +285,8 @@ async function fetchFolderServicesForToken(
         unavailable.push(serviceId);
         return null;
       }
-      if (folderContext.packageId) {
-        const record = data as Record<string, unknown>;
-        const servicePackageId =
-          (typeof record.packageId === "string" && record.packageId.trim()) ||
-          (typeof record.pacoteId === "string" && record.pacoteId.trim()) ||
-          undefined;
-        if (servicePackageId && servicePackageId !== folderContext.packageId) {
-          unavailable.push(serviceId);
-          return null;
-        }
-      }
-
+      // Se o serviço está na lista do subpacote, ele deve ser exibido
+      // independentemente do packageId, pois foi explicitamente vinculado
       return mapServiceDoc(snap);
     } catch (error) {
       console.warn(
@@ -377,11 +367,7 @@ async function ensureServiceAllowedByFolder(token: AccessTokenData, serviceId: s
   }
 
   const data = snap.data() ?? ({} as FolderDoc);
-  const services = Array.isArray(data.services)
-    ? data.services
-        .map((value) => (typeof value === "string" ? value.trim() : ""))
-        .filter((value) => value.length > 0)
-    : [];
+  const services = collectFolderServiceIds(data);
 
   if (!services.includes(serviceId)) {
     throw new PublicAccessError(403, "Serviço não faz parte desta pasta");
@@ -443,13 +429,8 @@ export async function requireServiceAccess(
 
   ensureCompanyMatch(token, data);
 
-  if (folderContext?.packageId) {
-    const servicePackageId = typeof data.packageId === "string" ? data.packageId.trim() : undefined;
-    if (servicePackageId && servicePackageId !== folderContext.packageId) {
-      throw new PublicAccessError(403, "Serviço não pertence a esta pasta");
-    }
-  }
-
+  // Se o serviço está na lista do subpacote (verificado em ensureServiceAllowedByFolder),
+  // ele deve ser acessível independentemente do packageId
   const service = mapServiceDoc(snap);
   return { token, service, folderId: folderContext?.folderId };
 }
