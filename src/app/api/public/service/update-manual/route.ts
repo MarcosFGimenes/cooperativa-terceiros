@@ -169,9 +169,6 @@ export async function POST(req: Request) {
         return Math.max(acc, value);
       }, null);
     const justification = typeof body.justification === "string" ? body.justification.trim() : "";
-    if (previousPercent !== null && percentRaw <= previousPercent) {
-      throw new PublicAccessError(400, "percent_must_increase");
-    }
 
     const ipHeader = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || req.headers.get("x-real-ip")?.trim() || null;
 

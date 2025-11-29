@@ -590,13 +590,6 @@ export default function ServiceDetailsClient({
         throw error instanceof Error ? error : new Error(message);
       }
 
-      if (percentToSend <= canonicalProgress) {
-        const message = `O percentual informado (${percentToSend.toFixed(1)}%) deve ser maior que o último registrado (${canonicalProgress.toFixed(
-          1,
-        )}%).`;
-        toast.error(message);
-        throw new Error(message);
-      }
 
       const url = new URL(`/api/public/service/update-manual`, window.location.origin);
       url.searchParams.set("serviceId", service.id);
@@ -655,11 +648,7 @@ export default function ServiceDetailsClient({
           | null;
 
         if (!response.ok || !json?.ok) {
-          if (json?.error === "percent_must_increase") {
-            errorMessage = `O percentual informado deve ser maior que o último registrado (${canonicalProgress.toFixed(1)}%).`;
-          } else {
-            errorMessage = json?.error ?? errorMessage;
-          }
+          errorMessage = json?.error ?? errorMessage;
           throw new Error(errorMessage);
         }
 

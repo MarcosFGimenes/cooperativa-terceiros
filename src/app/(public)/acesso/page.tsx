@@ -66,20 +66,21 @@ function formatPercent(value: number | undefined) {
 }
 
 function isServiceOpen(service: ServiceSummary) {
-  if (service.andamento >= 100) return false;
+  const progress = service.andamento ?? 0;
+  if (progress >= 100) return false;
 
   const statusRaw = typeof service.status === "string" ? service.status.trim().toLowerCase() : "";
   const statusNormalised = statusRaw || "aberto";
 
   if (statusNormalised === "pendente") return true;
   if (statusNormalised === "aberto" || statusNormalised === "aberta" || statusNormalised === "open") {
-    return service.andamento < 100;
+    return progress < 100;
   }
 
   const closedKeywords = ["conclu", "encerr", "fechad", "finaliz", "cancel"];
   if (closedKeywords.some((keyword) => statusNormalised.includes(keyword))) return false;
 
-  return service.andamento < 100;
+  return progress < 100;
 }
 
 const MAX_VISIBLE_SERVICES = 5;
@@ -190,12 +191,16 @@ export default function AcessoPorTokenPage() {
       setLoadingServices(true);
       try {
         const entries = await Promise.all(serviceIds.map((id) => fetchService(tokenValue, id)));
-        const onlyOpen = entries
-          .filter((service): service is ServiceSummary => Boolean(service))
-          .filter((service) => isServiceOpen(service));
-        setServices(onlyOpen);
-        if (onlyOpen.length > 0) {
-          setSelectedServiceId(onlyOpen[0].id);
+        const validServices = entries.filter((service): service is ServiceSummary => Boolean(service));
+        const onlyOpen = validServices.filter((service) => isServiceOpen(service));
+        
+        // Se não encontrou serviços abertos, mas há serviços válidos, usar os válidos
+        // (pode ser que o status mudou ou há uma inconsistência)
+        const servicesToShow = onlyOpen.length > 0 ? onlyOpen : validServices;
+        
+        setServices(servicesToShow);
+        if (servicesToShow.length > 0) {
+          setSelectedServiceId(servicesToShow[0].id);
         } else {
           setSelectedServiceId(null);
         }
@@ -239,9 +244,11 @@ export default function AcessoPorTokenPage() {
           return;
         }
 
+        const serviceIds = "serviceIds" in json ? json.serviceIds : [];
+        
         if (json.ok && json.found) {
           await persistTokenSession(code);
-          recordTelemetry("token.validation.success", { services: json.serviceIds?.length ?? 0 });
+          recordTelemetry("token.validation.success", { services: serviceIds.length });
           const targetType = json.targetType;
           const targetId = json.targetId ?? null;
           const redirectPath = (() => {
@@ -259,7 +266,7 @@ export default function AcessoPorTokenPage() {
           return;
         }
 
-        if (!json.found || ("serviceIds" in json && json.serviceIds.length === 0)) {
+        if (serviceIds.length === 0) {
           setValidatedToken(code);
           toast.info("Token válido, mas nenhum serviço aberto foi encontrado.");
           setValidationError("Nenhum serviço aberto encontrado para este token.");
@@ -268,10 +275,9 @@ export default function AcessoPorTokenPage() {
         }
 
         setValidatedToken(code);
-        recordTelemetry("token.validation.success", { services: json.serviceIds.length });
+        recordTelemetry("token.validation.success", { services: serviceIds.length });
         toast.success("Token validado. Selecione um serviço para atualizar.");
-        const ids = "serviceIds" in json ? json.serviceIds : [];
-        await loadServices(code, ids);
+        await loadServices(code, serviceIds);
       } catch (error) {
         console.error("[acesso] Falha ao validar token", error);
         setValidatedToken(null);
