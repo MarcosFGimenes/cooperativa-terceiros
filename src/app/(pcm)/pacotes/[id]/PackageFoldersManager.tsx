@@ -104,7 +104,19 @@ async function authorisedFetch(input: string, init?: RequestInit) {
     throw error ?? new Error("Faça login novamente para continuar.");
   }
 
-  const idToken = await user.getIdToken();
+  let idToken: string;
+  try {
+    idToken = await user.getIdToken(false);
+  } catch (tokenError) {
+    console.warn("[PackageFoldersManager] Falha ao obter token, tentando refresh", tokenError);
+    try {
+      idToken = await user.getIdToken(true);
+    } catch (refreshError) {
+      console.error("[PackageFoldersManager] Falha ao fazer refresh do token", refreshError);
+      throw new Error("Não foi possível autenticar. Faça login novamente.");
+    }
+  }
+  
   const headers = new Headers(init?.headers);
   headers.set("Authorization", `Bearer ${idToken}`);
   if (init?.body && !(init.body instanceof FormData) && !headers.has("Content-Type")) {
