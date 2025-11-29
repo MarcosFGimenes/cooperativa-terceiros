@@ -281,12 +281,8 @@ async function fetchFolderServicesForToken(
       }
 
       const data = snap.data() ?? {};
-      if (!isServiceOpen(data)) {
-        unavailable.push(serviceId);
-        return null;
-      }
       // Se o serviço está na lista do subpacote, ele deve ser exibido
-      // independentemente do packageId, pois foi explicitamente vinculado
+      // independentemente do status, progresso ou packageId, pois foi explicitamente vinculado
       return mapServiceDoc(snap);
     } catch (error) {
       console.warn(
@@ -423,10 +419,8 @@ export async function requireServiceAccess(
   }
 
   const data = snap.data() ?? {};
-  if (!isServiceOpen(data)) {
-    throw new PublicAccessError(403, "Serviço fechado");
-  }
-
+  // Se o serviço está na lista do subpacote (verificado em ensureServiceAllowedByFolder),
+  // ele deve ser acessível independentemente do status ou progresso
   ensureCompanyMatch(token, data);
 
   // Se o serviço está na lista do subpacote (verificado em ensureServiceAllowedByFolder),
