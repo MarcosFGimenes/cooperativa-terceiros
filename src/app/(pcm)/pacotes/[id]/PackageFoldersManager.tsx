@@ -100,18 +100,27 @@ function formatDateTimeLabel(value?: number | null) {
 async function authorisedFetch(input: string, init?: RequestInit) {
   const { auth, error } = tryGetAuth();
   const user = auth?.currentUser;
-  if (!user) {
-    throw error ?? new Error("Faça login novamente para continuar.");
+  const headers = new Headers(init?.headers);
+
+  if (user) {
+    try {
+      const idToken = await user.getIdToken();
+      headers.set("Authorization", `Bearer ${idToken}`);
+    } catch (tokenError) {
+      console.warn(
+        "[PackageFoldersManager] Falha ao obter ID token. Requisitando com cookie de sessão.",
+        tokenError,
+      );
+    }
+  } else if (error) {
+    console.warn("[PackageFoldersManager] Firebase Auth indisponível. Utilizando cookie de sessão.", error);
   }
 
-  const idToken = await user.getIdToken();
-  const headers = new Headers(init?.headers);
-  headers.set("Authorization", `Bearer ${idToken}`);
   if (init?.body && !(init.body instanceof FormData) && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
   }
 
-  return fetch(input, { ...init, headers });
+  return fetch(input, { ...init, headers, credentials: init?.credentials ?? "same-origin" });
 }
 
 function buildAccessLink(token?: string | null) {

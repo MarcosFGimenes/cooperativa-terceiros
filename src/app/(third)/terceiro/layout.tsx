@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import ThemeToggle from "@/components/ThemeToggle";
 
@@ -10,8 +11,16 @@ export default function TerceiroLayout({ children }: { children: ReactNode }) {
       {/* Header fix: keep the toolbar globally fixed and above all content */}
       <header className="fixed top-0 left-0 right-0 z-[1000] w-full border-b border-border/70 bg-white/80 shadow-sm backdrop-blur-md supports-[backdrop-filter]:bg-white/70 dark:border-slate-800/80 dark:bg-[#0b1220]/80">
         <div className="container mx-auto flex h-14 items-center justify-between px-4">
-          <Link href="/terceiro" className="font-semibold tracking-tight">
-            Portal <span className="text-primary">Terceiro</span>
+          <Link href="/terceiro" className="flex items-center gap-3 font-semibold tracking-tight">
+            <Image
+              src="/lar-logo.svg"
+              alt="Lar"
+              width={96}
+              height={40}
+              priority
+              className="h-8 w-auto select-none"
+            />
+            <span className="text-sm font-medium text-muted-foreground">Portal do Terceiro</span>
           </Link>
           <nav className="flex items-center gap-2">
             <Link className="btn btn-secondary" href="/terceiro">

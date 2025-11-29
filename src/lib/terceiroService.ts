@@ -172,9 +172,12 @@ async function getServicesForFolder(adminDb: Firestore, folderId: string, empres
   const folderData = (folderSnap.data() ?? {}) as Record<string, unknown>;
   const folderCompany = normaliseToLower(folderData.companyId ?? folderData.company ?? folderData.empresa);
   const expectedCompany = normaliseToLower(empresa);
+
   if (expectedCompany && folderCompany && folderCompany !== expectedCompany) {
     return [];
   }
+
+  const shouldFilterServicesByCompany = Boolean(expectedCompany && !folderCompany);
 
   const serviceIds = collectFolderServiceIds({
     services: folderData.services,
@@ -190,7 +193,7 @@ async function getServicesForFolder(adminDb: Firestore, folderId: string, empres
     if (!snap.exists) continue;
     const data = (snap.data() ?? {}) as Record<string, unknown>;
     if (!isServiceOpen(data)) continue;
-    if (!matchesCompanyConstraint(data, empresa ?? undefined)) continue;
+    if (shouldFilterServicesByCompany && !matchesCompanyConstraint(data, empresa ?? undefined)) continue;
     services.push(mapServiceDoc(snap.id, data));
   }
 

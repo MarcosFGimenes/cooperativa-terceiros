@@ -286,7 +286,6 @@ export default function ServiceUpdateForm({ serviceId, lastProgress, checklist, 
 
   const selectedResources = watch("resources");
   const subactivityValues = watch("subactivities");
-  const percentValue = watch("percent");
 
   const computedPercent = useMemo(
     () => {
@@ -299,9 +298,16 @@ export default function ServiceUpdateForm({ serviceId, lastProgress, checklist, 
     setValue("subactivities", checklistDefaults, { shouldDirty: false });
   }, [checklistDefaults, setValue]);
 
+  const derivedPercent = useMemo(() => {
+    if (Number.isFinite(computedPercent ?? NaN)) {
+      return clampPercentValue(computedPercent ?? normalizedLastProgress);
+    }
+    return normalizedLastProgress;
+  }, [computedPercent, normalizedLastProgress]);
+
   useEffect(() => {
-    setValue("percent", normalizedLastProgress, { shouldDirty: false });
-  }, [normalizedLastProgress, setValue]);
+    setValue("percent", derivedPercent, { shouldDirty: false });
+  }, [derivedPercent, setValue]);
 
   const selectedShifts = useMemo(() => shiftArray.fields.map((item) => item.shift), [shiftArray.fields]);
 
@@ -325,12 +331,6 @@ export default function ServiceUpdateForm({ serviceId, lastProgress, checklist, 
       return;
     }
     shiftArray.append({ shift: shiftId, weather: "claro", condition: "praticavel" });
-  }
-
-  function applySuggestedPercent() {
-    if (typeof computedPercent === "number" && Number.isFinite(computedPercent)) {
-      setValue("percent", clampPercentValue(computedPercent), { shouldDirty: true });
-    }
   }
 
   async function submit(values: FormValues) {
@@ -398,6 +398,8 @@ export default function ServiceUpdateForm({ serviceId, lastProgress, checklist, 
 
   return (
     <form onSubmit={handleSubmit(submit)} className="space-y-6">
+      <input type="hidden" {...register("percent")} />
+
       <div>
         <label htmlFor={`${serviceId}-date`} className="text-sm font-medium text-foreground">
           Data
@@ -406,39 +408,21 @@ export default function ServiceUpdateForm({ serviceId, lastProgress, checklist, 
         {errors.date ? <p className="mt-1 text-xs text-destructive">{errors.date.message}</p> : null}
       </div>
 
-      <div>
-        <label htmlFor={`${serviceId}-percent`} className="text-sm font-medium text-foreground">
-          Percentual total do serviço
-        </label>
-        <div className="mt-1 flex flex-col gap-2 sm:flex-row sm:items-center">
-          <input
-            id={`${serviceId}-percent`}
-            type="number"
-            min={0}
-            max={100}
-            step={0.1}
-            className="input w-full sm:max-w-[220px]"
-            {...register("percent")}
-          />
-          {Number.isFinite(computedPercent ?? NaN) ? (
-            <button type="button" className="btn btn-secondary btn-sm" onClick={applySuggestedPercent}>
-              Usar sugestão ({clampPercentValue(computedPercent ?? 0).toFixed(1)}%)
-            </button>
-          ) : null}
-        </div>
-        <p className="mt-1 text-xs text-muted-foreground">
-          Deve ser maior que o último registro ({normalizedLastProgress.toFixed(1)}%). Valor atual:{" "}
-          {Number.isFinite(percentValue ?? NaN) ? clampPercentValue(Number(percentValue)).toFixed(1) : "0.0"}%.
-        </p>
-        {errors.percent ? <p className="mt-1 text-xs text-destructive">{errors.percent.message}</p> : null}
-      </div>
-
       {checklist.length > 0 ? (
         <div className="space-y-4">
           <h3 className="text-sm font-semibold text-foreground">Subatividades / Etapas</h3>
           <p className="text-xs text-muted-foreground">
             Informe o percentual atualizado para cada subatividade de acordo com o progresso realizado.
           </p>
+          <div className="rounded-lg border border-dashed border-primary/40 bg-primary/5 p-3 text-sm">
+            <p className="font-semibold text-foreground">
+              Percentual geral calculado: {derivedPercent.toFixed(1)}%
+            </p>
+            <p className="text-xs text-muted-foreground">
+              O valor acima é atualizado automaticamente conforme o checklist. Último registro:{" "}
+              {normalizedLastProgress.toFixed(1)}%.
+            </p>
+          </div>
           <ul className="grid gap-3 text-sm md:grid-cols-2">
             {checklist.map((item, index) => {
               const fieldError = extractFieldErrorMessage(errors.subactivities?.[index]?.progress);
