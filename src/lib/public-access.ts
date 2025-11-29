@@ -2,6 +2,7 @@ import type { FirebaseFirestore } from "firebase-admin/firestore";
 
 import type { ChecklistItem, Service, ServiceStatus } from "@/lib/types";
 import { getAdmin } from "@/lib/firebaseAdmin";
+import { collectFolderServiceIds, type FolderServiceSource } from "@/lib/folderServices";
 
 type AccessTokenData = FirebaseFirestore.DocumentData & {
   targetType?: string;
@@ -18,8 +19,11 @@ type AccessTokenData = FirebaseFirestore.DocumentData & {
   oneTime?: boolean;
 };
 
-type FolderDoc = FirebaseFirestore.DocumentData & {
+type FolderDoc = FirebaseFirestore.DocumentData &
+  FolderServiceSource & {
   services?: string[];
+  serviceIds?: string[];
+  servicos?: string[];
   companyId?: string;
   company?: string;
   pastaId?: string;
@@ -258,13 +262,9 @@ function ensureFolderMatchesToken(token: AccessTokenData, folder: FolderDoc, fol
     }
   }
 
-  const folderServices = Array.isArray(folder.services)
-    ? folder.services
-        .map((value) => (typeof value === "string" ? value.trim() : ""))
-        .filter((value) => value.length > 0)
-    : [];
+  const services = collectFolderServiceIds(folder);
 
-  return { tokenCompany, folderCompany, packageId, services: [...new Set(folderServices)], folderId };
+  return { tokenCompany, folderCompany, packageId, services, folderId };
 }
 
 async function fetchFolderServicesForToken(

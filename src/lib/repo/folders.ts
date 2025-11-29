@@ -6,6 +6,7 @@ import { revalidateTag, unstable_cache } from "next/cache";
 import { getAdmin } from "@/lib/firebaseAdmin";
 import { randomToken } from "@/lib/accessTokens";
 import type { PackageFolder } from "@/types";
+import { collectFolderServiceIds } from "@/lib/folderServices";
 
 const getDb = () => getAdmin().db;
 const foldersCollection = () => getDb().collection("packageFolders");
@@ -33,11 +34,11 @@ function toMillis(value: unknown): number | undefined {
 
 function mapFolderDoc(doc: FirebaseFirestore.DocumentSnapshot): PackageFolder {
   const data = (doc.data() ?? {}) as Record<string, unknown>;
-  const services = Array.isArray(data.services)
-    ? (data.services as unknown[])
-        .map((value) => (typeof value === "string" ? value.trim() : ""))
-        .filter((value) => value.length > 0)
-    : [];
+  const services = collectFolderServiceIds({
+    services: data.services,
+    serviceIds: (data as Record<string, unknown>).serviceIds,
+    servicos: (data as Record<string, unknown>).servicos,
+  });
 
   return {
     id: doc.id,
@@ -209,6 +210,8 @@ export async function createPackageFolder({
     name: trimmedName,
     companyId: companyId?.trim() || null,
     services: [],
+    serviceIds: [],
+    servicos: [],
     createdAt: now,
     updatedAt: now,
   });
@@ -269,7 +272,12 @@ export async function setFolderServices(folderId: string, serviceIds: string[]):
   }
   const originalFolder = mapFolderDoc(folderSnap);
 
-  await folderRef.update({ services: unique, updatedAt: FieldValue.serverTimestamp() });
+  await folderRef.update({
+    services: unique,
+    serviceIds: unique,
+    servicos: unique,
+    updatedAt: FieldValue.serverTimestamp(),
+  });
 
   const updatedSnap = await folderRef.get();
   if (!updatedSnap.exists) {

@@ -19,6 +19,7 @@ type ServiceDetailsClientProps = {
   updates: ThirdServiceUpdate[];
   checklist: ThirdChecklistItem[];
   allowCompletion?: boolean;
+  token?: string;
 };
 
 const MAX_UPDATES = 20;
@@ -384,6 +385,7 @@ export default function ServiceDetailsClient({
   service,
   updates: initialUpdates,
   checklist,
+  token,
 }: ServiceDetailsClientProps) {
   const normalisedInitialUpdates = useMemo(
     () => dedupeUpdates(initialUpdates.map((item) => sanitiseResourceQuantities(item))).slice(0, MAX_UPDATES),
@@ -490,6 +492,8 @@ export default function ServiceDetailsClient({
     [],
   );
 
+  const trimmedToken = token?.trim() ?? "";
+
   const submitChecklistUpdates = useCallback(
     async (
       subactivities: ServiceUpdateFormPayload["subactivities"],
@@ -520,6 +524,9 @@ export default function ServiceDetailsClient({
 
       const url = new URL(`/api/public/service/update-checklist`, window.location.origin);
       url.searchParams.set("serviceId", service.id);
+      if (trimmedToken) {
+        url.searchParams.set("token", trimmedToken);
+      }
 
       const response = await fetch(url.toString(), {
         method: "POST",
@@ -559,7 +566,7 @@ export default function ServiceDetailsClient({
 
       return null;
     },
-    [service.hasChecklist, service.id],
+    [service.hasChecklist, service.id, trimmedToken],
   );
 
   const handleUpdateSubmit = useCallback(
@@ -587,6 +594,9 @@ export default function ServiceDetailsClient({
 
       const url = new URL(`/api/public/service/update-manual`, window.location.origin);
       url.searchParams.set("serviceId", service.id);
+      if (trimmedToken) {
+        url.searchParams.set("token", trimmedToken);
+      }
 
       const resourcesPayload = payload.resources.map((item) => ({
         name: item.name,
@@ -686,7 +696,7 @@ export default function ServiceDetailsClient({
         throw error instanceof Error ? error : new Error(errorMessage);
       }
     },
-    [progress, service.id, submitChecklistUpdates],
+    [progress, service.id, submitChecklistUpdates, trimmedToken],
   );
 
   return (
