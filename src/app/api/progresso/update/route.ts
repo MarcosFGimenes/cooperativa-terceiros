@@ -221,7 +221,14 @@ async function handleWithAdmin(
     if (!Number.isFinite(pesoNumber)) return;
     checklist.push({ id: idValue || `item-${index}`, peso: pesoNumber });
   });
-  if (checklist.length > 0) {
+  
+  // Se não há checklist no serviço mas há items no payload, criar checklist padrão "GERAL"
+  if (checklist.length === 0 && payload.items && payload.items.length > 0) {
+    checklist.push({ id: "default-geral", peso: 100 });
+  }
+  
+  // Se há checklist ou items, calcular baseado no checklist
+  if (checklist.length > 0 || (payload.items && payload.items.length > 0)) {
     const pesoById = new Map<string, number>();
     for (const item of checklist) {
       const id = item.id;

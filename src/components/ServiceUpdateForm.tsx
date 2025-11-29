@@ -232,6 +232,17 @@ const formSchema = z
         message: "Cada turno deve ser informado apenas uma vez",
       });
     }
+    // Validar que se há checklist, pelo menos um item deve ter progresso
+    if (values.subactivities.length > 0) {
+      const hasProgress = values.subactivities.some((item) => typeof item.progress === "number" && Number.isFinite(item.progress));
+      if (!hasProgress) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["subactivities"],
+          message: "Informe o progresso de pelo menos uma subatividade",
+        });
+      }
+    }
   });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -361,10 +372,13 @@ export default function ServiceUpdateForm({ serviceId, lastProgress, checklist, 
       })
       .filter((item): item is { id: string; label: string; progress?: number } => Boolean(item));
 
-    const normalizedPercent = clampPercentValue(values.percent);
+    // Calcular percentual baseado no checklist se houver, senão usar o valor do formulário
+    const finalPercent = checklist.length > 0 && subactivityUpdates.length > 0
+      ? clampPercentValue(computedPercent)
+      : clampPercentValue(values.percent);
 
     await onSubmit({
-      percent: normalizedPercent,
+      percent: finalPercent,
       description: values.description.trim(),
       start: range.start,
       end: range.end,
@@ -387,7 +401,7 @@ export default function ServiceUpdateForm({ serviceId, lastProgress, checklist, 
     reset({
       date: "",
       description: "",
-      percent: normalizedPercent,
+      percent: finalPercent,
       resources: [],
       workforce: [{ role: "", quantity: 1 }],
       shifts: [],
@@ -406,32 +420,6 @@ export default function ServiceUpdateForm({ serviceId, lastProgress, checklist, 
         {errors.date ? <p className="mt-1 text-xs text-destructive">{errors.date.message}</p> : null}
       </div>
 
-      <div>
-        <label htmlFor={`${serviceId}-percent`} className="text-sm font-medium text-foreground">
-          Percentual total do serviço
-        </label>
-        <div className="mt-1 flex flex-col gap-2 sm:flex-row sm:items-center">
-          <input
-            id={`${serviceId}-percent`}
-            type="number"
-            min={0}
-            max={100}
-            step={0.1}
-            className="input w-full sm:max-w-[220px]"
-            {...register("percent")}
-          />
-          {Number.isFinite(computedPercent ?? NaN) ? (
-            <button type="button" className="btn btn-secondary btn-sm" onClick={applySuggestedPercent}>
-              Usar sugestão ({clampPercentValue(computedPercent ?? 0).toFixed(1)}%)
-            </button>
-          ) : null}
-        </div>
-        <p className="mt-1 text-xs text-muted-foreground">
-          Deve ser maior que o último registro ({normalizedLastProgress.toFixed(1)}%). Valor atual:{" "}
-          {Number.isFinite(percentValue ?? NaN) ? clampPercentValue(Number(percentValue)).toFixed(1) : "0.0"}%.
-        </p>
-        {errors.percent ? <p className="mt-1 text-xs text-destructive">{errors.percent.message}</p> : null}
-      </div>
 
       {checklist.length > 0 ? (
         <div className="space-y-4">

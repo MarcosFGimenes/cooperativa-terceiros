@@ -336,15 +336,24 @@ export default function AcessoPorTokenPage() {
         itemId: item.id,
         pct: Math.max(0, Math.min(100, Number(checklistValues[item.id] ?? 0))),
       }));
+      // Calcular percentual total baseado no checklist
+      let calculatedPercent = 0;
+      let totalWeight = 0;
+      itemsPayload.forEach((item) => {
+        const checklistItem = selectedService.checklist.find((ci) => ci.id === item.itemId);
+        const weight = checklistItem?.weight ?? 1;
+        calculatedPercent += (item.pct * weight) / 100;
+        totalWeight += weight;
+      });
+      const finalPercent = totalWeight > 0 ? Math.round((calculatedPercent / totalWeight) * 100) : 0;
+      
       const body: Record<string, unknown> = {
         token: validatedToken,
         serviceId: selectedService.id,
         items: itemsPayload,
+        totalPct: finalPercent,
         note: note.trim() ? note.trim() : undefined,
       };
-      if (typeof normalizedManual === "number") {
-        body.totalPct = normalizedManual;
-      }
       await sendUpdate(body);
     } else {
       if (typeof normalizedManual !== "number") {
@@ -501,21 +510,24 @@ export default function AcessoPorTokenPage() {
                         onChange={(value) => updateChecklistValue(item.id, value)}
                       />
                     ))}
+                    <p className="text-xs text-muted-foreground">
+                      O percentual total será calculado automaticamente com base nos valores do checklist acima.
+                    </p>
                   </div>
-                ) : null}
-
-                <Field
-                  label="Percentual total"
-                  type="number"
-                  min={0}
-                  max={100}
-                  step={1}
-                  value={manualPercent}
-                  onChange={(event) => setManualPercent(event.target.value)}
-                  required={!selectedService.hasChecklist || selectedService.checklist.length === 0}
-                  hint="Informe o percentual concluído do serviço (0 a 100%)."
-                  className="input"
-                />
+                ) : (
+                  <Field
+                    label="Percentual concluído"
+                    type="number"
+                    min={0}
+                    max={100}
+                    step={1}
+                    value={manualPercent}
+                    onChange={(event) => setManualPercent(event.target.value)}
+                    required={true}
+                    hint="Informe o percentual concluído do serviço (0 a 100%)."
+                    className="input"
+                  />
+                )}
 
                 <div className="space-y-1">
                   <label htmlFor="note" className="text-sm font-medium text-foreground/90">
