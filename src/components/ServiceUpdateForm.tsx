@@ -32,7 +32,6 @@ type ChecklistOption = { id: string; description: string; progress?: number; wei
 type ServiceUpdateFormProps = {
   serviceId: string;
   lastProgress: number;
-  suggestedPercent?: number;
   checklist: ChecklistOption[];
   onSubmit: (payload: ServiceUpdateFormPayload) => Promise<void> | void;
 };

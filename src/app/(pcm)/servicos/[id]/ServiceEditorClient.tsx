@@ -245,7 +245,14 @@ export default function ServiceEditorClient({ serviceId }: ServiceEditorClientPr
           ...legacyUpdatesSnap.docs.map((docSnap) => mapUpdate(docSnap, "serviceUpdates")),
         ].sort((a, b) => (b.date?.getTime() ?? 0) - (a.date?.getTime() ?? 0));
 
-        if (!cancelledRef?.current) setUpdates(mapped);
+        const filtered = mapped.filter((item) => {
+          if (item.source !== "updates") return true;
+          const hasNote = typeof item.note === "string" && item.note.trim().length > 0;
+          const hasItems = Array.isArray(item.items) && item.items.length > 0;
+          return hasNote || hasItems;
+        });
+
+        if (!cancelledRef?.current) setUpdates(filtered);
       } catch (error) {
         console.error("[servicos/:id] Falha ao carregar histórico", error);
         if (!cancelledRef?.current) toast.error("Não foi possível carregar o histórico de atualizações.");
