@@ -11,7 +11,10 @@ function sanitizeId(value: unknown): string | null {
 }
 
 export function collectFolderServiceIds(source?: FolderServiceSource | null): string[] {
-  if (!source) return [];
+  if (!source) {
+    console.log("[folderServices] collectFolderServiceIds: source é null ou undefined");
+    return [];
+  }
   const buckets = [source.services, source.serviceIds, source.servicos];
   const unique = new Set<string>();
 
@@ -25,5 +28,10 @@ export function collectFolderServiceIds(source?: FolderServiceSource | null): st
     }
   }
 
-  return Array.from(unique);
+  const result = Array.from(unique);
+  console.log(
+    `[folderServices] collectFolderServiceIds: encontrados ${result.length} serviços`,
+    { buckets: buckets.map((b) => (Array.isArray(b) ? b.length : "não é array")) },
+  );
+  return result;
 }
