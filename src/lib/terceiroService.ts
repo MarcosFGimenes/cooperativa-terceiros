@@ -3,6 +3,7 @@ import "server-only";
 import type { Firestore } from "firebase-admin/firestore";
 
 import { getAdminDbOrThrow } from "@/lib/serverDb";
+import { collectFolderServiceIds } from "@/lib/folderServices";
 
 type ServiceDoc = {
   id: string;
@@ -175,11 +176,11 @@ async function getServicesForFolder(adminDb: Firestore, folderId: string, empres
     return [];
   }
 
-  const serviceIds = Array.isArray(folderData.services)
-    ? (folderData.services as unknown[])
-        .map((value) => (typeof value === "string" ? value.trim() : ""))
-        .filter((value) => value.length > 0)
-    : [];
+  const serviceIds = collectFolderServiceIds({
+    services: folderData.services,
+    serviceIds: (folderData as Record<string, unknown>).serviceIds,
+    servicos: (folderData as Record<string, unknown>).servicos,
+  });
 
   if (!serviceIds.length) return [];
 

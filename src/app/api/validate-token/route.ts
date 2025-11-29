@@ -3,6 +3,7 @@ import type { DocumentSnapshot, QueryDocumentSnapshot, Firestore } from "firebas
 
 import { AdminDbUnavailableError, getAdminDbOrThrow } from "@/lib/serverDb";
 import { mapFirestoreError } from "@/lib/utils/firestoreErrors";
+import { collectFolderServiceIds } from "@/lib/folderServices";
 
 function normalizeCompany(raw?: unknown) {
   if (typeof raw !== "string") return "";
@@ -73,11 +74,11 @@ async function fetchFolderServicesAdmin(db: Firestore, folderId: string, empresa
   if (!folderSnap.exists) return [];
 
   const data = (folderSnap.data() ?? {}) as Record<string, unknown>;
-  const services = Array.isArray(data.services)
-    ? (data.services as unknown[])
-        .map((value) => (typeof value === "string" ? value.trim() : ""))
-        .filter((value) => value.length > 0)
-    : [];
+  const services = collectFolderServiceIds({
+    services: data.services,
+    serviceIds: (data as Record<string, unknown>).serviceIds,
+    servicos: (data as Record<string, unknown>).servicos,
+  });
 
   const normalizedEmpresa = normalizeCompany(empresa ?? undefined);
   const folderCompany = normalizeCompany(data.companyId ?? data.company ?? data.empresa ?? undefined);

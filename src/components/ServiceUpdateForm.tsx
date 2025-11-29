@@ -112,6 +112,12 @@ function toDateRangeIso(value: string): { start: string; end: string } | null {
   return { start: start.toISOString(), end: end.toISOString() };
 }
 
+function clampPercentValue(value: number): number {
+  if (!Number.isFinite(value)) return 0;
+  const safe = Math.min(100, Math.max(0, value));
+  return Math.round(safe * 10) / 10;
+}
+
 function computeChecklistPercent(
   checklist: ChecklistOption[],
   subactivities: Array<{ progress?: number } | undefined> | undefined,
@@ -196,6 +202,10 @@ const formSchema = z
   .object({
     date: z.string().min(1, "Data obrigatória"),
     description: z.string().min(1, "Descreva o que foi realizado"),
+    percent: z
+      .coerce.number({ invalid_type_error: "Informe o percentual do serviço" })
+      .min(0, "Percentual mínimo é 0%")
+      .max(100, "Percentual máximo é 100%"),
     declarationAccepted: z.literal(true, {
       errorMap: () => ({ message: "É necessário aceitar a declaração" }),
     }),
@@ -246,11 +256,14 @@ export default function ServiceUpdateForm({ serviceId, lastProgress, checklist, 
     [checklist],
   );
 
+  const normalizedLastProgress = clampPercentValue(lastProgress);
+
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       date: "",
       description: "",
+      percent: normalizedLastProgress,
       resources: [],
       workforce: [{ role: "", quantity: 1 }],
       shifts: [],
@@ -274,6 +287,7 @@ export default function ServiceUpdateForm({ serviceId, lastProgress, checklist, 
 
   const selectedResources = watch("resources");
   const subactivityValues = watch("subactivities");
+  const percentValue = watch("percent");
 
   const computedPercent = useMemo(
     () => {
@@ -285,6 +299,10 @@ export default function ServiceUpdateForm({ serviceId, lastProgress, checklist, 
   useEffect(() => {
     setValue("subactivities", checklistDefaults, { shouldDirty: false });
   }, [checklistDefaults, setValue]);
+
+  useEffect(() => {
+    setValue("percent", normalizedLastProgress, { shouldDirty: false });
+  }, [normalizedLastProgress, setValue]);
 
   const selectedShifts = useMemo(() => shiftArray.fields.map((item) => item.shift), [shiftArray.fields]);
 
@@ -308,6 +326,12 @@ export default function ServiceUpdateForm({ serviceId, lastProgress, checklist, 
       return;
     }
     shiftArray.append({ shift: shiftId, weather: "claro", condition: "praticavel" });
+  }
+
+  function applySuggestedPercent() {
+    if (typeof computedPercent === "number" && Number.isFinite(computedPercent)) {
+      setValue("percent", clampPercentValue(computedPercent), { shouldDirty: true });
+    }
   }
 
   async function submit(values: FormValues) {
@@ -338,7 +362,7 @@ export default function ServiceUpdateForm({ serviceId, lastProgress, checklist, 
       })
       .filter((item): item is { id: string; label: string; progress?: number } => Boolean(item));
 
-    const normalizedPercent = Number.isFinite(computedPercent) ? computedPercent : lastProgress;
+    const normalizedPercent = clampPercentValue(values.percent);
 
     await onSubmit({
       percent: normalizedPercent,
@@ -364,6 +388,7 @@ export default function ServiceUpdateForm({ serviceId, lastProgress, checklist, 
     reset({
       date: "",
       description: "",
+      percent: normalizedPercent,
       resources: [],
       workforce: [{ role: "", quantity: 1 }],
       shifts: [],
@@ -380,6 +405,33 @@ export default function ServiceUpdateForm({ serviceId, lastProgress, checklist, 
         </label>
         <input id={`${serviceId}-date`} type="date" className="input mt-1 w-full" {...register("date")} />
         {errors.date ? <p className="mt-1 text-xs text-destructive">{errors.date.message}</p> : null}
+      </div>
+
+      <div>
+        <label htmlFor={`${serviceId}-percent`} className="text-sm font-medium text-foreground">
+          Percentual total do serviço
+        </label>
+        <div className="mt-1 flex flex-col gap-2 sm:flex-row sm:items-center">
+          <input
+            id={`${serviceId}-percent`}
+            type="number"
+            min={0}
+            max={100}
+            step={0.1}
+            className="input w-full sm:max-w-[220px]"
+            {...register("percent")}
+          />
+          {Number.isFinite(computedPercent ?? NaN) ? (
+            <button type="button" className="btn btn-secondary btn-sm" onClick={applySuggestedPercent}>
+              Usar sugestão ({clampPercentValue(computedPercent ?? 0).toFixed(1)}%)
+            </button>
+          ) : null}
+        </div>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Deve ser maior que o último registro ({normalizedLastProgress.toFixed(1)}%). Valor atual:{" "}
+          {Number.isFinite(percentValue ?? NaN) ? clampPercentValue(Number(percentValue)).toFixed(1) : "0.0"}%.
+        </p>
+        {errors.percent ? <p className="mt-1 text-xs text-destructive">{errors.percent.message}</p> : null}
       </div>
 
       {checklist.length > 0 ? (
