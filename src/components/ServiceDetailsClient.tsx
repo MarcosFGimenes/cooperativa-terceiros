@@ -416,6 +416,12 @@ export default function ServiceDetailsClient({
 
   const lastUpdateAt = updates[0]?.createdAt ?? service.updatedAt ?? null;
   const suggestion = useMemo(() => computeChecklistSuggestion(checklistItems), [checklistItems]);
+  const canonicalProgress = useMemo(() => {
+    if (service.hasChecklist && Number.isFinite(suggestion ?? NaN)) {
+      return clampPercent(suggestion ?? 0);
+    }
+    return progress;
+  }, [progress, service.hasChecklist, suggestion]);
   const checklistOptions = useMemo(
     () =>
       checklistItems.map((item) => ({
@@ -448,9 +454,9 @@ export default function ServiceDetailsClient({
   const statusLabel = useMemo(() => {
     const normalised = normaliseStatus(serviceStatus);
     if (normalised === "Pendente") return normalised;
-    if (progress >= 100) return "Concluído";
+    if (canonicalProgress >= 100) return "Concluído";
     return normalised;
-  }, [progress, serviceStatus]);
+  }, [canonicalProgress, serviceStatus]);
 
   const isServiceOpen = useMemo(() => {
     const rawStatus = String(serviceStatus ?? "").toLowerCase();
@@ -460,7 +466,7 @@ export default function ServiceDetailsClient({
   const detailItems = useMemo(
     () => [
       { label: "Status", value: statusLabel },
-      { label: "Andamento", value: `${progress.toFixed(1)}%` },
+      { label: "Andamento", value: `${canonicalProgress.toFixed(1)}%` },
       { label: "Código", value: service.code?.trim() || "—" },
       { label: "Ordem de compra", value: service.oc?.trim() || "—" },
       { label: "Tag", value: service.tag?.trim() || "—" },
@@ -478,7 +484,7 @@ export default function ServiceDetailsClient({
       { label: "Empresa atribuída", value: companyLabel || "—" },
       { label: "Última atualização", value: formatDateLabel(lastUpdateAt, true) },
     ],
-    [service, progress, lastUpdateAt, companyLabel, statusLabel],
+    [service, canonicalProgress, lastUpdateAt, companyLabel, statusLabel],
   );
 
   const documentMetaItems = useMemo(
@@ -584,8 +590,8 @@ export default function ServiceDetailsClient({
         throw error instanceof Error ? error : new Error(message);
       }
 
-      if (percentToSend <= progress) {
-        const message = `O percentual informado (${percentToSend.toFixed(1)}%) deve ser maior que o último registrado (${progress.toFixed(
+      if (percentToSend <= canonicalProgress) {
+        const message = `O percentual informado (${percentToSend.toFixed(1)}%) deve ser maior que o último registrado (${canonicalProgress.toFixed(
           1,
         )}%).`;
         toast.error(message);
@@ -650,7 +656,7 @@ export default function ServiceDetailsClient({
 
         if (!response.ok || !json?.ok) {
           if (json?.error === "percent_must_increase") {
-            errorMessage = `O percentual informado deve ser maior que o último registrado (${progress.toFixed(1)}%).`;
+            errorMessage = `O percentual informado deve ser maior que o último registrado (${canonicalProgress.toFixed(1)}%).`;
           } else {
             errorMessage = json?.error ?? errorMessage;
           }
@@ -681,7 +687,7 @@ export default function ServiceDetailsClient({
               resources: resourcesPayload,
               workforce: payload.workforce,
               shiftConditions: payload.shiftConditions,
-              previousPercent: progress,
+              previousPercent: canonicalProgress,
               declarationAccepted: true,
             });
             return dedupeUpdates([optimistic, ...prev]).slice(0, MAX_UPDATES);
@@ -696,7 +702,7 @@ export default function ServiceDetailsClient({
         throw error instanceof Error ? error : new Error(errorMessage);
       }
     },
-    [progress, service.id, submitChecklistUpdates, trimmedToken],
+    [canonicalProgress, service.id, submitChecklistUpdates, trimmedToken],
   );
 
   return (
@@ -743,14 +749,11 @@ export default function ServiceDetailsClient({
             <div className="space-y-1">
               <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Andamento registrado</span>
               <div className="flex items-baseline gap-2">
-                <span className="text-3xl font-semibold text-foreground">{progress.toFixed(1)}%</span>
-                {Number.isFinite(suggestion ?? NaN) ? (
-                  <span className="text-xs text-muted-foreground">Sugestão do checklist: {Number(suggestion).toFixed(1)}%</span>
-                ) : null}
+                <span className="text-3xl font-semibold text-foreground">{canonicalProgress.toFixed(1)}%</span>
               </div>
             </div>
             <div className="h-2 w-full rounded-full bg-muted">
-              <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${clampPercent(progress)}%` }} />
+              <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${clampPercent(canonicalProgress)}%` }} />
             </div>
           </div>
         </div>
@@ -790,8 +793,7 @@ export default function ServiceDetailsClient({
           {isServiceOpen ? (
             <ServiceUpdateForm
               serviceId={service.id}
-              lastProgress={progress}
-              suggestedPercent={suggestion}
+              lastProgress={canonicalProgress}
               checklist={checklistOptions}
               onSubmit={handleUpdateSubmit}
             />
