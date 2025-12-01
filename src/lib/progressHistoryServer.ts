@@ -1,4 +1,5 @@
 import { FieldValue, Timestamp, type Firestore } from "firebase-admin/firestore";
+import { revalidateTag } from "next/cache";
 
 import { getAdminDbOrThrow } from "@/lib/serverDb";
 import {
@@ -127,6 +128,12 @@ export async function recomputeServiceProgress(serviceId: string) {
   };
 
   await adminDb.collection("services").doc(serviceId).update(payload);
+
+  revalidateTag("services:detail");
+  revalidateTag("services:updates");
+  revalidateTag("services:legacy-updates");
+  revalidateTag("services:available");
+  revalidateTag("services:recent");
 
   return { percent: currentPercent, lastUpdate: lastTimestamp };
 }
