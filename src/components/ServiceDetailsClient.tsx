@@ -499,6 +499,8 @@ export default function ServiceDetailsClient({
   );
 
   const trimmedToken = token?.trim() ?? "";
+  const { user: authUser, ready: authReady } = useFirebaseAuthSession();
+  const canEditUpdates = authReady && authUser?.email ? isPCMUser(authUser.email) : false;
 
   const submitChecklistUpdates = useCallback(
     async (
@@ -923,14 +925,16 @@ export default function ServiceDetailsClient({
                     {update.criticality ? (
                       <p className="text-xs text-muted-foreground">Criticidade observada: {update.criticality}/5</p>
                     ) : null}
-                    <div className="mt-2 flex justify-end">
-                      <Link
-                        href={`/servicos/${encodeURIComponent(service.id)}/editar?updateId=${update.id}&refDate=${update.timeWindow?.start ?? update.createdAt}`}
-                        className="btn btn-outline btn-xs"
-                      >
-                        Editar
-                      </Link>
-                    </div>
+                    {canEditUpdates ? (
+                      <div className="mt-2 flex justify-end">
+                        <Link
+                          href={`/servicos/${encodeURIComponent(service.id)}/editar?updateId=${update.id}&refDate=${update.timeWindow?.start ?? update.createdAt}`}
+                          className="btn btn-outline btn-xs"
+                        >
+                          Editar
+                        </Link>
+                      </div>
+                    ) : null}
                   </li>
                 );
               })}

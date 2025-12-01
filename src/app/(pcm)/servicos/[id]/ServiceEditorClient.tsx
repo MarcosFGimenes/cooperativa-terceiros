@@ -407,6 +407,13 @@ export default function ServiceEditorClient({ serviceId }: ServiceEditorClientPr
       }
 
       await updateDoc(ref, payload);
+
+      await updateDoc(baseRef, {
+        andamento: clampedPercent,
+        manualPercent: clampedPercent,
+        realPercent: clampedPercent,
+        updatedAt: serverTimestamp(),
+      });
       toast.success("Lançamento atualizado com sucesso.");
       await refreshUpdates();
       cancelEditingUpdate();
