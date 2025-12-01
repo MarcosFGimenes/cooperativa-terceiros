@@ -279,6 +279,8 @@ function inferChecklistStatus(progress: number): ChecklistItem["status"] {
 
 function sanitisePercent(value: number) {
   if (Number.isNaN(value)) return 0;
+  // Preservar o valor exato digitado, apenas garantir que está no range válido
+  // Não usar Math.round para evitar alterar valores como 20 para 18
   return Math.min(100, Math.max(0, value));
 }
 
@@ -1137,7 +1139,8 @@ function computeWeightedChecklistPercent(items: ChecklistItem[]): number {
   const percent =
     items.reduce((acc, item) => acc + (item.progress ?? 0) * (item.weight ?? 0), 0) / totalWeight;
 
-  return Math.round(percent * 100) / 100;
+  // Preservar valor calculado exato, apenas garantir que está no range válido
+  return sanitisePercent(percent);
 }
 
 function mergeChecklistProgress(
@@ -1367,7 +1370,8 @@ export async function updateChecklistProgress(
           0,
         ) / totalWeight
       : 0;
-    const realPercent = Math.round(percent * 100) / 100;
+    // Preservar valor calculado exato do checklist, apenas garantir que está no range válido
+    const realPercent = sanitisePercent(percent);
 
     tx.update(serviceRef, {
       realPercent,
@@ -1401,7 +1405,8 @@ export async function computeRealPercentFromChecklist(
       (acc, item) => acc + (item.progress ?? 0) * (item.weight ?? 0),
       0,
     ) / totalWeight;
-  return Math.round(percent * 100) / 100;
+  // Preservar valor calculado exato, apenas garantir que está no range válido
+  return sanitisePercent(percent);
 }
 
 type ManualUpdateInput = {
@@ -1637,10 +1642,18 @@ export async function addManualUpdate(
     .get();
 
   const mapped = mapUpdateDoc(serviceId, updateSnap);
+  
+  // Recalcular progresso para sincronizar em todo o sistema, mas preservar o valor exato digitado
   const recomputed = await recomputeServiceProgress(serviceId).catch((error) => {
     console.error(`[services] Falha ao recalcular progresso do serviço ${serviceId}`, error);
     return null;
   });
+  
+  // Usar o valor recalculado (que já preserva o valor manual quando não há checklist)
+  // ou o valor do update mapeado como fallback
+  const resolvedPercent = recomputed?.percent ?? mapped.realPercentSnapshot ?? percent;
+  
+  // Invalidar todos os caches para garantir sincronização imediata em todas as telas
   revalidateTag("services:recent");
   revalidateTag("services:updates");
   revalidateServiceDetailCache(serviceId);
@@ -1649,7 +1662,7 @@ export async function addManualUpdate(
   revalidateTag("packages:services");
   revalidateTag("folders:detail");
   revalidateTag("folders:by-package");
-  const resolvedPercent = recomputed?.percent ?? mapped.realPercentSnapshot ?? percent;
+  
   return { realPercent: resolvedPercent, update: mapped };
 }
 

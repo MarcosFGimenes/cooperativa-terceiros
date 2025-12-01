@@ -452,7 +452,10 @@ export default function ServiceEditorClient({ serviceId }: ServiceEditorClientPr
       }
 
       await updateDoc(ref, payload);
+      
+      // Recalcular e sincronizar progresso imediatamente após alterar lançamento
       await recomputeProgressAfterEdit();
+      
       toast.success("Lançamento atualizado com sucesso.");
       await refreshUpdates();
       cancelEditingUpdate();

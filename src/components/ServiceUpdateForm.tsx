@@ -113,8 +113,9 @@ function toDateRangeIso(value: string): { start: string; end: string } | null {
 
 function clampPercentValue(value: number): number {
   if (!Number.isFinite(value)) return 0;
-  const safe = Math.min(100, Math.max(0, value));
-  return Math.round(safe * 10) / 10;
+  // Preservar o valor exato digitado pelo terceiro, apenas garantir que está no range válido
+  // Removido Math.round para evitar alterar valores como 20 para 18
+  return Math.min(100, Math.max(0, value));
 }
 
 function computeChecklistPercent(
@@ -123,7 +124,8 @@ function computeChecklistPercent(
   fallback: number,
 ): number {
   if (!Array.isArray(checklist) || checklist.length === 0) {
-    return Math.round(fallback * 10) / 10;
+    // Preservar valor exato do fallback
+    return Math.min(100, Math.max(0, fallback));
   }
 
   let weightedSum = 0;
@@ -155,15 +157,16 @@ function computeChecklistPercent(
   });
 
   if (totalWeight === 0) {
-    return Math.round(fallback * 10) / 10;
+    return Math.min(100, Math.max(0, fallback));
   }
 
   const computed = weightedSum / totalWeight;
   if (!Number.isFinite(computed)) {
-    return Math.round(fallback * 10) / 10;
+    return Math.min(100, Math.max(0, fallback));
   }
 
-  return Math.round(computed * 10) / 10;
+  // Preservar valor calculado exato, apenas garantir que está no range válido
+  return Math.min(100, Math.max(0, computed));
 }
 
 function extractFieldErrorMessage(value: unknown): string | null {
@@ -372,8 +375,9 @@ export default function ServiceUpdateForm({ serviceId, lastProgress, checklist, 
       })
       .filter((item): item is { id: string; label: string; progress?: number } => Boolean(item));
 
-    // Usar exatamente o percentual informado pelo usuário; sugestões do checklist são aplicadas apenas se o usuário
-    // clicar no botão correspondente (que já preenche o campo percent). Isso evita alterar o valor digitado.
+    // Usar exatamente o percentual informado pelo usuário, preservando o valor digitado
+    // Não aplicar arredondamentos que possam alterar o valor (ex: 20 → 18)
+    // A função clampPercentValue apenas garante que está no range 0-100
     const finalPercent = clampPercentValue(values.percent);
 
     await onSubmit({

@@ -92,8 +92,12 @@ export function computeProgressFromEvents(
     const date = new Date(event.timestamp);
     const day = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
     const iso = day.toISOString().slice(0, 10);
-    byDay.set(iso, Math.round(currentPercent * 100) / 100);
+    // Preservar valor exato, apenas garantir que está no range válido
+    byDay.set(iso, clampPercent(currentPercent));
   });
 
-  return { currentPercent: Math.round(currentPercent * 100) / 100, lastTimestamp, byDay };
+  // Preservar o valor exato sem arredondamento desnecessário que pode alterar o valor digitado
+  // Apenas garantir que está no range 0-100
+  const finalPercent = clampPercent(currentPercent);
+  return { currentPercent: finalPercent, lastTimestamp, byDay };
 }

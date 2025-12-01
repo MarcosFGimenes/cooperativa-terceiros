@@ -37,16 +37,18 @@ function toMillis(value: unknown): number | null {
 }
 
 function normalisePercentFromUpdate(data: Record<string, unknown>): number | null {
+  // Priorizar manualPercent e realPercentSnapshot que são os campos usados para o valor digitado pelo terceiro
   const candidates = [
-    data.realPercentSnapshot,
-    data.manualPercent,
-    data.percent,
-    data.totalPct,
-    data.progress,
+    data.manualPercent, // Valor digitado diretamente pelo terceiro
+    data.realPercentSnapshot, // Snapshot do valor real
+    data.percent, // Campo genérico de percentual
+    data.totalPct, // Percentual total (legado)
+    data.progress, // Campo de progresso
   ];
   for (const candidate of candidates) {
     const parsed = typeof candidate === "number" ? candidate : Number(candidate ?? NaN);
     if (Number.isFinite(parsed)) {
+      // Preservar valor exato, apenas garantir que está no range válido
       return clampPercent(parsed);
     }
   }
@@ -118,7 +120,30 @@ export async function loadProgressHistory(adminDb: Firestore, serviceId: string)
 export async function recomputeServiceProgress(serviceId: string) {
   const adminDb = getAdminDbOrThrow();
   const { events, weights, totalWeight, serviceData } = await loadProgressHistory(adminDb, serviceId);
-  const { currentPercent, lastTimestamp } = computeProgressFromEvents(events, { weights, totalWeight });
+  
+  // Priorizar o último valor manual quando disponível para preservar o valor exato digitado pelo terceiro
+  const lastManualUpdate = events.length > 0 ? events[events.length - 1] : null;
+  const hasChecklist = Array.isArray(serviceData.checklist) && (serviceData.checklist as unknown[]).length > 0;
+  
+  let currentPercent: number;
+  
+  // Se o último update tem um percentual explícito (não apenas itens do checklist), usar esse valor
+  // Isso preserva o valor digitado pelo terceiro no campo "Progresso atual registrado"
+  if (lastManualUpdate && typeof lastManualUpdate.percent === "number" && Number.isFinite(lastManualUpdate.percent)) {
+    // Quando há um percentual geral explícito no último update, usar esse valor exato
+    // Isso garante que o valor digitado pelo terceiro seja preservado
+    currentPercent = clampPercent(lastManualUpdate.percent);
+  } else if (hasChecklist && lastManualUpdate && Array.isArray(lastManualUpdate.items) && lastManualUpdate.items.length > 0) {
+    // Quando há checklist e o último update tem apenas itens (sem percentual geral), calcular baseado nos itens
+    const computed = computeProgressFromEvents(events, { weights, totalWeight });
+    currentPercent = computed.currentPercent;
+  } else {
+    // Caso padrão: calcular baseado nos eventos
+    const computed = computeProgressFromEvents(events, { weights, totalWeight });
+    currentPercent = computed.currentPercent;
+  }
+  
+  const lastTimestamp = events.length > 0 && lastManualUpdate ? lastManualUpdate.timestamp : null;
 
   const payload: Record<string, unknown> = {
     andamento: currentPercent,

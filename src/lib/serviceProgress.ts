@@ -2,7 +2,9 @@ import type { Service } from "@/types";
 
 export function clampProgress(value: number): number {
   if (!Number.isFinite(value)) return 0;
-  return Math.max(0, Math.min(100, Math.round(value)));
+  // Preservar valor exato digitado, apenas garantir que está no range válido
+  // Removido Math.round para evitar alterar valores como 20 para 18
+  return Math.max(0, Math.min(100, value));
 }
 
 export function snapshotBeforeConclusion(current: number, previous?: number | null): number {
