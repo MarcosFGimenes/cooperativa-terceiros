@@ -396,6 +396,9 @@ export default function ServiceDetailsClient({
   useEffect(() => {
     setUpdates(normalisedInitialUpdates);
   }, [normalisedInitialUpdates]);
+  useEffect(() => {
+    setProgress(computeInitialProgress(service, normalisedInitialUpdates));
+  }, [service, normalisedInitialUpdates]);
   const recentUpdates = useMemo(() => updates.filter(shouldDisplayUpdate), [updates]);
   const [serviceStatus, setServiceStatus] = useState(service.status);
   const [progress, setProgress] = useState(() => computeInitialProgress(service, normalisedInitialUpdates));
@@ -660,7 +663,10 @@ export default function ServiceDetailsClient({
 
         if (json.update) {
           const mapped = sanitiseResourceQuantities(toThirdUpdate(json.update));
-          setUpdates((prev) => dedupeUpdates([mapped, ...prev]).slice(0, MAX_UPDATES));
+          setUpdates((prev) => {
+            const filtered = prev.filter((item) => item.id !== mapped.id);
+            return dedupeUpdates([mapped, ...filtered]).slice(0, MAX_UPDATES);
+          });
         } else {
           const createdAt = reportDateMillis || Date.now();
           setUpdates((prev) => {

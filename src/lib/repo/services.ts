@@ -1632,6 +1632,11 @@ export async function addManualUpdate(
   revalidateTag("services:recent");
   revalidateTag("services:updates");
   revalidateServiceDetailCache(serviceId);
+  revalidateTag("packages:detail");
+  revalidateTag("packages:summary");
+  revalidateTag("packages:services");
+  revalidateTag("folders:detail");
+  revalidateTag("folders:by-package");
   const resolvedPercent = recomputed?.percent ?? mapped.realPercentSnapshot ?? percent;
   return { realPercent: resolvedPercent, update: mapped };
 }
