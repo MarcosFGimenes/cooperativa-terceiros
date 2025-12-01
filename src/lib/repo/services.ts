@@ -1117,45 +1117,189 @@ function toDateOnlyTimestamp(value: string): Timestamp {
   return Timestamp.fromDate(date);
 }
 
-export async function updateServiceMetadata(serviceId: string, input: ServiceMetadataInput): Promise<void> {
-  const ref = servicesCollection().doc(serviceId);
-  const snap = await ref.get();
-  if (!snap.exists) {
-    throw new Error("Serviço não encontrado");
+type ChecklistProgressSnapshot = { id: string; progress: number; status?: ChecklistItem["status"] };
+
+function computeWeightedChecklistPercent(items: ChecklistItem[]): number {
+  const totalWeight = items.reduce((acc, item) => acc + (item.weight ?? 0), 0);
+  if (!totalWeight) return 0;
+
+  const percent =
+    items.reduce((acc, item) => acc + (item.progress ?? 0) * (item.weight ?? 0), 0) / totalWeight;
+
+  return Math.round(percent * 100) / 100;
+}
+
+function mergeChecklistProgress(
+  items: ChecklistItem[],
+  updates: ChecklistProgressSnapshot[],
+): ChecklistItem[] {
+  const updateMap = new Map<string, ChecklistProgressSnapshot>();
+  updates.forEach((update) => {
+    if (!update?.id) return;
+    updateMap.set(update.id, update);
+  });
+
+  return items.map((item) => {
+    const override = updateMap.get(item.id);
+    if (!override) return item;
+    const progress = sanitisePercent(override.progress);
+    const status = override.status ?? inferChecklistStatus(progress);
+    return { ...item, progress, status };
+  });
+}
+
+function normaliseChecklistStatus(value: unknown): ChecklistItem["status"] {
+  const raw = String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/_/g, "-")
+    .replace("em andamento", "em-andamento");
+
+  if (raw.includes("conclu")) return "concluido";
+  if (raw.includes("andamento")) return "andamento";
+  return "nao_iniciado";
+}
+
+function resolveChecklistSnapshot(
+  serviceData: Record<string, unknown>,
+  items: ChecklistItem[],
+): ChecklistProgressSnapshot[] {
+  const storedSnapshot = Array.isArray(serviceData.checklistProgressBeforeConclusion)
+    ? (serviceData.checklistProgressBeforeConclusion as Array<Record<string, unknown>>)
+    : null;
+
+  if (storedSnapshot?.length) {
+    return storedSnapshot
+      .map((entry) => {
+        const id = typeof entry.id === "string" ? entry.id : "";
+        const progress = Number(entry.progress);
+        if (!id || !Number.isFinite(progress)) return null;
+        const status = normaliseChecklistStatus(entry.status);
+        return { id, progress, status };
+      })
+      .filter((entry): entry is ChecklistProgressSnapshot => Boolean(entry));
   }
 
-  const plannedStartTimestamp = toDateOnlyTimestamp(input.plannedStart);
-  const plannedEndTimestamp = toDateOnlyTimestamp(input.plannedEnd);
+  const fallbackPercent = toNumber(
+    serviceData.progressBeforeConclusion ??
+      serviceData.previousProgress ??
+      serviceData.realPercent ??
+      serviceData.andamento,
+  );
+  const clampedFallback = Number.isFinite(fallbackPercent ?? NaN)
+    ? sanitisePercent(Number(fallbackPercent))
+    : null;
 
-  const payload: Record<string, unknown> = {
-    os: input.os,
-    tag: input.tag,
-    equipamento: input.equipment,
-    equipmentName: input.equipment,
-    updatedAt: FieldValue.serverTimestamp(),
-    inicioPrevisto: plannedStartTimestamp,
-    fimPrevisto: plannedEndTimestamp,
-    plannedStart: input.plannedStart,
-    plannedEnd: input.plannedEnd,
-    dataInicio: input.plannedStart,
-    dataFim: input.plannedEnd,
-    inicioPlanejado: input.plannedStart,
-    fimPlanejado: input.plannedEnd,
-    horasPrevistas: input.totalHours,
-    totalHours: input.totalHours,
-    totalHoras: input.totalHours,
-    status: input.status,
-  };
+  if (clampedFallback !== null) {
+    return items.map((item) => ({
+      id: item.id,
+      progress: clampedFallback,
+      status: inferChecklistStatus(clampedFallback),
+    }));
+  }
 
-  payload.oc = input.oc ?? null;
-  payload.sector = input.sector ?? null;
-  payload.setor = input.sector ?? null;
-  payload.empresaId = input.company ?? null;
-  payload.company = input.company ?? null;
+  return items.map((item) => ({
+    id: item.id,
+    progress: item.progress ?? 0,
+    status: item.status ?? inferChecklistStatus(item.progress ?? 0),
+  }));
+}
 
-  await ref.update(payload);
+export async function updateServiceMetadata(serviceId: string, input: ServiceMetadataInput): Promise<void> {
+  const ref = servicesCollection().doc(serviceId);
+  const db = getDb();
+
+  await db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists) {
+      throw new Error("Serviço não encontrado");
+    }
+
+    const serviceData = (snap.data() ?? {}) as Record<string, unknown>;
+    const previousStatus = normaliseServiceStatus(serviceData.status);
+    const plannedStartTimestamp = toDateOnlyTimestamp(input.plannedStart);
+    const plannedEndTimestamp = toDateOnlyTimestamp(input.plannedEnd);
+
+    const payload: Record<string, unknown> = {
+      os: input.os,
+      tag: input.tag,
+      equipamento: input.equipment,
+      equipmentName: input.equipment,
+      updatedAt: FieldValue.serverTimestamp(),
+      inicioPrevisto: plannedStartTimestamp,
+      fimPrevisto: plannedEndTimestamp,
+      plannedStart: input.plannedStart,
+      plannedEnd: input.plannedEnd,
+      dataInicio: input.plannedStart,
+      dataFim: input.plannedEnd,
+      inicioPlanejado: input.plannedStart,
+      fimPlanejado: input.plannedEnd,
+      horasPrevistas: input.totalHours,
+      totalHours: input.totalHours,
+      totalHoras: input.totalHours,
+      status: input.status,
+    };
+
+    payload.oc = input.oc ?? null;
+    payload.sector = input.sector ?? null;
+    payload.setor = input.sector ?? null;
+    payload.empresaId = input.company ?? null;
+    payload.company = input.company ?? null;
+
+    const checklistRef = ref.collection("checklist");
+    let checklistUpdates: ChecklistProgressSnapshot[] = [];
+
+    if (input.status === "Concluído" && previousStatus !== "Concluído") {
+      const checklistSnap = await tx.get(checklistRef);
+      const items = checklistSnap.docs.map((doc) => mapChecklistDoc(serviceId, doc));
+      const currentPercent = computeWeightedChecklistPercent(items);
+
+      payload.progressBeforeConclusion =
+        toNumber(serviceData.progressBeforeConclusion ?? serviceData.previousProgress ?? serviceData.realPercent) ??
+        currentPercent;
+      payload.previousProgress = payload.progressBeforeConclusion;
+      payload.checklistProgressBeforeConclusion = items.map((item) => ({
+        id: item.id,
+        progress: item.progress ?? 0,
+        status: item.status ?? inferChecklistStatus(item.progress ?? 0),
+      }));
+      payload.realPercent = 100;
+      payload.andamento = 100;
+      payload.manualPercent = FieldValue.delete();
+
+      checklistUpdates = items.map((item) => ({
+        id: item.id,
+        progress: 100,
+        status: "concluido",
+      }));
+    }
+
+    if (input.status === "Pendente" && previousStatus === "Concluído") {
+      const checklistSnap = await tx.get(checklistRef);
+      const items = checklistSnap.docs.map((doc) => mapChecklistDoc(serviceId, doc));
+      const snapshot = resolveChecklistSnapshot(serviceData, items);
+      const merged = mergeChecklistProgress(items, snapshot);
+      const restoredPercent = computeWeightedChecklistPercent(merged);
+
+      payload.realPercent = restoredPercent;
+      payload.andamento = restoredPercent;
+      payload.manualPercent = FieldValue.delete();
+      checklistUpdates = snapshot;
+    }
+
+    tx.update(ref, payload);
+
+    checklistUpdates.forEach((update) => {
+      tx.update(checklistRef.doc(update.id), {
+        progress: sanitisePercent(update.progress),
+        status: update.status ?? inferChecklistStatus(update.progress),
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+    });
+  });
 
   revalidateTag("services:recent");
+  revalidateTag("services:checklist");
   revalidateServiceDetailCache(serviceId);
 }
 
