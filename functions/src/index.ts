@@ -82,9 +82,14 @@ function inferChecklistStatus(progress: number): string {
 }
 
 function normalisePercentFromUpdate(data: FirebaseFirestore.DocumentData): ProgressUpdate | null {
-  const candidates = [data.percent, data.manualPercent, data.realPercentSnapshot];
+  // Prioritise the most recent manual edit fields so PCM/terceiro edits are not shadowed by stale percent values.
+  const candidates = [data.manualPercent, data.realPercentSnapshot, data.percent];
   const createdAt =
-    asTimestamp(data.reportDate) ?? asTimestamp(data.createdAt) ?? asTimestamp(data.date) ?? Date.now();
+    asTimestamp((data.audit as FirebaseFirestore.DocumentData | undefined)?.submittedAt) ??
+    asTimestamp(data.reportDate) ??
+    asTimestamp(data.createdAt) ??
+    asTimestamp(data.date) ??
+    Date.now();
 
   for (const candidate of candidates) {
     const parsed = typeof candidate === "number" ? candidate : Number(candidate ?? NaN);
