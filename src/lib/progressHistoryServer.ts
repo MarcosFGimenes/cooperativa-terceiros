@@ -124,7 +124,12 @@ export async function recomputeServiceProgress(serviceId: string) {
     andamento: currentPercent,
     realPercent: currentPercent,
     manualPercent: currentPercent,
+    realPercentSnapshot: currentPercent,
+    percent: currentPercent,
+    progress: currentPercent,
+    percentualRealAtual: currentPercent,
     updatedAt: lastTimestamp ? Timestamp.fromMillis(lastTimestamp) : FieldValue.serverTimestamp(),
+    lastUpdateDate: lastTimestamp ? Timestamp.fromMillis(lastTimestamp) : FieldValue.serverTimestamp(),
   };
 
   await adminDb.collection("services").doc(serviceId).update(payload);
