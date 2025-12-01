@@ -22,6 +22,7 @@ import { tryGetFirestore } from "@/lib/firebase";
 import { useFirebaseAuthSession } from "@/lib/useFirebaseAuthSession";
 import { recordTelemetry } from "@/lib/telemetry";
 import { resolveReopenedProgress, snapshotBeforeConclusion } from "@/lib/serviceProgress";
+import { buildChecklistWeightMap, computeProgressFromEvents, type ProgressEvent } from "@/lib/progressHistory";
 
 type ChecklistDraft = Array<{ id: string; descricao: string; peso: number | "" }>;
 
