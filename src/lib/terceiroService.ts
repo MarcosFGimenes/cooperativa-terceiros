@@ -144,11 +144,6 @@ async function getServicesForFolder(adminDb: Firestore, folderId: string, empres
   if (!folderSnap.exists) return [];
 
   const folderData = (folderSnap.data() ?? {}) as Record<string, unknown>;
-  const folderCompany = normaliseToLower(folderData.companyId ?? folderData.company ?? folderData.empresa);
-  const expectedCompany = normaliseToLower(empresa);
-  if (expectedCompany && folderCompany && folderCompany !== expectedCompany) {
-    return [];
-  }
 
   const serviceIds = collectFolderServiceIds({
     services: folderData.services,
