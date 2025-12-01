@@ -949,7 +949,11 @@ function mapUpdateDoc(
 ): ServiceUpdate {
   const data = doc.data() ?? {};
   const manualPercent = toNumber((data as Record<string, unknown>).manualPercent) ?? undefined;
-  const realPercent = toNumber((data as Record<string, unknown>).realPercentSnapshot) ?? manualPercent ?? 0;
+  const realPercent =
+    toNumber((data as Record<string, unknown>).realPercentSnapshot) ??
+    toNumber((data as Record<string, unknown>).realPercent) ??
+    manualPercent ??
+    0;
   const description = (() => {
     const raw = (data as Record<string, unknown>).description ?? (data as Record<string, unknown>).note;
     if (typeof raw === "string") {
