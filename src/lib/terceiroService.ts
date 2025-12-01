@@ -51,32 +51,6 @@ function isServiceOpen(data: Record<string, unknown>): boolean {
   return true;
 }
 
-function matchesCompanyConstraint(data: Record<string, unknown>, company: string | undefined): boolean {
-  if (!company) return true;
-  const expected = company.trim().toLowerCase();
-  if (!expected) return true;
-
-  const candidates = [data.empresa, data.empresaId, data.company, data.companyId];
-  for (const candidate of candidates) {
-    if (typeof candidate === "string" && candidate.trim().toLowerCase() === expected) {
-      return true;
-    }
-  }
-
-  const assigned = data.assignedTo;
-  if (assigned && typeof assigned === "object") {
-    const assignedRecord = assigned as Record<string, unknown>;
-    const assignedCandidates = [assignedRecord.companyId, assignedRecord.company, assignedRecord.companyID];
-    for (const candidate of assignedCandidates) {
-      if (typeof candidate === "string" && candidate.trim().toLowerCase() === expected) {
-        return true;
-      }
-    }
-  }
-
-  return false;
-}
-
 function toOptionalNumber(value: unknown): number | undefined {
   if (typeof value === "number" && Number.isFinite(value)) return value;
   if (typeof value === "string" && value.trim()) {
@@ -190,7 +164,6 @@ async function getServicesForFolder(adminDb: Firestore, folderId: string, empres
     if (!snap.exists) continue;
     const data = (snap.data() ?? {}) as Record<string, unknown>;
     if (!isServiceOpen(data)) continue;
-    if (!matchesCompanyConstraint(data, empresa ?? undefined)) continue;
     services.push(mapServiceDoc(snap.id, data));
   }
 
