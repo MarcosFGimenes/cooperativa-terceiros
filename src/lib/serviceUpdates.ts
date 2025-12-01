@@ -9,6 +9,7 @@ type UpdateLike = {
   manualPercent?: number | null;
   realPercentSnapshot?: number | null;
   createdAt?: number | null;
+  submittedAt?: number | null;
   timeWindow?: { start?: number | null; end?: number | null } | null;
   mode?: string | null;
   token?: string | null;
@@ -156,8 +157,18 @@ export function dedupeUpdates<T extends UpdateLike & WithDescription>(updates: T
   }
 
   return Array.from(map.values()).sort((a, b) => {
-    const left = typeof a.createdAt === "number" ? a.createdAt : 0;
-    const right = typeof b.createdAt === "number" ? b.createdAt : 0;
+    const left =
+      typeof a.submittedAt === "number"
+        ? a.submittedAt
+        : typeof a.createdAt === "number"
+          ? a.createdAt
+          : 0;
+    const right =
+      typeof b.submittedAt === "number"
+        ? b.submittedAt
+        : typeof b.createdAt === "number"
+          ? b.createdAt
+          : 0;
     return right - left;
   });
 }
