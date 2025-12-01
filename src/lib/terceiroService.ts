@@ -26,57 +26,6 @@ function toOptionalString(value: unknown): string | undefined {
   return trimmed || undefined;
 }
 
-function normaliseToLower(value: unknown): string | null {
-  if (typeof value !== "string") return null;
-  const trimmed = value.trim();
-  if (!trimmed) return null;
-  return trimmed.toLowerCase();
-}
-
-function isServiceOpen(data: Record<string, unknown>): boolean {
-  const status = normaliseToLower(data.status);
-  if (!status) return true;
-
-  const closedStatuses = [
-    "concluido",
-    "concluído",
-    "encerrado",
-    "fechado",
-    "finalizado",
-    "cancelado",
-  ];
-
-  if (closedStatuses.includes(status)) return false;
-
-  return true;
-}
-
-function matchesCompanyConstraint(data: Record<string, unknown>, company: string | undefined): boolean {
-  if (!company) return true;
-  const expected = company.trim().toLowerCase();
-  if (!expected) return true;
-
-  const candidates = [data.empresa, data.empresaId, data.company, data.companyId];
-  for (const candidate of candidates) {
-    if (typeof candidate === "string" && candidate.trim().toLowerCase() === expected) {
-      return true;
-    }
-  }
-
-  const assigned = data.assignedTo;
-  if (assigned && typeof assigned === "object") {
-    const assignedRecord = assigned as Record<string, unknown>;
-    const assignedCandidates = [assignedRecord.companyId, assignedRecord.company, assignedRecord.companyID];
-    for (const candidate of assignedCandidates) {
-      if (typeof candidate === "string" && candidate.trim().toLowerCase() === expected) {
-        return true;
-      }
-    }
-  }
-
-  return false;
-}
-
 function toOptionalNumber(value: unknown): number | undefined {
   if (typeof value === "number" && Number.isFinite(value)) return value;
   if (typeof value === "string" && value.trim()) {
@@ -138,19 +87,11 @@ export async function getServicesForToken(token: string): Promise<ServiceDoc[]> 
   if (!tokenDoc) return [];
 
   const data = (tokenDoc.data() ?? {}) as Record<string, unknown>;
-  const tokenCompany =
-    toOptionalString(data.empresa) ??
-    toOptionalString(data.empresaId) ??
-    toOptionalString(data.company) ??
-    toOptionalString(data.companyId) ??
-    undefined;
-
   const serviceId = toOptionalString(data.serviceId) ?? toOptionalString(data.targetId);
   if (serviceId) {
     const doc = await adminDb.collection("services").doc(serviceId).get();
     if (!doc.exists) return [];
     const serviceData = (doc.data() ?? {}) as Record<string, unknown>;
-    if (!isServiceOpen(serviceData)) return [];
     return [mapServiceDoc(doc.id, serviceData)];
   }
 
@@ -159,22 +100,17 @@ export async function getServicesForToken(token: string): Promise<ServiceDoc[]> 
     toOptionalString(data.pastaId) ??
     (data.targetType === "folder" ? toOptionalString(data.targetId) : undefined);
   if (folderId) {
-    return getServicesForFolder(adminDb, folderId, tokenCompany ?? null);
+    return getServicesForFolder(adminDb, folderId);
   }
 
   return [];
 }
 
-async function getServicesForFolder(adminDb: Firestore, folderId: string, empresa: string | null): Promise<ServiceDoc[]> {
+async function getServicesForFolder(adminDb: Firestore, folderId: string): Promise<ServiceDoc[]> {
   const folderSnap = await adminDb.collection("packageFolders").doc(folderId).get();
   if (!folderSnap.exists) return [];
 
   const folderData = (folderSnap.data() ?? {}) as Record<string, unknown>;
-  const folderCompany = normaliseToLower(folderData.companyId ?? folderData.company ?? folderData.empresa);
-  const expectedCompany = normaliseToLower(empresa);
-  if (expectedCompany && folderCompany && folderCompany !== expectedCompany) {
-    return [];
-  }
 
   const serviceIds = collectFolderServiceIds({
     services: folderData.services,
@@ -189,8 +125,6 @@ async function getServicesForFolder(adminDb: Firestore, folderId: string, empres
     const snap = await adminDb.collection("services").doc(serviceId).get();
     if (!snap.exists) continue;
     const data = (snap.data() ?? {}) as Record<string, unknown>;
-    if (!isServiceOpen(data)) continue;
-    if (!matchesCompanyConstraint(data, empresa ?? undefined)) continue;
     services.push(mapServiceDoc(snap.id, data));
   }
 

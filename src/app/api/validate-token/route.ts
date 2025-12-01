@@ -69,33 +69,6 @@ function extractServiceCompany(data: Record<string, unknown>): string {
   return "";
 }
 
-function isServiceOpen(data: Record<string, unknown>): boolean {
-  const progress = (() => {
-    const candidates = [data.realPercent, data.progress, data.andamento, data.previousProgress, data.progressBeforeConclusion, data.previousPercent];
-    for (const value of candidates) {
-      if (typeof value === "number" && Number.isFinite(value)) {
-        return Math.min(100, Math.max(0, Math.round(value)));
-      }
-    }
-    return 0;
-  })();
-
-  if (progress >= 100) return false;
-
-  const statusRaw = typeof data.status === "string" ? data.status.trim().toLowerCase() : "";
-  const statusNormalised = statusRaw || "aberto";
-
-  if (statusNormalised === "pendente") return true;
-  if (statusNormalised === "aberto" || statusNormalised === "aberta" || statusNormalised === "open") {
-    return progress < 100;
-  }
-
-  const closedKeywords = ["conclu", "encerr", "fechad", "finaliz", "cancel"];
-  if (closedKeywords.some((keyword) => statusNormalised.includes(keyword))) return false;
-
-  return progress < 100;
-}
-
 async function fetchFolderServicesAdmin(db: Firestore, folderId: string, empresa: string | null) {
   const folderSnap = await db.collection("packageFolders").doc(folderId).get();
   if (!folderSnap.exists) return [];
@@ -119,10 +92,7 @@ async function fetchFolderServicesAdmin(db: Firestore, folderId: string, empresa
     const docSnap = await db.collection("services").doc(serviceId).get();
     if (!docSnap.exists) continue;
     const serviceData = (docSnap.data() ?? {}) as Record<string, unknown>;
-    
-    // Verificar se o serviço está aberto
-    if (!isServiceOpen(serviceData)) continue;
-    
+
     if (normalizedEmpresa) {
       const serviceCompany = extractServiceCompany(serviceData);
       if (serviceCompany && serviceCompany !== normalizedEmpresa) continue;
