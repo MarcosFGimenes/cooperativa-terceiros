@@ -7,6 +7,7 @@ import {
   formatDateTime,
   formatUpdateSummary,
   filterUpdatesWithRelevantContent,
+  resolveUpdateTimestamp,
   toNewUpdates,
 } from "../shared";
 import { decodeRouteParam } from "@/lib/decodeRouteParam";
@@ -87,7 +88,9 @@ export default async function ServiceUpdatesPage({ params }: { params: { id: str
                     <span className="text-base font-semibold text-foreground">{summary.title}</span>
                     <span className="text-sm font-semibold text-primary">{summary.percentLabel}</span>
                   </div>
-                  <p className="text-xs text-muted-foreground">Atualizado em {formatDateTime(update.createdAt)}</p>
+                  <p className="text-xs text-muted-foreground">
+                    Atualizado em {formatDateTime(resolveUpdateTimestamp(update))}
+                  </p>
                   {update.subactivity?.label ? (
                     <p className="text-xs text-muted-foreground">
                       Subatividade: <span className="font-medium text-foreground">{update.subactivity.label}</span>

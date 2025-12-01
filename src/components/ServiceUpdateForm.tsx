@@ -372,10 +372,9 @@ export default function ServiceUpdateForm({ serviceId, lastProgress, checklist, 
       })
       .filter((item): item is { id: string; label: string; progress?: number } => Boolean(item));
 
-    // Calcular percentual baseado no checklist se houver, senão usar o valor do formulário
-    const finalPercent = checklist.length > 0 && subactivityUpdates.length > 0
-      ? clampPercentValue(computedPercent)
-      : clampPercentValue(values.percent);
+    // Usar exatamente o percentual informado pelo usuário; sugestões do checklist são aplicadas apenas se o usuário
+    // clicar no botão correspondente (que já preenche o campo percent). Isso evita alterar o valor digitado.
+    const finalPercent = clampPercentValue(values.percent);
 
     await onSubmit({
       percent: finalPercent,

@@ -1,5 +1,5 @@
 import { FieldValue, Timestamp, type Firestore } from "firebase-admin/firestore";
-import { revalidateTag } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 
 import { getAdminDbOrThrow } from "@/lib/serverDb";
 import {
@@ -112,12 +112,12 @@ export async function loadProgressHistory(adminDb: Firestore, serviceId: string)
     if (event) events.push(event);
   });
 
-  return { events, weights, totalWeight };
+  return { events, weights, totalWeight, serviceData: (serviceSnap.data() ?? {}) as Record<string, unknown> };
 }
 
 export async function recomputeServiceProgress(serviceId: string) {
   const adminDb = getAdminDbOrThrow();
-  const { events, weights, totalWeight } = await loadProgressHistory(adminDb, serviceId);
+  const { events, weights, totalWeight, serviceData } = await loadProgressHistory(adminDb, serviceId);
   const { currentPercent, lastTimestamp } = computeProgressFromEvents(events, { weights, totalWeight });
 
   const payload: Record<string, unknown> = {
@@ -134,6 +134,16 @@ export async function recomputeServiceProgress(serviceId: string) {
 
   await adminDb.collection("services").doc(serviceId).update(payload);
 
+  const packageId = typeof serviceData.packageId === "string" && serviceData.packageId.trim().length
+    ? serviceData.packageId
+    : null;
+  const folderId = typeof serviceData.packageFolderId === "string" && serviceData.packageFolderId.trim().length
+    ? serviceData.packageFolderId
+    : typeof serviceData.folderId === "string" && serviceData.folderId.trim().length
+      ? serviceData.folderId
+      : null;
+
+  // Revalidate caches and pages that consume the service percentage so every surface refreshes immediately after an edit.
   revalidateTag("services:detail");
   revalidateTag("services:updates");
   revalidateTag("services:legacy-updates");
@@ -144,6 +154,22 @@ export async function recomputeServiceProgress(serviceId: string) {
   revalidateTag("packages:services");
   revalidateTag("folders:detail");
   revalidateTag("folders:by-package");
+
+  revalidatePath("/dashboard");
+  revalidatePath("/servicos");
+  revalidatePath(`/servicos/${serviceId}`);
+  revalidatePath(`/servicos/${serviceId}/editar`);
+  revalidatePath(`/servicos/${serviceId}/atualizacoes`);
+  revalidatePath(`/terceiro/servico/${serviceId}`);
+
+  if (packageId) {
+    revalidatePath(`/pacotes/${packageId}`);
+    revalidatePath(`/pacotes/${packageId}/servicos`);
+  }
+
+  if (folderId) {
+    revalidatePath(`/pacotes/pastas/${folderId}`);
+  }
 
   return { percent: currentPercent, lastUpdate: lastTimestamp };
 }
