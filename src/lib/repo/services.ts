@@ -10,6 +10,7 @@ import type {
 import { resolveDisplayedServiceStatus } from "@/lib/serviceStatus";
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
 import { revalidateTag, unstable_cache } from "next/cache";
+import { recomputeServiceProgress } from "@/lib/progressHistoryServer";
 
 const getDb = () => getAdmin().db;
 const servicesCollection = () => getDb().collection("services");
@@ -1480,10 +1481,15 @@ export async function addManualUpdate(
     .get();
 
   const mapped = mapUpdateDoc(serviceId, updateSnap);
+  const recomputed = await recomputeServiceProgress(serviceId).catch((error) => {
+    console.error(`[services] Falha ao recalcular progresso do serviço ${serviceId}`, error);
+    return null;
+  });
   revalidateTag("services:recent");
   revalidateTag("services:updates");
   revalidateServiceDetailCache(serviceId);
-  return { realPercent: mapped.realPercentSnapshot ?? percent, update: mapped };
+  const resolvedPercent = recomputed?.percent ?? mapped.realPercentSnapshot ?? percent;
+  return { realPercent: resolvedPercent, update: mapped };
 }
 
 export async function addComputedUpdate(

@@ -500,7 +500,7 @@ export default function ServiceDetailsClient({
 
   const trimmedToken = token?.trim() ?? "";
   const { user: authUser, ready: authReady } = useFirebaseAuthSession();
-  const canEditUpdates = authReady && authUser?.email ? isPCMUser(authUser.email) : false;
+  const canEditUpdates = authReady && authUser?.email && !trimmedToken ? isPCMUser(authUser.email) : false;
 
   const submitChecklistUpdates = useCallback(
     async (

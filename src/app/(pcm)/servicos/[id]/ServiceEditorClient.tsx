@@ -22,6 +22,7 @@ import { tryGetFirestore } from "@/lib/firebase";
 import { useFirebaseAuthSession } from "@/lib/useFirebaseAuthSession";
 import { recordTelemetry } from "@/lib/telemetry";
 import { resolveReopenedProgress, snapshotBeforeConclusion } from "@/lib/serviceProgress";
+import { buildChecklistWeightMap, computeProgressFromEvents, type ProgressEvent } from "@/lib/progressHistory";
 
 type ChecklistDraft = Array<{ id: string; descricao: string; peso: number | "" }>;
 
@@ -164,6 +165,101 @@ export default function ServiceEditorClient({ serviceId }: ServiceEditorClientPr
   const [savingUpdateEdit, setSavingUpdateEdit] = useState(false);
   const { db: firestore, error: firestoreError } = useMemo(() => tryGetFirestore(), []);
   const { ready: isAuthReady, issue: authIssue } = useFirebaseAuthSession();
+
+  const resolveMillis = useCallback((value: unknown): number | null => {
+    if (typeof value === "number" && Number.isFinite(value)) return value;
+    if (value instanceof Date) {
+      const time = value.getTime();
+      return Number.isNaN(time) ? null : time;
+    }
+    if (typeof value === "string" && value.trim()) {
+      const parsed = new Date(value);
+      return Number.isNaN(parsed.getTime()) ? null : parsed.getTime();
+    }
+    if (value && typeof (value as { toMillis?: () => number }).toMillis === "function") {
+      const millis = (value as { toMillis: () => number }).toMillis();
+      return typeof millis === "number" && Number.isFinite(millis) ? millis : null;
+    }
+    if (value && typeof (value as { seconds?: number; nanoseconds?: number }).seconds === "number") {
+      const maybe = value as { seconds: number; nanoseconds?: number };
+      const millis = maybe.seconds * 1000 + Math.round((maybe.nanoseconds ?? 0) / 1_000_000);
+      return Number.isFinite(millis) ? millis : null;
+    }
+    return null;
+  }, []);
+
+  const recomputeProgressAfterEdit = useCallback(async () => {
+    if (!firestore) return;
+
+    const baseRef = doc(firestore, "services", serviceId);
+    const [serviceSnap, updatesSnap, legacySnap] = await Promise.all([
+      getDoc(baseRef),
+      getDocs(query(collection(baseRef, "updates"), orderBy("createdAt", "asc"))),
+      getDocs(query(collection(baseRef, "serviceUpdates"), orderBy("date", "asc"))),
+    ]);
+
+    const serviceData = (serviceSnap.data() ?? {}) as Record<string, unknown>;
+    const checklistRaw = Array.isArray(serviceData.checklist)
+      ? (serviceData.checklist as Array<{ id?: string | null; itemId?: string | null; weight?: number | null; peso?: number | null }>)
+      : [];
+    const { weights, totalWeight } = buildChecklistWeightMap(checklistRaw);
+
+    const events: ProgressEvent[] = [];
+    const resolvePercent = (value: unknown): number | null => {
+      const parsed = typeof value === "number" ? value : Number(value ?? NaN);
+      return Number.isFinite(parsed) ? parsed : null;
+    };
+
+    updatesSnap.docs.forEach((docSnap) => {
+      const data = (docSnap.data() ?? {}) as Record<string, unknown>;
+      const timestamp =
+        resolveMillis(data.createdAt) ??
+        resolveMillis((data.timeWindow as Record<string, unknown> | undefined)?.start) ??
+        resolveMillis(data.date) ??
+        null;
+
+      const percentCandidate =
+        resolvePercent(data.realPercentSnapshot) ?? resolvePercent(data.manualPercent) ?? resolvePercent(data.percent);
+
+      if (timestamp !== null) {
+        events.push({ timestamp, percent: percentCandidate ?? undefined });
+      }
+    });
+
+    legacySnap.docs.forEach((docSnap) => {
+      const data = (docSnap.data() ?? {}) as Record<string, unknown>;
+      const timestamp = resolveMillis(data.date) ?? resolveMillis(data.createdAt) ?? null;
+      const items = Array.isArray(data.items)
+        ? (data.items as Array<Record<string, unknown>>)
+            .map((item) => {
+              const idSource = item.id ?? item.itemId;
+              const pctSource = item.pct;
+              const id = typeof idSource === "string" ? idSource.trim() : "";
+              const pct = typeof pctSource === "number" ? pctSource : Number(pctSource ?? NaN);
+              if (!id || !Number.isFinite(pct)) return null;
+              return { id, pct };
+            })
+            .filter(Boolean) as ProgressEvent["items"]
+        : undefined;
+
+      const percent = resolvePercent(data.totalPct);
+      if (timestamp !== null) {
+        events.push({ timestamp, percent: percent ?? undefined, items: items && items.length ? items : undefined });
+      }
+    });
+
+    const { currentPercent, lastTimestamp } = computeProgressFromEvents(events, { weights, totalWeight });
+
+    const payload: Record<string, unknown> = {
+      andamento: currentPercent,
+      realPercent: currentPercent,
+      manualPercent: currentPercent,
+      updatedAt: lastTimestamp ? Timestamp.fromMillis(lastTimestamp) : serverTimestamp(),
+    };
+
+    await updateDoc(baseRef, payload);
+    setAndamento(currentPercent);
+  }, [firestore, resolveMillis, serviceId]);
 
   useEffect(() => {
     if (firestoreError) {
@@ -407,13 +503,7 @@ export default function ServiceEditorClient({ serviceId }: ServiceEditorClientPr
       }
 
       await updateDoc(ref, payload);
-
-      await updateDoc(baseRef, {
-        andamento: clampedPercent,
-        manualPercent: clampedPercent,
-        realPercent: clampedPercent,
-        updatedAt: serverTimestamp(),
-      });
+      await recomputeProgressAfterEdit();
       toast.success("Lançamento atualizado com sucesso.");
       await refreshUpdates();
       cancelEditingUpdate();
@@ -430,6 +520,7 @@ export default function ServiceEditorClient({ serviceId }: ServiceEditorClientPr
     editingUpdateId,
     firestore,
     isAuthReady,
+    recomputeProgressAfterEdit,
     refreshUpdates,
     serviceId,
   ]);
