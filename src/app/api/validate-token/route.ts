@@ -164,7 +164,8 @@ export async function GET(req: Request) {
       const serviceIds = await fetchFolderServicesAdmin(adminDb, folderId, empresa);
       return NextResponse.json({
         ok: true,
-        found: serviceIds.length > 0,
+        // tokens de subpacote devem redirecionar mesmo sem serviços abertos
+        found: true,
         serviceIds,
         targetType: "folder",
         targetId: folderId,
