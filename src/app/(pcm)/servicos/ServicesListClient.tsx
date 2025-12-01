@@ -59,20 +59,46 @@ function resolveCompanyLabel(service: PCMServiceListItem) {
 }
 
 function resolvePercentualRealAtual(service: PCMServiceListItem, referenceDate: Date) {
-  const candidates = [
-    service.andamento,
-    service.realPercent,
-    service.manualPercent,
-    service.progress,
-  ];
+  const resolved = resolveServicoRealPercent(service, referenceDate);
+  const normalisedStatus = normaliseStatus(service.status);
 
-  for (const candidate of candidates) {
-    if (typeof candidate === "number" && Number.isFinite(candidate)) {
-      return Math.round(candidate);
-    }
+  if (Number.isFinite(resolved) && resolved > 0) {
+    return Math.round(resolved);
   }
 
-  return Math.round(resolveServicoRealPercent(service, referenceDate));
+  const storedCandidates = [
+    service.andamento,
+    service.realPercent,
+    service.realPercentSnapshot,
+    service.manualPercent,
+    service.percentualReal,
+    service.percentualRealAtual,
+    service.percentualInformado,
+    service.progressoReal,
+    service.realProgress,
+    service.currentProgress,
+    service.progress,
+    service.percent,
+    service.pct,
+  ];
+
+  const bestStored = storedCandidates.reduce<number | null>((best, value) => {
+    if (typeof value === "number" && Number.isFinite(value)) {
+      const rounded = Math.round(value);
+      return best === null ? rounded : Math.max(best, rounded);
+    }
+    return best;
+  }, null);
+
+  if (bestStored !== null) {
+    return Math.min(100, Math.max(0, bestStored));
+  }
+
+  if (normalisedStatus === "Concluído") {
+    return 100;
+  }
+
+  return 0;
 }
 
 type Props = {
