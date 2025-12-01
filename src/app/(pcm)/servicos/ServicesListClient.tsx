@@ -58,6 +58,23 @@ function resolveCompanyLabel(service: PCMServiceListItem) {
   );
 }
 
+function resolvePercentualRealAtual(service: PCMServiceListItem, referenceDate: Date) {
+  const candidates = [
+    service.andamento,
+    service.realPercent,
+    service.manualPercent,
+    service.progress,
+  ];
+
+  for (const candidate of candidates) {
+    if (typeof candidate === "number" && Number.isFinite(candidate)) {
+      return Math.round(candidate);
+    }
+  }
+
+  return Math.round(resolveServicoRealPercent(service, referenceDate));
+}
+
 type Props = {
   initialItems: PCMServiceListItem[];
   initialCursor: string | null;
@@ -147,7 +164,7 @@ export default function ServicesListClient({ initialItems, initialCursor }: Prop
           {filteredItems.map((service) => {
             const serviceHref = `/servicos/${encodeURIComponent(service.id)}`;
           const plannedPercent = Math.round(resolveServicoPercentualPlanejado(service, referenceDate));
-          const realPercent = Math.round(resolveServicoRealPercent(service, referenceDate));
+          const realPercent = resolvePercentualRealAtual(service, referenceDate);
             const statusLabel = deriveStatusLabel(service.status, realPercent);
             const statusTone = STATUS_TONE[statusLabel] ?? "border-border bg-muted text-foreground/80";
           const isComplete = realPercent >= 100;
