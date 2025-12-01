@@ -3,12 +3,11 @@ import { Timestamp, type Firestore } from "firebase-admin/firestore";
 
 import { AdminDbUnavailableError, getAdminDbOrThrow } from "@/lib/serverDb";
 import { mapFirestoreError } from "@/lib/utils/firestoreErrors";
+import { recomputeServiceProgress } from "@/lib/progressHistoryServer";
 
 type TokenScope =
   | { type: "service"; serviceId: string }
   | { type: "folder"; folderId: string; packageId?: string | null; empresa?: string | null };
-
-type ChecklistEntry = { id: string; peso: number };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -210,66 +209,9 @@ async function handleWithAdmin(
 
   await serviceRef.collection("serviceUpdates").add(update);
 
-  let novo = 0;
-  const checklistRaw = Array.isArray(serviceData.checklist) ? serviceData.checklist : [];
-  const checklist: ChecklistEntry[] = [];
-  checklistRaw.forEach((entry, index) => {
-    if (!isRecord(entry)) return;
-    const idValue = getStringField(entry, "id", "itemId");
-    const pesoValue = entry.peso ?? entry.weight;
-    const pesoNumber = typeof pesoValue === "number" ? pesoValue : Number(pesoValue ?? 0);
-    if (!Number.isFinite(pesoNumber)) return;
-    checklist.push({ id: idValue || `item-${index}`, peso: pesoNumber });
-  });
-  
-  // Se não há checklist no serviço mas há items no payload, criar checklist padrão "GERAL"
-  if (checklist.length === 0 && payload.items && payload.items.length > 0) {
-    checklist.push({ id: "default-geral", peso: 100 });
-  }
-  
-  // Se há checklist ou items, calcular baseado no checklist
-  if (checklist.length > 0 || (payload.items && payload.items.length > 0)) {
-    const pesoById = new Map<string, number>();
-    for (const item of checklist) {
-      const id = item.id;
-      if (!id) continue;
-      const peso = item.peso;
-      pesoById.set(id, peso);
-    }
-    const all = await serviceRef.collection("serviceUpdates").orderBy("date", "asc").get();
-    const latest = new Map<string, number>();
-    for (const entry of all.docs) {
-      const data = (entry.data() ?? {}) as Record<string, unknown>;
-      const itemsRaw = Array.isArray(data.items) ? data.items : [];
-      for (const item of itemsRaw) {
-        if (!isRecord(item)) continue;
-        const itemId = getStringField(item, "itemId", "id");
-        if (!itemId) continue;
-        const pctValue = typeof item.pct === "number" ? item.pct : Number(item.pct ?? 0);
-        if (!Number.isFinite(pctValue)) continue;
-        latest.set(itemId, pctValue);
-      }
-    }
-    let soma = 0;
-    for (const [itemId, peso] of pesoById) {
-      const pct = latest.get(itemId) ?? 0;
-      soma += (peso * pct) / 100;
-    }
-    novo = Math.max(0, Math.min(100, soma));
-  } else {
-    const all = await serviceRef.collection("serviceUpdates").orderBy("date", "asc").get();
-    for (const entry of all.docs) {
-      const data = (entry.data() ?? {}) as Record<string, unknown>;
-      if (typeof data.totalPct === "number") {
-        novo = Number(data.totalPct);
-      }
-    }
-    novo = Math.max(0, Math.min(100, novo));
-  }
+  const { percent } = await recomputeServiceProgress(payload.serviceId);
 
-  await serviceRef.update({ andamento: novo, updatedAt: Timestamp.now() });
-
-  return NextResponse.json({ ok: true, andamento: novo });
+  return NextResponse.json({ ok: true, andamento: percent });
 }
 
 
