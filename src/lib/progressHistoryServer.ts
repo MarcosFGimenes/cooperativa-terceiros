@@ -134,6 +134,11 @@ export async function recomputeServiceProgress(serviceId: string) {
   revalidateTag("services:legacy-updates");
   revalidateTag("services:available");
   revalidateTag("services:recent");
+  revalidateTag("packages:detail");
+  revalidateTag("packages:summary");
+  revalidateTag("packages:services");
+  revalidateTag("folders:detail");
+  revalidateTag("folders:by-package");
 
   return { percent: currentPercent, lastUpdate: lastTimestamp };
 }

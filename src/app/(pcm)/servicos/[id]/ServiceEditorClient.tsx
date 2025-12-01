@@ -189,77 +189,26 @@ export default function ServiceEditorClient({ serviceId }: ServiceEditorClientPr
   }, []);
 
   const recomputeProgressAfterEdit = useCallback(async () => {
-    if (!firestore) return;
+    try {
+      const response = await fetch("/api/pcm/servicos/recompute-progress", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ serviceId }),
+      });
 
-    const baseRef = doc(firestore, "services", serviceId);
-    const [serviceSnap, updatesSnap, legacySnap] = await Promise.all([
-      getDoc(baseRef),
-      getDocs(query(collection(baseRef, "updates"), orderBy("createdAt", "asc"))),
-      getDocs(query(collection(baseRef, "serviceUpdates"), orderBy("date", "asc"))),
-    ]);
-
-    const serviceData = (serviceSnap.data() ?? {}) as Record<string, unknown>;
-    const checklistRaw = Array.isArray(serviceData.checklist)
-      ? (serviceData.checklist as Array<{ id?: string | null; itemId?: string | null; weight?: number | null; peso?: number | null }>)
-      : [];
-    const { weights, totalWeight } = buildChecklistWeightMap(checklistRaw);
-
-    const events: ProgressEvent[] = [];
-    const resolvePercent = (value: unknown): number | null => {
-      const parsed = typeof value === "number" ? value : Number(value ?? NaN);
-      return Number.isFinite(parsed) ? parsed : null;
-    };
-
-    updatesSnap.docs.forEach((docSnap) => {
-      const data = (docSnap.data() ?? {}) as Record<string, unknown>;
-      const timestamp =
-        resolveMillis(data.createdAt) ??
-        resolveMillis((data.timeWindow as Record<string, unknown> | undefined)?.start) ??
-        resolveMillis(data.date) ??
-        null;
-
-      const percentCandidate =
-        resolvePercent(data.realPercentSnapshot) ?? resolvePercent(data.manualPercent) ?? resolvePercent(data.percent);
-
-      if (timestamp !== null) {
-        events.push({ timestamp, percent: percentCandidate ?? undefined });
+      if (!response.ok) {
+        throw new Error(`failed_to_recompute:${response.status}`);
       }
-    });
 
-    legacySnap.docs.forEach((docSnap) => {
-      const data = (docSnap.data() ?? {}) as Record<string, unknown>;
-      const timestamp = resolveMillis(data.date) ?? resolveMillis(data.createdAt) ?? null;
-      const items = Array.isArray(data.items)
-        ? (data.items as Array<Record<string, unknown>>)
-            .map((item) => {
-              const idSource = item.id ?? item.itemId;
-              const pctSource = item.pct;
-              const id = typeof idSource === "string" ? idSource.trim() : "";
-              const pct = typeof pctSource === "number" ? pctSource : Number(pctSource ?? NaN);
-              if (!id || !Number.isFinite(pct)) return null;
-              return { id, pct };
-            })
-            .filter(Boolean) as ProgressEvent["items"]
-        : undefined;
-
-      const percent = resolvePercent(data.totalPct);
-      if (timestamp !== null) {
-        events.push({ timestamp, percent: percent ?? undefined, items: items && items.length ? items : undefined });
+      const json = (await response.json()) as { ok?: boolean; percent?: number };
+      if (json.ok && typeof json.percent === "number" && Number.isFinite(json.percent)) {
+        setAndamento(json.percent);
       }
-    });
-
-    const { currentPercent, lastTimestamp } = computeProgressFromEvents(events, { weights, totalWeight });
-
-    const payload: Record<string, unknown> = {
-      andamento: currentPercent,
-      realPercent: currentPercent,
-      manualPercent: currentPercent,
-      updatedAt: lastTimestamp ? Timestamp.fromMillis(lastTimestamp) : serverTimestamp(),
-    };
-
-    await updateDoc(baseRef, payload);
-    setAndamento(currentPercent);
-  }, [firestore, resolveMillis, serviceId]);
+    } catch (error) {
+      console.error("[servicos/:id] Falha ao recalcular andamento após edição", error);
+      toast.error("Não foi possível recalcular o andamento. Os valores podem ficar temporariamente desatualizados.");
+    }
+  }, [serviceId]);
 
   useEffect(() => {
     if (firestoreError) {
