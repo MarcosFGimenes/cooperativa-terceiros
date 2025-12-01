@@ -15,6 +15,8 @@ import { recomputeServiceProgress } from "@/lib/progressHistoryServer";
 const getDb = () => getAdmin().db;
 const servicesCollection = () => getDb().collection("services");
 const accessTokensCollection = () => getDb().collection("accessTokens");
+const packagesCollection = () => getDb().collection("packages");
+const foldersCollection = () => getDb().collection("packageFolders");
 
 const SERVICE_CACHE_TTL_SECONDS = 180;
 const SERVICE_LIST_CACHE_TTL_SECONDS = 300;
@@ -988,6 +990,7 @@ function mapUpdateDoc(
         ? (data as Record<string, unknown>).declarationAccepted
         : undefined,
     audit: mapAudit((data as Record<string, unknown>).audit),
+    submittedAt: toMillis((data as Record<string, unknown>).audit?.submittedAt) ?? undefined,
     createdAt: toMillis((data as Record<string, unknown>).createdAt) ?? 0,
   };
 }
@@ -1438,10 +1441,14 @@ function buildComputedUpdatePayload(params: { realPercent: number; note?: string
 function buildUpdatePayload(serviceId: string, params: ManualUpdateInput & { realPercent: number }) {
   const explicitDateMillis =
     typeof params.reportDate === "number" && Number.isFinite(params.reportDate) ? params.reportDate : null;
+  const submittedAt = FieldValue.serverTimestamp();
+  const reportDate = explicitDateMillis ? Timestamp.fromMillis(explicitDateMillis) : undefined;
+
   const payload: Record<string, unknown> = {
     realPercentSnapshot: params.realPercent,
-    createdAt: explicitDateMillis ? Timestamp.fromMillis(explicitDateMillis) : FieldValue.serverTimestamp(),
-    date: explicitDateMillis ? Timestamp.fromMillis(explicitDateMillis) : undefined,
+    createdAt: submittedAt,
+    date: reportDate,
+    reportDate,
     description: params.description,
     manualPercent: params.manualPercent,
     percent: params.realPercent,
@@ -1554,10 +1561,7 @@ function buildUpdatePayload(serviceId: string, params: ManualUpdateInput & { rea
     payload.justification = params.justification.trim();
   }
 
-  const audit: Record<string, unknown> = {
-    submittedAt: explicitDateMillis ? Timestamp.fromMillis(explicitDateMillis) : FieldValue.serverTimestamp(),
-    newPercent: params.realPercent,
-  };
+  const audit: Record<string, unknown> = { submittedAt, newPercent: params.realPercent };
   if (params.token) {
     audit.submittedByType = "token";
     audit.submittedBy = params.token;
@@ -1632,6 +1636,11 @@ export async function addManualUpdate(
   revalidateTag("services:recent");
   revalidateTag("services:updates");
   revalidateServiceDetailCache(serviceId);
+  revalidateTag("packages:detail");
+  revalidateTag("packages:summary");
+  revalidateTag("packages:services");
+  revalidateTag("folders:detail");
+  revalidateTag("folders:by-package");
   const resolvedPercent = recomputed?.percent ?? mapped.realPercentSnapshot ?? percent;
   return { realPercent: resolvedPercent, update: mapped };
 }
@@ -1758,6 +1767,84 @@ async function revokeServiceTokens(serviceId: string): Promise<number> {
   return snap.size;
 }
 
+async function collectFolderRefsByServiceId(serviceId: string): Promise<FirebaseFirestore.DocumentSnapshot[]> {
+  if (!serviceId) return [];
+
+  const foldersCol = foldersCollection();
+  const queries = [
+    foldersCol.where("services", "array-contains", serviceId),
+    foldersCol.where("serviceIds", "array-contains", serviceId),
+    foldersCol.where("servicos", "array-contains", serviceId),
+  ];
+
+  const collected = new Map<string, FirebaseFirestore.DocumentSnapshot>();
+  await Promise.all(
+    queries.map(async (query) => {
+      const snap = await query.get();
+      snap.docs.forEach((doc) => {
+        collected.set(doc.id, doc);
+      });
+    }),
+  );
+
+  return Array.from(collected.values());
+}
+
+async function detachServiceFromPackagesAndFolders(
+  serviceId: string,
+  serviceData: Record<string, unknown>,
+): Promise<void> {
+  // Remove vinculações em pacotes/pastas para não deixar IDs órfãos no Firebase.
+  const operations: Array<(batch: FirebaseFirestore.WriteBatch) => void> = [];
+  const packageIdRaw =
+    (typeof serviceData.packageId === "string" && serviceData.packageId.trim()) ||
+    (typeof serviceData.pacoteId === "string" && serviceData.pacoteId.trim()) ||
+    "";
+
+  if (packageIdRaw) {
+    const pkgRef = packagesCollection().doc(packageIdRaw);
+    operations.push((batch) =>
+      batch.set(
+        pkgRef,
+        {
+          serviceIds: FieldValue.arrayRemove(serviceId),
+          services: FieldValue.arrayRemove(serviceId),
+          servicos: FieldValue.arrayRemove(serviceId),
+          updatedAt: FieldValue.serverTimestamp(),
+        },
+        { merge: true },
+      ),
+    );
+  }
+
+  const folders = await collectFolderRefsByServiceId(serviceId);
+  folders.forEach((doc) => {
+    operations.push((batch) =>
+      batch.set(
+        doc.ref,
+        {
+          services: FieldValue.arrayRemove(serviceId),
+          serviceIds: FieldValue.arrayRemove(serviceId),
+          servicos: FieldValue.arrayRemove(serviceId),
+          updatedAt: FieldValue.serverTimestamp(),
+        },
+        { merge: true },
+      ),
+    );
+  });
+
+  if (!operations.length) return;
+
+  const db = getDb();
+  // Commit in chunks to avoid exceeding batch limits while ensuring Firebase stays in sync with system deletions.
+  const chunkSize = 300;
+  for (let index = 0; index < operations.length; index += chunkSize) {
+    const batch = db.batch();
+    operations.slice(index, index + chunkSize).forEach((operation) => operation(batch));
+    await batch.commit();
+  }
+}
+
 export async function deleteService(serviceId: string): Promise<boolean> {
   const ref = servicesCollection().doc(serviceId);
   const snap = await ref.get();
@@ -1765,8 +1852,15 @@ export async function deleteService(serviceId: string): Promise<boolean> {
     return false;
   }
 
+  const serviceData = (snap.data() ?? {}) as Record<string, unknown>;
+
   await revokeServiceTokens(serviceId).catch((error) => {
     console.error(`[services] Falha ao revogar tokens do serviço ${serviceId}`, error);
+    throw error;
+  });
+
+  await detachServiceFromPackagesAndFolders(serviceId, serviceData).catch((error) => {
+    console.error(`[services] Falha ao remover referências do serviço ${serviceId} em pacotes/pastas`, error);
     throw error;
   });
 
@@ -1788,5 +1882,10 @@ export async function deleteService(serviceId: string): Promise<boolean> {
   revalidateTag("services:checklist");
   revalidateTag("services:updates");
   revalidateServiceDetailCache(serviceId);
+  revalidateTag("packages:detail");
+  revalidateTag("packages:summary");
+  revalidateTag("packages:services");
+  revalidateTag("folders:detail");
+  revalidateTag("folders:by-package");
   return true;
 }

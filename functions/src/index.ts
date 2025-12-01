@@ -61,6 +61,11 @@ type ChecklistItem = {
   progress?: number;
 };
 
+type ProgressUpdate = {
+  percent: number;
+  createdAt: number;
+};
+
 const servicesCollection = () =>
   admin.firestore().collection("services") as FirebaseFirestore.CollectionReference<ServiceDoc>;
 
@@ -74,6 +79,88 @@ function inferChecklistStatus(progress: number): string {
   if (progress >= 100) return "concluido";
   if (progress > 0) return "andamento";
   return "nao_iniciado";
+}
+
+function normalisePercentFromUpdate(data: FirebaseFirestore.DocumentData): ProgressUpdate | null {
+  // Prioritise the most recent manual edit fields so PCM/terceiro edits are not shadowed by stale percent values.
+  const candidates = [data.manualPercent, data.realPercentSnapshot, data.percent];
+  const createdAt =
+    asTimestamp((data.audit as FirebaseFirestore.DocumentData | undefined)?.submittedAt) ??
+    asTimestamp(data.reportDate) ??
+    asTimestamp(data.createdAt) ??
+    asTimestamp(data.date) ??
+    Date.now();
+
+  for (const candidate of candidates) {
+    const parsed = typeof candidate === "number" ? candidate : Number(candidate ?? NaN);
+    if (Number.isFinite(parsed)) {
+      return { percent: sanitisePercent(parsed), createdAt: createdAt ?? Date.now() };
+    }
+  }
+
+  return null;
+}
+
+async function recomputeServiceRealPercent(serviceId: string): Promise<number> {
+  const serviceRef = servicesCollection().doc(serviceId);
+  const [serviceSnap, updatesSnap] = await Promise.all([
+    serviceRef.get(),
+    serviceRef.collection("updates").get(),
+  ]);
+
+  if (!serviceSnap.exists) {
+    throw new functions.https.HttpsError("not-found", "Serviço não encontrado");
+  }
+
+  const serviceData = serviceSnap.data() || {};
+  const hasChecklist = serviceData.hasChecklist === true;
+
+  const updates = updatesSnap.docs
+    .map((doc) => normalisePercentFromUpdate(doc.data() || {}))
+    .filter((item): item is ProgressUpdate => Boolean(item))
+    .sort((a, b) => b.createdAt - a.createdAt);
+
+  const latestPercent = updates[0]?.percent ?? 0;
+
+  let realPercent = latestPercent;
+  if (hasChecklist) {
+    await syncChecklistProgress(serviceId, latestPercent);
+    realPercent = await computeRealPercentFromChecklist(serviceId);
+  }
+
+  const now = admin.firestore.FieldValue.serverTimestamp();
+  await serviceRef.update({
+    realPercent,
+    andamento: realPercent,
+    progress: realPercent,
+    manualPercent: realPercent,
+    updatedAt: now,
+    lastUpdateDate: now,
+  });
+
+  return realPercent;
+}
+
+async function syncChecklistProgress(serviceId: string, percent: number) {
+  const clamped = sanitisePercent(percent);
+  const status = inferChecklistStatus(clamped);
+  const now = admin.firestore.FieldValue.serverTimestamp();
+
+  const checklistCol = servicesCollection().doc(serviceId).collection("checklist");
+  const snap = await checklistCol.get();
+  if (snap.empty) return;
+
+  const batch = admin.firestore().batch();
+
+  snap.docs.forEach((doc) => {
+    batch.update(doc.ref, {
+      progress: clamped,
+      status,
+      updatedAt: now,
+    });
+  });
+
+  await batch.commit();
 }
 
 function docDataWithTimestamps(doc: FirebaseFirestore.DocumentSnapshot) {
@@ -612,5 +699,19 @@ export const onPackageFolderDelete = functions
       await deactivateTokensByTarget("folder", folderId);
     } catch (error) {
       console.error(`[cleanup] Falha ao revogar tokens do subpacote ${folderId}`, error);
+    }
+  });
+
+export const onServiceUpdateWrite = functions.firestore
+  .region(REGION)
+  .document("services/{serviceId}/updates/{updateId}")
+  .onWrite(async (_change, context) => {
+    const serviceId = context.params.serviceId as string;
+
+    try {
+      const realPercent = await recomputeServiceRealPercent(serviceId);
+      console.info(`[onServiceUpdateWrite] Recomputado progresso do serviço ${serviceId}: ${realPercent}%`);
+    } catch (error) {
+      console.error(`[onServiceUpdateWrite] Falha ao recomputar progresso do serviço ${serviceId}`, error);
     }
   });
