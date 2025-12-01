@@ -988,6 +988,7 @@ function mapUpdateDoc(
         ? (data as Record<string, unknown>).declarationAccepted
         : undefined,
     audit: mapAudit((data as Record<string, unknown>).audit),
+    submittedAt: toMillis((data as Record<string, unknown>).audit?.submittedAt) ?? undefined,
     createdAt: toMillis((data as Record<string, unknown>).createdAt) ?? 0,
   };
 }
@@ -1438,10 +1439,14 @@ function buildComputedUpdatePayload(params: { realPercent: number; note?: string
 function buildUpdatePayload(serviceId: string, params: ManualUpdateInput & { realPercent: number }) {
   const explicitDateMillis =
     typeof params.reportDate === "number" && Number.isFinite(params.reportDate) ? params.reportDate : null;
+  const submittedAt = FieldValue.serverTimestamp();
+  const reportDate = explicitDateMillis ? Timestamp.fromMillis(explicitDateMillis) : undefined;
+
   const payload: Record<string, unknown> = {
     realPercentSnapshot: params.realPercent,
-    createdAt: explicitDateMillis ? Timestamp.fromMillis(explicitDateMillis) : FieldValue.serverTimestamp(),
-    date: explicitDateMillis ? Timestamp.fromMillis(explicitDateMillis) : undefined,
+    createdAt: submittedAt,
+    date: reportDate,
+    reportDate,
     description: params.description,
     manualPercent: params.manualPercent,
     percent: params.realPercent,
@@ -1554,10 +1559,7 @@ function buildUpdatePayload(serviceId: string, params: ManualUpdateInput & { rea
     payload.justification = params.justification.trim();
   }
 
-  const audit: Record<string, unknown> = {
-    submittedAt: explicitDateMillis ? Timestamp.fromMillis(explicitDateMillis) : FieldValue.serverTimestamp(),
-    newPercent: params.realPercent,
-  };
+  const audit: Record<string, unknown> = { submittedAt, newPercent: params.realPercent };
   if (params.token) {
     audit.submittedByType = "token";
     audit.submittedBy = params.token;
@@ -1632,6 +1634,11 @@ export async function addManualUpdate(
   revalidateTag("services:recent");
   revalidateTag("services:updates");
   revalidateServiceDetailCache(serviceId);
+  revalidateTag("packages:detail");
+  revalidateTag("packages:summary");
+  revalidateTag("packages:services");
+  revalidateTag("folders:detail");
+  revalidateTag("folders:by-package");
   const resolvedPercent = recomputed?.percent ?? mapped.realPercentSnapshot ?? percent;
   return { realPercent: resolvedPercent, update: mapped };
 }
