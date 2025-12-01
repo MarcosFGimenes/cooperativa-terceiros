@@ -1377,11 +1377,7 @@ export async function updateChecklistProgress(
     // Preservar valor calculado exato do checklist, apenas garantir que está no range válido
     const realPercent = sanitisePercent(percent);
 
-    tx.update(serviceRef, {
-      realPercent,
-      manualPercent: FieldValue.delete(),
-      updatedAt: FieldValue.serverTimestamp(),
-    });
+    tx.update(serviceRef, buildServiceProgressPatch(realPercent, { manualPercent: null }));
 
     return realPercent;
   });
@@ -1450,6 +1446,30 @@ function buildComputedUpdatePayload(params: { realPercent: number; note?: string
 
   if (params.token) {
     payload.token = params.token;
+  }
+
+  return payload;
+}
+
+function buildServiceProgressPatch(percent: number, opts?: { manualPercent?: number | null }) {
+  const progressValue = sanitisePercent(percent);
+  const timestamp = FieldValue.serverTimestamp();
+
+  const payload: Record<string, unknown> = {
+    realPercent: progressValue,
+    andamento: progressValue,
+    progress: progressValue,
+    percent: progressValue,
+    percentualRealAtual: progressValue,
+    realPercentSnapshot: progressValue,
+    updatedAt: timestamp,
+    lastUpdateDate: timestamp,
+  };
+
+  if (opts?.manualPercent === null) {
+    payload.manualPercent = FieldValue.delete();
+  } else if (typeof opts?.manualPercent === "number") {
+    payload.manualPercent = sanitisePercent(opts.manualPercent);
   }
 
   return payload;
@@ -1629,12 +1649,7 @@ export async function addManualUpdate(
       }),
     );
 
-    tx.update(serviceRef, {
-      realPercent: percent,
-      manualPercent: percent,
-      andamento: percent,
-      updatedAt: FieldValue.serverTimestamp(),
-    });
+    tx.update(serviceRef, buildServiceProgressPatch(percent, { manualPercent: percent }));
 
     return updateRef.id;
   });
@@ -1697,11 +1712,7 @@ export async function addComputedUpdate(
       }),
     );
 
-    const serviceUpdate: Record<string, unknown> = {
-      realPercent: percent,
-      manualPercent: FieldValue.delete(),
-      updatedAt: FieldValue.serverTimestamp(),
-    };
+    const serviceUpdate = buildServiceProgressPatch(percent, { manualPercent: null });
 
     if (percent >= 100) {
       serviceUpdate.status = "concluido";
