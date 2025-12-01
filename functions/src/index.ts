@@ -295,7 +295,13 @@ async function addManualUpdate(
     tx.update(serviceRef, {
       realPercent: sanitized,
       manualPercent: sanitized,
+      andamento: sanitized,
+      progress: sanitized,
+      percent: sanitized,
+      percentualRealAtual: sanitized,
+      realPercentSnapshot: sanitized,
       updatedAt: now,
+      lastUpdateDate: now,
     });
   });
 
