@@ -41,6 +41,7 @@ function normalisePercentFromUpdate(data: Record<string, unknown>): number | nul
   const candidates = [
     data.manualPercent, // Valor digitado diretamente pelo terceiro
     data.realPercentSnapshot, // Snapshot do valor real
+    data.realPercent, // Valor real sem snapshot
     data.percent, // Campo genérico de percentual
     data.totalPct, // Percentual total (legado)
     data.progress, // Campo de progresso
