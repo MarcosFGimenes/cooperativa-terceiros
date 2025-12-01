@@ -82,8 +82,9 @@ function inferChecklistStatus(progress: number): string {
 }
 
 function normalisePercentFromUpdate(data: FirebaseFirestore.DocumentData): ProgressUpdate | null {
-  const candidates = [data.realPercentSnapshot, data.manualPercent, data.percent];
-  const createdAt = asTimestamp(data.createdAt) ?? asTimestamp(data.date) ?? Date.now();
+  const candidates = [data.percent, data.manualPercent, data.realPercentSnapshot];
+  const createdAt =
+    asTimestamp(data.reportDate) ?? asTimestamp(data.createdAt) ?? asTimestamp(data.date) ?? Date.now();
 
   for (const candidate of candidates) {
     const parsed = typeof candidate === "number" ? candidate : Number(candidate ?? NaN);
