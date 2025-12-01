@@ -364,6 +364,9 @@ function toThirdUpdate(update: unknown): ThirdServiceUpdate {
           ? record.note
           : undefined,
     createdAt: toTimestampMs(record.createdAt ?? record.createdAtMillis ?? record.createdAtMs ?? undefined),
+    submittedAt: toTimestampMs(
+      (isRecord(record.audit) ? record.audit.submittedAt : null) ?? record.submittedAt ?? undefined,
+    ),
     timeWindow,
     subactivity,
     mode: record.mode === "detailed" || record.mode === "simple" ? record.mode : undefined,
@@ -417,7 +420,8 @@ export default function ServiceDetailsClient({
     return null;
   }, [service.company]);
 
-  const lastUpdateAt = updates[0]?.createdAt ?? service.updatedAt ?? null;
+  const lastUpdateAt =
+    updates[0]?.audit?.submittedAt ?? updates[0]?.createdAt ?? service.updatedAt ?? null;
   const suggestion = useMemo(() => computeChecklistSuggestion(checklistItems), [checklistItems]);
   const canonicalProgress = useMemo(() => {
     if (service.hasChecklist && Number.isFinite(suggestion ?? NaN)) {
@@ -669,12 +673,14 @@ export default function ServiceDetailsClient({
           });
         } else {
           const createdAt = reportDateMillis || Date.now();
+          const submittedAt = Date.now();
           setUpdates((prev) => {
             const optimistic = sanitiseResourceQuantities({
               id: `local-${createdAt}`,
               percent: nextPercent,
               description: payload.description,
               createdAt,
+              submittedAt,
               timeWindow: {
                 start: startDate.getTime(),
                 end: endDate.getTime(),
@@ -847,7 +853,9 @@ export default function ServiceDetailsClient({
                       <span className="text-base font-semibold text-foreground">{summary.title}</span>
                       <span className="text-sm font-semibold text-primary">{summary.percentLabel}</span>
                     </div>
-                    <p className="text-xs text-muted-foreground">Atualizado em {formatDateLabel(update.createdAt, true)}</p>
+                <p className="text-xs text-muted-foreground">
+                  Atualizado em {formatDateLabel(update.audit?.submittedAt ?? update.createdAt, true)}
+                </p>
                     {update.subactivity?.label ? (
                       <p className="text-xs text-muted-foreground">
                         Subatividade: <span className="font-medium text-foreground">{update.subactivity.label}</span>
