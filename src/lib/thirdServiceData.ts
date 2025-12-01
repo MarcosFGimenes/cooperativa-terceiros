@@ -158,12 +158,17 @@ export function mapThirdUpdate(id: string, data: Record<string, unknown>): Third
     0;
 
   const description = toOptionalString(data.note ?? data.description ?? data.text) ?? undefined;
+  const auditSubmittedAt = toMillis((data.audit as Record<string, unknown> | undefined)?.submittedAt);
+  const submittedAt =
+    auditSubmittedAt ?? toMillis((data as Record<string, unknown>).submittedAt) ?? toMillis(data.createdAt);
 
   return {
     id,
     percent: clampPercent(percentCandidate),
     description,
-    createdAt: toMillis(data.createdAt),
+    createdAt: toMillis(data.createdAt) ?? submittedAt ?? null,
+    submittedAt,
+    audit: auditSubmittedAt ? { submittedAt: auditSubmittedAt } : undefined,
     timeWindow: (() => {
       const raw = data.timeWindow ?? data.period;
       if (!raw || typeof raw !== "object") return undefined;
@@ -256,7 +261,7 @@ export async function fetchThirdService(serviceId: string): Promise<ThirdService
 export async function fetchThirdServiceUpdates(serviceId: string, limitCount: number): Promise<ThirdServiceUpdate[]> {
   const adminDb = getAdminDbOrThrow();
   const col = adminDb.collection("services").doc(serviceId).collection("updates");
-  const snap = await col.orderBy("createdAt", "desc").limit(limitCount).get();
+  const snap = await col.orderBy("audit.submittedAt", "desc").limit(limitCount).get();
   return snap.docs.map((doc) => mapThirdUpdate(doc.id, (doc.data() ?? {}) as Record<string, unknown>));
 }
 

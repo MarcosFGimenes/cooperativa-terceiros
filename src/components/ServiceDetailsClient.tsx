@@ -421,7 +421,7 @@ export default function ServiceDetailsClient({
   }, [service.company]);
 
   const lastUpdateAt =
-    updates[0]?.audit?.submittedAt ?? updates[0]?.createdAt ?? service.updatedAt ?? null;
+    updates[0]?.audit?.submittedAt ?? updates[0]?.submittedAt ?? updates[0]?.createdAt ?? service.updatedAt ?? null;
   const suggestion = useMemo(() => computeChecklistSuggestion(checklistItems), [checklistItems]);
   const canonicalProgress = useMemo(() => {
     if (service.hasChecklist && Number.isFinite(suggestion ?? NaN)) {
@@ -854,7 +854,7 @@ export default function ServiceDetailsClient({
                       <span className="text-sm font-semibold text-primary">{summary.percentLabel}</span>
                     </div>
                 <p className="text-xs text-muted-foreground">
-                  Atualizado em {formatDateLabel(update.audit?.submittedAt ?? update.createdAt, true)}
+                  Atualizado em {formatDateLabel(update.audit?.submittedAt ?? update.submittedAt ?? update.createdAt, true)}
                 </p>
                     {update.subactivity?.label ? (
                       <p className="text-xs text-muted-foreground">
