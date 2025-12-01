@@ -165,6 +165,50 @@ export default function ServiceEditorClient({ serviceId }: ServiceEditorClientPr
   const { db: firestore, error: firestoreError } = useMemo(() => tryGetFirestore(), []);
   const { ready: isAuthReady, issue: authIssue } = useFirebaseAuthSession();
 
+  const resolveMillis = useCallback((value: unknown): number | null => {
+    if (typeof value === "number" && Number.isFinite(value)) return value;
+    if (value instanceof Date) {
+      const time = value.getTime();
+      return Number.isNaN(time) ? null : time;
+    }
+    if (typeof value === "string" && value.trim()) {
+      const parsed = new Date(value);
+      return Number.isNaN(parsed.getTime()) ? null : parsed.getTime();
+    }
+    if (value && typeof (value as { toMillis?: () => number }).toMillis === "function") {
+      const millis = (value as { toMillis: () => number }).toMillis();
+      return typeof millis === "number" && Number.isFinite(millis) ? millis : null;
+    }
+    if (value && typeof (value as { seconds?: number; nanoseconds?: number }).seconds === "number") {
+      const maybe = value as { seconds: number; nanoseconds?: number };
+      const millis = maybe.seconds * 1000 + Math.round((maybe.nanoseconds ?? 0) / 1_000_000);
+      return Number.isFinite(millis) ? millis : null;
+    }
+    return null;
+  }, []);
+
+  const recomputeProgressAfterEdit = useCallback(async () => {
+    try {
+      const response = await fetch("/api/pcm/servicos/recompute-progress", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ serviceId }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`failed_to_recompute:${response.status}`);
+      }
+
+      const json = (await response.json()) as { ok?: boolean; percent?: number };
+      if (json.ok && typeof json.percent === "number" && Number.isFinite(json.percent)) {
+        setAndamento(json.percent);
+      }
+    } catch (error) {
+      console.error("[servicos/:id] Falha ao recalcular andamento após edição", error);
+      toast.error("Não foi possível recalcular o andamento. Os valores podem ficar temporariamente desatualizados.");
+    }
+  }, [serviceId]);
+
   useEffect(() => {
     if (firestoreError) {
       console.error("[servicos/:id] Firestore indisponível", firestoreError);
@@ -407,6 +451,7 @@ export default function ServiceEditorClient({ serviceId }: ServiceEditorClientPr
       }
 
       await updateDoc(ref, payload);
+      await recomputeProgressAfterEdit();
       toast.success("Lançamento atualizado com sucesso.");
       await refreshUpdates();
       cancelEditingUpdate();
@@ -423,6 +468,7 @@ export default function ServiceEditorClient({ serviceId }: ServiceEditorClientPr
     editingUpdateId,
     firestore,
     isAuthReady,
+    recomputeProgressAfterEdit,
     refreshUpdates,
     serviceId,
   ]);
