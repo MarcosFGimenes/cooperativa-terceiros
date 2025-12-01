@@ -82,7 +82,7 @@ const serviceChecklistCache = unstable_cache(
 const serviceUpdatesCache = unstable_cache(
   async (serviceId: string, limit: number) => {
     const updatesCol = servicesCollection().doc(serviceId).collection("updates");
-    const snap = await updatesCol.orderBy("createdAt", "desc").limit(limit).get();
+    const snap = await updatesCol.orderBy("audit.submittedAt", "desc").limit(limit).get();
     return snap.docs.map((doc) => mapUpdateDoc(serviceId, doc));
   },
   ["services", "updates"],
@@ -958,6 +958,13 @@ function mapUpdateDoc(
   })();
   const percent = Number.isFinite(realPercent ?? NaN) ? Number(realPercent) : 0;
 
+  const auditSubmittedAt = toMillis((data as Record<string, unknown>).audit?.submittedAt);
+  const createdAt =
+    auditSubmittedAt ??
+    toMillis((data as Record<string, unknown>).createdAt) ??
+    toMillis((data as Record<string, unknown>).date) ??
+    0;
+
   return {
     id: doc.id,
     serviceId,
@@ -990,8 +997,9 @@ function mapUpdateDoc(
         ? (data as Record<string, unknown>).declarationAccepted
         : undefined,
     audit: mapAudit((data as Record<string, unknown>).audit),
-    submittedAt: toMillis((data as Record<string, unknown>).audit?.submittedAt) ?? undefined,
-    createdAt: toMillis((data as Record<string, unknown>).createdAt) ?? 0,
+    // Use the submission moment as the canonical timestamp for ordering and display.
+    submittedAt: auditSubmittedAt ?? undefined,
+    createdAt,
   };
 }
 

@@ -39,6 +39,7 @@ import {
   mapUpdateSnapshot,
   mergeServiceRealtime,
   normaliseStatus,
+  resolveUpdateTimestamp,
   toNewChecklist,
   toNewUpdates,
 } from "./shared";
@@ -386,7 +387,7 @@ export default function ServiceDetailClient({
       if (shouldListenToSecondaryRealtime) {
         unsubscribers.push(
           onSnapshot(
-            query(collection(serviceRef, "updates"), orderBy("createdAt", "desc"), limit(100)),
+            query(collection(serviceRef, "updates"), orderBy("audit.submittedAt", "desc"), limit(100)),
             (snapshot) => {
               if (cancelled) return;
               const mapped = snapshot.docs.map((docSnap) => mapUpdateSnapshot(docSnap));
@@ -547,6 +548,12 @@ export default function ServiceDetailClient({
     const source = updates.length === 0 ? normalizedInitialUpdates : updates;
     return filterUpdatesWithRelevantContent(source);
   }, [updates, normalizedInitialUpdates]);
+
+  const latestUpdateTimestamp = useMemo(() => {
+    const source = updates.length === 0 ? normalizedInitialUpdates : updates;
+    const latest = source[0];
+    return latest ? resolveUpdateTimestamp(latest) : null;
+  }, [normalizedInitialUpdates, updates]);
 
   const handleCompleteService = useCallback(async () => {
     if (isCompleting || isServiceConcluded) return;
@@ -769,7 +776,7 @@ export default function ServiceDetailClient({
             <div className="hide-for-print">
               <dt className="text-muted-foreground">Última atualização</dt>
               <dd className="font-medium">
-                {formatDateTime(service.updatedAt ?? composedInitial.updatedAt ?? null)}
+                {formatDateTime(latestUpdateTimestamp ?? service.updatedAt ?? composedInitial.updatedAt ?? null)}
               </dd>
             </div>
             <div className="sm:col-span-2 hide-for-print">
@@ -891,7 +898,9 @@ export default function ServiceDetailClient({
                       <span className="text-base font-semibold text-foreground">{summary.title}</span>
                       <span className="text-sm font-semibold text-primary">{summary.percentLabel}</span>
                     </div>
-                    <p className="text-xs text-muted-foreground">Atualizado em {formatDateTime(update.createdAt)}</p>
+                    <p className="text-xs text-muted-foreground">
+                      Atualizado em {formatDateTime(resolveUpdateTimestamp(update))}
+                    </p>
                     {update.subactivity?.label ? (
                       <p className="text-xs text-muted-foreground">
                         Subatividade: <span className="font-medium text-foreground">{update.subactivity.label}</span>

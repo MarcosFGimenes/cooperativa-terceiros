@@ -435,8 +435,8 @@ export function mapUpdateSnapshot(
     typeof data.audit === "object" && data.audit !== null
       ? toMillis((data.audit as ServiceRecord).submittedAt)
       : null;
-
-  const createdAt = toMillis(data.date ?? data.createdAt) ?? auditSubmittedAt ?? 0;
+  const submittedAt = auditSubmittedAt ?? toMillis(data.submittedAt);
+  const createdAt = submittedAt ?? toMillis(data.date ?? data.createdAt) ?? 0;
 
   return {
     id: doc.id,
@@ -465,6 +465,7 @@ export function mapUpdateSnapshot(
     declarationAccepted:
       typeof data.declarationAccepted === "boolean" ? data.declarationAccepted : undefined,
     audit: mapAudit(data.audit),
+    submittedAt: submittedAt ?? undefined,
     createdAt,
   };
 }
@@ -488,6 +489,10 @@ export function formatDateTime(value?: number | string | Date | null): string {
   const date = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(date.getTime())) return "-";
   return formatDateTimeDisplay(date, { timeZone: DEFAULT_TIME_ZONE, fallback: "-" }) || "-";
+}
+
+export function resolveUpdateTimestamp(update: ServiceUpdate): number | null {
+  return update.audit?.submittedAt ?? update.submittedAt ?? update.createdAt ?? null;
 }
 
 function toDayIso(value: unknown): string | null {
