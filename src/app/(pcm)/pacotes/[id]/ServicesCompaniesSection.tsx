@@ -78,7 +78,7 @@ export default function ServicesCompaniesSection({
 
   return (
     <div className={cn(containerClass, "services-companies space-y-6")}>
-      <div>
+      <div className="print-keep-with-next">
         <h2 className="text-lg font-semibold">Serviços e Empresas</h2>
         <p className="text-xs text-muted-foreground">
           Consulte os subpacotes criados, visualize os serviços atribuídos e acompanhe todos os serviços do pacote.
@@ -86,7 +86,7 @@ export default function ServicesCompaniesSection({
       </div>
 
       <div className="space-y-3">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between print-keep-with-next">
           <h3 className="text-sm font-semibold">Subpacotes</h3>
           {folders.length ? (
             <span className="text-xs text-muted-foreground">{folders.length} subpacote{folders.length === 1 ? "" : "s"}</span>
