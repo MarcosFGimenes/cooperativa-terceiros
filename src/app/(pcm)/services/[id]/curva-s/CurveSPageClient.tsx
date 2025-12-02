@@ -1,16 +1,7 @@
 "use client";
 
-import dynamic from "next/dynamic";
-
-const CurveSChart = dynamic(() => import("@/components/CurveSChart"), {
-  ssr: false,
-  loading: () => (
-    <div className="flex h-[520px] w-full items-center justify-center rounded-lg border border-dashed border-border/60 bg-muted/20 text-sm text-muted-foreground md:h-[600px]">
-      Carregando gráfico...
-    </div>
-  ),
-});
 import { toCsv } from "@/lib/curvaSShared";
+import SCurveDeferred from "@/components/SCurveDeferred";
 
 type CombinedPoint = { date: string; planned: number; actual: number };
 
@@ -23,6 +14,11 @@ type CurveSPageClientProps = {
 
 export default function CurveSPageClient({ serviceId, serviceName, periodLabel, combined }: CurveSPageClientProps) {
   const hasData = combined.length > 0;
+
+  const planned = combined.map((point) => ({ date: point.date, percent: point.planned }));
+  const realizedSeries = combined.map((point) => ({ date: point.date, percent: point.actual }));
+  const realizedPercent = combined.length ? combined[combined.length - 1].actual : 0;
+  const plannedToDate = combined.length ? combined[combined.length - 1].planned : 0;
 
   const downloadCsv = () => {
     if (!hasData) return;
@@ -64,7 +60,28 @@ export default function CurveSPageClient({ serviceId, serviceName, periodLabel, 
       </div>
 
       {hasData ? (
-        <CurveSChart data={combined} />
+        <section className="rounded-2xl border bg-card/80 p-5 shadow-sm">
+          <SCurveDeferred
+            planned={planned}
+            realizedSeries={realizedSeries}
+            realizedPercent={realizedPercent}
+            title="Curva S do serviço"
+            description="Planejado versus realizado considerando o serviço."
+            headerAside={<span className="font-medium text-foreground">Realizado: {Math.round(realizedPercent)}%</span>}
+            chartHeight={520}
+            metrics={{
+              plannedToDate,
+              realized: realizedPercent,
+              plannedTotal: 100,
+              delta: realizedPercent - plannedToDate,
+            }}
+            fallback={
+              <div className="flex h-[520px] w-full items-center justify-center rounded-lg border border-dashed border-border/60 bg-muted/20 text-sm text-muted-foreground">
+                Carregando gráfico...
+              </div>
+            }
+          />
+        </section>
       ) : (
         <div className="flex h-[520px] w-full items-center justify-center rounded-lg border border-dashed border-border/60 bg-muted/20 text-sm text-muted-foreground md:h-[600px]">
           Sem dados suficientes para gerar o gráfico.
