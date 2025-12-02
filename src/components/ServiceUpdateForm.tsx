@@ -39,13 +39,17 @@ type ServiceUpdateFormProps = {
 
 const RESOURCE_OPTIONS = [
   { id: "andaimes", label: "Andaimes" },
+  { id: "chave-impacto", label: "Chave de impacto" },
   { id: "parafusadeiras", label: "Parafusadeiras" },
   { id: "maquina-solda", label: "Máquina de solda" },
   { id: "lixadeiras", label: "Lixadeiras" },
   { id: "serra-makita", label: "Serra tipo Makita" },
   { id: "escada", label: "Escada" },
   { id: "extensao", label: "Extensão" },
+  { id: "jogo-chaves", label: "Jogo de chaves" },
   { id: "furadeira", label: "Furadeira" },
+  { id: "saca-rolamento", label: "Saca-rolamento" },
+  { id: "talha", label: "Talha" },
   { id: "retifica", label: "Retífica" },
   { id: "cinto-seguranca", label: "Cinto de segurança" },
   { id: "plasma", label: "Plasma" },

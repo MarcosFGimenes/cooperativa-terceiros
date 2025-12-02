@@ -213,10 +213,10 @@ function isServiceOpen(data: FirebaseFirestore.DocumentData): boolean {
 }
 
 function ensureCompanyMatch(token: AccessTokenData, data: FirebaseFirestore.DocumentData) {
-  const tokenCompany = getTokenCompany(token);
+  const tokenCompany = getTokenCompany(token)?.toLowerCase();
   if (!tokenCompany) return;
 
-  const serviceCompany = normalizeCompany(data);
+  const serviceCompany = normalizeCompany(data)?.toLowerCase();
 
   if (serviceCompany && serviceCompany !== tokenCompany) {
     throw new PublicAccessError(403, "Token não possui acesso a este serviço");
