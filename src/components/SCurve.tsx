@@ -182,10 +182,22 @@ export default function SCurve({
       entry.realized = clampPercent(point.percent);
     });
 
-    return Array.from(map.values()).sort((a, b) => {
+    const sorted = Array.from(map.values()).sort((a, b) => {
       return new Date(a.date).getTime() - new Date(b.date).getTime();
     });
-  }, [planned, realizedSeries]);
+
+    // Atualizar o último ponto com valor realized para usar realizedPercent
+    if (typeof realizedPercent === "number" && Number.isFinite(realizedPercent)) {
+      for (let i = sorted.length - 1; i >= 0; i--) {
+        if (sorted[i].realized !== null) {
+          sorted[i].realized = clampPercent(realizedPercent);
+          break;
+        }
+      }
+    }
+
+    return sorted;
+  }, [planned, realizedSeries, realizedPercent]);
 
   const plannedTotal = useMemo(() => {
     const indicator = clampPercent(metrics?.plannedTotal);
@@ -244,6 +256,7 @@ export default function SCurve({
   useEffect(() => {
     setIsClientReady(true);
   }, []);
+
 
   const resolvedTitle = title ?? "Curva S";
   const resolvedDescription =
