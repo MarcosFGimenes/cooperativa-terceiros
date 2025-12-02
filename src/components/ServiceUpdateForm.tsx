@@ -447,12 +447,9 @@ export default function ServiceUpdateForm({ serviceId, lastProgress, checklist, 
                 <li key={item.id} className="space-y-2 rounded-lg border p-3">
                   <div className="flex flex-col gap-1">
                     <span className="font-medium text-foreground">{item.description}</span>
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-semibold text-primary">{displayProgress}%</span>
-                      <span className="text-xs text-muted-foreground">
-                        Progresso atual registrado: {displayProgress}%
-                      </span>
-                    </div>
+                    <span className="text-xs text-muted-foreground">
+                      Progresso atual registrado: {displayProgress}%
+                    </span>
                   </div>
                   <div className="flex items-center gap-2">
                     <input
