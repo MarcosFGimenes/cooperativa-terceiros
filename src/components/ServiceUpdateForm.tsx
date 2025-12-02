@@ -437,13 +437,19 @@ export default function ServiceUpdateForm({ serviceId, lastProgress, checklist, 
                 typeof subactivityValues?.[index]?.progress === "number"
                   ? subactivityValues[index]?.progress
                   : undefined;
+              const displayProgress = typeof computedPercent === "number" && Number.isFinite(computedPercent) 
+                ? Math.round(computedPercent) 
+                : Math.round(item.progress ?? 0);
               return (
                 <li key={item.id} className="space-y-2 rounded-lg border p-3">
                   <div className="flex flex-col gap-1">
                     <span className="font-medium text-foreground">{item.description}</span>
-                    <span className="text-xs text-muted-foreground">
-                      Progresso atual registrado: {Math.round(item.progress ?? 0)}%
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-semibold text-primary">{displayProgress}%</span>
+                      <span className="text-xs text-muted-foreground">
+                        Progresso atual registrado: {displayProgress}%
+                      </span>
+                    </div>
                   </div>
                   <div className="flex items-center gap-2">
                     <input
