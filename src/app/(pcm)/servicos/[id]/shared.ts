@@ -31,6 +31,7 @@ export type ServiceRealtimeData = {
   status?: string | null;
   andamento?: number | null;
   realPercent?: number | null;
+  realPercentSnapshot?: number | null;
   manualPercent?: number | null;
   progress?: number | null;
   assignedTo?: { companyId?: string; companyName?: string } | null;
@@ -159,6 +160,7 @@ export function composeServiceRealtimeData(
     status: primary?.status ?? fallback?.status ?? null,
     andamento: primary?.andamento ?? fallback?.andamento ?? null,
     realPercent: primary?.realPercent ?? fallback?.realPercent ?? null,
+    realPercentSnapshot: primary?.realPercentSnapshot ?? fallback?.realPercentSnapshot ?? null,
     manualPercent: primary?.manualPercent ?? fallback?.manualPercent ?? null,
     progress: primary?.progress ?? fallback?.progress ?? null,
     assignedTo: primary?.assignedTo ?? fallback?.assignedTo ?? null,
@@ -245,6 +247,7 @@ export function mapServiceSnapshot(
     status: toOptionalString(data.status) ?? null,
     andamento: toNumber(data.andamento ?? data.progress) ?? null,
     realPercent: toNumber(data.realPercent) ?? null,
+    realPercentSnapshot: toNumber(data.realPercentSnapshot) ?? null,
     manualPercent: toNumber(data.manualPercent) ?? null,
     progress: toNumber(data.progress) ?? null,
     assignedTo,
@@ -696,11 +699,29 @@ export function deriveRealizedPercent(
   checklist: ChecklistItem[],
   updates: ServiceUpdate[],
 ): number {
+  // Prioridade 1: realPercentSnapshot (valor mais recente lançado pelo terceiro)
+  // Este é o campo que deve ser usado como fonte única de verdade
+  const realPercentSnapshot = toNumber(service.realPercentSnapshot);
+  if (Number.isFinite(realPercentSnapshot ?? NaN)) {
+    return normaliseProgress(realPercentSnapshot ?? 0);
+  }
+
+  // Prioridade 2: manualPercent (valor digitado manualmente)
+  const manualPercent = toNumber(service.manualPercent);
+  if (Number.isFinite(manualPercent ?? NaN)) {
+    return normaliseProgress(manualPercent ?? 0);
+  }
+
+  // Prioridade 3: realPercent (valor real calculado)
+  const realPercent = toNumber(service.realPercent);
+  if (Number.isFinite(realPercent ?? NaN)) {
+    return normaliseProgress(realPercent ?? 0);
+  }
+
+  // Prioridade 4: outros campos de progresso
   const baselineSources = [
-    service.manualPercent,
-    service.progress,
-    service.realPercent,
     service.andamento,
+    service.progress,
   ];
   const baseline = baselineSources.reduce((acc, value) => {
     const numeric = toNumber(value);
@@ -708,8 +729,12 @@ export function deriveRealizedPercent(
     return Math.max(acc, normaliseProgress(numeric ?? 0));
   }, 0);
 
+  // Prioridade 5: checklist calculado
   const checklistPercent = checklist.length ? realizedFromChecklist(checklist) : null;
+  
+  // Prioridade 6: updates mais recentes
   const updatesPercent = updates.length ? realizedFromUpdates(updates) : null;
 
+  // Retornar o maior valor entre baseline, checklist e updates
   return Math.max(baseline, checklistPercent ?? 0, updatesPercent ?? 0);
 }

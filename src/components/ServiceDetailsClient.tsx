@@ -100,11 +100,32 @@ function computeInitialProgress(service: ThirdService, updates: ThirdServiceUpda
     return reopenedProgress;
   }
 
+  // Prioridade 1: realPercentSnapshot (valor mais recente lançado pelo terceiro)
+  const serviceRecord = service as Record<string, unknown>;
+  const realPercentSnapshot = typeof serviceRecord.realPercentSnapshot === "number" && Number.isFinite(serviceRecord.realPercentSnapshot)
+    ? serviceRecord.realPercentSnapshot
+    : null;
+  if (realPercentSnapshot !== null) {
+    return clampPercent(realPercentSnapshot);
+  }
+
+  // Prioridade 2: manualPercent (valor digitado manualmente)
+  if (typeof service.manualPercent === "number" && Number.isFinite(service.manualPercent)) {
+    return clampPercent(service.manualPercent);
+  }
+
+  // Prioridade 3: realPercent (valor real calculado)
+  if (typeof service.realPercent === "number" && Number.isFinite(service.realPercent)) {
+    return clampPercent(service.realPercent);
+  }
+
+  // Prioridade 4: updates mais recentes
   if (updates.length > 0) {
     return clampPercent(updates[0]?.percent ?? 0);
   }
 
-  const candidates = [service.realPercent, service.manualPercent, service.andamento, service.previousProgress];
+  // Prioridade 5: outros campos
+  const candidates = [service.andamento, service.previousProgress];
   for (const value of candidates) {
     if (typeof value === "number" && Number.isFinite(value)) {
       return clampPercent(value);
@@ -424,11 +445,27 @@ export default function ServiceDetailsClient({
     updates[0]?.audit?.submittedAt ?? updates[0]?.submittedAt ?? updates[0]?.createdAt ?? service.updatedAt ?? null;
   const suggestion = useMemo(() => computeChecklistSuggestion(checklistItems), [checklistItems]);
   const canonicalProgress = useMemo(() => {
+    // Prioridade 1: realPercentSnapshot (valor mais recente lançado pelo terceiro)
+    const serviceRecord = service as Record<string, unknown>;
+    const realPercentSnapshot = typeof serviceRecord.realPercentSnapshot === "number" && Number.isFinite(serviceRecord.realPercentSnapshot)
+      ? serviceRecord.realPercentSnapshot
+      : null;
+    if (realPercentSnapshot !== null) {
+      return clampPercent(realPercentSnapshot);
+    }
+
+    // Prioridade 2: progress (já calculado com prioridade correta)
+    if (Number.isFinite(progress)) {
+      return clampPercent(progress);
+    }
+
+    // Prioridade 3: checklist calculado (apenas se não houver progress direto)
     if (service.hasChecklist && Number.isFinite(suggestion ?? NaN)) {
       return clampPercent(suggestion ?? 0);
     }
-    return progress;
-  }, [progress, service.hasChecklist, suggestion]);
+
+    return 0;
+  }, [progress, service, suggestion]);
   const checklistOptions = useMemo(
     () =>
       checklistItems.map((item) => ({
