@@ -33,7 +33,10 @@ const getThirdServiceBundle = unstable_cache(
     };
   },
   ["third-service-bundle"],
-  { revalidate: 30 },
+  {
+    revalidate: 30,
+    tags: ["services:detail", "services:updates", "services:legacy-updates"],
+  },
 );
 
 export default async function TerceiroServicoPage({ params }: { params: { id: string } }) {
