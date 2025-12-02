@@ -831,7 +831,7 @@ async function renderPackageDetailPage(
               <div className="rounded-xl border bg-muted/30 px-3 py-2.5">
                 <dt className="text-muted-foreground">Realizado</dt>
                 <dd className="text-lg font-semibold text-emerald-600 dark:text-emerald-400">
-                  {Math.round(curveMetrics.realized ?? 0)}%
+                  {Math.round(realizedPercent)}%
                 </dd>
               </div>
               <div className="rounded-xl border bg-muted/30 px-3 py-2.5">
