@@ -6,38 +6,48 @@ import { AdminDbUnavailableError } from "@/lib/serverDb";
 import { mapFirestoreError } from "@/lib/utils/firestoreErrors";
 import { unstable_cache } from "next/cache";
 
-const getThirdServiceBundle = unstable_cache(
-  async (serviceId: string) => {
-    const service = await fetchThirdService(serviceId);
-    if (!service) {
-      return null;
-    }
+async function getThirdServiceBundle(serviceId: string) {
+  const cached = unstable_cache(
+    async () => {
+      const service = await fetchThirdService(serviceId);
+      if (!service) {
+        return null;
+      }
 
-    const [updates, checklist] = await Promise.all([
-      fetchThirdServiceUpdates(serviceId, 20).catch((error) => {
-        console.error(`[terceiro/${serviceId}] Falha ao carregar atualizações`, error);
-        return [];
-      }),
-      fetchThirdServiceChecklist(serviceId).catch((error) => {
-        console.error(`[terceiro/${serviceId}] Falha ao carregar checklist`, error);
-        return [];
-      }),
-    ]);
+      const [updates, checklist] = await Promise.all([
+        fetchThirdServiceUpdates(serviceId, 20).catch((error) => {
+          console.error(`[terceiro/${serviceId}] Falha ao carregar atualizações`, error);
+          return [];
+        }),
+        fetchThirdServiceChecklist(serviceId).catch((error) => {
+          console.error(`[terceiro/${serviceId}] Falha ao carregar checklist`, error);
+          return [];
+        }),
+      ]);
 
-    const hasChecklist = service.hasChecklist || checklist.length > 0;
+      const hasChecklist = service.hasChecklist || checklist.length > 0;
 
-    return {
-      service: { ...service, hasChecklist },
-      updates,
-      checklist,
-    };
-  },
-  ["third-service-bundle"],
-  {
-    revalidate: 30,
-    tags: ["services:detail", "services:updates", "services:legacy-updates"],
-  },
-);
+      return {
+        service: { ...service, hasChecklist },
+        updates,
+        checklist,
+      };
+    },
+    ["third-service-bundle", serviceId],
+    {
+      revalidate: 30,
+      tags: [
+        "services:detail",
+        "services:updates",
+        "services:legacy-updates",
+        `services:detail:${serviceId}`,
+        `services:updates:${serviceId}`,
+      ],
+    },
+  );
+
+  return cached();
+}
 
 export default async function TerceiroServicoPage({ params }: { params: { id: string } }) {
   const token = await getTokenCookie();
