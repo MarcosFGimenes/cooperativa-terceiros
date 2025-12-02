@@ -968,7 +968,7 @@ async function renderPackageDetailPage(
           <ServicesCompaniesSection folders={folders} serviceDetails={serviceDetails} />
         </div>
 
-        <div className="hidden print:block" aria-hidden>
+        <div className="hidden print:block print-page-break-before print:px-2 print:pt-2" aria-hidden>
           <ServicesCompaniesSection
             folders={folders}
             serviceDetails={serviceDetails}
