@@ -1104,7 +1104,8 @@ export function calcularMetricasSubpacote(
   plannedPercent: number;
   realizedPercent: number;
   totalHours: number;
-  horasFaltando: number;
+  horasQueDeveriamEstar: number;
+  horasAtual: number;
   diferenca: number;
 }> {
   if (!Array.isArray(services) || services.length === 0) return [];
@@ -1147,8 +1148,11 @@ export function calcularMetricasSubpacote(
       );
       const plannedPercent = Math.round(plannedPercentRaw);
       const realizedPercent = Math.round(realizedPercentRaw);
-      const horasFaltando = roundToTwoDecimals(
-        grupo.totalHours * (100 - realizedPercentRaw) * 0.01,
+      const horasQueDeveriamEstar = roundToTwoDecimals(
+        grupo.totalHours * plannedPercentRaw * 0.01,
+      );
+      const horasAtual = roundToTwoDecimals(
+        grupo.totalHours * realizedPercentRaw * 0.01,
       );
       const diferenca = roundToTwoDecimals(
         grupo.totalHours * (realizedPercentRaw - plannedPercentRaw) * 0.01,
@@ -1159,7 +1163,8 @@ export function calcularMetricasSubpacote(
         plannedPercent,
         realizedPercent,
         totalHours: grupo.totalHours,
-        horasFaltando,
+        horasQueDeveriamEstar,
+        horasAtual,
         diferenca,
       };
     })
@@ -1174,7 +1179,8 @@ export function calcularMetricasPorSetor(
   plannedPercent: number;
   realizedPercent: number;
   totalHours: number;
-  horasFaltando: number;
+  horasQueDeveriamEstar: number;
+  horasAtual: number;
   diferenca: number;
 }> {
   if (!Array.isArray(services) || services.length === 0) return [];
@@ -1233,8 +1239,11 @@ export function calcularMetricasPorSetor(
         totalHours > 0 ? clampPercentageValue(sumWeightedRealized / totalHours) : 0;
       const plannedPercent = Math.round(plannedPercentRaw);
       const realizedPercent = Math.round(realizedPercentRaw);
-      const horasFaltando = roundToTwoDecimals(
-        totalHours * (100 - realizedPercentRaw) * 0.01,
+      const horasQueDeveriamEstar = roundToTwoDecimals(
+        totalHours * plannedPercentRaw * 0.01,
+      );
+      const horasAtual = roundToTwoDecimals(
+        totalHours * realizedPercentRaw * 0.01,
       );
       const diferenca = roundToTwoDecimals(
         totalHours * (realizedPercentRaw - plannedPercentRaw) * 0.01,
@@ -1245,7 +1254,8 @@ export function calcularMetricasPorSetor(
         plannedPercent,
         realizedPercent,
         totalHours,
-        horasFaltando,
+        horasQueDeveriamEstar,
+        horasAtual,
         diferenca,
       };
     })

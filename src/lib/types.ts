@@ -34,6 +34,7 @@ export type ServiceUpdate = BaseServiceUpdate & {
   previousPercent?: number | null;
   declarationAccepted?: boolean;
   audit?: BaseServiceUpdate["audit"];
+  date?: number | null; // Data informada pelo terceiro no formulário (reportDate)
 };
 
 export type Service = BaseService & {

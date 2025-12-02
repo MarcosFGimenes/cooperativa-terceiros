@@ -439,7 +439,9 @@ export function mapUpdateSnapshot(
       ? toMillis((data.audit as ServiceRecord).submittedAt)
       : null;
   const submittedAt = auditSubmittedAt ?? toMillis(data.submittedAt);
-  const createdAt = submittedAt ?? toMillis(data.date ?? data.createdAt) ?? 0;
+  // Priorizar o campo 'date' (reportDate) que é a data informada pelo terceiro
+  const reportDate = toMillis(data.date ?? data.reportDate);
+  const createdAt = submittedAt ?? reportDate ?? toMillis(data.createdAt) ?? 0;
 
   return {
     id: doc.id,
@@ -469,6 +471,7 @@ export function mapUpdateSnapshot(
       typeof data.declarationAccepted === "boolean" ? data.declarationAccepted : undefined,
     audit: mapAudit(data.audit),
     submittedAt: submittedAt ?? undefined,
+    date: reportDate ?? null,
     createdAt,
   };
 }
@@ -654,8 +657,9 @@ export function buildRealizedSeries(params: {
   const points: Array<{ date: string; percent: number; timestamp: number }> = [];
 
   params.updates.forEach((update) => {
-    // Usar resolveUpdateTimestamp para obter a data correta (prioriza audit.submittedAt)
-    const timestamp = resolveUpdateTimestamp(update);
+    // Priorizar o campo 'date' (reportDate) que é a data informada pelo terceiro no formulário
+    // Se não houver, usar resolveUpdateTimestamp como fallback
+    const timestamp = update.date ?? resolveUpdateTimestamp(update);
     if (!timestamp) return;
     
     const day = toDayIso(timestamp);
