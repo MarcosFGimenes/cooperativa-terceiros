@@ -463,6 +463,13 @@ async function renderPackageDetailPage(
   }
 
   const servicesById = new Map(services.map((service) => [service.id, service]));
+  const folderServiceIds = new Set<string>();
+  folders.forEach((folder) => {
+    folder.services.forEach((serviceId) => {
+      if (serviceId) folderServiceIds.add(serviceId);
+    });
+  });
+
   const subpackagesForCurve = folders.map((folder) => {
     const servicos = folder.services
       .map((serviceId) => servicesById.get(serviceId))
@@ -470,6 +477,19 @@ async function renderPackageDetailPage(
       .map((service) => mapServiceToSubpackageEntry(service));
     return { id: folder.id, nome: folder.name, servicos };
   });
+
+  // Incluir serviços que não estão em subpacotes em um subpacote virtual
+  const servicesNotInFolders = services
+    .filter((service) => !folderServiceIds.has(service.id))
+    .map((service) => mapServiceToSubpackageEntry(service));
+
+  if (servicesNotInFolders.length > 0) {
+    subpackagesForCurve.push({
+      id: "sem-subpacote",
+      nome: "Sem Subpacote",
+      servicos: servicesNotInFolders,
+    });
+  }
 
   const packageForCurve = { subpacotes: subpackagesForCurve };
   const plannedCurvePoints = calcularCurvaSPlanejada(packageForCurve).map((point) => ({
@@ -525,14 +545,6 @@ async function renderPackageDetailPage(
       startDateMs: analytics?.startDateMs ?? null,
       endDateMs: analytics?.endDateMs ?? null,
     };
-  });
-
-  const folderServiceIds = new Set<string>();
-  folders.forEach((folder) => {
-    folder.services.forEach((serviceId) => {
-      if (!serviceId) return;
-      folderServiceIds.add(serviceId);
-    });
   });
 
   const folderLookup = new Map<string, { id: string; name?: string | null }>();
