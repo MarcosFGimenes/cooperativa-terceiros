@@ -371,7 +371,15 @@ export default function ServiceEditorClient({ serviceId }: ServiceEditorClientPr
         const checklistData = Array.isArray(data.checklist) ? data.checklist : [];
         setChecklist(checklistData.map((item, index) => normaliseChecklistEntry(item, index)));
         setWithChecklist(checklistData.length > 0);
-        setAndamento(Number(data.andamento ?? data.realPercent ?? 0));
+        // Priorizar realPercentSnapshot (valor mais recente lançado pelo terceiro)
+        const resolvedProgress = Number(
+          data.realPercentSnapshot ??
+          data.manualPercent ??
+          data.realPercent ??
+          data.andamento ??
+          0
+        );
+        setAndamento(resolvedProgress);
         const prevProgressValue = Number(data.previousProgress ?? data.progressBeforeConclusion ?? data.previousPercent ?? NaN);
         setPreviousProgress(Number.isFinite(prevProgressValue) ? prevProgressValue : null);
         await refreshUpdates({ cancelledRef: { current: cancelled } });
