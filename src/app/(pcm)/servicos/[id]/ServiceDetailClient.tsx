@@ -825,7 +825,7 @@ export default function ServiceDetailClient({
                     <span>
                       Status: {item.status === "em-andamento" ? "Em andamento" : item.status === "concluido" ? "Concluído" : "Não iniciado"}
                     </span>
-                    <span className="text-sm font-semibold text-primary">{Math.round(realizedPercent)}% (em {referenceLabel})%</span>
+                    <span className="text-sm font-semibold text-primary">{Math.round(realizedPercent)}%</span>
                   </div>
                 </li>
               ))}
