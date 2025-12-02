@@ -865,7 +865,8 @@ async function renderPackageDetailPage(
                     <th className="border border-border p-3 text-left">Subpacote</th>
                     <th className="border border-border p-3">% Atual ({referenceLabel})</th>
                     <th className="border border-border p-3">% Deveria Estar ({referenceLabel})</th>
-                    <th className="border border-border p-3">Horas Faltando</th>
+                    <th className="border border-border p-3">Total de Horas</th>
+                    <th className="border border-border p-3">Horas Faltando para Terminar</th>
                     <th className="border border-border p-3">Diferença</th>
                   </tr>
                 </thead>
@@ -878,6 +879,9 @@ async function renderPackageDetailPage(
                       </td>
                       <td className="border border-border p-3 font-semibold">
                         {formatPercentValue(metric.plannedPercent)}%
+                      </td>
+                      <td className="border border-border p-3 font-semibold">
+                        {formatHoursValue(metric.totalHours)}
                       </td>
                       <td className="border border-border p-3 font-semibold">
                         {formatHoursValue(metric.horasFaltando)}
@@ -907,7 +911,8 @@ async function renderPackageDetailPage(
                     <th className="border border-border p-3 text-left">Setor</th>
                     <th className="border border-border p-3">% Atual ({referenceLabel})</th>
                     <th className="border border-border p-3">% Deveria Estar ({referenceLabel})</th>
-                    <th className="border border-border p-3">Horas Faltando</th>
+                    <th className="border border-border p-3">Total de Horas</th>
+                    <th className="border border-border p-3">Horas Faltando para Terminar</th>
                     <th className="border border-border p-3">Diferença</th>
                   </tr>
                 </thead>
@@ -920,6 +925,9 @@ async function renderPackageDetailPage(
                       </td>
                       <td className="border border-border p-3 font-semibold">
                         {formatPercentValue(metric.plannedPercent)}%
+                      </td>
+                      <td className="border border-border p-3 font-semibold">
+                        {formatHoursValue(metric.totalHours)}
                       </td>
                       <td className="border border-border p-3 font-semibold">
                         {formatHoursValue(metric.horasFaltando)}

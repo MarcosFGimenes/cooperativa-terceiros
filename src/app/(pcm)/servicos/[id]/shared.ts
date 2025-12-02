@@ -651,23 +651,52 @@ export function buildRealizedSeries(params: {
   plannedEnd?: string | null;
   createdAt?: number | null;
 }): Array<{ date: string; percent: number }> {
-  const points = new Map<string, number>();
+  const points: Array<{ date: string; percent: number; timestamp: number }> = [];
 
   params.updates.forEach((update) => {
-    const day = toDayIso(update.createdAt);
+    // Usar resolveUpdateTimestamp para obter a data correta (prioriza audit.submittedAt)
+    const timestamp = resolveUpdateTimestamp(update);
+    if (!timestamp) return;
+    
+    const day = toDayIso(timestamp);
     if (!day) return;
-    points.set(day, normaliseProgress(update.percent));
+    
+    // Incluir updates que tenham percentual válido (mesmo que seja 0)
+    // ou que tenham realPercentSnapshot
+    const percentValue = update.percent ?? update.realPercentSnapshot ?? null;
+    if (percentValue === null || percentValue === undefined) return;
+    
+    const percent = normaliseProgress(percentValue);
+    if (!Number.isFinite(percent)) return;
+    
+    // Incluir todos os updates, mesmo que sejam no mesmo dia
+    // Usar timestamp para ordenação precisa
+    points.push({ date: day, percent, timestamp });
   });
 
-  if (points.size > 0) {
-    return Array.from(points.entries())
+  if (points.length > 0) {
+    // Ordenar por timestamp para manter ordem cronológica
+    points.sort((a, b) => a.timestamp - b.timestamp);
+    
+    // Agrupar por dia, mas manter todos os pontos únicos
+    // Se houver múltiplos updates no mesmo dia, manter o mais recente (maior timestamp)
+    const dayMap = new Map<string, { percent: number; timestamp: number }>();
+    
+    points.forEach((point) => {
+      const existing = dayMap.get(point.date);
+      if (!existing || point.timestamp >= existing.timestamp) {
+        dayMap.set(point.date, { percent: point.percent, timestamp: point.timestamp });
+      }
+    });
+    
+    return Array.from(dayMap.entries())
       .sort((a, b) => {
         const aTime = new Date(a[0]).getTime();
         const bTime = new Date(b[0]).getTime();
         if (Number.isNaN(aTime) || Number.isNaN(bTime)) return a[0].localeCompare(b[0]);
         return aTime - bTime;
       })
-      .map(([date, percent]) => ({ date, percent }));
+      .map(([date, data]) => ({ date, percent: data.percent }));
   }
 
   const plannedStart = params.plannedStart ?? params.planned[0]?.date ?? toDayIso(params.createdAt);
