@@ -139,12 +139,10 @@ async function fetchToken(tokenId: string): Promise<AccessTokenData> {
   // Se targetType não está definido, mas temos folderId, inferir que é "folder"
   if (!targetType && folderId) {
     targetType = "folder";
-    console.log(`[public-access] fetchToken: targetType inferido como "folder" baseado no folderId=${folderId}`);
   }
   // Se targetType não está definido, mas temos serviceId, inferir que é "service"
   if (!targetType && (typeof record.serviceId === "string" || targetId)) {
     targetType = "service";
-    console.log(`[public-access] fetchToken: targetType inferido como "service" baseado no serviceId`);
   }
 
   return {
@@ -284,11 +282,6 @@ async function fetchFolderServicesForToken(
 ): Promise<{ services: Service[]; unavailable: string[] }> {
   const unavailable: string[] = [];
   const tokenCompany = getTokenCompany(token)?.toLowerCase();
-  
-  console.log(
-    `[public-access] Buscando ${folderContext.services.length} serviços do subpacote ${folderContext.folderId}`,
-    { tokenCompany, folderCompany: folderContext.folderCompany },
-  );
 
   const promises = folderContext.services.map(async (serviceId) => {
     try {
@@ -305,13 +298,7 @@ async function fetchFolderServicesForToken(
       // Também não validamos empresa aqui, pois o serviço foi explicitamente vinculado ao subpacote
       const service = mapServiceDoc(snap);
       
-      // Log para debug
       const serviceCompany = normalizeCompany(data)?.toLowerCase();
-      if (tokenCompany && serviceCompany && tokenCompany !== serviceCompany) {
-        console.log(
-          `[public-access] Serviço ${serviceId} tem empresa diferente (${serviceCompany} vs ${tokenCompany}), mas será exibido pois está vinculado ao subpacote`,
-        );
-      }
       
       return service;
     } catch (error) {
@@ -327,10 +314,6 @@ async function fetchFolderServicesForToken(
   const resolved = await Promise.all(promises);
   const services = resolved.filter((service): service is Service => Boolean(service));
   
-  console.log(
-    `[public-access] Retornando ${services.length} serviços do subpacote ${folderContext.folderId} (${unavailable.length} indisponíveis)`,
-  );
-  
   return { services, unavailable };
 }
 
@@ -340,8 +323,6 @@ export async function requireFolderAccess(tokenId: string, folderId: string): Pr
 
   const trimmedFolderId = folderId.trim();
   const token = await fetchToken(tokenId);
-
-  console.log(`[public-access] requireFolderAccess: tokenId=${tokenId}, folderId=${trimmedFolderId}, targetType=${token.targetType}`);
 
   if (token.targetType !== "folder") {
     throw new PublicAccessError(403, "Token não corresponde a um subpacote");
@@ -363,26 +344,8 @@ export async function requireFolderAccess(tokenId: string, folderId: string): Pr
   }
 
   const folderData = (snap.data() ?? {}) as FolderDoc;
-  console.log(
-    `[public-access] Subpacote encontrado: ${snap.id}, dados:`,
-    {
-      name: folderData.name,
-      company: folderData.company ?? folderData.companyId,
-      packageId: folderData.packageId ?? folderData.pacoteId,
-      servicesCount: collectFolderServiceIds(folderData).length,
-    },
-  );
 
   const context = ensureFolderMatchesToken(token, folderData, snap.id);
-  console.log(
-    `[public-access] Contexto do subpacote:`,
-    {
-      servicesIds: context.services.length,
-      tokenCompany: context.tokenCompany,
-      folderCompany: context.folderCompany,
-      packageId: context.packageId,
-    },
-  );
 
   const { services, unavailable } = await fetchFolderServicesForToken(token, context);
 
