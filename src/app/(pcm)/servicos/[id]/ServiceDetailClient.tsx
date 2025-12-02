@@ -696,7 +696,7 @@ export default function ServiceDetailClient({
         </div>
       ) : null}
 
-      <div className="grid gap-4 lg:grid-cols-[1fr_minmax(320px,380px)] print-avoid-break">
+      <div className="space-y-4 print-avoid-break">
         <div className="card p-4 print-avoid-break">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <h2 className="text-lg font-semibold">Informações gerais</h2>
@@ -806,190 +806,200 @@ export default function ServiceDetailClient({
             </div>
           </dl>
         </div>
-        <div className="card p-4 print-avoid-break">
-          <div className="flex flex-col gap-1">
-            <h2 className="text-lg font-semibold">Checklists Recentes</h2>
-            <span className="text-xs text-muted-foreground">Serviço {serviceLabel}</span>
-          </div>
-          {recentChecklist.length === 0 ? (
-            <p className="mt-2 text-sm text-muted-foreground">Nenhum checklist cadastrado.</p>
-          ) : (
-            <ul className="mt-3 space-y-2 text-sm">
-              {recentChecklist.map((item) => (
-                <li key={item.id} className="space-y-2 rounded-lg border p-3">
+        <SCurveDeferred
+          planned={planned}
+          realizedSeries={realizedSeries}
+          realizedPercent={realizedPercent}
+          title="Curva S do serviço"
+          description="Evolução planejada versus realizado para este serviço."
+          headerAside={
+            <div className="text-right text-sm">
+              <div className="font-semibold text-foreground">
+                Realizado em {referenceLabel}: {Math.round(realizedPercent)}%
+              </div>
+              <div className="text-xs text-muted-foreground">
+                Planejado: {Math.round(plannedPercentToDate)}%
+              </div>
+            </div>
+          }
+          metrics={{ plannedToDate: plannedPercentToDate }}
+          chartHeight={resolvedChartHeight}
+          deferRendering={!isPdfExport}
+          className="print-avoid-break"
+          fallback={
+            <div
+              className="flex w-full items-center justify-center rounded-xl border border-dashed bg-muted/40"
+              style={{ minHeight: resolvedChartHeight }}
+            >
+              <span className="text-sm text-muted-foreground">Carregando gráfico...</span>
+            </div>
+          }
+        />
+      </div>
+
+      <div className="card p-4 print-page-break-before">
+        <div className="flex flex-col gap-1">
+          <h2 className="text-lg font-semibold">Checklists recentes</h2>
+          <span className="text-xs text-muted-foreground">Serviço {serviceLabel}</span>
+        </div>
+        {recentChecklist.length === 0 ? (
+          <p className="mt-2 text-sm text-muted-foreground">Nenhum checklist cadastrado.</p>
+        ) : (
+          <ul className="mt-4 space-y-3 text-sm">
+            {recentChecklist.map((item) => {
+              const statusLabel =
+                item.status === "em-andamento"
+                  ? "Em andamento"
+                  : item.status === "concluido"
+                    ? "Concluído"
+                    : "Não iniciado";
+              return (
+                <li key={item.id} className="space-y-3 rounded-xl border border-border/60 bg-background/60 p-4 shadow-sm">
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <span className="font-medium">{item.description}</span>
+                    <span className="text-base font-semibold text-foreground">{item.description}</span>
                     <span className="text-xs text-muted-foreground">{formatDateTime(item.updatedAt)}</span>
                   </div>
-                  <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
-                    <span>
-                      Status: {item.status === "em-andamento" ? "Em andamento" : item.status === "concluido" ? "Concluído" : "Não iniciado"}
+                  <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                    <span className="inline-flex items-center gap-2 rounded-full bg-muted/60 px-3 py-1 font-medium text-muted-foreground">
+                      Status: <span className="text-foreground">{statusLabel}</span>
                     </span>
                     <span className="text-sm font-semibold text-primary">{Math.round(realizedPercent)}%</span>
                   </div>
                 </li>
-              ))}
-            </ul>
-          )}
-        </div>
+              );
+            })}
+          </ul>
+        )}
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2 print-page-break-before">
-        <div className="print-avoid-break">
-          <SCurveDeferred
-            planned={planned}
-            realizedSeries={realizedSeries}
-            realizedPercent={realizedPercent}
-            title="Curva S do serviço"
-            description="Evolução planejada versus realizado para este serviço."
-            headerAside={
-              <div className="text-right text-sm">
-                <div className="font-semibold text-foreground">
-                  Realizado em {referenceLabel}: {Math.round(realizedPercent)}%
-                </div>
-                <div className="text-xs text-muted-foreground">
-                  Planejado: {Math.round(plannedPercentToDate)}%
-                </div>
-              </div>
-            }
-            metrics={{ plannedToDate: plannedPercentToDate }}
-            chartHeight={resolvedChartHeight}
-            deferRendering={!isPdfExport}
-            fallback={
-              <div
-                className="flex w-full items-center justify-center rounded-xl border border-dashed bg-muted/40"
-                style={{ minHeight: resolvedChartHeight }}
-              >
-                <span className="text-sm text-muted-foreground">Carregando gráfico...</span>
-              </div>
-            }
-          />
-        </div>
-
-        <div className="card space-y-2 p-4 print-avoid-break">
-          <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="card space-y-2 p-4 print-page-break-before">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
             <h2 className="text-lg font-semibold">Atualizações recentes</h2>
-            <div className="flex items-center gap-2">
-              <Link
-                href={`/servicos/${encodeURIComponent(serviceId)}/atualizacoes`}
-                className="btn btn-ghost btn-xs sm:btn-sm"
-              >
-                Ver todas
-              </Link>
-              <Link
-                href={`/servicos/${encodeURIComponent(serviceId)}/editar`}
-                className="btn btn-outline btn-xs gap-2 sm:btn-sm"
-              >
-                <Pencil className="h-4 w-4" />
-                Editar lançamentos
-              </Link>
-            </div>
+            <p className="text-xs text-muted-foreground">Últimas movimentações registradas no serviço.</p>
           </div>
-          {displayedUpdates.length === 0 ? (
-            <p className="mt-2 text-sm text-muted-foreground">Nenhuma atualização registrada.</p>
-          ) : (
-            <ul className="mt-3 space-y-2 text-sm">
-              {displayedUpdates.slice(0, 6).map((update) => {
-                const summary = formatUpdateSummary(update);
-                const hours = computeTimeWindowHours(update);
-                return (
-                  <li key={update.id} className="space-y-2 rounded-lg border p-3">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <span className="text-base font-semibold text-foreground">{summary.title}</span>
-                      <span className="text-sm font-semibold text-primary">{summary.percentLabel}</span>
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      Atualizado em {formatDateTime(resolveUpdateTimestamp(update))}
-                    </p>
-                    {update.subactivity?.label ? (
-                      <p className="text-xs text-muted-foreground">
-                        Subatividade: <span className="font-medium text-foreground">{update.subactivity.label}</span>
-                      </p>
-                    ) : null}
-                    {summary.description ? <p className="text-sm text-foreground">{summary.description}</p> : null}
-                    {summary.resources ? (
-                      <p className="text-xs text-muted-foreground">Recursos: {summary.resources}</p>
-                    ) : null}
-                    {summary.hoursLabel ? (
-                      <p className="text-xs text-muted-foreground">{summary.hoursLabel}</p>
-                    ) : null}
-                    {hours === null && update.timeWindow?.start && update.timeWindow?.end ? (
-                      <p className="text-xs text-muted-foreground">
-                        Período: {formatDateTime(update.timeWindow.start)} → {formatDateTime(update.timeWindow.end)}
-                      </p>
-                    ) : null}
-                    {update.impediments && update.impediments.length > 0 ? (
-                      <div className="text-xs text-muted-foreground">
-                        <span className="font-semibold text-foreground">Impedimentos:</span>
-                        <ul className="mt-1 space-y-1">
-                          {update.impediments.map((item, index) => (
-                            <li key={index}>
-                              {item.type}
-                              {item.durationHours !== null && item.durationHours !== undefined
-                                ? ` • ${item.durationHours}h`
-                                : ""}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    ) : null}
-                    {update.workforce && update.workforce.length > 0 ? (
-                      <div className="text-xs text-muted-foreground">
-                        <span className="font-semibold text-foreground">Mão de obra:</span>
-                        <ul className="mt-1 space-y-1">
-                          {update.workforce.map((item, index) => (
-                            <li key={index}>
-                              {item.role}
-                              {item.quantity
-                                ? ` • ${item.quantity} ${item.quantity === 1 ? "profissional" : "profissionais"}`
-                                : ""}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    ) : null}
-                    {update.shiftConditions && update.shiftConditions.length > 0 ? (
-                      <div className="text-xs text-muted-foreground">
-                        <span className="font-semibold text-foreground">Condições por turno:</span>
-                        <ul className="mt-1 space-y-1">
-                          {update.shiftConditions.map((item, index) => (
-                            <li key={index}>
-                              {item.shift}
-                              {item.weather ? ` • ${item.weather}` : ""}
-                              {item.condition ? ` • ${item.condition}` : ""}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    ) : null}
-                    {update.evidences && update.evidences.length > 0 ? (
-                      <div className="text-xs text-muted-foreground">
-                        <span className="font-semibold text-foreground">Evidências:</span>
-                        <ul className="mt-1 space-y-1">
-                          {update.evidences.map((item, index) => (
-                            <li key={index}>
-                              <a href={item.url} target="_blank" rel="noreferrer" className="text-primary underline">
-                                {item.label || item.url}
-                              </a>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    ) : null}
-                    {update.justification ? (
-                      <div className="rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800">
-                        Justificativa: {update.justification}
-                      </div>
-                    ) : null}
-                    {typeof update.criticality === "number" ? (
-                      <p className="text-xs text-muted-foreground">Criticidade observada: {update.criticality}/5</p>
-                    ) : null}
-                  </li>
-                );
-              })}
-            </ul>
-          )}
+          <div className="flex items-center gap-2">
+            <Link
+              href={`/servicos/${encodeURIComponent(serviceId)}/atualizacoes`}
+              className="btn btn-ghost btn-xs sm:btn-sm"
+            >
+              Ver todas
+            </Link>
+            <Link
+              href={`/servicos/${encodeURIComponent(serviceId)}/editar`}
+              className="btn btn-outline btn-xs gap-2 sm:btn-sm"
+            >
+              <Pencil className="h-4 w-4" />
+              Editar lançamentos
+            </Link>
+          </div>
         </div>
+        {displayedUpdates.length === 0 ? (
+          <p className="mt-2 text-sm text-muted-foreground">Nenhuma atualização registrada.</p>
+        ) : (
+          <ul className="mt-4 space-y-3 text-sm">
+            {displayedUpdates.slice(0, 6).map((update) => {
+              const summary = formatUpdateSummary(update);
+              const hours = computeTimeWindowHours(update);
+              return (
+                <li key={update.id} className="space-y-3 rounded-xl border border-border/60 bg-background/60 p-4 shadow-sm">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="text-base font-semibold text-foreground">{summary.title}</span>
+                    <span className="rounded-full bg-primary/10 px-3 py-1 text-sm font-semibold text-primary">
+                      {summary.percentLabel}
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+                    <span>Atualizado em {formatDateTime(resolveUpdateTimestamp(update))}</span>
+                    {update.subactivity?.label ? (
+                      <span>
+                        Subatividade: <span className="font-medium text-foreground">{update.subactivity.label}</span>
+                      </span>
+                    ) : null}
+                  </div>
+                  {summary.description ? <p className="text-sm text-foreground">{summary.description}</p> : null}
+                  {summary.resources ? (
+                    <p className="text-xs text-muted-foreground">Recursos: {summary.resources}</p>
+                  ) : null}
+                  {summary.hoursLabel ? (
+                    <p className="text-xs text-muted-foreground">{summary.hoursLabel}</p>
+                  ) : null}
+                  {hours === null && update.timeWindow?.start && update.timeWindow?.end ? (
+                    <p className="text-xs text-muted-foreground">
+                      Período: {formatDateTime(update.timeWindow.start)} → {formatDateTime(update.timeWindow.end)}
+                    </p>
+                  ) : null}
+                  {update.impediments && update.impediments.length > 0 ? (
+                    <div className="text-xs text-muted-foreground">
+                      <span className="font-semibold text-foreground">Impedimentos:</span>
+                      <ul className="mt-1 space-y-1">
+                        {update.impediments.map((item, index) => (
+                          <li key={index}>
+                            {item.type}
+                            {item.durationHours !== null && item.durationHours !== undefined
+                              ? ` • ${item.durationHours}h`
+                              : ""}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
+                  {update.workforce && update.workforce.length > 0 ? (
+                    <div className="text-xs text-muted-foreground">
+                      <span className="font-semibold text-foreground">Mão de obra:</span>
+                      <ul className="mt-1 space-y-1">
+                        {update.workforce.map((item, index) => (
+                          <li key={index}>
+                            {item.role}
+                            {item.quantity
+                              ? ` • ${item.quantity} ${item.quantity === 1 ? "profissional" : "profissionais"}`
+                              : ""}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
+                  {update.shiftConditions && update.shiftConditions.length > 0 ? (
+                    <div className="text-xs text-muted-foreground">
+                      <span className="font-semibold text-foreground">Condições por turno:</span>
+                      <ul className="mt-1 space-y-1">
+                        {update.shiftConditions.map((item, index) => (
+                          <li key={index}>
+                            {item.shift}
+                            {item.weather ? ` • ${item.weather}` : ""}
+                            {item.condition ? ` • ${item.condition}` : ""}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
+                  {update.evidences && update.evidences.length > 0 ? (
+                    <div className="text-xs text-muted-foreground">
+                      <span className="font-semibold text-foreground">Evidências:</span>
+                      <ul className="mt-1 space-y-1">
+                        {update.evidences.map((item, index) => (
+                          <li key={index}>
+                            <a href={item.url} target="_blank" rel="noreferrer" className="text-primary underline">
+                              {item.label || item.url}
+                            </a>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
+                  {update.justification ? (
+                    <div className="rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800">
+                      Justificativa: {update.justification}
+                    </div>
+                  ) : null}
+                  {typeof update.criticality === "number" ? (
+                    <p className="text-xs text-muted-foreground">Criticidade observada: {update.criticality}/5</p>
+                  ) : null}
+                </li>
+              );
+            })}
+          </ul>
+        )}
       </div>
     </div>
   );
