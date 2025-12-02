@@ -1,6 +1,5 @@
 import {
   LabelList,
-  Legend,
   Line,
   LineChart,
   ResponsiveContainer,
@@ -55,53 +54,68 @@ function CustomTooltip({ active, payload, label }: TooltipPayload) {
 }
 
 export default function CurveSChart({ data }: { data: { date: string; planned: number; actual: number }[] }) {
+  const legendItems = [
+    { label: "Planejado", color: PLANNED_COLOR },
+    { label: "Realizado", color: REALIZED_COLOR },
+  ];
+
   return (
-    <div className="w-full h-[420px]">
-      <ResponsiveContainer>
-        <LineChart data={data} margin={{ top: 24, right: 24, left: 8, bottom: 8 }}>
-          <CartesianGrid stroke="transparent" vertical={false} horizontal={false} />
-          <XAxis dataKey="date" tick={{ fontSize: 10 }} />
-          <YAxis domain={[0, 100]} tickFormatter={(v) => `${v}%`} hide />
-          <Tooltip content={<CustomTooltip />} />
-          <Legend wrapperStyle={{ fontSize: 12 }} />
-          <Line
-            type="monotone"
-            dataKey="planned"
-            stroke={PLANNED_COLOR}
-            strokeWidth={LINE_STROKE_WIDTH}
-            dot={{ r: DOT_RADIUS, stroke: PLANNED_COLOR, fill: PLANNED_COLOR }}
-            activeDot={{ r: ACTIVE_DOT_RADIUS, stroke: PLANNED_COLOR, fill: PLANNED_COLOR }}
-            name="Planejado"
-            strokeLinecap="round"
-            isAnimationActive={false}
-          >
-            <LabelList
+    <div className="space-y-4">
+      <div className="w-full h-[520px] md:h-[600px]">
+        <ResponsiveContainer width="100%" height="100%">
+          <LineChart data={data} margin={{ top: 24, right: 24, left: 8, bottom: 32 }}>
+            <CartesianGrid stroke="transparent" vertical={false} horizontal={false} />
+            <XAxis dataKey="date" tick={{ fontSize: 10 }} />
+            <YAxis domain={[0, 100]} tickFormatter={(v) => `${v}%`} hide />
+            <Tooltip content={<CustomTooltip />} />
+            <Line
+              type="monotone"
               dataKey="planned"
-              position="top"
-              formatter={(v: number) => `${Math.round(v)}%`}
-              className="text-[10px] fill-muted-foreground"
-            />
-          </Line>
-          <Line
-            type="monotone"
-            dataKey="actual"
-            stroke={REALIZED_COLOR}
-            strokeWidth={LINE_STROKE_WIDTH}
-            dot={{ r: DOT_RADIUS, stroke: REALIZED_COLOR, fill: REALIZED_COLOR }}
-            activeDot={{ r: ACTIVE_DOT_RADIUS, stroke: REALIZED_COLOR, fill: REALIZED_COLOR }}
-            name="Realizado"
-            strokeLinecap="round"
-            isAnimationActive={false}
-          >
-            <LabelList
+              stroke={PLANNED_COLOR}
+              strokeWidth={LINE_STROKE_WIDTH}
+              dot={{ r: DOT_RADIUS, stroke: PLANNED_COLOR, fill: PLANNED_COLOR }}
+              activeDot={{ r: ACTIVE_DOT_RADIUS, stroke: PLANNED_COLOR, fill: PLANNED_COLOR }}
+              name="Planejado"
+              strokeLinecap="round"
+              isAnimationActive={false}
+            >
+              <LabelList
+                dataKey="planned"
+                position="top"
+                formatter={(v: number) => `${Math.round(v)}%`}
+                className="text-[10px] fill-muted-foreground"
+              />
+            </Line>
+            <Line
+              type="monotone"
               dataKey="actual"
-              position="top"
-              formatter={(v: number) => `${Math.round(v)}%`}
-              className="text-[10px] fill-muted-foreground"
-            />
-          </Line>
-        </LineChart>
-      </ResponsiveContainer>
+              stroke={REALIZED_COLOR}
+              strokeWidth={LINE_STROKE_WIDTH}
+              dot={{ r: DOT_RADIUS, stroke: REALIZED_COLOR, fill: REALIZED_COLOR }}
+              activeDot={{ r: ACTIVE_DOT_RADIUS, stroke: REALIZED_COLOR, fill: REALIZED_COLOR }}
+              name="Realizado"
+              strokeLinecap="round"
+              isAnimationActive={false}
+            >
+              <LabelList
+                dataKey="actual"
+                position="top"
+                formatter={(v: number) => `${Math.round(v)}%`}
+                className="text-[10px] fill-muted-foreground"
+              />
+            </Line>
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
+        {legendItems.map((item) => (
+          <div key={item.label} className="flex items-center gap-2">
+            <span className="h-2 w-4 rounded-sm" style={{ background: item.color }} />
+            <span className="font-medium text-foreground">{item.label}</span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

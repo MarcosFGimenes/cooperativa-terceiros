@@ -5,7 +5,7 @@ import dynamic from "next/dynamic";
 const CurveSChart = dynamic(() => import("@/components/CurveSChart"), {
   ssr: false,
   loading: () => (
-    <div className="flex h-[420px] w-full items-center justify-center rounded-lg border border-dashed border-border/60 bg-muted/20 text-sm text-muted-foreground">
+    <div className="flex h-[520px] w-full items-center justify-center rounded-lg border border-dashed border-border/60 bg-muted/20 text-sm text-muted-foreground md:h-[600px]">
       Carregando gráfico...
     </div>
   ),
@@ -66,7 +66,7 @@ export default function CurveSPageClient({ serviceId, serviceName, periodLabel, 
       {hasData ? (
         <CurveSChart data={combined} />
       ) : (
-        <div className="flex h-[420px] w-full items-center justify-center rounded-lg border border-dashed border-border/60 bg-muted/20 text-sm text-muted-foreground">
+        <div className="flex h-[520px] w-full items-center justify-center rounded-lg border border-dashed border-border/60 bg-muted/20 text-sm text-muted-foreground md:h-[600px]">
           Sem dados suficientes para gerar o gráfico.
         </div>
       )}
