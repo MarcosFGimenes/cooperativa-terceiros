@@ -866,7 +866,7 @@ export default function ServiceDetailsClient({
                   </div>
                   <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
                     <span>Status: {formatChecklistStatus(item.status)}</span>
-                    <span className="text-sm font-semibold text-primary">{Math.round(item.progress)}%</span>
+                    <span className="text-sm font-semibold text-primary">{Math.round(canonicalProgress)}%</span>
                   </div>
                 </li>
               ))}
