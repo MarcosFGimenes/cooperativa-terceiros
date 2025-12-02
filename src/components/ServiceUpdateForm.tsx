@@ -34,6 +34,7 @@ type ServiceUpdateFormProps = {
   lastProgress: number;
   checklist: ChecklistOption[];
   onSubmit: (payload: ServiceUpdateFormPayload) => Promise<void> | void;
+  realizedPercent?: number;
 };
 
 const RESOURCE_OPTIONS = [
@@ -250,7 +251,7 @@ const formSchema = z
 
 type FormValues = z.infer<typeof formSchema>;
 
-export default function ServiceUpdateForm({ serviceId, lastProgress, checklist, onSubmit }: ServiceUpdateFormProps) {
+export default function ServiceUpdateForm({ serviceId, lastProgress, checklist, onSubmit, realizedPercent }: ServiceUpdateFormProps) {
   const router = useRouter();
   const handleBack = useCallback(() => {
     if (typeof window !== "undefined" && window.history.length > 1) {
@@ -437,9 +438,11 @@ export default function ServiceUpdateForm({ serviceId, lastProgress, checklist, 
                 typeof subactivityValues?.[index]?.progress === "number"
                   ? subactivityValues[index]?.progress
                   : undefined;
-              const displayProgress = typeof computedPercent === "number" && Number.isFinite(computedPercent) 
-                ? Math.round(computedPercent) 
-                : Math.round(item.progress ?? 0);
+              const displayProgress = typeof realizedPercent === "number" && Number.isFinite(realizedPercent)
+                ? Math.round(realizedPercent)
+                : (typeof computedPercent === "number" && Number.isFinite(computedPercent) 
+                  ? Math.round(computedPercent) 
+                  : Math.round(item.progress ?? 0));
               return (
                 <li key={item.id} className="space-y-2 rounded-lg border p-3">
                   <div className="flex flex-col gap-1">
