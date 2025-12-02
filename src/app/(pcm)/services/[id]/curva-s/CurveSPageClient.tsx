@@ -1,16 +1,7 @@
 "use client";
 
-import dynamic from "next/dynamic";
-
-const CurveSChart = dynamic(() => import("@/components/CurveSChart"), {
-  ssr: false,
-  loading: () => (
-    <div className="flex h-[520px] w-full items-center justify-center rounded-lg border border-dashed border-border/60 bg-muted/20 text-sm text-muted-foreground md:h-[600px]">
-      Carregando gráfico...
-    </div>
-  ),
-});
 import { toCsv } from "@/lib/curvaSShared";
+import SCurveDeferred from "@/components/SCurveDeferred";
 
 type CombinedPoint = { date: string; planned: number; actual: number };
 
@@ -23,6 +14,19 @@ type CurveSPageClientProps = {
 
 export default function CurveSPageClient({ serviceId, serviceName, periodLabel, combined }: CurveSPageClientProps) {
   const hasData = combined.length > 0;
+
+  const planned = combined.map((point) => ({ date: point.date, percent: point.planned }));
+  const realizedSeries = combined.map((point) => ({ date: point.date, percent: point.actual }));
+  const realizedPercent = combined.length ? combined[combined.length - 1].actual : 0;
+  const plannedToDate = combined.length ? combined[combined.length - 1].planned : 0;
+  const delta = realizedPercent - plannedToDate;
+
+  const deltaToneClass =
+    delta < -2
+      ? "text-amber-600 dark:text-amber-400"
+      : delta > 2
+        ? "text-emerald-600 dark:text-emerald-400"
+        : "text-foreground";
 
   const downloadCsv = () => {
     if (!hasData) return;
@@ -64,7 +68,56 @@ export default function CurveSPageClient({ serviceId, serviceName, periodLabel, 
       </div>
 
       {hasData ? (
-        <CurveSChart data={combined} />
+        <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-start">
+          <section className="rounded-2xl border bg-card/80 p-5 shadow-sm scurve-card">
+            <SCurveDeferred
+              planned={planned}
+              realizedSeries={realizedSeries}
+              realizedPercent={realizedPercent}
+              title="Curva S do serviço"
+              description="Planejado versus realizado considerando o serviço."
+              headerAside={<span className="font-medium text-foreground">Realizado: {Math.round(realizedPercent)}%</span>}
+              chartHeight={420}
+              metrics={{
+                plannedToDate,
+                realized: realizedPercent,
+                plannedTotal: 100,
+                delta,
+              }}
+              showMetrics={false}
+              fallback={
+                <div className="flex h-[420px] w-full items-center justify-center rounded-xl border border-dashed border-border/70 bg-muted/40">
+                  <span className="text-sm text-muted-foreground">Carregando gráfico...</span>
+                </div>
+              }
+            />
+          </section>
+
+          <section className="w-full rounded-2xl border bg-card/80 px-4 py-3 shadow-sm xl:max-w-[260px]">
+            <h2 className="mb-3 text-lg font-semibold">Indicadores da curva</h2>
+            <dl className="space-y-3 text-sm">
+              <div className="rounded-xl border bg-muted/30 px-3 py-2.5">
+                <dt className="text-muted-foreground">Planejado (total)</dt>
+                <dd className="text-lg font-semibold text-foreground">100%</dd>
+              </div>
+              <div className="rounded-xl border bg-muted/30 px-3 py-2.5">
+                <dt className="text-muted-foreground">Planejado até hoje</dt>
+                <dd className="text-lg font-semibold text-foreground">{Math.round(plannedToDate)}%</dd>
+              </div>
+              <div className="rounded-xl border bg-muted/30 px-3 py-2.5">
+                <dt className="text-muted-foreground">Realizado</dt>
+                <dd className="text-lg font-semibold text-emerald-600 dark:text-emerald-400">{Math.round(realizedPercent)}%</dd>
+              </div>
+              <div className="rounded-xl border bg-muted/30 px-3 py-2.5">
+                <dt className="text-muted-foreground">Diferença</dt>
+                <dd className={`text-lg font-semibold ${deltaToneClass}`}>
+                  {delta > 0 ? "+" : ""}
+                  {Math.round(delta)}%
+                </dd>
+              </div>
+            </dl>
+          </section>
+        </div>
       ) : (
         <div className="flex h-[520px] w-full items-center justify-center rounded-lg border border-dashed border-border/60 bg-muted/20 text-sm text-muted-foreground md:h-[600px]">
           Sem dados suficientes para gerar o gráfico.
