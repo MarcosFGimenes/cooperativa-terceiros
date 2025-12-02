@@ -85,9 +85,9 @@ export default function CurvaS({ planned, actual }: CurvaSProps) {
     );
   }
 
-  const width = 720;
-  const height = 360;
-  const padding = { top: 24, right: 32, bottom: 56, left: 64 };
+  const width = 1200;
+  const height = 600;
+  const padding = { top: 24, right: 32, bottom: 56, left: 40 };
   const plotWidth = width - padding.left - padding.right;
   const plotHeight = height - padding.top - padding.bottom;
 
@@ -148,6 +148,34 @@ export default function CurvaS({ planned, actual }: CurvaSProps) {
           stroke="#111827"
           strokeWidth={1.5}
         />
+
+        {/* Linhas de grade horizontais e labels de porcentagem */}
+        {[0, 25, 50, 75, 100].map((percent) => {
+          const y = yForPercent(percent);
+          return (
+            <g key={percent}>
+              <line
+                x1={padding.left}
+                y1={y}
+                x2={padding.left + plotWidth}
+                y2={y}
+                stroke="#e5e7eb"
+                strokeWidth={1}
+                strokeDasharray="2,2"
+              />
+              <text
+                x={padding.left - 8}
+                y={y + 4}
+                textAnchor="end"
+                fontSize={12}
+                fill="#4b5563"
+                dominantBaseline="middle"
+              >
+                {percent === 0 ? "0" : `${percent}%`}
+              </text>
+            </g>
+          );
+        })}
 
         {showXAxisLabels.map((date) => {
           const x = xPositions.get(date);
