@@ -866,7 +866,8 @@ async function renderPackageDetailPage(
                     <th className="border border-border p-3">% Atual ({referenceLabel})</th>
                     <th className="border border-border p-3">% Deveria Estar ({referenceLabel})</th>
                     <th className="border border-border p-3">Total de Horas</th>
-                    <th className="border border-border p-3">Horas Faltando para Terminar</th>
+                    <th className="border border-border p-3">Horas que Deveriam Estar</th>
+                    <th className="border border-border p-3">Horas atual</th>
                     <th className="border border-border p-3">Diferença</th>
                   </tr>
                 </thead>
@@ -884,7 +885,10 @@ async function renderPackageDetailPage(
                         {formatHoursValue(metric.totalHours)}
                       </td>
                       <td className="border border-border p-3 font-semibold">
-                        {formatHoursValue(metric.horasFaltando)}
+                        {formatHoursValue(metric.horasQueDeveriamEstar)}
+                      </td>
+                      <td className="border border-border p-3 font-semibold">
+                        {formatHoursValue(metric.horasAtual)}
                       </td>
                       <td className="border border-border p-3 font-semibold">
                         {formatHoursValue(metric.diferenca)}
@@ -912,7 +916,8 @@ async function renderPackageDetailPage(
                     <th className="border border-border p-3">% Atual ({referenceLabel})</th>
                     <th className="border border-border p-3">% Deveria Estar ({referenceLabel})</th>
                     <th className="border border-border p-3">Total de Horas</th>
-                    <th className="border border-border p-3">Horas Faltando para Terminar</th>
+                    <th className="border border-border p-3">Horas que Deveriam Estar</th>
+                    <th className="border border-border p-3">Horas atual</th>
                     <th className="border border-border p-3">Diferença</th>
                   </tr>
                 </thead>
@@ -930,7 +935,10 @@ async function renderPackageDetailPage(
                         {formatHoursValue(metric.totalHours)}
                       </td>
                       <td className="border border-border p-3 font-semibold">
-                        {formatHoursValue(metric.horasFaltando)}
+                        {formatHoursValue(metric.horasQueDeveriamEstar)}
+                      </td>
+                      <td className="border border-border p-3 font-semibold">
+                        {formatHoursValue(metric.horasAtual)}
                       </td>
                       <td className="border border-border p-3 font-semibold">
                         {formatHoursValue(metric.diferenca)}
