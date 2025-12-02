@@ -273,18 +273,30 @@ input:-webkit-autofill:focus {
     max-width: 100% !important;
     width: 100% !important;
     padding: 0 !important;
-    margin: 0 !important;
+    margin: 0 auto !important;
+    box-sizing: border-box !important;
   }
 
   .package-print-layout .print-card {
-    padding: 12px !important;
+    padding: 12px 8px !important;
     width: 100% !important;
+    box-sizing: border-box !important;
+    margin: 0 !important;
   }
 
   .package-print-layout .summary-grid {
     margin-top: 10px !important;
-    gap: 10px !important;
+    gap: 8px !important;
     width: 100% !important;
+    display: grid !important;
+    grid-template-columns: repeat(2, 1fr) !important;
+    box-sizing: border-box !important;
+  }
+
+  .package-print-layout .summary-grid > * {
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
   }
 
   .package-print-layout .scurve-card {
@@ -386,10 +398,11 @@ input:-webkit-autofill:focus {
 
   .print-full-width {
     width: 100% !important;
-    max-width: none !important;
+    max-width: 100% !important;
     margin: 0 !important;
     padding-left: 0 !important;
     padding-right: 0 !important;
+    box-sizing: border-box !important;
   }
 
   .print-no-background {
@@ -403,16 +416,32 @@ input:-webkit-autofill:focus {
   .print-plain-table {
     width: 100% !important;
     border-collapse: collapse !important;
-    table-layout: fixed !important;
+    table-layout: auto !important;
     page-break-inside: avoid !important;
+    margin: 0 !important;
   }
 
   .print-plain-table th,
   .print-plain-table td {
     border: 1px solid #000000 !important;
-    padding: 10px !important;
-    text-align: left !important;
+    padding: 8px 10px !important;
     page-break-inside: avoid !important;
+    vertical-align: top !important;
+  }
+
+  .print-plain-table th {
+    text-align: center !important;
+    font-weight: 700 !important;
+    background: #f5f5f5 !important;
+  }
+
+  .print-plain-table td {
+    text-align: center !important;
+  }
+
+  .print-plain-table td:first-child,
+  .print-plain-table th:first-child {
+    text-align: left !important;
   }
 
   .print-plain-table thead {
@@ -421,6 +450,25 @@ input:-webkit-autofill:focus {
 
   .print-plain-table tr {
     page-break-inside: avoid !important;
+  }
+
+  .summary-table-wrapper {
+    overflow-x: visible !important;
+    border: none !important;
+    background: white !important;
+    border-radius: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-sizing: border-box !important;
+  }
+
+  .summary-table-wrapper table {
+    width: 100% !important;
+    max-width: 100% !important;
+    table-layout: auto !important;
+    margin: 0 !important;
   }
 
   .print-keep-with-next,
@@ -451,12 +499,23 @@ input:-webkit-autofill:focus {
   }
 
   .print-summary-blocks,
-  .summary-blocks,
+  .summary-blocks {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 8px 0 !important;
+    box-sizing: border-box !important;
+  }
+
   .summary-block-item {
     page-break-inside: avoid !important;
     break-inside: avoid !important;
     page-break-before: auto !important;
     page-break-after: auto !important;
+    width: 100% !important;
+    margin: 0 0 16px 0 !important;
+    padding: 0 !important;
+    box-sizing: border-box !important;
   }
 
   .summary-block-item + .summary-block-item {
@@ -470,6 +529,11 @@ input:-webkit-autofill:focus {
     page-break-after: auto !important;
     page-break-inside: auto !important;
     break-inside: auto !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
   }
 
   .package-print-layout h1,
@@ -478,6 +542,31 @@ input:-webkit-autofill:focus {
   .package-print-layout table {
     page-break-inside: avoid !important;
     break-inside: avoid !important;
+  }
+
+  /* Garantir que elementos flex e grid não causem problemas de alinhamento */
+  .package-print-layout .flex,
+  .package-print-layout .grid {
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  /* Ajustar espaçamento geral */
+  .package-print-layout > * {
+    box-sizing: border-box !important;
+  }
+
+  /* Melhorar alinhamento de texto */
+  .package-print-layout {
+    text-align: left !important;
+  }
+
+  /* Garantir que não haja overflow horizontal */
+  .package-print-layout,
+  .package-print-layout * {
+    max-width: 100% !important;
+    overflow-wrap: break-word !important;
   }
 }
 
