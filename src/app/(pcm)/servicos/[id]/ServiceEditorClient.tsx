@@ -461,6 +461,21 @@ export default function ServiceEditorClient({ serviceId }: ServiceEditorClientPr
 
       await updateDoc(ref, payload);
       
+      // Atualizar o realPercentSnapshot no documento do serviço principal diretamente
+      // para garantir que o valor editado seja usado como porcentagem global
+      const servicePayload: Record<string, unknown> = {
+        realPercentSnapshot: clampedPercent,
+        manualPercent: clampedPercent,
+        realPercent: clampedPercent,
+        andamento: clampedPercent,
+        progress: clampedPercent,
+        updatedAt: serverTimestamp(),
+      };
+      await updateDoc(baseRef, servicePayload);
+      
+      // Atualizar o estado local para refletir a mudança imediatamente
+      setAndamento(clampedPercent);
+      
       // Recalcular e sincronizar progresso imediatamente após alterar lançamento
       await recomputeProgressAfterEdit();
       
