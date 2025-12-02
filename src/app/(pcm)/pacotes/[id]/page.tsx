@@ -711,8 +711,8 @@ async function renderPackageDetailPage(
   return (
     <div className="container mx-auto max-w-7xl space-y-6 px-6 py-6 package-print-layout print:m-0 print:w-full print:max-w-none print:space-y-3 print:px-0 print:py-0">
       <div className="print-summary-and-curve space-y-6 print:space-y-3">
-        <section className="package-header rounded-2xl border bg-card/80 p-5 shadow-sm print-card print:w-full print:rounded-none print:border-0 print:bg-white print:shadow-none print:px-4 print:py-4">
-          <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between print:block print:gap-2">
+        <section className="package-header rounded-2xl border bg-card/80 p-5 shadow-sm print-card print:w-full print:rounded-none print:border-0 print:bg-white print:shadow-none print:px-2 print:py-3">
+          <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between print:block print:gap-1.5">
             <div className="space-y-3">
               <div className="flex flex-wrap items-center gap-2">
                 <span className={`rounded-full border px-2 py-0.5 text-xs font-semibold ${statusTone}`}>
@@ -741,8 +741,8 @@ async function renderPackageDetailPage(
             </div>
           </div>
 
-          <div className="mt-4 rounded-2xl border border-dashed border-border/70 bg-muted/20 p-4 print:mt-2 print:w-full print:rounded-none print:border-0 print:bg-white print:p-2">
-            <div className="flex flex-wrap items-start justify-between gap-4 print:block print:w-full print:gap-2">
+          <div className="mt-4 rounded-2xl border border-dashed border-border/70 bg-muted/20 p-4 print:mt-2 print:w-full print:rounded-none print:border-0 print:bg-white print:p-1.5">
+            <div className="flex flex-wrap items-start justify-between gap-4 print:block print:w-full print:gap-1.5">
               <div className="space-y-1">
                 <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                   Data de referência
@@ -759,8 +759,8 @@ async function renderPackageDetailPage(
             </div>
           </div>
 
-          <dl className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4 summary-grid print:mt-3 print:w-full print:grid-cols-2 print:gap-3">
-            <div className="space-y-1 rounded-xl border border-dashed border-border/70 bg-muted/20 p-4 print:border-0 print:bg-white print:rounded-none print:p-2">
+          <dl className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4 summary-grid print:mt-2 print:w-full print:grid-cols-2 print:gap-2">
+            <div className="space-y-1 rounded-xl border border-dashed border-border/70 bg-muted/20 p-4 print:border-0 print:bg-white print:rounded-none print:p-1.5">
               <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Início planejado</dt>
               <dd className="text-base font-semibold text-foreground">{plannedStartLabel}</dd>
             </div>
@@ -792,7 +792,7 @@ async function renderPackageDetailPage(
 
         <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-start print:block print:gap-3">
           <section
-            className="rounded-2xl border bg-card/80 p-5 shadow-sm scurve-card print-card print:w-full print:rounded-none print:border-0 print:bg-white print:shadow-none print:p-4"
+            className="rounded-2xl border bg-card/80 p-5 shadow-sm scurve-card print-card print:w-full print:rounded-none print:border-0 print:bg-white print:shadow-none print:p-2"
           >
             <SCurveDeferred
               planned={plannedCurvePoints}
@@ -854,43 +854,43 @@ async function renderPackageDetailPage(
         </div>
       </div>
 
-      <section className="summary-blocks print-summary-blocks mt-8 rounded-2xl border bg-card/80 p-5 shadow-sm space-y-8 print:mt-4 print:space-y-6 print-no-border print:w-full print:rounded-none print:border-0 print:bg-white print:shadow-none print:p-4 print-no-radius print-full-width">
-        <div className="summary-block-item space-y-3 print-keep-with-next">
-          <h2 className="text-lg font-semibold">Resumo por Subpacote</h2>
+      <section className="summary-blocks print-summary-blocks mt-8 rounded-2xl border bg-card/80 p-5 shadow-sm space-y-8 print:mt-4 print:space-y-4 print-no-border print:w-full print:rounded-none print:border-0 print:bg-white print:shadow-none print:p-2 print-no-radius print-full-width">
+        <div className="summary-block-item space-y-3 print-keep-with-next print:space-y-2">
+          <h2 className="text-lg font-semibold print:text-base print:mb-1">Resumo por Subpacote</h2>
           {subpackageMetrics.length ? (
             <div className="summary-table-wrapper overflow-x-auto rounded-xl border bg-card print:overflow-visible print:border-0 print:bg-white print:rounded-none print-full-width">
-              <table className="summary-table mt-2 min-w-full border-collapse text-center print-plain-table">
+              <table className="summary-table mt-2 min-w-full border-collapse text-center print-plain-table print:mt-0">
                 <thead className="bg-muted/80 text-foreground print:bg-white">
                   <tr>
-                    <th className="border border-border p-3 text-left">Subpacote</th>
-                    <th className="border border-border p-3">% Atual ({referenceLabel})</th>
-                    <th className="border border-border p-3">% Deveria Estar ({referenceLabel})</th>
-                    <th className="border border-border p-3">Total de Horas</th>
-                    <th className="border border-border p-3">Horas que Deveriam Estar</th>
-                    <th className="border border-border p-3">Horas atual</th>
-                    <th className="border border-border p-3">Diferença</th>
+                    <th className="border border-border p-3 print:p-2 text-left">Subpacote</th>
+                    <th className="border border-border p-3 print:p-2">% Atual ({referenceLabel})</th>
+                    <th className="border border-border p-3 print:p-2">% Deveria Estar ({referenceLabel})</th>
+                    <th className="border border-border p-3 print:p-2">Total de Horas</th>
+                    <th className="border border-border p-3 print:p-2">Horas que Deveriam Estar</th>
+                    <th className="border border-border p-3 print:p-2">Horas atual</th>
+                    <th className="border border-border p-3 print:p-2">Diferença</th>
                   </tr>
                 </thead>
                 <tbody className="text-foreground">
                   {subpackageMetrics.map((metric) => (
                     <tr key={metric.nome} className="odd:bg-muted/40 print:bg-white">
-                      <td className="border border-border p-3 text-left font-medium">{metric.nome}</td>
-                      <td className="border border-border p-3 font-semibold">
+                      <td className="border border-border p-3 print:p-2 text-left font-medium">{metric.nome}</td>
+                      <td className="border border-border p-3 print:p-2 font-semibold">
                         {formatPercentValue(metric.realizedPercent)}%
                       </td>
-                      <td className="border border-border p-3 font-semibold">
+                      <td className="border border-border p-3 print:p-2 font-semibold">
                         {formatPercentValue(metric.plannedPercent)}%
                       </td>
-                      <td className="border border-border p-3 font-semibold">
+                      <td className="border border-border p-3 print:p-2 font-semibold">
                         {formatHoursValue(metric.totalHours)}
                       </td>
-                      <td className="border border-border p-3 font-semibold">
+                      <td className="border border-border p-3 print:p-2 font-semibold">
                         {formatHoursValue(metric.horasQueDeveriamEstar)}
                       </td>
-                      <td className="border border-border p-3 font-semibold">
+                      <td className="border border-border p-3 print:p-2 font-semibold">
                         {formatHoursValue(metric.horasAtual)}
                       </td>
-                      <td className="border border-border p-3 font-semibold">
+                      <td className="border border-border p-3 print:p-2 font-semibold">
                         {formatHoursValue(metric.diferenca)}
                       </td>
                     </tr>
@@ -905,42 +905,42 @@ async function renderPackageDetailPage(
           )}
         </div>
 
-        <div className="summary-block-item space-y-3 print-keep-with-next">
-          <h2 className="text-lg font-semibold">Resumo por Setor</h2>
+        <div className="summary-block-item space-y-3 print-keep-with-next print:space-y-2">
+          <h2 className="text-lg font-semibold print:text-base print:mb-1">Resumo por Setor</h2>
           {sectorMetrics.length ? (
             <div className="summary-table-wrapper overflow-x-auto rounded-xl border bg-card print:overflow-visible print:border-0 print:bg-white print:rounded-none print-full-width">
-              <table className="summary-table mt-2 min-w-full border-collapse text-center print-plain-table">
+              <table className="summary-table mt-2 min-w-full border-collapse text-center print-plain-table print:mt-0">
                 <thead className="bg-muted/80 text-foreground print:bg-white">
                   <tr>
-                    <th className="border border-border p-3 text-left">Setor</th>
-                    <th className="border border-border p-3">% Atual ({referenceLabel})</th>
-                    <th className="border border-border p-3">% Deveria Estar ({referenceLabel})</th>
-                    <th className="border border-border p-3">Total de Horas</th>
-                    <th className="border border-border p-3">Horas que Deveriam Estar</th>
-                    <th className="border border-border p-3">Horas atual</th>
-                    <th className="border border-border p-3">Diferença</th>
+                    <th className="border border-border p-3 print:p-2 text-left">Setor</th>
+                    <th className="border border-border p-3 print:p-2">% Atual ({referenceLabel})</th>
+                    <th className="border border-border p-3 print:p-2">% Deveria Estar ({referenceLabel})</th>
+                    <th className="border border-border p-3 print:p-2">Total de Horas</th>
+                    <th className="border border-border p-3 print:p-2">Horas que Deveriam Estar</th>
+                    <th className="border border-border p-3 print:p-2">Horas atual</th>
+                    <th className="border border-border p-3 print:p-2">Diferença</th>
                   </tr>
                 </thead>
                 <tbody className="text-foreground">
                   {sectorMetrics.map((metric) => (
                     <tr key={metric.setor} className="odd:bg-muted/40 print:bg-white">
-                      <td className="border border-border p-3 text-left font-medium">{metric.setor}</td>
-                      <td className="border border-border p-3 font-semibold">
+                      <td className="border border-border p-3 print:p-2 text-left font-medium">{metric.setor}</td>
+                      <td className="border border-border p-3 print:p-2 font-semibold">
                         {formatPercentValue(metric.realizedPercent)}%
                       </td>
-                      <td className="border border-border p-3 font-semibold">
+                      <td className="border border-border p-3 print:p-2 font-semibold">
                         {formatPercentValue(metric.plannedPercent)}%
                       </td>
-                      <td className="border border-border p-3 font-semibold">
+                      <td className="border border-border p-3 print:p-2 font-semibold">
                         {formatHoursValue(metric.totalHours)}
                       </td>
-                      <td className="border border-border p-3 font-semibold">
+                      <td className="border border-border p-3 print:p-2 font-semibold">
                         {formatHoursValue(metric.horasQueDeveriamEstar)}
                       </td>
-                      <td className="border border-border p-3 font-semibold">
+                      <td className="border border-border p-3 print:p-2 font-semibold">
                         {formatHoursValue(metric.horasAtual)}
                       </td>
-                      <td className="border border-border p-3 font-semibold">
+                      <td className="border border-border p-3 print:p-2 font-semibold">
                         {formatHoursValue(metric.diferenca)}
                       </td>
                     </tr>
