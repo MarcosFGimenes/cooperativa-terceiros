@@ -838,6 +838,8 @@ export default function ServiceDetailsClient({
               checklist={checklistOptions}
               onSubmit={handleUpdateSubmit}
               realizedPercent={canonicalProgress}
+              companyName={service.company}
+              companyCnpj={service.cnpj}
             />
           ) : (
             <div className="rounded-md border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
