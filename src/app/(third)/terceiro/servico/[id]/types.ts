@@ -11,6 +11,7 @@ export type ThirdService = {
   plannedEnd?: number | null;
   totalHours?: number | null;
   company?: string | null;
+  cnpj?: string | null;
   andamento?: number | null;
   realPercent?: number | null;
   manualPercent?: number | null;

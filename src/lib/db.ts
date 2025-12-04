@@ -26,6 +26,7 @@ export type Service = {
   horasPrevistas?: number;
   status?: "Aberto" | "Pendente" | "Concluído";
   empresa?: string;
+  cnpj?: string;
   pacoteId?: string;
   andamento?: number; // 0-100
   criadoEm?: string; // ISO
@@ -78,6 +79,7 @@ function mapServiceSnapshot(snapshot: QueryDocumentSnapshot<DocumentData>): Serv
     horasPrevistas: toOptionalNumber(data.horasPrevistas),
     status: toStatus(data.status),
     empresa: toOptionalString(data.empresa ?? data.empresaId ?? data.company),
+    cnpj: toOptionalString(data.cnpj),
     pacoteId: toOptionalString(data.pacoteId ?? data.packageId),
     andamento: toOptionalNumber(data.andamento ?? data.progress ?? data.realPercent),
     criadoEm: toOptionalString(data.criadoEm ?? data.createdAt),
@@ -99,6 +101,7 @@ function mapServiceDocument(snapshot: DocumentSnapshot<DocumentData>): Service |
     horasPrevistas: toOptionalNumber(data.horasPrevistas),
     status: toStatus(data.status),
     empresa: toOptionalString(data.empresa ?? data.empresaId ?? data.company),
+    cnpj: toOptionalString(data.cnpj),
     pacoteId: toOptionalString(data.pacoteId ?? data.packageId),
     andamento: toOptionalNumber(data.andamento ?? data.progress ?? data.realPercent),
     criadoEm: toOptionalString(data.criadoEm ?? data.createdAt),

@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 import { Field, FormRow } from "@/components/ui/form-controls";
+import { maskCnpjInput } from "@/lib/cnpj";
 import { useFirebaseAuthSession } from "@/lib/useFirebaseAuthSession";
 import { dateOnlyToMillis, maskDateOnlyInput, parseDateOnly } from "@/lib/dateOnly";
 
@@ -26,6 +27,7 @@ export default function NovoServico() {
   const router = useRouter();
   const [form, setForm] = useState({
     os: "",
+    cnpj: "",
     oc: "",
     tag: "",
     equipamento: "",
@@ -156,6 +158,7 @@ export default function NovoServico() {
           horasPrevistas: horas,
           empresaId: companyId,
           companyId,
+          cnpj: form.cnpj.trim() || null,
           status: form.status,
           checklist: sanitizedChecklist,
           description: form.description.trim() || null,
@@ -208,7 +211,22 @@ export default function NovoServico() {
 
       <form onSubmit={onSubmit} className="space-y-6 rounded-2xl border bg-card/80 p-6 shadow-sm">
         <FormRow>
-          <Field label="O.S" value={form.os} onChange={(event) => updateForm("os", event.target.value)} required />
+          <div className="flex w-full flex-col gap-3">
+            <Field
+              label="O.S"
+              value={form.os}
+              onChange={(event) => updateForm("os", event.target.value)}
+              required
+            />
+            <Field
+              label="CNPJ"
+              value={form.cnpj}
+              onChange={(event) => updateForm("cnpj", maskCnpjInput(event.target.value))}
+              placeholder="00.000.000/0000-00"
+              inputMode="numeric"
+              maxLength={18}
+            />
+          </div>
           <Field label="O.C" value={form.oc} onChange={(event) => updateForm("oc", event.target.value)} />
         </FormRow>
         <FormRow>

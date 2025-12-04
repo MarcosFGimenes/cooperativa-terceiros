@@ -37,6 +37,7 @@ export type ServiceRealtimeData = {
   assignedTo?: { companyId?: string; companyName?: string } | null;
   company?: string | null;
   empresa?: string | null;
+  cnpj?: string | null;
   createdAt?: number | null;
   updatedAt?: number | null;
   hasChecklist?: boolean | null;
@@ -166,6 +167,7 @@ export function composeServiceRealtimeData(
     assignedTo: primary?.assignedTo ?? fallback?.assignedTo ?? null,
     company: primary?.company ?? fallback?.company ?? null,
     empresa: primary?.empresa ?? fallback?.empresa ?? null,
+    cnpj: primary?.cnpj ?? fallback?.cnpj ?? null,
     createdAt: primary?.createdAt ?? fallback?.createdAt ?? null,
     updatedAt: primary?.updatedAt ?? fallback?.updatedAt ?? null,
     hasChecklist: primary?.hasChecklist ?? fallback?.hasChecklist ?? null,
@@ -253,6 +255,7 @@ export function mapServiceSnapshot(
     assignedTo,
     company,
     empresa: toOptionalString(data.empresa) ?? null,
+    cnpj: toOptionalString(data.cnpj) ?? null,
     createdAt: toMillis(data.createdAt) ?? null,
     updatedAt: toMillis(data.updatedAt) ?? null,
     hasChecklist: data.hasChecklist === true || Array.isArray(data.checklist) ? true : null,

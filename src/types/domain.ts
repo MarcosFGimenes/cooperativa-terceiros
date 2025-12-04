@@ -14,6 +14,7 @@ export type ServiceDoc = {
   horasPrevistas: number;
   status: Status;
   empresaId?: string;
+  cnpj?: string;
   pacoteId?: string;
   andamento: number;
   checklist?: ChecklistItem[];
