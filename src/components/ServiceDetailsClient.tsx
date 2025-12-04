@@ -441,6 +441,18 @@ export default function ServiceDetailsClient({
     return null;
   }, [service.company]);
 
+  const signatureCompanyLabel = useMemo(() => {
+    if (companyLabel && companyLabel.trim()) return companyLabel.trim();
+    if (service.empresa && service.empresa.trim()) return service.empresa.trim();
+    return null;
+  }, [companyLabel, service.empresa]);
+
+  const signatureCnpjLabel = useMemo(() => {
+    if (typeof service.cnpj !== "string") return null;
+    const trimmed = service.cnpj.trim();
+    return trimmed.length > 0 ? trimmed : null;
+  }, [service.cnpj]);
+
   const lastUpdateAt =
     updates[0]?.audit?.submittedAt ?? updates[0]?.submittedAt ?? updates[0]?.createdAt ?? service.updatedAt ?? null;
   const suggestion = useMemo(() => computeChecklistSuggestion(checklistItems), [checklistItems]);
@@ -956,6 +968,15 @@ export default function ServiceDetailsClient({
                             </li>
                           ))}
                         </ul>
+                      </div>
+                    ) : null}
+                    {signatureCompanyLabel || signatureCnpjLabel ? (
+                      <div className="mt-3 text-xs text-muted-foreground">
+                        <span className="font-semibold text-foreground">Assinatura:</span>
+                        <div className="mt-1 flex flex-col">
+                          {signatureCompanyLabel ? <span>{signatureCompanyLabel}</span> : null}
+                          {signatureCnpjLabel ? <span>CNPJ: {signatureCnpjLabel}</span> : null}
+                        </div>
                       </div>
                     ) : null}
                     {update.evidences && update.evidences.length > 0 ? (

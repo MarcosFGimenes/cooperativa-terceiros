@@ -527,6 +527,17 @@ export default function ServiceDetailClient({
     return null;
   }, [service.assignedTo, service.company, service.empresa]);
 
+  const signatureCompanyLabel = useMemo(() => {
+    const trimmed = companyLabel?.trim();
+    return trimmed && trimmed.length > 0 ? trimmed : null;
+  }, [companyLabel]);
+
+  const signatureCnpjLabel = useMemo(() => {
+    if (typeof service.cnpj !== "string") return null;
+    const trimmed = service.cnpj.trim();
+    return trimmed.length > 0 ? trimmed : null;
+  }, [service.cnpj]);
+
   const serviceDescription = useMemo(() => {
     const resolved = service.description ?? composedInitial.description ?? "";
     return typeof resolved === "string" ? resolved.trim() : "";
@@ -975,6 +986,15 @@ export default function ServiceDetailClient({
                           </li>
                         ))}
                       </ul>
+                    </div>
+                  ) : null}
+                  {signatureCompanyLabel || signatureCnpjLabel ? (
+                    <div className="mt-3 text-xs text-muted-foreground">
+                      <span className="font-semibold text-foreground">Assinatura:</span>
+                      <div className="mt-1 flex flex-col">
+                        {signatureCompanyLabel ? <span>{signatureCompanyLabel}</span> : null}
+                        {signatureCnpjLabel ? <span>CNPJ: {signatureCnpjLabel}</span> : null}
+                      </div>
                     </div>
                   ) : null}
                   {update.evidences && update.evidences.length > 0 ? (
