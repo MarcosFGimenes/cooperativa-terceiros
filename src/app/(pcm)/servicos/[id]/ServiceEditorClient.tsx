@@ -17,6 +17,7 @@ import {
 } from "firebase/firestore";
 
 import { Field, FormRow } from "@/components/ui/form-controls";
+import { maskCnpjInput } from "@/lib/cnpj";
 import { dateOnlyToMillis, formatDateOnlyBR, maskDateOnlyInput, parseDateOnly } from "@/lib/dateOnly";
 import { tryGetFirestore } from "@/lib/firebase";
 import { useFirebaseAuthSession } from "@/lib/useFirebaseAuthSession";
@@ -138,6 +139,7 @@ export default function ServiceEditorClient({ serviceId }: ServiceEditorClientPr
   const [loading, setLoading] = useState(true);
   const [form, setForm] = useState({
     os: "",
+    cnpj: "",
     oc: "",
     tag: "",
     equipamento: "",
@@ -355,8 +357,10 @@ export default function ServiceEditorClient({ serviceId }: ServiceEditorClientPr
         if (cancelled) return;
 
         const data = snap.data() ?? {};
+        const rawCnpj = typeof data.cnpj === "string" ? data.cnpj : "";
         setForm({
           os: String(data.os ?? ""),
+          cnpj: rawCnpj ? maskCnpjInput(rawCnpj) : "",
           oc: String(data.oc ?? ""),
           tag: String(data.tag ?? ""),
           equipamento: String(data.equipamento ?? data.equipmentName ?? ""),
@@ -577,6 +581,7 @@ export default function ServiceEditorClient({ serviceId }: ServiceEditorClientPr
         horasPrevistas: horas,
         empresaId: form.empresaId.trim() || null,
         company: form.empresaId.trim() || null,
+        cnpj: form.cnpj.trim() || null,
         status: form.status,
         pacoteId: form.pacoteId || null,
         packageId: form.pacoteId || null,
@@ -714,7 +719,17 @@ export default function ServiceEditorClient({ serviceId }: ServiceEditorClientPr
             </div>
 
             <FormRow>
-              <Field label="O.S" value={form.os} onChange={(event) => updateForm("os", event.target.value)} required />
+              <div className="flex w-full flex-col gap-3">
+                <Field label="O.S" value={form.os} onChange={(event) => updateForm("os", event.target.value)} required />
+                <Field
+                  label="CNPJ"
+                  value={form.cnpj}
+                  onChange={(event) => updateForm("cnpj", maskCnpjInput(event.target.value))}
+                  placeholder="00.000.000/0000-00"
+                  inputMode="numeric"
+                  maxLength={18}
+                />
+              </div>
               <Field label="O.C" value={form.oc} onChange={(event) => updateForm("oc", event.target.value)} />
             </FormRow>
             <FormRow>

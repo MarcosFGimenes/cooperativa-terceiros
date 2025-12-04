@@ -40,6 +40,7 @@ export type ServiceUpdate = BaseServiceUpdate & {
 export type Service = BaseService & {
   plannedDaily?: number[];
   company?: string | null;
+  cnpj?: string | null;
   realPercent?: number;
   hasChecklist?: boolean;
   packageId?: string;

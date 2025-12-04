@@ -35,6 +35,7 @@ type CreateServicePayload = {
   fimPrevistoMillis: number;
   horasPrevistas: number;
   empresaId: string | null;
+  cnpj: string | null;
   status: ServiceStatus;
   checklist: ChecklistSeed[];
   description?: string | null;
@@ -191,6 +192,7 @@ export async function createService(payload: CreateServicePayload) {
     horasPrevistas: payload.horasPrevistas,
     empresaId: payload.empresaId,
     company: payload.empresaId,
+    cnpj: payload.cnpj || null,
     status: payload.status,
     andamento: 0,
     checklist,
@@ -453,6 +455,7 @@ function mapServiceData(
     packageId: data.packageId ? String(data.packageId) : data.pacoteId ? String(data.pacoteId) : undefined,
     company: data.company ? String(data.company) : data.companyId ? String(data.companyId) : undefined,
     empresa: data.empresa ? String(data.empresa) : undefined,
+    cnpj: data.cnpj ? String(data.cnpj) : undefined,
     andamento: progress ?? undefined,
     realPercent: progress ?? undefined,
     previousProgress:
@@ -1120,6 +1123,7 @@ type ServiceMetadataInput = {
   oc?: string | null;
   sector?: string | null;
   company?: string | null;
+  cnpj?: string | null;
   plannedStart: string;
   plannedEnd: string;
   totalHours: number;
@@ -1263,6 +1267,7 @@ export async function updateServiceMetadata(serviceId: string, input: ServiceMet
     payload.setor = input.sector ?? null;
     payload.empresaId = input.company ?? null;
     payload.company = input.company ?? null;
+    payload.cnpj = input.cnpj ?? null;
 
     const checklistRef = ref.collection("checklist");
     let checklistUpdates: ChecklistProgressSnapshot[] = [];

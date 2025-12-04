@@ -183,6 +183,7 @@ function mapServiceDoc(doc: FirebaseFirestore.DocumentSnapshot): Service {
     totalHours: totalHoursCandidate,
     status: (data.status ?? "aberto") as ServiceStatus,
     company: normalizeCompany(data),
+    cnpj: typeof data.cnpj === "string" ? data.cnpj.trim() || null : undefined,
     createdAt: toMillis(data.createdAt),
     updatedAt: toMillis(data.updatedAt),
     hasChecklist: data.hasChecklist ?? false,

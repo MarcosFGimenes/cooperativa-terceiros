@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { revalidateTag } from "next/cache";
 
 import { createAccessToken } from "@/lib/accessTokens";
+import { normalizeCnpj } from "@/lib/cnpj";
 import { ensureServiceAccessToken } from "@/lib/repo/accessTokens";
 import { createService } from "@/lib/repo/services";
 import type { ServiceStatus } from "@/lib/types";
@@ -25,6 +26,7 @@ type CreateServiceRequest = {
   fimPrevistoMillis: number;
   horasPrevistas: number;
   empresaId: string | null;
+  cnpj: string | null;
   status: ServiceStatus;
   checklist: Array<{ id: string; descricao: string; peso: number }>;
   description?: string | null;
@@ -95,6 +97,7 @@ function validateRequest(body: Record<string, unknown>): CreateServiceRequest | 
   if (description.length > 1000) {
     return { error: "A descrição do serviço deve ter no máximo 1000 caracteres." };
   }
+  const cnpj = normalizeCnpj(body.cnpj);
 
   return {
     os,
@@ -107,6 +110,7 @@ function validateRequest(body: Record<string, unknown>): CreateServiceRequest | 
     fimPrevistoMillis,
     horasPrevistas,
     empresaId: resolvedCompanyId || null,
+    cnpj: cnpj || null,
     status: normaliseStatus(body.status),
     checklist,
     description: description || null,

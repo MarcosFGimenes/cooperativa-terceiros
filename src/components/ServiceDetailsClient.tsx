@@ -526,6 +526,7 @@ export default function ServiceDetailsClient({
       { label: "Início planejado", value: formatDateLabel(service.plannedStart) },
       { label: "Fim planejado", value: formatDateLabel(service.plannedEnd) },
       { label: "Empresa atribuída", value: companyLabel || "—" },
+      { label: "CNPJ", value: service.cnpj?.trim() || "—" },
       { label: "Última atualização", value: formatDateLabel(lastUpdateAt, true) },
     ],
     [service, canonicalProgress, lastUpdateAt, companyLabel, statusLabel],

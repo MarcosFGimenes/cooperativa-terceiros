@@ -38,6 +38,7 @@ type ServiceSummary = {
   os: string;
   tag: string;
   equipamento: string;
+  cnpj?: string | null;
   andamento: number;
   status: string;
   hasChecklist: boolean;
@@ -54,6 +55,7 @@ type PublicServiceResponse = {
     status: string;
     realPercent?: number;
     hasChecklist?: boolean;
+    cnpj?: string | null;
   };
   checklist: Array<{ id: string; description: string; weight: number; progress: number }>;
 };
@@ -170,6 +172,7 @@ export default function AcessoPorTokenPage() {
         os: service.os,
         tag: service.tag,
         equipamento: service.equipmentName,
+        cnpj: service.cnpj ?? null,
         andamento,
         status,
         hasChecklist: Boolean(service.hasChecklist && checklist.length > 0),
@@ -472,6 +475,7 @@ export default function AcessoPorTokenPage() {
                         <div className="text-xs text-muted-foreground">
                           <div>Tag: {service.tag || "—"}</div>
                           <div>Equipamento: {service.equipamento || "—"}</div>
+                      <div>CNPJ: {service.cnpj || "—"}</div>
                         </div>
                       </button>
                     );
@@ -498,6 +502,24 @@ export default function AcessoPorTokenPage() {
           <div className="card bg-background/80 p-4 shadow-inner">
             {selectedService ? (
               <form onSubmit={submitUpdate} className="space-y-4" aria-live="polite">
+                <div className="rounded-lg border border-dashed bg-muted/20 p-3 text-xs text-muted-foreground">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="font-semibold text-foreground">O.S:</span>
+                    <span>{selectedService.os || "—"}</span>
+                  </div>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="font-semibold text-foreground">CNPJ:</span>
+                    <span>{selectedService.cnpj || "—"}</span>
+                  </div>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="font-semibold text-foreground">Tag:</span>
+                    <span>{selectedService.tag || "—"}</span>
+                  </div>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="font-semibold text-foreground">Equipamento:</span>
+                    <span>{selectedService.equipamento || "—"}</span>
+                  </div>
+                </div>
                 <div>
                   <h2 className="text-base font-semibold">Atualizar serviço</h2>
                   <p className="text-xs text-muted-foreground">

@@ -131,6 +131,7 @@ export type Service = {
   plannedDaily?: number[];
   company?: string | null;
   empresa?: string | null;
+  cnpj?: string | null;
   andamento?: number;
   realPercent?: number;
   updatedAt?: number;

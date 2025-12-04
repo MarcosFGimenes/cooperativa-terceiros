@@ -125,6 +125,7 @@ export function mapThirdService(id: string, data: Record<string, unknown>): Thir
   const equipmentName = toOptionalString(data.equipmentName ?? data.equipamento ?? data.equipment);
   const sector = toOptionalString(data.sector ?? data.setor ?? data.sectorName);
   const status = toOptionalString(data.status);
+  const cnpj = toOptionalString(data.cnpj);
 
   return {
     id,
@@ -139,6 +140,7 @@ export function mapThirdService(id: string, data: Record<string, unknown>): Thir
     plannedEnd,
     totalHours,
     company,
+    cnpj,
     andamento,
     realPercent,
     manualPercent,

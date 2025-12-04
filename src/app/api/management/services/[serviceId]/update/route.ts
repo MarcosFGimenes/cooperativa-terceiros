@@ -65,6 +65,7 @@ export async function POST(
   const oc = typeof payload.oc === "string" ? payload.oc.trim() : "";
   const sector = typeof payload.sector === "string" ? payload.sector.trim() : "";
   const company = typeof payload.company === "string" ? payload.company.trim() : "";
+  const cnpj = typeof payload.cnpj === "string" ? payload.cnpj.trim() : "";
   const plannedStart = normaliseDate(payload.plannedStart);
   const plannedEnd = normaliseDate(payload.plannedEnd);
   const totalHours = Number(payload.totalHours);
@@ -94,6 +95,7 @@ export async function POST(
       oc: oc || null,
       sector: sector || null,
       company: company || null,
+      cnpj: cnpj || null,
       plannedStart,
       plannedEnd,
       totalHours,

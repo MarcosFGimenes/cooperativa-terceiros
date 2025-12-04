@@ -14,6 +14,7 @@ type ServiceItem = {
   andamento?: number | null;
   realPercent?: number | null;
   progress?: number | null;
+  cnpj?: string | null;
 };
 
 function normaliseProgress(value?: number | null) {
@@ -279,6 +280,7 @@ export default function TerceiroHome() {
                         : ""}
                   </p>
                   <p className="text-xs text-muted-foreground">{normaliseStatus(service.status)}</p>
+                  <p className="text-[11px] text-muted-foreground">CNPJ: {service.cnpj || "—"}</p>
                 </div>
                 <span className="text-sm font-semibold text-primary">{progress}%</span>
               </Link>

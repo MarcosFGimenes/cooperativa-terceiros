@@ -749,6 +749,10 @@ export default function ServiceDetailClient({
               <dt className="text-muted-foreground">Empresa atribuída</dt>
               <dd className="font-medium">{companyLabel || "-"}</dd>
             </div>
+            <div>
+              <dt className="text-muted-foreground">CNPJ</dt>
+              <dd className="font-medium">{service.cnpj || "-"}</dd>
+            </div>
             {serviceDescription ? (
               <div className="sm:col-span-2 space-y-1">
                 <dt className="text-muted-foreground">Descrição do serviço</dt>

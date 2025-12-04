@@ -22,6 +22,7 @@ export type ServiceDetail = {
   label: string;
   status: string;
   companyLabel?: string;
+  cnpj?: string | null;
   plannedPercent?: number | null;
   realizedPercent?: number | null;
   deltaPercent?: number | null;
@@ -198,6 +199,12 @@ export default function ServicesCompaniesSection({
                                   {formatPercentLabel(detail.realizedPercent ?? null, true)} • Dif.: {" "}
                                   <span className="font-semibold text-foreground print:text-slate-900">
                                     {formatDeltaLabel(detail.deltaPercent)}
+                                  </span>
+                                </p>
+                                <p>
+                                  CNPJ:{" "}
+                                  <span className="font-semibold text-foreground print:text-slate-900">
+                                    {detail.cnpj || "-"}
                                   </span>
                                 </p>
                                 <p>

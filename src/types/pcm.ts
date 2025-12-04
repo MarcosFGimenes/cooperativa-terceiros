@@ -16,6 +16,7 @@ export type PCMServiceListItem = {
   packageId?: string | null;
   empresa?: string | null;
   company?: string | null;
+  cnpj?: string | null;
   createdAt?: number | null;
   updatedAt?: number | null;
   plannedStart?: unknown;
