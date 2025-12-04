@@ -52,6 +52,13 @@ export default async function ServiceUpdatesPage({ params }: { params: { id: str
 
   const serviceLabel =
     baseService.os?.trim() || baseService.tag?.trim() || baseService.code?.trim() || resolvedServiceId;
+  const signatureCompanyLabel =
+    baseService.assignedTo?.companyName?.trim() ||
+    baseService.assignedTo?.companyId?.trim() ||
+    baseService.company?.trim() ||
+    baseService.empresa?.trim() ||
+    null;
+  const signatureCnpjLabel = baseService.cnpj?.trim() || null;
 
   return (
     <div className="container mx-auto space-y-6 p-4">
@@ -144,6 +151,15 @@ export default async function ServiceUpdatesPage({ params }: { params: { id: str
                           </li>
                         ))}
                       </ul>
+                    </div>
+                  ) : null}
+                  {signatureCompanyLabel || signatureCnpjLabel ? (
+                    <div className="mt-3 text-xs text-muted-foreground">
+                      <span className="font-semibold text-foreground">Assinatura:</span>
+                      <div className="mt-1 flex flex-col">
+                        {signatureCompanyLabel ? <span>{signatureCompanyLabel}</span> : null}
+                        {signatureCnpjLabel ? <span>CNPJ: {signatureCnpjLabel}</span> : null}
+                      </div>
                     </div>
                   ) : null}
                   {update.evidences && update.evidences.length > 0 ? (
