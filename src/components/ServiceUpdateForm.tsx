@@ -7,6 +7,7 @@ import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 
 import { useRouter } from "next/navigation";
+import { normalizeCnpj } from "@/lib/cnpj";
 import { cn } from "@/lib/utils";
 
 export type ServiceUpdateFormPayload = {
@@ -35,6 +36,8 @@ type ServiceUpdateFormProps = {
   checklist: ChecklistOption[];
   onSubmit: (payload: ServiceUpdateFormPayload) => Promise<void> | void;
   realizedPercent?: number;
+  companyName?: string | null;
+  companyCnpj?: string | null;
 };
 
 const RESOURCE_OPTIONS = [
@@ -255,7 +258,15 @@ const formSchema = z
 
 type FormValues = z.infer<typeof formSchema>;
 
-export default function ServiceUpdateForm({ serviceId, lastProgress, checklist, onSubmit, realizedPercent }: ServiceUpdateFormProps) {
+export default function ServiceUpdateForm({
+  serviceId,
+  lastProgress,
+  checklist,
+  onSubmit,
+  realizedPercent,
+  companyName,
+  companyCnpj,
+}: ServiceUpdateFormProps) {
   const router = useRouter();
   const handleBack = useCallback(() => {
     if (typeof window !== "undefined" && window.history.length > 1) {
@@ -305,7 +316,14 @@ export default function ServiceUpdateForm({ serviceId, lastProgress, checklist, 
 
   const selectedResources = watch("resources");
   const subactivityValues = watch("subactivities");
-  const percentValue = watch("percent");
+  const declarationCompany = companyName?.trim() || null;
+  const declarationCnpjValue = companyCnpj ? normalizeCnpj(companyCnpj).trim() : "";
+  const declarationCnpj = declarationCnpjValue.length > 0 ? declarationCnpjValue : null;
+  const declarationText = `Declaro em nome da empresa ${
+    declarationCompany ?? "atribuída a este serviço"
+  }, CNPJ ${
+    declarationCnpj ?? "informado no cadastro"
+  }, que as informações fornecidas são verdadeiras e assumo a responsabilidade pelas atualizações realizadas neste serviço.`;
 
   const computedPercent = useMemo(
     () => {
@@ -710,10 +728,7 @@ export default function ServiceUpdateForm({ serviceId, lastProgress, checklist, 
 
       <label className="flex items-start gap-2 rounded-lg border border-muted bg-muted/40 p-4 text-sm">
         <input type="checkbox" className="mt-1 h-4 w-4" {...register("declarationAccepted")} />
-        <span>
-          Declaro que as informações fornecidas são verdadeiras e assumo responsabilidade pelas atualizações realizadas neste
-          serviço.
-        </span>
+        <span>{declarationText}</span>
       </label>
       {errors.declarationAccepted ? (
         <p className="-mt-3 text-xs text-destructive">{errors.declarationAccepted.message}</p>
