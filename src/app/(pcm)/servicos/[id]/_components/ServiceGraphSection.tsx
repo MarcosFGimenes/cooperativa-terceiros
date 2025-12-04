@@ -1,9 +1,8 @@
 "use client";
 
 import { useCallback, useMemo } from "react";
-import dynamic from "next/dynamic";
 
-import type { CurvaSProps } from "@/components/charts/CurvaS";
+import SCurveDeferred from "@/components/SCurveDeferred";
 import type { Service } from "@/lib/types";
 import { formatDate } from "@/lib/formatDateTime";
 
@@ -40,18 +39,6 @@ const unionDates = (planned: CurvePoint[], actual: CurvePoint[]) => {
   actual.forEach((point) => set.add(point.d));
   return Array.from(set).sort((a, b) => a.localeCompare(b));
 };
-
-const LazyCurvaS = dynamic<CurvaSProps>(
-  () => import("@/components/charts/CurvaS"),
-  {
-    ssr: false,
-    loading: () => (
-      <div className="flex min-h-[240px] w-full items-center justify-center rounded-lg border border-dashed border-border/60 bg-muted/30 text-sm text-muted-foreground">
-        Carregando gráfico da Curva S...
-      </div>
-    ),
-  },
-);
 
 export default function ServiceGraphSection({ service, planned, actual }: ServiceGraphSectionProps) {
   const rows = useMemo(() => {
@@ -113,6 +100,20 @@ export default function ServiceGraphSection({ service, planned, actual }: Servic
 
   const latestPlanned = planned.length ? planned[planned.length - 1] : null;
   const latestActual = actual.length ? actual[actual.length - 1] : null;
+  const chartFallback = (
+    <div className="flex min-h-[320px] w-full items-center justify-center rounded-xl border border-dashed border-border/70 bg-muted/20 text-sm text-muted-foreground">
+      Carregando gráfico da Curva S...
+    </div>
+  );
+  const scurvePlanned = useMemo(
+    () => planned.map((point) => ({ date: point.d, percent: point.pct })),
+    [planned],
+  );
+  const scurveRealized = useMemo(
+    () => actual.map((point) => ({ date: point.d, percent: point.pct })),
+    [actual],
+  );
+  const realizedPercent = latestActual?.pct ?? 0;
 
   return (
     <section className="card space-y-6 p-6">
@@ -159,7 +160,17 @@ export default function ServiceGraphSection({ service, planned, actual }: Servic
         </div>
       </div>
 
-      <LazyCurvaS planned={planned} actual={actual} />
+      <SCurveDeferred
+        planned={scurvePlanned}
+        realizedSeries={scurveRealized}
+        realizedPercent={realizedPercent}
+        showMetrics={false}
+        showHeader={false}
+        unstyled
+        className="rounded-2xl border border-border/70 bg-muted/30 p-4"
+        chartHeight={360}
+        fallback={chartFallback}
+      />
 
       <div className="grid gap-4 rounded-lg border border-dashed border-border/70 bg-muted/20 p-4 text-sm text-muted-foreground sm:grid-cols-2 lg:grid-cols-3">
         <div>

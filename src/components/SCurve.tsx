@@ -46,6 +46,8 @@ export type SCurveProps = {
   deferRendering?: boolean;
   metrics?: SCurveMetrics;
   showMetrics?: boolean;
+  showHeader?: boolean;
+  unstyled?: boolean;
 };
 
 type ChartEntry = {
@@ -150,7 +152,9 @@ export default function SCurve({
   deferRendering = false,
   metrics,
   showMetrics = true,
-}: Props) {
+  showHeader = true,
+  unstyled = false,
+}: SCurveProps) {
   const chartData = useMemo<ChartEntry[]>(() => {
     const map = new Map<string, ChartEntry>();
 
@@ -262,16 +266,19 @@ export default function SCurve({
   const resolvedDescription =
     description ?? "Comparativo entre o avanço planejado e o realizado ao longo do tempo.";
   const resolvedChartHeight = chartHeight && Number.isFinite(chartHeight) && chartHeight > 0 ? chartHeight : 288;
+  const containerClassName = cn(unstyled ? "space-y-4" : "card space-y-4 p-4", className);
 
   return (
-    <div className={cn("card space-y-4 p-4", className)}>
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <div className="min-w-0 space-y-1">
-          <h3 className="truncate text-base font-semibold">{resolvedTitle}</h3>
-          <p className="text-xs text-muted-foreground">{resolvedDescription}</p>
+    <div className={containerClassName}>
+      {showHeader ? (
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <div className="min-w-0 space-y-1">
+            <h3 className="truncate text-base font-semibold">{resolvedTitle}</h3>
+            <p className="text-xs text-muted-foreground">{resolvedDescription}</p>
+          </div>
+          {headerAside ? <div className="text-xs text-muted-foreground">{headerAside}</div> : null}
         </div>
-        {headerAside ? <div className="text-xs text-muted-foreground">{headerAside}</div> : null}
-      </div>
+      ) : null}
 
       {showMetrics ? (
         <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
