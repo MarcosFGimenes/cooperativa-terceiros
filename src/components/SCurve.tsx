@@ -267,6 +267,7 @@ export default function SCurve({
     description ?? "Comparativo entre o avanço planejado e o realizado ao longo do tempo.";
   const resolvedChartHeight = chartHeight && Number.isFinite(chartHeight) && chartHeight > 0 ? chartHeight : 288;
   const containerClassName = cn(unstyled ? "space-y-4" : "card space-y-4 p-4", className);
+  const axisColor = "hsl(var(--foreground))";
 
   return (
     <div className={containerClassName}>
@@ -297,23 +298,34 @@ export default function SCurve({
         isClientReady ? (
           <div className={cn("w-full scurve-container")} style={{ height: resolvedChartHeight }}>
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={chartData} margin={{ left: 44, right: 16, top: 16, bottom: 12 }}>
-                <CartesianGrid stroke="transparent" vertical={false} horizontal={false} />
-                <XAxis dataKey="dateLabel" stroke="hsl(var(--muted-foreground))" tick={{ fontSize: 12 }} />
+              <LineChart
+                data={chartData}
+                margin={{ left: 44, right: 16, top: 16, bottom: 12 }}
+                style={{ background: "transparent" }}
+              >
+                {/* Removendo gridlines do gráfico */}
+                <CartesianGrid vertical={false} horizontal={false} />
+                <XAxis
+                  dataKey="dateLabel"
+                  stroke={axisColor}
+                  tick={{ fontSize: 12, fill: axisColor }}
+                  tickLine={{ stroke: axisColor, strokeWidth: 1.25 }}
+                  axisLine={{ stroke: axisColor, strokeWidth: 1.5 }}
+                />
                 <YAxis
                   domain={[0, 100]}
                   ticks={[0, 25, 50, 75, 100]}
-                  tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+                  tick={{ fontSize: 11, fill: axisColor }}
                   width={38}
-                  stroke="hsl(var(--muted-foreground))"
-                  tickLine={false}
-                  axisLine={{ stroke: "hsl(var(--muted-foreground))", strokeWidth: 1 }}
+                  stroke={axisColor}
+                  tickLine={{ stroke: axisColor, strokeWidth: 1.25 }}
+                  axisLine={{ stroke: axisColor, strokeWidth: 1.5 }}
                   tickMargin={4}
                   allowDecimals={false}
                   tickFormatter={(value) => `${value}%`}
                 />
                 <Tooltip content={<ChartTooltip />} />
-                <Legend wrapperStyle={{ fontSize: 12 }} />
+                <Legend wrapperStyle={{ fontSize: 12, color: axisColor }} />
                 <Line
                   type="monotone"
                   name="Planejado"
@@ -329,7 +341,8 @@ export default function SCurve({
                     dataKey="planned"
                     position="top"
                     formatter={(value) => (typeof value === "number" ? `${Math.round(value)}%` : "")}
-                    className="text-[10px] fill-muted-foreground"
+                    className="text-[11px] font-semibold drop-shadow-sm"
+                    fill={axisColor}
                   />
                 </Line>
                 <Line
@@ -347,7 +360,8 @@ export default function SCurve({
                     dataKey="realized"
                     position="top"
                     formatter={(value) => (typeof value === "number" ? `${Math.round(value)}%` : "")}
-                    className="text-[10px] fill-muted-foreground"
+                    className="text-[11px] font-semibold drop-shadow-sm"
+                    fill={axisColor}
                   />
                 </Line>
               </LineChart>

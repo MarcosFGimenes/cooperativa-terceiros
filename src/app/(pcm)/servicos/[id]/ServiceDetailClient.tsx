@@ -111,7 +111,7 @@ export default function ServiceDetailClient({
     [refDateParam],
   );
   const referenceLabel = useMemo(() => formatReferenceLabel(referenceDate), [referenceDate]);
-  const resolvedChartHeight = isPdfExport ? 480 : 288;
+  const resolvedChartHeight = isPdfExport ? 540 : 560;
 
   const [service, setService] = useState<ServiceRealtimeData>(composedInitial);
   const [checklist, setChecklist] = useState<ChecklistItem[]>(toNewChecklist(initialChecklist));
@@ -519,6 +519,15 @@ export default function ServiceDetailClient({
     }, referenceDate);
   }, [service, composedInitial, referenceDate]);
 
+  const plannedTotalPercent = 100;
+  const deltaPercent = Math.round(realizedPercent - plannedPercentToDate);
+  const deltaToneClass =
+    deltaPercent < -2
+      ? "text-amber-600 dark:text-amber-400"
+      : deltaPercent > 2
+        ? "text-emerald-600 dark:text-emerald-400"
+        : "text-foreground";
+
   const companyLabel = useMemo(() => {
     if (service.assignedTo?.companyName) return service.assignedTo.companyName;
     if (service.assignedTo?.companyId) return service.assignedTo.companyId;
@@ -707,6 +716,10 @@ export default function ServiceDetailClient({
         </div>
       ) : null}
 
+      <div className="hidden print:block rounded-2xl bg-background p-4">
+        <h1 className="text-2xl font-semibold leading-tight text-foreground">Serviço {serviceLabel}</h1>
+      </div>
+
       <div className="space-y-4 print-avoid-break">
         <div className="card p-4 print-avoid-break">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
@@ -821,35 +834,56 @@ export default function ServiceDetailClient({
             </div>
           </dl>
         </div>
-        <SCurveDeferred
-          planned={planned}
-          realizedSeries={realizedSeries}
-          realizedPercent={realizedPercent}
-          title="Curva S do serviço"
-          description="Evolução planejada versus realizado para este serviço."
-          headerAside={
-            <div className="text-right text-sm">
-              <div className="font-semibold text-foreground">
-                Realizado em {referenceLabel}: {Math.round(realizedPercent)}%
+        <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_260px] lg:items-stretch">
+          <SCurveDeferred
+            planned={planned}
+            realizedSeries={realizedSeries}
+            realizedPercent={realizedPercent}
+            title="Curva S do serviço"
+            description="Evolução planejada versus realizado para este serviço."
+            metrics={{ plannedToDate: plannedPercentToDate, plannedTotal: plannedTotalPercent }}
+            showMetrics={false}
+            chartHeight={resolvedChartHeight}
+            deferRendering={!isPdfExport}
+            className="print-avoid-break"
+            fallback={
+              <div
+                className="flex w-full items-center justify-center rounded-xl border border-dashed bg-muted/40"
+                style={{ minHeight: resolvedChartHeight }}
+              >
+                <span className="text-sm text-muted-foreground">Carregando gráfico...</span>
               </div>
-              <div className="text-xs text-muted-foreground">
-                Planejado: {Math.round(plannedPercentToDate)}%
+            }
+          />
+
+          <section className="w-full rounded-2xl border bg-card/80 px-4 py-3 shadow-sm xl:max-w-[260px]">
+            {/* Layout dos indicadores padronizado com a Curva S Consolidada */}
+            <h3 className="mb-3 text-lg font-semibold">Indicadores da curva</h3>
+            <dl className="space-y-3 text-sm">
+              <div className="rounded-xl border bg-muted/30 px-3 py-2.5">
+                <dt className="text-muted-foreground">Planejado (total)</dt>
+                <dd className="text-lg font-semibold text-foreground">{plannedTotalPercent}%</dd>
               </div>
-            </div>
-          }
-          metrics={{ plannedToDate: plannedPercentToDate }}
-          chartHeight={resolvedChartHeight}
-          deferRendering={!isPdfExport}
-          className="print-avoid-break"
-          fallback={
-            <div
-              className="flex w-full items-center justify-center rounded-xl border border-dashed bg-muted/40"
-              style={{ minHeight: resolvedChartHeight }}
-            >
-              <span className="text-sm text-muted-foreground">Carregando gráfico...</span>
-            </div>
-          }
-        />
+              <div className="rounded-xl border bg-muted/30 px-3 py-2.5">
+                <dt className="text-muted-foreground">Planejado até hoje</dt>
+                <dd className="text-lg font-semibold text-foreground">{Math.round(plannedPercentToDate)}%</dd>
+              </div>
+              <div className="rounded-xl border bg-muted/30 px-3 py-2.5">
+                <dt className="text-muted-foreground">Realizado</dt>
+                <dd className="text-lg font-semibold text-emerald-600 dark:text-emerald-400">
+                  {Math.round(realizedPercent)}%
+                </dd>
+              </div>
+              <div className="rounded-xl border bg-muted/30 px-3 py-2.5">
+                <dt className="text-muted-foreground">Diferença</dt>
+                <dd className={`text-lg font-semibold ${deltaToneClass}`}>
+                  {deltaPercent > 0 ? "+" : ""}
+                  {deltaPercent}%
+                </dd>
+              </div>
+            </dl>
+          </section>
+        </div>
       </div>
 
       <div className="card p-4 print-page-break-before">
@@ -991,6 +1025,7 @@ export default function ServiceDetailClient({
                   {signatureCompanyLabel || signatureCnpjLabel ? (
                     <div className="mt-3 text-xs text-muted-foreground">
                       <span className="font-semibold text-foreground">Assinatura:</span>
+                      <span className="ml-1">Caixa de confirmação marcada</span>
                       <div className="mt-1 flex flex-col">
                         {signatureCompanyLabel ? <span>{signatureCompanyLabel}</span> : null}
                         {signatureCnpjLabel ? <span>CNPJ: {signatureCnpjLabel}</span> : null}
