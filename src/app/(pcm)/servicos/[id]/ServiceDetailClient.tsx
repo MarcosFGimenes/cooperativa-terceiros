@@ -111,7 +111,7 @@ export default function ServiceDetailClient({
     [refDateParam],
   );
   const referenceLabel = useMemo(() => formatReferenceLabel(referenceDate), [referenceDate]);
-  const resolvedChartHeight = isPdfExport ? 480 : 288;
+  const resolvedChartHeight = isPdfExport ? 480 : 520;
 
   const [service, setService] = useState<ServiceRealtimeData>(composedInitial);
   const [checklist, setChecklist] = useState<ChecklistItem[]>(toNewChecklist(initialChecklist));
@@ -519,6 +519,15 @@ export default function ServiceDetailClient({
     }, referenceDate);
   }, [service, composedInitial, referenceDate]);
 
+  const plannedTotalPercent = 100;
+  const deltaPercent = Math.round(realizedPercent - plannedPercentToDate);
+  const deltaToneClass =
+    deltaPercent < -2
+      ? "text-amber-600 dark:text-amber-400"
+      : deltaPercent > 2
+        ? "text-emerald-600 dark:text-emerald-400"
+        : "text-foreground";
+
   const companyLabel = useMemo(() => {
     if (service.assignedTo?.companyName) return service.assignedTo.companyName;
     if (service.assignedTo?.companyId) return service.assignedTo.companyId;
@@ -821,35 +830,53 @@ export default function ServiceDetailClient({
             </div>
           </dl>
         </div>
-        <SCurveDeferred
-          planned={planned}
-          realizedSeries={realizedSeries}
-          realizedPercent={realizedPercent}
-          title="Curva S do serviço"
-          description="Evolução planejada versus realizado para este serviço."
-          headerAside={
-            <div className="text-right text-sm">
-              <div className="font-semibold text-foreground">
-                Realizado em {referenceLabel}: {Math.round(realizedPercent)}%
+        <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_220px] lg:items-start">
+          <SCurveDeferred
+            planned={planned}
+            realizedSeries={realizedSeries}
+            realizedPercent={realizedPercent}
+            title="Curva S do serviço"
+            description="Evolução planejada versus realizado para este serviço."
+            metrics={{ plannedToDate: plannedPercentToDate, plannedTotal: plannedTotalPercent }}
+            showMetrics={false}
+            chartHeight={resolvedChartHeight}
+            deferRendering={!isPdfExport}
+            className="print-avoid-break"
+            fallback={
+              <div
+                className="flex w-full items-center justify-center rounded-xl border border-dashed bg-muted/40"
+                style={{ minHeight: resolvedChartHeight }}
+              >
+                <span className="text-sm text-muted-foreground">Carregando gráfico...</span>
               </div>
-              <div className="text-xs text-muted-foreground">
-                Planejado: {Math.round(plannedPercentToDate)}%
+            }
+          />
+
+          <section className="rounded-2xl border bg-card/80 px-3 py-3 shadow-sm lg:ml-auto lg:max-w-[220px]">
+            <h3 className="mb-2 text-sm font-semibold text-foreground">Indicadores da curva</h3>
+            <dl className="space-y-2 text-xs">
+              <div className="rounded-lg border bg-muted/30 px-3 py-2">
+                <dt className="text-muted-foreground">Planejado (total)</dt>
+                <dd className="text-base font-semibold text-foreground">{plannedTotalPercent}%</dd>
               </div>
-            </div>
-          }
-          metrics={{ plannedToDate: plannedPercentToDate }}
-          chartHeight={resolvedChartHeight}
-          deferRendering={!isPdfExport}
-          className="print-avoid-break"
-          fallback={
-            <div
-              className="flex w-full items-center justify-center rounded-xl border border-dashed bg-muted/40"
-              style={{ minHeight: resolvedChartHeight }}
-            >
-              <span className="text-sm text-muted-foreground">Carregando gráfico...</span>
-            </div>
-          }
-        />
+              <div className="rounded-lg border bg-muted/30 px-3 py-2">
+                <dt className="text-muted-foreground">Planejado até hoje</dt>
+                <dd className="text-base font-semibold text-foreground">{Math.round(plannedPercentToDate)}%</dd>
+              </div>
+              <div className="rounded-lg border bg-muted/30 px-3 py-2">
+                <dt className="text-muted-foreground">Realizado</dt>
+                <dd className="text-base font-semibold text-emerald-600 dark:text-emerald-400">{Math.round(realizedPercent)}%</dd>
+              </div>
+              <div className="rounded-lg border bg-muted/30 px-3 py-2">
+                <dt className="text-muted-foreground">Diferença</dt>
+                <dd className={`text-base font-semibold ${deltaToneClass}`}>
+                  {deltaPercent > 0 ? "+" : ""}
+                  {deltaPercent}%
+                </dd>
+              </div>
+            </dl>
+          </section>
+        </div>
       </div>
 
       <div className="card p-4 print-page-break-before">
@@ -991,6 +1018,7 @@ export default function ServiceDetailClient({
                   {signatureCompanyLabel || signatureCnpjLabel ? (
                     <div className="mt-3 text-xs text-muted-foreground">
                       <span className="font-semibold text-foreground">Assinatura:</span>
+                      <span className="ml-1">Caixa de confirmação marcada</span>
                       <div className="mt-1 flex flex-col">
                         {signatureCompanyLabel ? <span>{signatureCompanyLabel}</span> : null}
                         {signatureCnpjLabel ? <span>CNPJ: {signatureCnpjLabel}</span> : null}
