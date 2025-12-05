@@ -268,7 +268,6 @@ export default function SCurve({
   const resolvedChartHeight = chartHeight && Number.isFinite(chartHeight) && chartHeight > 0 ? chartHeight : 288;
   const containerClassName = cn(unstyled ? "space-y-4" : "card space-y-4 p-4", className);
   const axisColor = "hsl(var(--foreground))";
-  const gridColor = "hsl(var(--muted-foreground))";
 
   return (
     <div className={containerClassName}>
@@ -304,7 +303,8 @@ export default function SCurve({
                 margin={{ left: 44, right: 16, top: 16, bottom: 12 }}
                 style={{ background: "transparent" }}
               >
-                <CartesianGrid stroke={gridColor} vertical horizontal strokeOpacity={0.4} />
+                {/* Removendo gridlines do gráfico */}
+                <CartesianGrid vertical={false} horizontal={false} />
                 <XAxis
                   dataKey="dateLabel"
                   stroke={axisColor}

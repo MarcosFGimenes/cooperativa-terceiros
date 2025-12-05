@@ -523,10 +523,10 @@ export default function ServiceDetailClient({
   const deltaPercent = Math.round(realizedPercent - plannedPercentToDate);
   const deltaToneClass =
     deltaPercent < -2
-      ? "text-amber-400"
+      ? "text-amber-600 dark:text-amber-400"
       : deltaPercent > 2
-        ? "text-emerald-400"
-        : "text-slate-100";
+        ? "text-emerald-600 dark:text-emerald-400"
+        : "text-foreground";
 
   const companyLabel = useMemo(() => {
     if (service.assignedTo?.companyName) return service.assignedTo.companyName;
@@ -856,24 +856,27 @@ export default function ServiceDetailClient({
             }
           />
 
-          <section className="flex h-full flex-col gap-4 rounded-2xl border border-slate-800/70 bg-slate-900 px-4 py-4 text-slate-50 shadow-lg dark:border-slate-800/60 dark:bg-slate-900 lg:max-w-[260px]">
-            <h3 className="text-sm font-semibold tracking-tight">Indicadores da curva</h3>
-            <dl className="grid flex-1 grid-cols-1 gap-3 text-xs">
-              <div className="rounded-xl border border-slate-800 bg-slate-800/60 px-4 py-3 shadow-inner">
-                <dt className="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-400">Planejado (total)</dt>
-                <dd className="text-xl font-semibold leading-6 text-slate-100">{plannedTotalPercent}%</dd>
+          <section className="w-full rounded-2xl border bg-card/80 px-4 py-3 shadow-sm xl:max-w-[260px]">
+            {/* Layout dos indicadores padronizado com a Curva S Consolidada */}
+            <h3 className="mb-3 text-lg font-semibold">Indicadores da curva</h3>
+            <dl className="space-y-3 text-sm">
+              <div className="rounded-xl border bg-muted/30 px-3 py-2.5">
+                <dt className="text-muted-foreground">Planejado (total)</dt>
+                <dd className="text-lg font-semibold text-foreground">{plannedTotalPercent}%</dd>
               </div>
-              <div className="rounded-xl border border-slate-800 bg-slate-800/60 px-4 py-3 shadow-inner">
-                <dt className="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-400">Planejado até hoje</dt>
-                <dd className="text-xl font-semibold leading-6 text-slate-100">{Math.round(plannedPercentToDate)}%</dd>
+              <div className="rounded-xl border bg-muted/30 px-3 py-2.5">
+                <dt className="text-muted-foreground">Planejado até hoje</dt>
+                <dd className="text-lg font-semibold text-foreground">{Math.round(plannedPercentToDate)}%</dd>
               </div>
-              <div className="rounded-xl border border-slate-800 bg-slate-800/60 px-4 py-3 shadow-inner">
-                <dt className="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-400">Realizado</dt>
-                <dd className="text-xl font-semibold leading-6 text-emerald-400">{Math.round(realizedPercent)}%</dd>
+              <div className="rounded-xl border bg-muted/30 px-3 py-2.5">
+                <dt className="text-muted-foreground">Realizado</dt>
+                <dd className="text-lg font-semibold text-emerald-600 dark:text-emerald-400">
+                  {Math.round(realizedPercent)}%
+                </dd>
               </div>
-              <div className="rounded-xl border border-slate-800 bg-slate-800/60 px-4 py-3 shadow-inner">
-                <dt className="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-400">Diferença</dt>
-                <dd className={`text-xl font-semibold leading-6 ${deltaToneClass}`}>
+              <div className="rounded-xl border bg-muted/30 px-3 py-2.5">
+                <dt className="text-muted-foreground">Diferença</dt>
+                <dd className={`text-lg font-semibold ${deltaToneClass}`}>
                   {deltaPercent > 0 ? "+" : ""}
                   {deltaPercent}%
                 </dd>
