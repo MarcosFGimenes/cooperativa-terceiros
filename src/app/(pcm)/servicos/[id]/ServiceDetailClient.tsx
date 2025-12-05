@@ -834,7 +834,7 @@ export default function ServiceDetailClient({
             </div>
           </dl>
         </div>
-        <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_260px] lg:items-stretch">
+        <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_260px] lg:items-stretch print-avoid-break">
           <SCurveDeferred
             planned={planned}
             realizedSeries={realizedSeries}
@@ -857,6 +857,7 @@ export default function ServiceDetailClient({
           />
 
           <section className="w-full rounded-2xl border bg-card/80 px-4 py-3 shadow-sm xl:max-w-[260px]">
+            {/* Evitando quebra de página entre gráfico e indicadores da Curva S do serviço */}
             {/* Layout dos indicadores padronizado com a Curva S Consolidada */}
             <h3 className="mb-3 text-lg font-semibold">Indicadores da curva</h3>
             <dl className="space-y-3 text-sm">
