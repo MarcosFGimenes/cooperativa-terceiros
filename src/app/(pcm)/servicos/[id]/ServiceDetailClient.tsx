@@ -830,7 +830,7 @@ export default function ServiceDetailClient({
             </div>
           </dl>
         </div>
-        <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_260px] lg:items-stretch">
+        <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_260px] lg:items-stretch">
           <SCurveDeferred
             planned={planned}
             realizedSeries={realizedSeries}
@@ -852,7 +852,7 @@ export default function ServiceDetailClient({
             }
           />
 
-          <section className="flex h-full flex-col gap-3 rounded-2xl border bg-card/90 px-4 py-4 shadow-sm lg:ml-auto lg:max-w-[260px]">
+          <section className="flex h-full flex-col gap-3 rounded-2xl border bg-card/90 px-4 py-4 shadow-sm lg:max-w-[260px]">
             <h3 className="text-sm font-semibold text-foreground">Indicadores da curva</h3>
             <dl className="grid flex-1 grid-cols-1 gap-3 text-xs">
               <div className="rounded-lg border bg-muted/25 px-3 py-2">
