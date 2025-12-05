@@ -716,6 +716,10 @@ export default function ServiceDetailClient({
         </div>
       ) : null}
 
+      <div className="hidden print:block rounded-2xl bg-background p-4">
+        <h1 className="text-2xl font-semibold leading-tight text-foreground">Serviço {serviceLabel}</h1>
+      </div>
+
       <div className="space-y-4 print-avoid-break">
         <div className="card p-4 print-avoid-break">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
