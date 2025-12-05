@@ -156,6 +156,7 @@ export default async function ServiceUpdatesPage({ params }: { params: { id: str
                   {signatureCompanyLabel || signatureCnpjLabel ? (
                     <div className="mt-3 text-xs text-muted-foreground">
                       <span className="font-semibold text-foreground">Assinatura:</span>
+                      <span className="ml-1">Caixa de confirmação marcada</span>
                       <div className="mt-1 flex flex-col">
                         {signatureCompanyLabel ? <span>{signatureCompanyLabel}</span> : null}
                         {signatureCnpjLabel ? <span>CNPJ: {signatureCnpjLabel}</span> : null}
