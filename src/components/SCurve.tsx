@@ -298,16 +298,22 @@ export default function SCurve({
           <div className={cn("w-full scurve-container")} style={{ height: resolvedChartHeight }}>
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={chartData} margin={{ left: 44, right: 16, top: 16, bottom: 12 }}>
-                <CartesianGrid stroke="transparent" vertical={false} horizontal={false} />
-                <XAxis dataKey="dateLabel" stroke="hsl(var(--muted-foreground))" tick={{ fontSize: 12 }} />
+                <CartesianGrid stroke="hsl(var(--border))" vertical horizontal />
+                <XAxis
+                  dataKey="dateLabel"
+                  stroke="hsl(var(--foreground))"
+                  tick={{ fontSize: 12, fill: "hsl(var(--foreground))" }}
+                  tickLine={{ stroke: "hsl(var(--foreground))" }}
+                  axisLine={{ stroke: "hsl(var(--foreground))", strokeWidth: 1.5 }}
+                />
                 <YAxis
                   domain={[0, 100]}
                   ticks={[0, 25, 50, 75, 100]}
-                  tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+                  tick={{ fontSize: 11, fill: "hsl(var(--foreground))" }}
                   width={38}
-                  stroke="hsl(var(--muted-foreground))"
-                  tickLine={false}
-                  axisLine={{ stroke: "hsl(var(--muted-foreground))", strokeWidth: 1 }}
+                  stroke="hsl(var(--foreground))"
+                  tickLine={{ stroke: "hsl(var(--foreground))" }}
+                  axisLine={{ stroke: "hsl(var(--foreground))", strokeWidth: 1.5 }}
                   tickMargin={4}
                   allowDecimals={false}
                   tickFormatter={(value) => `${value}%`}
@@ -329,7 +335,7 @@ export default function SCurve({
                     dataKey="planned"
                     position="top"
                     formatter={(value) => (typeof value === "number" ? `${Math.round(value)}%` : "")}
-                    className="text-[10px] fill-muted-foreground"
+                    className="text-[11px] font-semibold fill-foreground drop-shadow-sm"
                   />
                 </Line>
                 <Line
@@ -347,7 +353,7 @@ export default function SCurve({
                     dataKey="realized"
                     position="top"
                     formatter={(value) => (typeof value === "number" ? `${Math.round(value)}%` : "")}
-                    className="text-[10px] fill-muted-foreground"
+                    className="text-[11px] font-semibold fill-foreground drop-shadow-sm"
                   />
                 </Line>
               </LineChart>
