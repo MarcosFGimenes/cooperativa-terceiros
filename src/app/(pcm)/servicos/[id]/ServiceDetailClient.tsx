@@ -111,7 +111,7 @@ export default function ServiceDetailClient({
     [refDateParam],
   );
   const referenceLabel = useMemo(() => formatReferenceLabel(referenceDate), [referenceDate]);
-  const resolvedChartHeight = isPdfExport ? 480 : 520;
+  const resolvedChartHeight = isPdfExport ? 540 : 560;
 
   const [service, setService] = useState<ServiceRealtimeData>(composedInitial);
   const [checklist, setChecklist] = useState<ChecklistItem[]>(toNewChecklist(initialChecklist));
@@ -830,7 +830,7 @@ export default function ServiceDetailClient({
             </div>
           </dl>
         </div>
-        <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_220px] lg:items-start">
+        <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_260px] lg:items-stretch">
           <SCurveDeferred
             planned={planned}
             realizedSeries={realizedSeries}
@@ -852,24 +852,24 @@ export default function ServiceDetailClient({
             }
           />
 
-          <section className="rounded-2xl border bg-card/80 px-3 py-3 shadow-sm lg:ml-auto lg:max-w-[220px]">
-            <h3 className="mb-2 text-sm font-semibold text-foreground">Indicadores da curva</h3>
-            <dl className="space-y-2 text-xs">
-              <div className="rounded-lg border bg-muted/30 px-3 py-2">
+          <section className="flex h-full flex-col gap-3 rounded-2xl border bg-card/90 px-4 py-4 shadow-sm lg:ml-auto lg:max-w-[260px]">
+            <h3 className="text-sm font-semibold text-foreground">Indicadores da curva</h3>
+            <dl className="grid flex-1 grid-cols-1 gap-3 text-xs">
+              <div className="rounded-lg border bg-muted/25 px-3 py-2">
                 <dt className="text-muted-foreground">Planejado (total)</dt>
-                <dd className="text-base font-semibold text-foreground">{plannedTotalPercent}%</dd>
+                <dd className="text-lg font-semibold text-foreground">{plannedTotalPercent}%</dd>
               </div>
-              <div className="rounded-lg border bg-muted/30 px-3 py-2">
+              <div className="rounded-lg border bg-muted/25 px-3 py-2">
                 <dt className="text-muted-foreground">Planejado até hoje</dt>
-                <dd className="text-base font-semibold text-foreground">{Math.round(plannedPercentToDate)}%</dd>
+                <dd className="text-lg font-semibold text-foreground">{Math.round(plannedPercentToDate)}%</dd>
               </div>
-              <div className="rounded-lg border bg-muted/30 px-3 py-2">
+              <div className="rounded-lg border bg-muted/25 px-3 py-2">
                 <dt className="text-muted-foreground">Realizado</dt>
-                <dd className="text-base font-semibold text-emerald-600 dark:text-emerald-400">{Math.round(realizedPercent)}%</dd>
+                <dd className="text-lg font-semibold text-emerald-600 dark:text-emerald-400">{Math.round(realizedPercent)}%</dd>
               </div>
-              <div className="rounded-lg border bg-muted/30 px-3 py-2">
+              <div className="rounded-lg border bg-muted/25 px-3 py-2">
                 <dt className="text-muted-foreground">Diferença</dt>
-                <dd className={`text-base font-semibold ${deltaToneClass}`}>
+                <dd className={`text-lg font-semibold ${deltaToneClass}`}>
                   {deltaPercent > 0 ? "+" : ""}
                   {deltaPercent}%
                 </dd>
