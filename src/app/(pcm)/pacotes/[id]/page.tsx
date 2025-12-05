@@ -803,12 +803,12 @@ async function renderPackageDetailPage(
               title="Curva S consolidada"
               description="Planejado versus realizado considerando todos os serviços do pacote."
               headerAside={<span className="font-medium text-foreground">{realizedHeaderLabel}</span>}
-              chartHeight={420}
+              chartHeight={520}
               metrics={curveMetrics}
               showMetrics={false}
               deferRendering
               fallback={
-                <div className="flex h-[420px] w-full items-center justify-center rounded-xl border border-dashed border-border/70 bg-muted/40">
+                <div className="flex h-[520px] w-full items-center justify-center rounded-xl border border-dashed border-border/70 bg-muted/40">
                   <span className="text-sm text-muted-foreground">Carregando gráfico...</span>
                 </div>
               }
