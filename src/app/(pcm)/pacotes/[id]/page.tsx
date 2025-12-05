@@ -794,7 +794,7 @@ async function renderPackageDetailPage(
 
         <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-start print:block print:gap-3">
           <section
-            className="rounded-2xl border bg-card/80 p-5 shadow-sm scurve-card print-card print:w-full print:rounded-none print:border-0 print:bg-white print:shadow-none print:p-2"
+            className="rounded-2xl border bg-card/80 p-5 shadow-sm scurve-card print-card print:w-full print:rounded-none print:border-0 print:bg-white print:shadow-none print:p-2 print-avoid-break"
           >
             <SCurveDeferred
               planned={plannedCurvePoints}
@@ -803,16 +803,53 @@ async function renderPackageDetailPage(
               title="Curva S consolidada"
               description="Planejado versus realizado considerando todos os serviços do pacote."
               headerAside={<span className="font-medium text-foreground">{realizedHeaderLabel}</span>}
-              chartHeight={420}
+              chartHeight={520}
               metrics={curveMetrics}
               showMetrics={false}
               deferRendering
               fallback={
-                <div className="flex h-[420px] w-full items-center justify-center rounded-xl border border-dashed border-border/70 bg-muted/40">
+                <div className="flex h-[520px] w-full items-center justify-center rounded-xl border border-dashed border-border/70 bg-muted/40">
                   <span className="text-sm text-muted-foreground">Carregando gráfico...</span>
                 </div>
               }
             />
+
+            <div className="mt-4 hidden print:grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+              {/* Incluindo indicadores da Curva S consolidada no PDF */}
+              <div className="rounded-xl border bg-muted/30 px-3 py-2.5">
+                <p className="text-muted-foreground">Planejado (total)</p>
+                <p className="text-lg font-semibold text-foreground">
+                  {Math.round(curveMetrics.plannedTotal ?? 0)}%
+                </p>
+              </div>
+              <div className="rounded-xl border bg-muted/30 px-3 py-2.5">
+                <p className="text-muted-foreground">Planejado até hoje</p>
+                <p className="text-lg font-semibold text-foreground">
+                  {Math.round(curveMetrics.plannedToDate ?? 0)}%
+                </p>
+              </div>
+              <div className="rounded-xl border bg-muted/30 px-3 py-2.5">
+                <p className="text-muted-foreground">Realizado</p>
+                <p className="text-lg font-semibold text-emerald-600 dark:text-emerald-400">
+                  {Math.round(realizedPercent)}%
+                </p>
+              </div>
+              <div className="rounded-xl border bg-muted/30 px-3 py-2.5">
+                <p className="text-muted-foreground">Diferença</p>
+                <p
+                  className={`text-lg font-semibold ${
+                    (curveMetrics.delta ?? 0) < -2
+                      ? "text-amber-600 dark:text-amber-400"
+                      : (curveMetrics.delta ?? 0) > 2
+                        ? "text-emerald-600 dark:text-emerald-400"
+                        : "text-foreground"
+                  }`}
+                >
+                  {(curveMetrics.delta ?? 0) > 0 ? "+" : ""}
+                  {Math.round(curveMetrics.delta ?? 0)}%
+                </p>
+              </div>
+            </div>
           </section>
 
           <section className="w-full rounded-2xl border bg-card/80 px-4 py-3 shadow-sm xl:max-w-[260px] print:hidden">
