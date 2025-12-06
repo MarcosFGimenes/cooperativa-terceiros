@@ -149,6 +149,16 @@ export default async function TerceiroPacotePublicoPage({ params }: { params: { 
                         <dd className="text-sm text-foreground">{service.os?.trim() || "—"}</dd>
                       </div>
                       <div className="space-y-1">
+                        <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">CNPJ</dt>
+                        <dd className="text-sm text-foreground">{service.cnpj?.trim() || "—"}</dd>
+                      </div>
+                      <div className="space-y-1">
+                        <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Empresa</dt>
+                        <dd className="text-sm text-foreground">
+                          {service.company?.trim() || service.assignedTo?.companyName?.trim() || service.empresa?.trim() || "—"}
+                        </dd>
+                      </div>
+                      <div className="space-y-1">
                         <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Tag</dt>
                         <dd className="text-sm text-foreground">{service.tag?.trim() || "—"}</dd>
                       </div>
@@ -163,12 +173,6 @@ export default async function TerceiroPacotePublicoPage({ params }: { params: { 
                       <div className="space-y-1">
                         <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Setor</dt>
                         <dd className="text-sm text-foreground">{service.sector?.trim() || service.setor?.trim() || "—"}</dd>
-                      </div>
-                      <div className="space-y-1">
-                        <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Empresa</dt>
-                        <dd className="text-sm text-foreground">
-                          {service.company?.trim() || service.assignedTo?.companyName?.trim() || service.empresa?.trim() || "—"}
-                        </dd>
                       </div>
                       <div className="space-y-1">
                         <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Início previsto</dt>
