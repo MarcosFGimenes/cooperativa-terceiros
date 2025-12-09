@@ -670,7 +670,7 @@ export default function ServiceDetailClient({
   }, []);
 
   return (
-    <div className="container mx-auto space-y-6 p-4">
+    <div className="container mx-auto space-y-6 p-4 print:m-0 print:w-full print:max-w-none print:space-y-3 print:px-0 print:py-0">
       <div className="flex flex-wrap items-center justify-between gap-3 print:hidden">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Serviço {serviceLabel}</h1>
@@ -716,12 +716,12 @@ export default function ServiceDetailClient({
         </div>
       ) : null}
 
-      <div className="hidden print:block rounded-2xl bg-background p-4">
+      <div className="hidden print:block rounded-2xl bg-background p-4 print:rounded-none print:border-0 print:bg-white print:p-2">
         <h1 className="text-2xl font-semibold leading-tight text-foreground">Serviço {serviceLabel}</h1>
       </div>
 
-      <div className="space-y-4 print-avoid-break">
-        <div className="card p-4 print-avoid-break">
+      <div className="space-y-4 print:space-y-3 print-avoid-break">
+        <div className="card p-4 print:rounded-none print:border-0 print:bg-white print:shadow-none print:p-3 print-avoid-break">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <h2 className="text-lg font-semibold">Informações gerais</h2>
             <button
@@ -834,29 +834,54 @@ export default function ServiceDetailClient({
             </div>
           </dl>
         </div>
-        <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_260px] lg:items-stretch print-avoid-break">
-          <SCurveDeferred
-            planned={planned}
-            realizedSeries={realizedSeries}
-            realizedPercent={realizedPercent}
-            title="Curva S do serviço"
-            description="Evolução planejada versus realizado para este serviço."
-            metrics={{ plannedToDate: plannedPercentToDate, plannedTotal: plannedTotalPercent }}
-            showMetrics={false}
-            chartHeight={resolvedChartHeight}
-            deferRendering={!isPdfExport}
-            className="print-avoid-break"
-            fallback={
-              <div
-                className="flex w-full items-center justify-center rounded-xl border border-dashed bg-muted/40"
-                style={{ minHeight: resolvedChartHeight }}
-              >
-                <span className="text-sm text-muted-foreground">Carregando gráfico...</span>
-              </div>
-            }
-          />
+        <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_260px] lg:items-stretch print:block print:gap-3 print-avoid-break">
+          <section className="rounded-2xl border bg-card/80 p-5 shadow-sm scurve-card print-card print:w-full print:rounded-none print:border-0 print:bg-white print:shadow-none print:p-2 print-avoid-break">
+            <SCurveDeferred
+              planned={planned}
+              realizedSeries={realizedSeries}
+              realizedPercent={realizedPercent}
+              title="Curva S do serviço"
+              description="Evolução planejada versus realizado para este serviço."
+              metrics={{ plannedToDate: plannedPercentToDate, plannedTotal: plannedTotalPercent }}
+              showMetrics={false}
+              chartHeight={resolvedChartHeight}
+              deferRendering={!isPdfExport}
+              className="print-avoid-break"
+              fallback={
+                <div
+                  className="flex w-full items-center justify-center rounded-xl border border-dashed bg-muted/40"
+                  style={{ minHeight: resolvedChartHeight }}
+                >
+                  <span className="text-sm text-muted-foreground">Carregando gráfico...</span>
+                </div>
+              }
+            />
 
-          <section className="w-full rounded-2xl border bg-card/80 px-4 py-3 shadow-sm xl:max-w-[260px]">
+            <div className="mt-4 hidden print:grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+              {/* Incluindo indicadores da Curva S do serviço no PDF */}
+              <div className="rounded-xl border bg-muted/30 px-3 py-2.5">
+                <p className="text-muted-foreground">Planejado (total)</p>
+                <p className="text-lg font-semibold text-foreground">{Math.round(plannedTotalPercent)}%</p>
+              </div>
+              <div className="rounded-xl border bg-muted/30 px-3 py-2.5">
+                <p className="text-muted-foreground">Planejado até hoje</p>
+                <p className="text-lg font-semibold text-foreground">{Math.round(plannedPercentToDate)}%</p>
+              </div>
+              <div className="rounded-xl border bg-muted/30 px-3 py-2.5">
+                <p className="text-muted-foreground">Realizado</p>
+                <p className="text-lg font-semibold text-emerald-600 dark:text-emerald-400">{Math.round(realizedPercent)}%</p>
+              </div>
+              <div className="rounded-xl border bg-muted/30 px-3 py-2.5">
+                <p className="text-muted-foreground">Diferença</p>
+                <p className={`text-lg font-semibold ${deltaToneClass}`}>
+                  {deltaPercent > 0 ? "+" : ""}
+                  {deltaPercent}%
+                </p>
+              </div>
+            </div>
+          </section>
+
+          <section className="w-full rounded-2xl border bg-card/80 px-4 py-3 shadow-sm xl:max-w-[260px] print:hidden">
             {/* Evitando quebra de página entre gráfico e indicadores da Curva S do serviço */}
             {/* Layout dos indicadores padronizado com a Curva S Consolidada */}
             <h3 className="mb-3 text-lg font-semibold">Indicadores da curva</h3>
