@@ -834,29 +834,54 @@ export default function ServiceDetailClient({
             </div>
           </dl>
         </div>
-        <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_260px] lg:items-stretch print-avoid-break">
-          <SCurveDeferred
-            planned={planned}
-            realizedSeries={realizedSeries}
-            realizedPercent={realizedPercent}
-            title="Curva S do serviço"
-            description="Evolução planejada versus realizado para este serviço."
-            metrics={{ plannedToDate: plannedPercentToDate, plannedTotal: plannedTotalPercent }}
-            showMetrics={false}
-            chartHeight={resolvedChartHeight}
-            deferRendering={!isPdfExport}
-            className="print-avoid-break"
-            fallback={
-              <div
-                className="flex w-full items-center justify-center rounded-xl border border-dashed bg-muted/40"
-                style={{ minHeight: resolvedChartHeight }}
-              >
-                <span className="text-sm text-muted-foreground">Carregando gráfico...</span>
-              </div>
-            }
-          />
+        <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_260px] lg:items-stretch print:block print:gap-3 print-avoid-break">
+          <section className="rounded-2xl border bg-card/80 p-5 shadow-sm scurve-card print-card print:w-full print:rounded-none print:border-0 print:bg-white print:shadow-none print:p-2 print-avoid-break">
+            <SCurveDeferred
+              planned={planned}
+              realizedSeries={realizedSeries}
+              realizedPercent={realizedPercent}
+              title="Curva S do serviço"
+              description="Evolução planejada versus realizado para este serviço."
+              metrics={{ plannedToDate: plannedPercentToDate, plannedTotal: plannedTotalPercent }}
+              showMetrics={false}
+              chartHeight={resolvedChartHeight}
+              deferRendering={!isPdfExport}
+              className="print-avoid-break"
+              fallback={
+                <div
+                  className="flex w-full items-center justify-center rounded-xl border border-dashed bg-muted/40"
+                  style={{ minHeight: resolvedChartHeight }}
+                >
+                  <span className="text-sm text-muted-foreground">Carregando gráfico...</span>
+                </div>
+              }
+            />
 
-          <section className="w-full rounded-2xl border bg-card/80 px-4 py-3 shadow-sm xl:max-w-[260px]">
+            <div className="mt-4 hidden print:grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+              {/* Incluindo indicadores da Curva S do serviço no PDF */}
+              <div className="rounded-xl border bg-muted/30 px-3 py-2.5">
+                <p className="text-muted-foreground">Planejado (total)</p>
+                <p className="text-lg font-semibold text-foreground">{Math.round(plannedTotalPercent)}%</p>
+              </div>
+              <div className="rounded-xl border bg-muted/30 px-3 py-2.5">
+                <p className="text-muted-foreground">Planejado até hoje</p>
+                <p className="text-lg font-semibold text-foreground">{Math.round(plannedPercentToDate)}%</p>
+              </div>
+              <div className="rounded-xl border bg-muted/30 px-3 py-2.5">
+                <p className="text-muted-foreground">Realizado</p>
+                <p className="text-lg font-semibold text-emerald-600 dark:text-emerald-400">{Math.round(realizedPercent)}%</p>
+              </div>
+              <div className="rounded-xl border bg-muted/30 px-3 py-2.5">
+                <p className="text-muted-foreground">Diferença</p>
+                <p className={`text-lg font-semibold ${deltaToneClass}`}>
+                  {deltaPercent > 0 ? "+" : ""}
+                  {deltaPercent}%
+                </p>
+              </div>
+            </div>
+          </section>
+
+          <section className="w-full rounded-2xl border bg-card/80 px-4 py-3 shadow-sm xl:max-w-[260px] print:hidden">
             {/* Evitando quebra de página entre gráfico e indicadores da Curva S do serviço */}
             {/* Layout dos indicadores padronizado com a Curva S Consolidada */}
             <h3 className="mb-3 text-lg font-semibold">Indicadores da curva</h3>
