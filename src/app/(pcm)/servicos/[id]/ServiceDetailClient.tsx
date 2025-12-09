@@ -14,6 +14,7 @@ import {
   query,
   type FirestoreError,
 } from "firebase/firestore";
+import CurveIndicators from "@/components/CurveIndicators";
 import SCurveDeferred from "@/components/SCurveDeferred";
 import { plannedCurve } from "@/lib/curve";
 import ReferenceDateSelector from "@/components/ReferenceDateSelector";
@@ -111,7 +112,7 @@ export default function ServiceDetailClient({
     [refDateParam],
   );
   const referenceLabel = useMemo(() => formatReferenceLabel(referenceDate), [referenceDate]);
-  const resolvedChartHeight = isPdfExport ? 540 : 560;
+  const resolvedChartHeight = isPdfExport ? 500 : 560;
 
   const [service, setService] = useState<ServiceRealtimeData>(composedInitial);
   const [checklist, setChecklist] = useState<ChecklistItem[]>(toNewChecklist(initialChecklist));
@@ -857,57 +858,28 @@ export default function ServiceDetailClient({
               }
             />
 
-            <div className="mt-4 hidden print:grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-              {/* Incluindo indicadores da Curva S do serviço no PDF */}
-              <div className="rounded-xl border bg-muted/30 px-3 py-2.5">
-                <p className="text-muted-foreground">Planejado (total)</p>
-                <p className="text-lg font-semibold text-foreground">{Math.round(plannedTotalPercent)}%</p>
-              </div>
-              <div className="rounded-xl border bg-muted/30 px-3 py-2.5">
-                <p className="text-muted-foreground">Planejado até hoje</p>
-                <p className="text-lg font-semibold text-foreground">{Math.round(plannedPercentToDate)}%</p>
-              </div>
-              <div className="rounded-xl border bg-muted/30 px-3 py-2.5">
-                <p className="text-muted-foreground">Realizado</p>
-                <p className="text-lg font-semibold text-emerald-600 dark:text-emerald-400">{Math.round(realizedPercent)}%</p>
-              </div>
-              <div className="rounded-xl border bg-muted/30 px-3 py-2.5">
-                <p className="text-muted-foreground">Diferença</p>
-                <p className={`text-lg font-semibold ${deltaToneClass}`}>
-                  {deltaPercent > 0 ? "+" : ""}
-                  {deltaPercent}%
-                </p>
-              </div>
-            </div>
+            <CurveIndicators
+              plannedTotal={plannedTotalPercent}
+              plannedToDate={plannedPercentToDate}
+              realized={realizedPercent}
+              delta={deltaPercent}
+              deltaValueClassName={deltaToneClass}
+              wrapperClassName="mt-4 hidden gap-2 sm:grid-cols-2 xl:grid-cols-4 print:grid"
+            />
           </section>
 
           <section className="w-full rounded-2xl border bg-card/80 px-4 py-3 shadow-sm xl:max-w-[260px] print:hidden">
             {/* Evitando quebra de página entre gráfico e indicadores da Curva S do serviço */}
             {/* Layout dos indicadores padronizado com a Curva S Consolidada */}
             <h3 className="mb-3 text-lg font-semibold">Indicadores da curva</h3>
-            <dl className="space-y-3 text-sm">
-              <div className="rounded-xl border bg-muted/30 px-3 py-2.5">
-                <dt className="text-muted-foreground">Planejado (total)</dt>
-                <dd className="text-lg font-semibold text-foreground">{plannedTotalPercent}%</dd>
-              </div>
-              <div className="rounded-xl border bg-muted/30 px-3 py-2.5">
-                <dt className="text-muted-foreground">Planejado até hoje</dt>
-                <dd className="text-lg font-semibold text-foreground">{Math.round(plannedPercentToDate)}%</dd>
-              </div>
-              <div className="rounded-xl border bg-muted/30 px-3 py-2.5">
-                <dt className="text-muted-foreground">Realizado</dt>
-                <dd className="text-lg font-semibold text-emerald-600 dark:text-emerald-400">
-                  {Math.round(realizedPercent)}%
-                </dd>
-              </div>
-              <div className="rounded-xl border bg-muted/30 px-3 py-2.5">
-                <dt className="text-muted-foreground">Diferença</dt>
-                <dd className={`text-lg font-semibold ${deltaToneClass}`}>
-                  {deltaPercent > 0 ? "+" : ""}
-                  {deltaPercent}%
-                </dd>
-              </div>
-            </dl>
+            <CurveIndicators
+              plannedTotal={plannedTotalPercent}
+              plannedToDate={plannedPercentToDate}
+              realized={realizedPercent}
+              delta={deltaPercent}
+              deltaValueClassName={deltaToneClass}
+              wrapperClassName="space-y-3 text-sm"
+            />
           </section>
         </div>
       </div>
