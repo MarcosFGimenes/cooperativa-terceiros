@@ -670,7 +670,7 @@ export default function ServiceDetailClient({
   }, []);
 
   return (
-    <div className="container mx-auto space-y-6 p-4">
+    <div className="container mx-auto space-y-6 p-4 print:m-0 print:w-full print:max-w-none print:space-y-3 print:px-0 print:py-0">
       <div className="flex flex-wrap items-center justify-between gap-3 print:hidden">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Serviço {serviceLabel}</h1>
@@ -716,12 +716,12 @@ export default function ServiceDetailClient({
         </div>
       ) : null}
 
-      <div className="hidden print:block rounded-2xl bg-background p-4">
+      <div className="hidden print:block rounded-2xl bg-background p-4 print:rounded-none print:border-0 print:bg-white print:p-2">
         <h1 className="text-2xl font-semibold leading-tight text-foreground">Serviço {serviceLabel}</h1>
       </div>
 
-      <div className="space-y-4 print-avoid-break">
-        <div className="card p-4 print-avoid-break">
+      <div className="space-y-4 print:space-y-3 print-avoid-break">
+        <div className="card p-4 print:rounded-none print:border-0 print:bg-white print:shadow-none print:p-3 print-avoid-break">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <h2 className="text-lg font-semibold">Informações gerais</h2>
             <button
