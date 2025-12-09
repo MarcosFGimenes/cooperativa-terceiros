@@ -2,6 +2,7 @@ import Link from "next/link";
 import * as Navigation from "next/navigation";
 import { isRedirectError } from "next/dist/client/components/redirect";
 import DeletePackageButton from "@/components/DeletePackageButton.dynamic";
+import CurveIndicators from "@/components/CurveIndicators";
 import SCurveDeferred from "@/components/SCurveDeferred";
 import { decodeRouteParam } from "@/lib/decodeRouteParam";
 import { getPackageByIdCached, listPackageServices } from "@/lib/repo/packages";
@@ -814,81 +815,24 @@ async function renderPackageDetailPage(
               }
             />
 
-            <div className="mt-4 hidden print:grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-              {/* Incluindo indicadores da Curva S consolidada no PDF */}
-              <div className="rounded-xl border bg-muted/30 px-3 py-2.5">
-                <p className="text-muted-foreground">Planejado (total)</p>
-                <p className="text-lg font-semibold text-foreground">
-                  {Math.round(curveMetrics.plannedTotal ?? 0)}%
-                </p>
-              </div>
-              <div className="rounded-xl border bg-muted/30 px-3 py-2.5">
-                <p className="text-muted-foreground">Planejado até hoje</p>
-                <p className="text-lg font-semibold text-foreground">
-                  {Math.round(curveMetrics.plannedToDate ?? 0)}%
-                </p>
-              </div>
-              <div className="rounded-xl border bg-muted/30 px-3 py-2.5">
-                <p className="text-muted-foreground">Realizado</p>
-                <p className="text-lg font-semibold text-emerald-600 dark:text-emerald-400">
-                  {Math.round(realizedPercent)}%
-                </p>
-              </div>
-              <div className="rounded-xl border bg-muted/30 px-3 py-2.5">
-                <p className="text-muted-foreground">Diferença</p>
-                <p
-                  className={`text-lg font-semibold ${
-                    (curveMetrics.delta ?? 0) < -2
-                      ? "text-amber-600 dark:text-amber-400"
-                      : (curveMetrics.delta ?? 0) > 2
-                        ? "text-emerald-600 dark:text-emerald-400"
-                        : "text-foreground"
-                  }`}
-                >
-                  {(curveMetrics.delta ?? 0) > 0 ? "+" : ""}
-                  {Math.round(curveMetrics.delta ?? 0)}%
-                </p>
-              </div>
-            </div>
+            <CurveIndicators
+              plannedTotal={curveMetrics.plannedTotal ?? 0}
+              plannedToDate={curveMetrics.plannedToDate ?? 0}
+              realized={realizedPercent}
+              delta={curveMetrics.delta ?? 0}
+              wrapperClassName="mt-4 hidden gap-2 sm:grid-cols-2 xl:grid-cols-4 print:grid"
+            />
           </section>
 
           <section className="w-full rounded-2xl border bg-card/80 px-4 py-3 shadow-sm xl:max-w-[260px] print:hidden">
             <h2 className="mb-3 text-lg font-semibold">Indicadores da curva</h2>
-            <dl className="space-y-3 text-sm">
-              <div className="rounded-xl border bg-muted/30 px-3 py-2.5">
-                <dt className="text-muted-foreground">Planejado (total)</dt>
-                <dd className="text-lg font-semibold text-foreground">
-                  {Math.round(curveMetrics.plannedTotal ?? 0)}%
-                </dd>
-              </div>
-              <div className="rounded-xl border bg-muted/30 px-3 py-2.5">
-                <dt className="text-muted-foreground">Planejado até hoje</dt>
-                <dd className="text-lg font-semibold text-foreground">
-                  {Math.round(curveMetrics.plannedToDate ?? 0)}%
-                </dd>
-              </div>
-              <div className="rounded-xl border bg-muted/30 px-3 py-2.5">
-                <dt className="text-muted-foreground">Realizado</dt>
-                <dd className="text-lg font-semibold text-emerald-600 dark:text-emerald-400">
-                  {Math.round(realizedPercent)}%
-                </dd>
-              </div>
-              <div className="rounded-xl border bg-muted/30 px-3 py-2.5">
-                <dt className="text-muted-foreground">Diferença</dt>
-                <dd
-                  className={`text-lg font-semibold ${
-                    (curveMetrics.delta ?? 0) < -2
-                      ? "text-amber-600 dark:text-amber-400"
-                      : (curveMetrics.delta ?? 0) > 2
-                        ? "text-emerald-600 dark:text-emerald-400"
-                        : "text-foreground"
-                  }`}
-                >
-                  {(curveMetrics.delta ?? 0) > 0 ? "+" : ""}
-                  {Math.round(curveMetrics.delta ?? 0)}%
-                </dd>
-              </div>
-            </dl>
+            <CurveIndicators
+              plannedTotal={curveMetrics.plannedTotal ?? 0}
+              plannedToDate={curveMetrics.plannedToDate ?? 0}
+              realized={realizedPercent}
+              delta={curveMetrics.delta ?? 0}
+              wrapperClassName="space-y-3 text-sm"
+            />
           </section>
         </div>
       </div>
