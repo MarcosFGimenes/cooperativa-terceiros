@@ -165,6 +165,7 @@ export default async function FolderPublicPage({
                       <InfoItem label="Equipamento" value={service.equipmentName?.trim() || "—"} />
                       <InfoItem label="Setor" value={service.sector?.trim() || service.setor?.trim() || "—"} />
                       <InfoItem label="Empresa" value={service.company?.trim() || service.empresa?.trim() || "—"} />
+                      <InfoItem label="CNPJ" value={service.cnpj?.trim() || "—"} />
                       <InfoItem label="Início previsto" value={formatDateLabel(service.plannedStart)} />
                       <InfoItem label="Término previsto" value={formatDateLabel(service.plannedEnd)} />
                       <InfoItem label="Horas totais" value={formatHours(service.totalHours)} />
