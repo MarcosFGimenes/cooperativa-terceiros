@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { PublicAccessError, requireServiceAccess } from "@/lib/public-access";
 import { addComputedUpdate, updateChecklistProgress } from "@/lib/repo/services";
 import type { ChecklistItem } from "@/lib/types";
+import { mapFirestoreError } from "@/lib/utils/firestoreErrors";
 
 export async function POST(req: Request) {
   const { searchParams } = new URL(req.url);
@@ -53,6 +54,13 @@ export async function POST(req: Request) {
   } catch (err: unknown) {
     if (err instanceof PublicAccessError) {
       return NextResponse.json({ ok: false, error: err.message }, { status: err.status });
+    }
+    const firestoreError = mapFirestoreError(err);
+    if (firestoreError) {
+      return NextResponse.json(
+        { ok: false, error: firestoreError.message },
+        { status: firestoreError.status },
+      );
     }
     if (err instanceof Error && /Item do checklist/.test(err.message)) {
       return NextResponse.json({ ok: false, error: err.message }, { status: 404 });
