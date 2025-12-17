@@ -1,4 +1,5 @@
 import type { Service } from "@/types";
+import { parseDayFirstDateStringToUtcDate } from "@/lib/dateParsing";
 
 export function clampProgress(value: number): number {
   if (!Number.isFinite(value)) return 0;
@@ -157,6 +158,11 @@ export function toDate(value: DateInput): Date | null {
   if (typeof value === "string") {
     const trimmed = value.trim();
     if (!trimmed) return null;
+
+    // Suporte a "dd/MM/yyyy" e "dd/MM/yy" (com "/" ou "-"), comum no input do usuário.
+    const brDate = parseDayFirstDateStringToUtcDate(trimmed);
+    if (brDate) return brDate;
+
     const date = new Date(trimmed);
     return Number.isNaN(date.getTime()) ? null : date;
   }

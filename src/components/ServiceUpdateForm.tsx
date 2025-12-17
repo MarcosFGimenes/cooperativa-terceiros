@@ -460,11 +460,12 @@ export default function ServiceUpdateForm({
                 typeof subactivityValues?.[index]?.progress === "number"
                   ? subactivityValues[index]?.progress
                   : undefined;
-              const displayProgress = typeof realizedPercent === "number" && Number.isFinite(realizedPercent)
-                ? Math.round(realizedPercent)
-                : (typeof computedPercent === "number" && Number.isFinite(computedPercent) 
-                  ? Math.round(computedPercent) 
-                  : Math.round(item.progress ?? 0));
+              const displayProgress =
+                typeof realizedPercent === "number" && Number.isFinite(realizedPercent)
+                  ? Math.round(realizedPercent)
+                  : typeof computedPercent === "number" && Number.isFinite(computedPercent)
+                    ? Math.round(computedPercent)
+                    : Math.round(item.progress ?? 0);
               return (
                 <li key={item.id} className="space-y-2 rounded-lg border p-3">
                   <div className="flex flex-col gap-1">
