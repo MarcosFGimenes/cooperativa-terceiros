@@ -1,6 +1,7 @@
 "use server";
 
 import { getAdmin } from "@/lib/firebaseAdmin";
+import { PublicAccessError } from "@/lib/public-access";
 import type {
   ChecklistItem,
   Service,
@@ -1401,7 +1402,7 @@ export async function updateChecklistProgress(
 
     const serviceSnap = await tx.get(serviceRef);
     if (!serviceSnap.exists) {
-      throw new Error("Serviço não encontrado");
+      throw new PublicAccessError(404, "Serviço não encontrado");
     }
     const serviceData = (serviceSnap.data() ?? {}) as Record<string, unknown>;
 
@@ -1430,7 +1431,7 @@ export async function updateChecklistProgress(
     updates.forEach((update) => {
       const existing = itemsMap.get(update.id);
       if (!existing) {
-        throw new Error(`Item do checklist ${update.id} não encontrado.`);
+        throw new PublicAccessError(404, `Item do checklist ${update.id} não encontrado`);
       }
       const progress = sanitisePercent(update.progress);
       const status = update.status ?? inferChecklistStatus(progress);

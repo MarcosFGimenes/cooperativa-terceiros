@@ -57,6 +57,12 @@ export async function POST(req: Request) {
     if (err instanceof PublicAccessError) {
       return NextResponse.json({ ok: false, error: err.message }, { status: err.status });
     }
+    if (err instanceof Error && /Item do checklist/.test(err.message)) {
+      return NextResponse.json({ ok: false, error: err.message }, { status: 404 });
+    }
+    if (err instanceof Error && /Serviço não encontrado/.test(err.message)) {
+      return NextResponse.json({ ok: false, error: err.message }, { status: 404 });
+    }
 
     console.error("[api/public/service/update-checklist] Falha inesperada", err);
     return NextResponse.json({ ok: false, error: "Erro interno" }, { status: 500 });
