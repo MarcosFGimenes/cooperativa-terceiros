@@ -282,6 +282,18 @@ function inferChecklistStatus(progress: number): ChecklistItem["status"] {
   return "nao_iniciado";
 }
 
+function normaliseChecklistStatus(value: unknown): ChecklistItem["status"] {
+  const raw = String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/-/g, "_")
+    .replace(/\s+/g, "_");
+
+  if (raw.includes("conclu")) return "concluido";
+  if (raw.includes("andamento") || raw.includes("andando")) return "andamento";
+  return "nao_iniciado";
+}
+
 function sanitisePercent(value: number) {
   if (Number.isNaN(value)) return 0;
   // Preservar o valor exato digitado, apenas garantir que está no range válido
@@ -801,6 +813,49 @@ function mapChecklistDoc(
     status: (data.status ?? "nao_iniciado") as ChecklistItem["status"],
     updatedAt: toMillis(data.updatedAt),
   };
+}
+
+function mapEmbeddedChecklistItems(
+  serviceId: string,
+  data: Record<string, unknown>,
+): ChecklistItem[] {
+  const rawChecklist = [data.checklist, data.checklists, data.items].find((value) =>
+    Array.isArray(value),
+  ) as Array<Record<string, unknown>> | undefined;
+
+  if (!rawChecklist?.length) return [];
+
+  return rawChecklist
+    .map((entry, index) => {
+      if (!entry || typeof entry !== "object") return null;
+
+      const idCandidates = [entry.id, entry.itemId, entry.checklistId, entry.codigo];
+      const id = idCandidates
+        .map((value) => (typeof value === "string" ? value.trim() : ""))
+        .find((value) => value);
+
+      const descriptionCandidates = [entry.description, entry.descricao, entry.nome];
+      const description =
+        descriptionCandidates
+          .map((value) => (typeof value === "string" ? value.trim() : ""))
+          .find((value) => value) || "Item do checklist";
+
+      const weight = toNumber((entry as Record<string, unknown>).weight ?? entry.peso) ?? 0;
+      const progress = sanitisePercent(
+        toNumber((entry as Record<string, unknown>).progress ?? entry.percentual ?? entry.pct) ?? 0,
+      );
+      const status = normaliseChecklistStatus((entry as Record<string, unknown>).status);
+
+      return {
+        id: id || `item-${index}`,
+        serviceId,
+        description,
+        weight,
+        progress,
+        status,
+      };
+    })
+    .filter((item): item is ChecklistItem => Boolean(item));
 }
 
 function mapTimeWindow(value: unknown) {
@@ -1361,13 +1416,29 @@ export async function updateChecklistProgress(
     if (!serviceSnap.exists) {
       throw new Error("Serviço não encontrado");
     }
+    const serviceData = (serviceSnap.data() ?? {}) as Record<string, unknown>;
 
     const checklistSnap = await tx.get(checklistCol);
     const itemsMap = new Map<string, ChecklistItem>();
 
-    checklistSnap.docs.forEach((doc) => {
-      itemsMap.set(doc.id, mapChecklistDoc(serviceId, doc));
-    });
+    if (checklistSnap.empty) {
+      const embeddedItems = mapEmbeddedChecklistItems(serviceId, serviceData);
+
+      embeddedItems.forEach((item) => {
+        itemsMap.set(item.id, item);
+        tx.set(checklistCol.doc(item.id), {
+          description: item.description,
+          weight: item.weight ?? 0,
+          progress: item.progress ?? 0,
+          status: item.status ?? inferChecklistStatus(item.progress ?? 0),
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+      });
+    } else {
+      checklistSnap.docs.forEach((doc) => {
+        itemsMap.set(doc.id, mapChecklistDoc(serviceId, doc));
+      });
+    }
 
     updates.forEach((update) => {
       const existing = itemsMap.get(update.id);
