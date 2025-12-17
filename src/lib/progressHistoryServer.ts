@@ -2,6 +2,7 @@ import { FieldValue, Timestamp, type Firestore } from "firebase-admin/firestore"
 import { revalidatePath, revalidateTag } from "next/cache";
 
 import { getAdminDbOrThrow } from "@/lib/serverDb";
+import { parseDayFirstDateStringToUtcDate } from "@/lib/dateParsing";
 import {
   buildChecklistWeightMap,
   clampPercent,
@@ -13,7 +14,14 @@ import {
 function toMillis(value: unknown): number | null {
   if (typeof value === "number" && Number.isFinite(value)) return value;
   if (typeof value === "string") {
-    const parsed = new Date(value);
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+
+    // Suporte a "dd/MM/yyyy" e "dd/MM/yy" (com "/" ou "-"), comum no input do usuário.
+    const brDate = parseDayFirstDateStringToUtcDate(trimmed);
+    if (brDate) return brDate.getTime();
+
+    const parsed = new Date(trimmed);
     return Number.isNaN(parsed.getTime()) ? null : parsed.getTime();
   }
   if (value instanceof Date) {

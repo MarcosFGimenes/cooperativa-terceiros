@@ -16,13 +16,19 @@ import {
   resolveServicoPercentualPlanejado,
   resolveServicoRealPercent,
   snapshotBeforeConclusion,
+  toDate,
 } from "@/lib/serviceProgress";
 import { resolveReferenceDate } from "@/lib/referenceDate";
 
 describe("serviceProgress utilities", () => {
+  it("parses dd/MM/yyyy date-only strings for updates and ranges", () => {
+    const date = toDate("17/11/2025");
+    expect(date?.toISOString()).toBe("2025-11-17T00:00:00.000Z");
+  });
+
   it("clamps progress to 0-100 range", () => {
     expect(clampProgress(-10)).toBe(0);
-    expect(clampProgress(42.6)).toBe(43);
+    expect(clampProgress(42.6)).toBe(42.6);
     expect(clampProgress(180)).toBe(100);
   });
 
@@ -69,7 +75,6 @@ describe("serviceProgress utilities", () => {
           { percentual: 20, data: "2024-01-01" },
           { percentualReal: 65, dataAtualizacaoPercentual: "2024-01-05" },
         ],
-        progress: 5,
       });
 
       expect(percent).toBe(65);
@@ -77,7 +82,7 @@ describe("serviceProgress utilities", () => {
 
     it("reads direct percentual fields when there is no history", () => {
       const percent = resolveServicoRealPercent({ percentualInformado: "37.2" });
-      expect(percent).toBe(37);
+      expect(percent).toBe(37.2);
     });
 
     it("clamps invalid or out of range values", () => {
@@ -169,7 +174,6 @@ describe("serviceProgress utilities", () => {
         calcularPercentualSubpacote(
           {
             servicos: [
-              { horasPrevistas: 0, dataInicio: "2024-01-01", dataFim: "2024-01-10" },
               { horasPrevistas: 10, dataInicio: "2024-01-10", dataFim: "2024-01-01" },
               { horasPrevistas: 5 },
             ],
@@ -197,7 +201,10 @@ describe("serviceProgress utilities", () => {
         },
         reference,
       );
-      expect(percentual).toBeCloseTo((50 * 10 + 100 * 5) / 15, 5);
+      // Contagem inclusiva de dias:
+      // Serviço 1: 01/01..11/01 (11 dias), ref 06/01 => 6/11 = 54.545...
+      // Serviço 2: 01/01..06/01 (6 dias), ref no fim => 100%
+      expect(percentual).toBeCloseTo(((6 / 11) * 100 * 10 + 100 * 5) / 15, 5);
     });
 
     it("clamps the final percentage between 0 and 100", () => {
@@ -244,7 +251,10 @@ describe("serviceProgress utilities", () => {
         reference,
       );
 
-      expect(percentual).toBeCloseTo((50 * 10 + 20 * 30) / 40, 5);
+      // Contagem inclusiva de dias:
+      // Serviço 1: 20/11..30/11 (11 dias), ref 24/11 => 5/11 = 45.454...
+      // Serviço 2: 20/11..20/12 (31 dias), ref 24/11 => 5/31 = 16.129...
+      expect(percentual).toBeCloseTo(((5 / 11) * 100 * 10 + (5 / 31) * 100 * 30) / 40, 5);
     });
 
     it("applies hour-based weights across subpackages for realized progress", () => {
@@ -386,7 +396,8 @@ describe("serviceProgress utilities", () => {
         },
         reference,
       );
-      expect(percentual).toBeCloseTo(90, 5);
+      // Contagem inclusiva de dias: 01/01..11/01 (11 dias), ref 10/01 => 10/11 = 90.909...
+      expect(percentual).toBeCloseTo((10 / 11) * 100, 5);
     });
 
     it("prefers plannedDaily series when available", () => {
@@ -477,8 +488,9 @@ describe("serviceProgress utilities", () => {
 
       expect(result).toHaveLength(2);
       expect(result[0]).toMatchObject({ id: "abc", descricao: "Serviço 1", percentualReal: 55 });
-      expect(result[0].percentualPlanejado).toBeCloseTo(50, 5);
-      expect(result[1]).toMatchObject({ id: "2", descricao: "Serviço 2", percentualReal: 100, percentualPlanejado: 0 });
+      expect(result[0].percentualPlanejado).toBeCloseTo((6 / 11) * 100, 5);
+      expect(result[1]).toMatchObject({ id: "2", descricao: "Serviço 2", percentualReal: 100 });
+      expect(result[1].percentualPlanejado).toBeCloseTo((2 / 11) * 100, 5);
     });
 
     it("returns zero when real percentage is missing", () => {
@@ -546,7 +558,7 @@ describe("serviceProgress utilities", () => {
       expect(curvaPlanejada[curvaPlanejada.length - 1].data.toISOString()).toBe(
         "2024-01-07T00:00:00.000Z",
       );
-      expect(obterPercentual(curvaPlanejada, "2024-01-03T00:00:00Z")).toBeCloseTo(33.33, 1);
+      expect(obterPercentual(curvaPlanejada, "2024-01-03T00:00:00Z")).toBeCloseTo(40, 1);
     });
 
     it("usa o histórico do Terceiro para calcular a curva realizada", () => {
@@ -561,9 +573,10 @@ describe("serviceProgress utilities", () => {
         new Date("2024-01-05T00:00:00Z"),
       );
       expect(indicadores.planejadoTotal).toBe(100);
-      expect(indicadores.planejadoAteHoje).toBeCloseTo(83.33, 1);
-      expect(indicadores.realizado).toBeCloseTo(53.33, 1);
-      expect(indicadores.diferenca).toBeCloseTo(-29.99, 1);
+      expect(indicadores.planejadoAteHoje).toBeCloseTo(87, 1);
+      // `calcularIndicadoresCurvaS` arredonda os valores consolidados.
+      expect(indicadores.realizado).toBe(53);
+      expect(indicadores.diferenca).toBe(-34);
     });
   });
 

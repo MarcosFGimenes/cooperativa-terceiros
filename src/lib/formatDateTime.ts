@@ -1,3 +1,5 @@
+import { parseDayFirstDateStringToUtcDate } from "@/lib/dateParsing";
+
 type DateInput = number | string | Date | null | undefined;
 
 const ISO_DATE_ONLY = /^(\d{4})-(\d{2})-(\d{2})$/;
@@ -60,6 +62,9 @@ function toDate(value: DateInput): Date | null {
     return Number.isNaN(date.getTime()) ? null : date;
   }
   if (typeof value === "string" && value) {
+    const brDate = parseDayFirstDateStringToUtcDate(value);
+    if (brDate) return brDate;
+
     const date = new Date(value);
     return Number.isNaN(date.getTime()) ? null : date;
   }
