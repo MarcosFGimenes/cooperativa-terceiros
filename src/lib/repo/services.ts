@@ -1408,24 +1408,55 @@ export async function updateChecklistProgress(
 
     const checklistSnap = await tx.get(checklistCol);
     const itemsMap = new Map<string, ChecklistItem>();
+    let shouldMarkHasChecklist = false;
 
     if (checklistSnap.empty) {
       const embeddedItems = mapEmbeddedChecklistItems(serviceId, serviceData);
 
-      embeddedItems.forEach((item) => {
-        itemsMap.set(item.id, item);
-        tx.set(checklistCol.doc(item.id), {
-          description: item.description,
-          weight: item.weight ?? 0,
-          progress: item.progress ?? 0,
-          status: item.status ?? inferChecklistStatus(item.progress ?? 0),
+      if (embeddedItems.length === 0) {
+        // Quando um serviço não tem checklist persistido, criar um item padrão para permitir
+        // que o portal do terceiro registre a atualização sem estourar erro.
+        const currentProgress = sanitisePercent(
+          toNumber(serviceData.realPercent ?? serviceData.andamento ?? serviceData.progress) ?? 0,
+        );
+        const fallback: ChecklistItem = {
+          id: "default-geral",
+          serviceId,
+          description: "GERAL",
+          weight: 100,
+          progress: currentProgress,
+          status: inferChecklistStatus(currentProgress),
+        };
+
+        itemsMap.set(fallback.id, fallback);
+        tx.set(checklistCol.doc(fallback.id), {
+          description: fallback.description,
+          weight: fallback.weight ?? 0,
+          progress: fallback.progress ?? 0,
+          status: fallback.status ?? inferChecklistStatus(fallback.progress ?? 0),
           updatedAt: FieldValue.serverTimestamp(),
         });
-      });
+        shouldMarkHasChecklist = true;
+      } else {
+        embeddedItems.forEach((item) => {
+          itemsMap.set(item.id, item);
+          tx.set(checklistCol.doc(item.id), {
+            description: item.description,
+            weight: item.weight ?? 0,
+            progress: item.progress ?? 0,
+            status: item.status ?? inferChecklistStatus(item.progress ?? 0),
+            updatedAt: FieldValue.serverTimestamp(),
+          });
+        });
+        shouldMarkHasChecklist = true;
+      }
     } else {
       checklistSnap.docs.forEach((doc) => {
         itemsMap.set(doc.id, mapChecklistDoc(serviceId, doc));
       });
+      if (serviceData.hasChecklist !== true) {
+        shouldMarkHasChecklist = true;
+      }
     }
 
     updates.forEach((update) => {
@@ -1480,12 +1511,13 @@ export async function updateChecklistProgress(
     const resolvedPercent = shouldPreserveManual ? (lastManual?.percent ?? realPercent) : realPercent;
 
     // Quando preservando manual, manter manualPercent setado; caso contrário, limpar manualPercent.
-    tx.update(
-      serviceRef,
-      buildServiceProgressPatch(resolvedPercent, {
-        manualPercent: shouldPreserveManual ? resolvedPercent : null,
-      }),
-    );
+    const servicePatch = buildServiceProgressPatch(resolvedPercent, {
+      manualPercent: shouldPreserveManual ? resolvedPercent : null,
+    });
+    if (shouldMarkHasChecklist) {
+      servicePatch.hasChecklist = true;
+    }
+    tx.update(serviceRef, servicePatch);
 
     return realPercent;
   });
