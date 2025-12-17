@@ -1437,11 +1437,17 @@ export async function updateChecklistProgress(
       const status = update.status ?? inferChecklistStatus(progress);
       itemsMap.set(update.id, { ...existing, progress, status });
 
-      tx.update(checklistCol.doc(update.id), {
-        progress,
-        status,
-        updatedAt: FieldValue.serverTimestamp(),
-      });
+      // Use set+merge para evitar falhas quando o doc ainda não existe
+      // (ex.: checklist subcollection recém-semeada nesta mesma transação).
+      tx.set(
+        checklistCol.doc(update.id),
+        {
+          progress,
+          status,
+          updatedAt: FieldValue.serverTimestamp(),
+        },
+        { merge: true },
+      );
     });
 
     const items = Array.from(itemsMap.values());
