@@ -60,6 +60,7 @@ export default function ImportServicesButton() {
         skipped: payload.skipped ?? 0,
       });
       toast.success(`Importação concluída: ${payload.created ?? 0} serviço(s) criado(s).`);
+      setOpen(false);
       router.refresh();
     } catch (error) {
       const message = error instanceof Error ? error.message : "Não foi possível importar a planilha.";
