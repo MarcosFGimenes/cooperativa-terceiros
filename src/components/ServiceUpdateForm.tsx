@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useFieldArray, useForm } from "react-hook-form";
 import { Check } from "lucide-react";
 import { z } from "zod";
@@ -268,6 +268,7 @@ export default function ServiceUpdateForm({
   companyCnpj,
 }: ServiceUpdateFormProps) {
   const router = useRouter();
+  const hasEditedPercentRef = useRef(false);
   const handleBack = useCallback(() => {
     if (typeof window !== "undefined" && window.history.length > 1) {
       router.back();
@@ -337,7 +338,9 @@ export default function ServiceUpdateForm({
   }, [checklistDefaults, setValue]);
 
   useEffect(() => {
-    setValue("percent", normalizedLastProgress, { shouldDirty: false });
+    if (!hasEditedPercentRef.current) {
+      setValue("percent", normalizedLastProgress, { shouldDirty: false });
+    }
   }, [normalizedLastProgress, setValue]);
 
   const selectedShifts = useMemo(() => shiftArray.fields.map((item) => item.shift), [shiftArray.fields]);
@@ -366,6 +369,7 @@ export default function ServiceUpdateForm({
 
   function applySuggestedPercent() {
     if (typeof computedPercent === "number" && Number.isFinite(computedPercent)) {
+      hasEditedPercentRef.current = true;
       setValue("percent", clampPercentValue(computedPercent), { shouldDirty: true });
     }
   }
@@ -424,6 +428,10 @@ export default function ServiceUpdateForm({
       declarationAccepted: true,
     });
 
+    // Após um envio, permitir que o percentual volte a acompanhar o progresso do serviço
+    // caso o usuário ainda não tenha digitado um novo valor manual.
+    hasEditedPercentRef.current = false;
+
     reset({
       date: "",
       description: "",
@@ -444,6 +452,42 @@ export default function ServiceUpdateForm({
         </label>
         <input id={`${serviceId}-date`} type="date" className="input mt-1 w-full" {...register("date")} />
         {errors.date ? <p className="mt-1 text-xs text-destructive">{errors.date.message}</p> : null}
+      </div>
+
+      <div>
+        <label htmlFor={`${serviceId}-percent`} className="text-sm font-medium text-foreground">
+          Progresso do serviço (%)
+        </label>
+        <div className="mt-1 flex items-center gap-2">
+          <input
+            id={`${serviceId}-percent`}
+            type="number"
+            min={0}
+            max={100}
+            step={0.1}
+            className="input w-32"
+            {...register("percent", {
+              setValueAs: (value) => {
+                if (value === "" || value === null || typeof value === "undefined") {
+                  return 0;
+                }
+                const numeric = Number(String(value).replace(",", "."));
+                if (!Number.isFinite(numeric)) return 0;
+                return clampPercentValue(numeric);
+              },
+              onChange: () => {
+                hasEditedPercentRef.current = true;
+              },
+            })}
+          />
+          <span className="text-xs text-muted-foreground">%</span>
+          {checklist.length > 0 && typeof computedPercent === "number" && Number.isFinite(computedPercent) ? (
+            <button type="button" className="btn btn-secondary btn-xs" onClick={applySuggestedPercent}>
+              Usar sugestão do checklist ({Math.round(computedPercent)}%)
+            </button>
+          ) : null}
+        </div>
+        {errors.percent ? <p className="mt-1 text-xs text-destructive">{errors.percent.message}</p> : null}
       </div>
 
 

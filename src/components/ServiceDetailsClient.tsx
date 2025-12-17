@@ -636,11 +636,18 @@ export default function ServiceDetailsClient({
 
   const handleUpdateSubmit = useCallback(
     async (payload: ServiceUpdateFormPayload) => {
-      let percentToSend = clampPercent(payload.percent);
+      const initialPercent = clampPercent(payload.percent);
+      let percentToSend = initialPercent;
       try {
         const checklistPercent = await submitChecklistUpdates(payload.subactivities);
         if (typeof checklistPercent === "number" && Number.isFinite(checklistPercent)) {
-          percentToSend = clampPercent(checklistPercent);
+          // Só substituir pelo cálculo do checklist quando o usuário não alterou manualmente o percentual.
+          // Caso contrário, preservar exatamente o valor digitado.
+          const baseline = clampPercent(canonicalProgress);
+          const unchanged = Math.abs(initialPercent - baseline) < 1e-6;
+          if (unchanged) {
+            percentToSend = clampPercent(checklistPercent);
+          }
         }
       } catch (error) {
         const message =

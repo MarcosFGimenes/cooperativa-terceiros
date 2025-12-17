@@ -145,6 +145,7 @@ function computeServiceImportKey(input: {
   plannedStart?: number | string | null;
   plannedEnd?: number | string | null;
   empresa?: string | null;
+  cnpj?: string | null;
 }) {
   const parts = [
     normaliseImportValue(input.os),
@@ -154,6 +155,7 @@ function computeServiceImportKey(input: {
     formatDateKey(input.plannedStart),
     formatDateKey(input.plannedEnd),
     normaliseImportValue(input.empresa),
+    normaliseImportValue(input.cnpj),
   ].filter(Boolean);
 
   return parts.join("::");
@@ -167,6 +169,7 @@ export async function buildServiceImportKey(input: {
   plannedStart?: number | string | null;
   plannedEnd?: number | string | null;
   empresa?: string | null;
+  cnpj?: string | null;
 }) {
   return computeServiceImportKey(input);
 }
@@ -1338,10 +1341,21 @@ export async function updateChecklistProgress(
     return computeRealPercentFromChecklist(serviceId);
   }
 
+  function isSameUtcDay(leftMillis: number, rightMillis: number): boolean {
+    const left = new Date(leftMillis);
+    const right = new Date(rightMillis);
+    return (
+      left.getUTCFullYear() === right.getUTCFullYear() &&
+      left.getUTCMonth() === right.getUTCMonth() &&
+      left.getUTCDate() === right.getUTCDate()
+    );
+  }
+
   const { db } = getAdmin();
   const newPercent = await db.runTransaction(async (tx) => {
     const serviceRef = servicesCollection().doc(serviceId);
     const checklistCol = serviceRef.collection("checklist");
+    const updatesCol = serviceRef.collection("updates");
 
     const serviceSnap = await tx.get(serviceRef);
     if (!serviceSnap.exists) {
@@ -1382,7 +1396,37 @@ export async function updateChecklistProgress(
     // Preservar valor calculado exato do checklist, apenas garantir que está no range válido
     const realPercent = sanitisePercent(percent);
 
-    tx.update(serviceRef, buildServiceProgressPatch(realPercent, { manualPercent: null }));
+    // Se houve lançamento manual recente, não sobrescrever o valor digitado ao atualizar o checklist.
+    // Regra: quando o último update manual foi no mesmo dia (UTC) da atualização do checklist,
+    // manter manualPercent como referência para o percentual exibido.
+    const nowMillis = Date.now();
+    let lastManual: { percent: number; submittedAt: number } | null = null;
+
+    const latestUpdateSnap = await tx.get(updatesCol.orderBy("createdAt", "desc").limit(1));
+    const latestDoc = latestUpdateSnap.docs[0];
+    if (latestDoc) {
+      const latestData = (latestDoc.data() ?? {}) as Record<string, unknown>;
+      const manualPercent = toNumber(latestData.manualPercent);
+      const submittedAt =
+        toMillis((latestData.audit as Record<string, unknown> | undefined)?.submittedAt) ??
+        toMillis(latestData.createdAt) ??
+        toMillis(latestDoc.createTime) ??
+        null;
+      if (typeof manualPercent === "number" && Number.isFinite(manualPercent) && typeof submittedAt === "number") {
+        lastManual = { percent: sanitisePercent(manualPercent), submittedAt };
+      }
+    }
+
+    const shouldPreserveManual = Boolean(lastManual && isSameUtcDay(lastManual.submittedAt, nowMillis));
+    const resolvedPercent = shouldPreserveManual ? (lastManual?.percent ?? realPercent) : realPercent;
+
+    // Quando preservando manual, manter manualPercent setado; caso contrário, limpar manualPercent.
+    tx.update(
+      serviceRef,
+      buildServiceProgressPatch(resolvedPercent, {
+        manualPercent: shouldPreserveManual ? resolvedPercent : null,
+      }),
+    );
 
     return realPercent;
   });

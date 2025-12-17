@@ -96,7 +96,16 @@ function normaliseEvent(
   return { timestamp: Number(timestamp), percent, items: items.length ? items : undefined };
 }
 
-export async function loadProgressHistory(adminDb: Firestore, serviceId: string) {
+export async function loadProgressHistory(
+  adminDb: Firestore,
+  serviceId: string,
+): Promise<{
+  events: ProgressEvent[];
+  lastManualUpdate: { percent: number; timestamp: number } | null;
+  weights: Map<string, number>;
+  totalWeight: number;
+  serviceData: Record<string, unknown>;
+}> {
   const serviceRef = adminDb.collection("services").doc(serviceId);
   const [serviceSnap, updatesSnap, legacySnap] = await Promise.all([
     serviceRef.get(),
@@ -111,10 +120,16 @@ export async function loadProgressHistory(adminDb: Firestore, serviceId: string)
   const { weights, totalWeight } = buildChecklistWeightMap(checklist);
 
   const events: ProgressEvent[] = [];
+  let lastManualUpdate: { percent: number; timestamp: number } | null = null;
   updatesSnap.docs.forEach((doc) => {
     const data = (doc.data() ?? {}) as Record<string, unknown>;
     const event = normaliseEvent(data, toMillis(doc.createTime) ?? null, false);
     if (event) events.push(event);
+
+    const manualCandidate = typeof data.manualPercent === "number" ? data.manualPercent : Number(data.manualPercent ?? NaN);
+    if (event && typeof manualCandidate === "number" && Number.isFinite(manualCandidate)) {
+      lastManualUpdate = { percent: clampPercent(manualCandidate), timestamp: event.timestamp };
+    }
   });
 
   legacySnap.docs.forEach((doc) => {
@@ -123,41 +138,40 @@ export async function loadProgressHistory(adminDb: Firestore, serviceId: string)
     if (event) events.push(event);
   });
 
-  return { events, weights, totalWeight, serviceData: (serviceSnap.data() ?? {}) as Record<string, unknown> };
+  return {
+    events,
+    lastManualUpdate,
+    weights,
+    totalWeight,
+    serviceData: (serviceSnap.data() ?? {}) as Record<string, unknown>,
+  };
 }
 
 export async function recomputeServiceProgress(serviceId: string) {
   const adminDb = getAdminDbOrThrow();
-  const { events, weights, totalWeight, serviceData } = await loadProgressHistory(adminDb, serviceId);
-  
-  // Priorizar o último valor manual quando disponível para preservar o valor exato digitado pelo terceiro
-  const lastManualUpdate = events.length > 0 ? events[events.length - 1] : null;
-  const hasChecklist = Array.isArray(serviceData.checklist) && (serviceData.checklist as unknown[]).length > 0;
-  
-  let currentPercent: number;
-  
-  // Se o último update tem um percentual explícito (não apenas itens do checklist), usar esse valor
-  // Isso preserva o valor digitado pelo terceiro no campo "Progresso atual registrado"
-  if (lastManualUpdate && typeof lastManualUpdate.percent === "number" && Number.isFinite(lastManualUpdate.percent)) {
-    // Quando há um percentual geral explícito no último update, usar esse valor exato
-    // Isso garante que o valor digitado pelo terceiro seja preservado
-    currentPercent = clampPercent(lastManualUpdate.percent);
-  } else if (hasChecklist && lastManualUpdate && Array.isArray(lastManualUpdate.items) && lastManualUpdate.items.length > 0) {
-    // Quando há checklist e o último update tem apenas itens (sem percentual geral), calcular baseado nos itens
-    const computed = computeProgressFromEvents(events, { weights, totalWeight });
-    currentPercent = computed.currentPercent;
-  } else {
-    // Caso padrão: calcular baseado nos eventos
-    const computed = computeProgressFromEvents(events, { weights, totalWeight });
-    currentPercent = computed.currentPercent;
-  }
-  
-  const lastTimestamp = events.length > 0 && lastManualUpdate ? lastManualUpdate.timestamp : null;
+  const { events, lastManualUpdate, weights, totalWeight, serviceData } = await loadProgressHistory(adminDb, serviceId);
+
+  const computed = computeProgressFromEvents(events, { weights, totalWeight });
+  const lastTimestamp = computed.lastTimestamp;
+
+  // Priorizar o lançamento manual mais recente quando ele for o último evento manual registrado.
+  // Isso evita que o checklist "rebaixe" um valor digitado pelo terceiro.
+  const manualPercentValue =
+    lastManualUpdate && typeof lastManualUpdate.percent === "number" && Number.isFinite(lastManualUpdate.percent)
+      ? clampPercent(lastManualUpdate.percent)
+      : null;
+  const manualTimestamp =
+    lastManualUpdate && typeof lastManualUpdate.timestamp === "number" && Number.isFinite(lastManualUpdate.timestamp)
+      ? lastManualUpdate.timestamp
+      : null;
+
+  const shouldUseManual = manualPercentValue !== null && (lastTimestamp === null || (manualTimestamp ?? -1) >= lastTimestamp);
+
+  const currentPercent = shouldUseManual ? manualPercentValue : computed.currentPercent;
 
   const payload: Record<string, unknown> = {
     andamento: currentPercent,
     realPercent: currentPercent,
-    manualPercent: currentPercent,
     realPercentSnapshot: currentPercent,
     percent: currentPercent,
     progress: currentPercent,
@@ -165,6 +179,12 @@ export async function recomputeServiceProgress(serviceId: string) {
     updatedAt: lastTimestamp ? Timestamp.fromMillis(lastTimestamp) : FieldValue.serverTimestamp(),
     lastUpdateDate: lastTimestamp ? Timestamp.fromMillis(lastTimestamp) : FieldValue.serverTimestamp(),
   };
+
+  if (shouldUseManual) {
+    payload.manualPercent = currentPercent;
+  } else {
+    payload.manualPercent = FieldValue.delete();
+  }
 
   await adminDb.collection("services").doc(serviceId).update(payload);
 
