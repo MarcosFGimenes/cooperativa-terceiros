@@ -10,6 +10,7 @@ import {
   findServicesByImportKeys,
   findServicesByOsList,
 } from "@/lib/repo/services";
+import { normalizeCnpj } from "@/lib/cnpj";
 import { excelDateNumberToMillis, parseXlsxTable } from "@/lib/xlsxParser";
 
 export const runtime = "nodejs";
@@ -23,6 +24,7 @@ const HEADER_ALIASES: Record<string, string[]> = {
   dataInicio: ["DATA DE INICIO", "DATA DE INÍCIO", "DATA INICIO", "INICIO"],
   dataFim: ["DATA FINAL", "DATA FIM", "FIM"],
   empresa: ["EMPRESA"],
+  cnpj: ["CNPJ", "C.N.P.J.", "CNPJ "],
   horas: ["TOTAL DE HORA HOMEM", "TOTAL HORA HOMEM", "TOTAL DE HORA-HOMEM"],
 };
 
@@ -139,6 +141,7 @@ type ParsedRow = {
   inicio: number;
   fim: number;
   empresa: string | null;
+  cnpj?: string | null;
   horas: number;
   importKey: string;
 };
@@ -150,6 +153,8 @@ async function sanitiseRow(row: Record<string, unknown>): Promise<ParsedRow | { 
   const descricao = toText(pickField(row, HEADER_ALIASES.descricao)).trim();
   const setor = toText(pickField(row, HEADER_ALIASES.setor)).trim() || null;
   const empresa = toText(pickField(row, HEADER_ALIASES.empresa)).trim() || null;
+  const cnpjRaw = toText(pickField(row, HEADER_ALIASES.cnpj)).trim();
+  const cnpj = cnpjRaw ? normalizeCnpj(cnpjRaw).trim() || null : null;
   const horas = parseHours(pickField(row, HEADER_ALIASES.horas));
   const inicio = parseDateValue(pickField(row, HEADER_ALIASES.dataInicio));
   const fim = parseDateValue(pickField(row, HEADER_ALIASES.dataFim));
@@ -175,6 +180,7 @@ async function sanitiseRow(row: Record<string, unknown>): Promise<ParsedRow | { 
     plannedStart: inicio,
     plannedEnd: fim,
     empresa,
+    cnpj,
   });
 
   if (!importKey) {
@@ -190,6 +196,7 @@ async function sanitiseRow(row: Record<string, unknown>): Promise<ParsedRow | { 
     inicio,
     fim,
     empresa,
+    cnpj,
     horas,
     importKey,
   };
@@ -264,6 +271,7 @@ export async function POST(request: Request) {
         plannedStart: service.plannedStart,
         plannedEnd: service.plannedEnd,
         empresa: service.company ?? service.empresa ?? null,
+        cnpj: service.cnpj ?? null,
       }));
     if (computedKey) {
       existingKeySet.add(computedKey);
@@ -288,6 +296,7 @@ export async function POST(request: Request) {
         fimPrevistoMillis: row.fim,
         horasPrevistas: row.horas,
         empresaId: row.empresa,
+        cnpj: row.cnpj ?? null,
         status: "Aberto",
         checklist: buildDefaultChecklist(),
         description: row.descricao,

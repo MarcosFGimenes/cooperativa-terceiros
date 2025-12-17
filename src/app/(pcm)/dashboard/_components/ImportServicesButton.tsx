@@ -82,8 +82,8 @@ export default function ImportServicesButton() {
           <DialogTitle>Importar serviços via Excel</DialogTitle>
           <DialogDescription>
             Faça upload da planilha (cabeçalhos na linha 8, dados a partir da linha 9) contendo os campos
-            O.S, SETOR, TAG MAQUINA, EQUIP. NOVO, DESCRIÇÃO SERVIÇOS, DATA DE INICIO, DATA FINAL, EMPRESA
-            e TOTAL DE HORA HOMEM. Serviços já existentes serão ignorados automaticamente.
+            O.S, SETOR, TAG MAQUINA, EQUIP. NOVO, DESCRIÇÃO SERVIÇOS, DATA DE INICIO, DATA FINAL, EMPRESA,
+            CNPJ e TOTAL DE HORA HOMEM. Serviços já existentes serão ignorados automaticamente.
           </DialogDescription>
         </DialogHeader>
 
@@ -97,7 +97,7 @@ export default function ImportServicesButton() {
           />
           <p className="text-sm text-muted-foreground">
             Cada linha completa da planilha representa um serviço. Se uma nova planilha contiver registros já
-            importados (mesma O.S, TAG, equipamento, período e empresa), eles serão descartados para evitar
+            importados (mesma O.S, TAG, equipamento, período, empresa e CNPJ), eles serão descartados para evitar
             duplicação.
           </p>
 
