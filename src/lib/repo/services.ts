@@ -286,8 +286,7 @@ function normaliseChecklistStatus(value: unknown): ChecklistItem["status"] {
   const raw = String(value ?? "")
     .trim()
     .toLowerCase()
-    .replace(/-/g, "_")
-    .replace(/\s+/g, "_");
+    .replace(/[-_\s]+/g, "-");
 
   if (raw.includes("conclu")) return "concluido";
   if (raw.includes("andamento") || raw.includes("andando")) return "andamento";
@@ -1226,18 +1225,6 @@ function mergeChecklistProgress(
     const status = override.status ?? inferChecklistStatus(progress);
     return { ...item, progress, status };
   });
-}
-
-function normaliseChecklistStatus(value: unknown): ChecklistItem["status"] {
-  const raw = String(value ?? "")
-    .trim()
-    .toLowerCase()
-    .replace(/_/g, "-")
-    .replace("em andamento", "em-andamento");
-
-  if (raw.includes("conclu")) return "concluido";
-  if (raw.includes("andamento")) return "andamento";
-  return "nao_iniciado";
 }
 
 function resolveChecklistSnapshot(
