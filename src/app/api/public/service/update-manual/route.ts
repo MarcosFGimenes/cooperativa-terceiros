@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 
 import { PublicAccessError, requireServiceAccess } from "@/lib/public-access";
 import { addManualUpdate } from "@/lib/repo/services";
+import { mapFirestoreError } from "@/lib/utils/firestoreErrors";
 
 const SHIFT_VALUES = new Set(["manha", "tarde", "noite"]);
 const WEATHER_VALUES = new Set(["claro", "nublado", "chuvoso"]);
@@ -205,6 +206,15 @@ export async function POST(req: Request) {
   } catch (err: unknown) {
     if (err instanceof PublicAccessError) {
       return NextResponse.json({ ok: false, error: err.message }, { status: err.status });
+    }
+
+    const firestoreError = mapFirestoreError(err);
+    if (firestoreError) {
+      return NextResponse.json({ ok: false, error: firestoreError.message }, { status: firestoreError.status });
+    }
+
+    if (err instanceof Error && err.message.includes("Serviço não encontrado")) {
+      return NextResponse.json({ ok: false, error: err.message }, { status: 404 });
     }
 
     console.error("[api/public/service/update-manual] Falha inesperada", err);
