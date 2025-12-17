@@ -15,9 +15,6 @@ export async function POST(req: Request) {
 
   try {
     const { service } = await requireServiceAccess(token, serviceId);
-    if (!service.hasChecklist) {
-      throw new PublicAccessError(400, "Serviço não possui checklist");
-    }
 
     const body = (await req.json().catch(() => ({}))) as {
       updates?: Array<{ id?: unknown; progress?: unknown; status?: unknown }>;
