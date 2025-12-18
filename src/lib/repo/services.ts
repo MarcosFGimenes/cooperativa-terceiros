@@ -625,9 +625,21 @@ export async function findServicesByOsList(
 }
 
 export async function listRecentServices(): Promise<Service[]> {
-  const snap = await servicesCollection().orderBy("updatedAt", "desc").limit(20).get();
-  const services = snap.docs.map((doc) => mapServiceData(doc.id, (doc.data() ?? {}) as Record<string, unknown>));
-  return services.sort((a, b) => (b.updatedAt ?? b.createdAt ?? 0) - (a.updatedAt ?? a.createdAt ?? 0));
+  try {
+    const snap = await servicesCollection().orderBy("updatedAt", "desc").limit(20).get();
+    const services = snap.docs.map((doc) => mapServiceData(doc.id, (doc.data() ?? {}) as Record<string, unknown>));
+    return services.sort((a, b) => (b.updatedAt ?? b.createdAt ?? 0) - (a.updatedAt ?? a.createdAt ?? 0));
+  } catch (error) {
+    if (isMissingAdminError(error)) {
+      console.warn(
+        "[services:listRecentServices] Firebase Admin não está configurado. Retornando lista vazia.",
+        error,
+      );
+      return [];
+    }
+    console.error("[services:listRecentServices] Falha ao listar serviços recentes", error);
+    return [];
+  }
 }
 
 export type ServiceStatusSummary = {
@@ -687,6 +699,13 @@ export async function getServiceStatusSummary(): Promise<ServiceStatusSummary | 
 
     return summary;
   } catch (error) {
+    if (isMissingAdminError(error)) {
+      console.warn(
+        "[services:getServiceStatusSummary] Firebase Admin não está configurado. Retornando null.",
+        error,
+      );
+      return null;
+    }
     console.warn("[services:getServiceStatusSummary] Failed to count service statuses", error);
     return null;
   }
