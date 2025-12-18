@@ -3,7 +3,7 @@ import "server-only";
 import { cert, getApps, initializeApp } from "firebase-admin/app";
 import type { App } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
-import { getFirestore } from "firebase-admin/firestore";
+import { getFirestore, type Firestore } from "firebase-admin/firestore";
 
 type ServiceAccountConfig = {
   projectId?: string;
@@ -11,8 +11,36 @@ type ServiceAccountConfig = {
   privateKey?: string;
 };
 
-let adminApp: App | null = null;
-let missingAdminConfigWarned = false;
+type FirebaseAdminGlobal = typeof globalThis & {
+  __FIREBASE_ADMIN_APP__?: App | null;
+  __FIREBASE_ADMIN_SETTINGS_APPLIED__?: boolean;
+  __FIREBASE_ADMIN_SETTINGS_FAILED__?: boolean;
+  __FIREBASE_ADMIN_MISSING_CONFIG_WARNED__?: boolean;
+};
+
+const globalForAdmin = globalThis as FirebaseAdminGlobal;
+
+let adminApp: App | null =
+  globalForAdmin.__FIREBASE_ADMIN_APP__ ?? null;
+let missingAdminConfigWarned = globalForAdmin.__FIREBASE_ADMIN_MISSING_CONFIG_WARNED__ ?? false;
+let firestoreSettingsApplied = globalForAdmin.__FIREBASE_ADMIN_SETTINGS_APPLIED__ ?? false;
+let firestoreSettingsFailed = globalForAdmin.__FIREBASE_ADMIN_SETTINGS_FAILED__ ?? false;
+
+function applyFirestoreSettings(db: Firestore) {
+  if (firestoreSettingsApplied || firestoreSettingsFailed) return;
+  try {
+    db.settings({ ignoreUndefinedProperties: true });
+    firestoreSettingsApplied = true;
+    globalForAdmin.__FIREBASE_ADMIN_SETTINGS_APPLIED__ = true;
+  } catch (error) {
+    firestoreSettingsFailed = true;
+    globalForAdmin.__FIREBASE_ADMIN_SETTINGS_FAILED__ = true;
+    console.warn(
+      "[firebaseAdmin] Não foi possível aplicar db.settings(); prosseguindo com defaults.",
+      error,
+    );
+  }
+}
 
 function readServiceAccountFromBase64(): ServiceAccountConfig | null {
   const base64 =
@@ -81,6 +109,7 @@ function logMissingAdminConfig() {
     "[firebaseAdmin] Service account credentials are not fully configured. Firebase Admin features are disabled until the environment variables are provided.",
   );
   missingAdminConfigWarned = true;
+  globalForAdmin.__FIREBASE_ADMIN_MISSING_CONFIG_WARNED__ = true;
 }
 
 export function getAdminApp() {
@@ -91,6 +120,7 @@ export function getAdminApp() {
     return null;
   }
 
+  let shouldApplyFirestoreSettings = false;
   if (!adminApp) {
     const existingApp = getApps()[0];
     if (existingApp) {
@@ -104,8 +134,16 @@ export function getAdminApp() {
         }),
         projectId,
       });
+      shouldApplyFirestoreSettings = true;
     }
+    globalForAdmin.__FIREBASE_ADMIN_APP__ = adminApp;
   }
+
+  if (shouldApplyFirestoreSettings && adminApp) {
+    const db = getFirestore(adminApp);
+    applyFirestoreSettings(db);
+  }
+
   return adminApp;
 }
 
@@ -124,6 +162,5 @@ export function getAdmin() {
   if (!context) {
     throw new Error("FIREBASE_ADMIN_NOT_CONFIGURED");
   }
-  context.db.settings({ ignoreUndefinedProperties: true });
   return context;
 }
