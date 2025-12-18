@@ -124,5 +124,6 @@ export function getAdmin() {
   if (!context) {
     throw new Error("FIREBASE_ADMIN_NOT_CONFIGURED");
   }
+  context.db.settings({ ignoreUndefinedProperties: true });
   return context;
 }
