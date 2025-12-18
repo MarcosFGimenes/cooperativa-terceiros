@@ -504,10 +504,18 @@ async function renderPackageDetailPage(
   const plannedPercentAtReference = Math.round(
     calcularPercentualPlanejadoPacote(packageForCurve, referenceDate),
   );
-  const realizedPercent = Math.round(
+  const realizedPercentAtReference = Math.round(
     calcularPercentualRealizadoPacote(packageForCurve, referenceDate),
   );
-  const realizedValueLabel = `${realizedPercent}%`;
+  const realizedPercentForChart = (() => {
+    const lastPoint = realizedSeriesData.at(-1);
+    const percent = typeof lastPoint?.percent === "number" ? lastPoint.percent : null;
+    if (percent !== null && Number.isFinite(percent)) {
+      return Math.round(percent);
+    }
+    return realizedPercentAtReference;
+  })();
+  const realizedValueLabel = `${realizedPercentAtReference}%`;
   const realizedHeaderLabel = hasServiceOverflow
     ? `Realizado em ${referenceLabel} (parcial): ${realizedValueLabel}`
     : `Realizado em ${referenceLabel}: ${realizedValueLabel}`;
@@ -752,7 +760,7 @@ async function renderPackageDetailPage(
                 <p className="text-base font-semibold text-foreground">{referenceLabel}</p>
                 <p className="text-xs text-muted-foreground">
                   Planejado: <span className="font-semibold text-foreground">{plannedPercentAtReference}%</span> | Real:
-                  <span className="font-semibold text-foreground"> {realizedPercent}%</span>
+                  <span className="font-semibold text-foreground"> {realizedPercentAtReference}%</span>
                 </p>
               </div>
               <div className="w-full max-w-[240px] print:max-w-none print:w-full">
@@ -799,7 +807,7 @@ async function renderPackageDetailPage(
             <SCurveDeferred
               planned={plannedCurvePoints}
               realizedSeries={realizedSeriesData}
-              realizedPercent={realizedPercent}
+              realizedPercent={realizedPercentForChart}
               title="Curva S consolidada"
               description="Planejado versus realizado considerando todos os serviços do pacote."
               headerAside={<span className="font-medium text-foreground">{realizedHeaderLabel}</span>}
@@ -831,7 +839,7 @@ async function renderPackageDetailPage(
               <div className="rounded-xl border bg-muted/30 px-3 py-2.5">
                 <p className="text-muted-foreground">Realizado</p>
                 <p className="text-lg font-semibold text-emerald-600 dark:text-emerald-400">
-                  {Math.round(realizedPercent)}%
+                  {Math.round(realizedPercentAtReference)}%
                 </p>
               </div>
               <div className="rounded-xl border bg-muted/30 px-3 py-2.5">
@@ -870,7 +878,7 @@ async function renderPackageDetailPage(
               <div className="rounded-xl border bg-muted/30 px-3 py-2.5">
                 <dt className="text-muted-foreground">Realizado</dt>
                 <dd className="text-lg font-semibold text-emerald-600 dark:text-emerald-400">
-                  {Math.round(realizedPercent)}%
+                  {Math.round(realizedPercentAtReference)}%
                 </dd>
               </div>
               <div className="rounded-xl border bg-muted/30 px-3 py-2.5">
