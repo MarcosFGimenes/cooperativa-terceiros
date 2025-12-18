@@ -1661,8 +1661,8 @@ function buildUpdatePayload(serviceId: string, params: ManualUpdateInput & { rea
     const { id, label } = params.subactivity;
     if ((id && id.trim()) || (label && label.trim())) {
       payload.subactivity = {
-        id: id?.trim() || undefined,
-        label: label?.trim() || undefined,
+        id: id?.trim() || null,
+        label: label?.trim() || null,
       };
     }
   }
