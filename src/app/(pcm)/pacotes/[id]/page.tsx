@@ -523,22 +523,27 @@ async function renderPackageDetailPage(
     const lastPoint = realizedSeriesData[lastPointIndex];
     const lastPointDate = startOfDay(new Date(lastPoint.date || realizedReferenceDateIso));
     const referenceDay = startOfDay(referenceDate);
+    const resolvedLastPercent = Number.isFinite(lastPoint?.percent) ? Number(lastPoint.percent) : realizedPercentNormalized;
 
-    realizedSeriesData[lastPointIndex] = {
-      ...lastPoint,
-      date: lastPoint.date || realizedReferenceDateIso,
-      percent: realizedPercentNormalized,
-    };
+    if (!Number.isFinite(lastPoint?.percent)) {
+      realizedSeriesData[lastPointIndex] = {
+        ...lastPoint,
+        percent: resolvedLastPercent,
+      };
+    }
 
     if (lastPointDate.getTime() < referenceDay.getTime()) {
       realizedSeriesData.push({
         date: realizedReferenceDateIso,
-        percent: realizedPercentNormalized,
+        percent: resolvedLastPercent,
       });
     }
   }
 
-  const realizedPercentForChart = realizedPercentNormalized;
+  const realizedPercentForChart =
+    Number.isFinite(realizedSeriesData[realizedSeriesData.length - 1]?.percent)
+      ? Math.round(Number(realizedSeriesData[realizedSeriesData.length - 1]?.percent))
+      : realizedPercentNormalized;
   const realizedValueLabel = `${realizedPercentAtReference}%`;
   const realizedHeaderLabel = hasServiceOverflow
     ? `Realizado em ${referenceLabel} (parcial): ${realizedValueLabel}`
