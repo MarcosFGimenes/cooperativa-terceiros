@@ -507,14 +507,25 @@ async function renderPackageDetailPage(
   const realizedPercentAtReference = Math.round(
     calcularPercentualRealizadoPacote(packageForCurve, referenceDate),
   );
-  const realizedPercentForChart = (() => {
-    const lastPoint = realizedSeriesData.at(-1);
-    const percent = typeof lastPoint?.percent === "number" ? lastPoint.percent : null;
-    if (percent !== null && Number.isFinite(percent)) {
-      return Math.round(percent);
+  const lastRealizedPercent = (() => {
+    for (let i = realizedSeriesData.length - 1; i >= 0; i--) {
+      const percent = realizedSeriesData[i]?.percent;
+      if (typeof percent === "number" && Number.isFinite(percent)) {
+        return percent;
+      }
     }
-    return realizedPercentAtReference;
+    return null;
   })();
+  if (lastRealizedPercent === null) {
+    realizedSeriesData.push({
+      date: new Date(referenceDate.getTime()).toISOString().slice(0, 10),
+      percent: realizedPercentAtReference,
+    });
+  }
+  const realizedPercentForChart =
+    lastRealizedPercent !== null && Number.isFinite(lastRealizedPercent)
+      ? Math.round(lastRealizedPercent)
+      : realizedPercentAtReference;
   const realizedValueLabel = `${realizedPercentAtReference}%`;
   const realizedHeaderLabel = hasServiceOverflow
     ? `Realizado em ${referenceLabel} (parcial): ${realizedValueLabel}`
