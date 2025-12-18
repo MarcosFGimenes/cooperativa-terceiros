@@ -120,6 +120,7 @@ export function getAdminApp() {
     return null;
   }
 
+  let shouldApplyFirestoreSettings = false;
   if (!adminApp) {
     const existingApp = getApps()[0];
     if (existingApp) {
@@ -133,9 +134,16 @@ export function getAdminApp() {
         }),
         projectId,
       });
+      shouldApplyFirestoreSettings = true;
     }
     globalForAdmin.__FIREBASE_ADMIN_APP__ = adminApp;
   }
+
+  if (shouldApplyFirestoreSettings && adminApp) {
+    const db = getFirestore(adminApp);
+    applyFirestoreSettings(db);
+  }
+
   return adminApp;
 }
 

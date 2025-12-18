@@ -1409,6 +1409,7 @@ export async function updateChecklistProgress(
     const checklistSnap = await tx.get(checklistCol);
     const itemsMap = new Map<string, ChecklistItem>();
     let shouldMarkHasChecklist = false;
+    const checklistWrites: Array<{ id: string; op: "set" | "update"; data: Record<string, unknown> }> = [];
 
     if (checklistSnap.empty) {
       const embeddedItems = mapEmbeddedChecklistItems(serviceId, serviceData);
@@ -1429,23 +1430,31 @@ export async function updateChecklistProgress(
         };
 
         itemsMap.set(fallback.id, fallback);
-        tx.set(checklistCol.doc(fallback.id), {
-          description: fallback.description,
-          weight: fallback.weight ?? 0,
-          progress: fallback.progress ?? 0,
-          status: fallback.status ?? inferChecklistStatus(fallback.progress ?? 0),
-          updatedAt: FieldValue.serverTimestamp(),
+        checklistWrites.push({
+          id: fallback.id,
+          op: "set",
+          data: {
+            description: fallback.description,
+            weight: fallback.weight ?? 0,
+            progress: fallback.progress ?? 0,
+            status: fallback.status ?? inferChecklistStatus(fallback.progress ?? 0),
+            updatedAt: FieldValue.serverTimestamp(),
+          },
         });
         shouldMarkHasChecklist = true;
       } else {
         embeddedItems.forEach((item) => {
           itemsMap.set(item.id, item);
-          tx.set(checklistCol.doc(item.id), {
-            description: item.description,
-            weight: item.weight ?? 0,
-            progress: item.progress ?? 0,
-            status: item.status ?? inferChecklistStatus(item.progress ?? 0),
-            updatedAt: FieldValue.serverTimestamp(),
+          checklistWrites.push({
+            id: item.id,
+            op: "set",
+            data: {
+              description: item.description,
+              weight: item.weight ?? 0,
+              progress: item.progress ?? 0,
+              status: item.status ?? inferChecklistStatus(item.progress ?? 0),
+              updatedAt: FieldValue.serverTimestamp(),
+            },
           });
         });
         shouldMarkHasChecklist = true;
@@ -1468,10 +1477,14 @@ export async function updateChecklistProgress(
       const status = update.status ?? inferChecklistStatus(progress);
       itemsMap.set(update.id, { ...existing, progress, status });
 
-      tx.update(checklistCol.doc(update.id), {
-        progress,
-        status,
-        updatedAt: FieldValue.serverTimestamp(),
+      checklistWrites.push({
+        id: update.id,
+        op: "update",
+        data: {
+          progress,
+          status,
+          updatedAt: FieldValue.serverTimestamp(),
+        },
       });
     });
 
@@ -1517,6 +1530,16 @@ export async function updateChecklistProgress(
     if (shouldMarkHasChecklist) {
       servicePatch.hasChecklist = true;
     }
+
+    checklistWrites.forEach((write) => {
+      const ref = checklistCol.doc(write.id);
+      if (write.op === "set") {
+        tx.set(ref, write.data);
+      } else {
+        tx.update(ref, write.data);
+      }
+    });
+
     tx.update(serviceRef, servicePatch);
 
     return realPercent;
