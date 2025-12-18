@@ -532,11 +532,11 @@ async function renderPackageDetailPage(
   }
 
   const packageForCurve = { subpacotes: subpackagesForCurve };
-  const plannedCurvePoints = calcularCurvaSPlanejada(packageForCurve).map((point) => ({
+  const plannedCurvePoints = calcularCurvaSPlanejada(packageForCurve, referenceDate).map((point) => ({
     date: point.data.toISOString().slice(0, 10),
     percent: point.percentual,
   }));
-  const realizedSeriesData = calcularCurvaSRealizada(packageForCurve).map((point) => ({
+  const realizedSeriesData = calcularCurvaSRealizada(packageForCurve, referenceDate).map((point) => ({
     date: point.data.toISOString().slice(0, 10),
     percent: point.percentual,
   }));
@@ -551,33 +551,6 @@ async function renderPackageDetailPage(
   const realizedPercentNormalized = Number.isFinite(realizedPercentAtReference)
     ? realizedPercentAtReference
     : 0;
-
-  if (realizedSeriesData.length === 0) {
-    realizedSeriesData.push({
-      date: realizedReferenceDateIso,
-      percent: realizedPercentNormalized,
-    });
-  } else {
-    const lastPointIndex = realizedSeriesData.length - 1;
-    const lastPoint = realizedSeriesData[lastPointIndex];
-    const lastPointDate = startOfDay(new Date(lastPoint.date || realizedReferenceDateIso));
-    const referenceDay = startOfDay(referenceDate);
-    const resolvedLastPercent = Number.isFinite(lastPoint?.percent) ? Number(lastPoint.percent) : realizedPercentNormalized;
-
-    if (!Number.isFinite(lastPoint?.percent)) {
-      realizedSeriesData[lastPointIndex] = {
-        ...lastPoint,
-        percent: resolvedLastPercent,
-      };
-    }
-
-    if (lastPointDate.getTime() < referenceDay.getTime()) {
-      realizedSeriesData.push({
-        date: realizedReferenceDateIso,
-        percent: resolvedLastPercent,
-      });
-    }
-  }
 
   const realizedPercentForChart =
     Number.isFinite(realizedSeriesData[realizedSeriesData.length - 1]?.percent)
