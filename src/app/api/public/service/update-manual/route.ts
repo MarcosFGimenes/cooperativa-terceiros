@@ -200,7 +200,7 @@ export async function POST(req: Request) {
       justification: justification || undefined,
       previousPercent,
       ip: ipHeader,
-    });
+    }, { skipRecompute: true });
 
     return NextResponse.json({ ok: true, realPercent, update });
   } catch (err: unknown) {

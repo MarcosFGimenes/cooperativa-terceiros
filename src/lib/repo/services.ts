@@ -1785,6 +1785,7 @@ function buildUpdatePayload(serviceId: string, params: ManualUpdateInput & { rea
 export async function addManualUpdate(
   serviceId: string,
   input: ManualUpdateInput,
+  opts?: { skipRecompute?: boolean },
 ): Promise<{ realPercent: number; update: ServiceUpdate }> {
   const percent = sanitisePercent(input.manualPercent);
   const description = input.description.trim();
@@ -1824,27 +1825,29 @@ export async function addManualUpdate(
     .get();
 
   const mapped = mapUpdateDoc(serviceId, updateSnap);
-  
+
   // Recalcular progresso para sincronizar em todo o sistema, mas preservar o valor exato digitado
-  const recomputed = await recomputeServiceProgress(serviceId).catch((error) => {
+  const shouldSkipRecompute = opts?.skipRecompute === true;
+  const recomputePromise = recomputeServiceProgress(serviceId).catch((error) => {
     console.error(`[services] Falha ao recalcular progresso do serviço ${serviceId}`, error);
     return null;
   });
-  
+
   // Usar o valor recalculado (que já preserva o valor manual quando não há checklist)
   // ou o valor do update mapeado como fallback
-  const resolvedPercent = recomputed?.percent ?? mapped.realPercentSnapshot ?? percent;
-  
-  // Invalidar todos os caches para garantir sincronização imediata em todas as telas
+  const resolvedPercent = shouldSkipRecompute
+    ? mapped.realPercentSnapshot ?? percent
+    : (await recomputePromise)?.percent ?? mapped.realPercentSnapshot ?? percent;
+
+  if (shouldSkipRecompute) {
+    void recomputePromise;
+  }
+
+  // Invalidar apenas os caches diretamente relacionados às atualizações do serviço
   revalidateTag("services:recent");
   revalidateTag("services:updates");
-  revalidateServiceDetailCache(serviceId);
-  revalidateTag("packages:detail");
-  revalidateTag("packages:summary");
-  revalidateTag("packages:services");
-  revalidateTag("folders:detail");
-  revalidateTag("folders:by-package");
-  
+  revalidateTag("services:detail");
+
   return { realPercent: resolvedPercent, update: mapped };
 }
 
