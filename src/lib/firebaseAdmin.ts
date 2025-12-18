@@ -13,6 +13,7 @@ type ServiceAccountConfig = {
 
 let adminApp: App | null = null;
 let missingAdminConfigWarned = false;
+let firestoreSettingsApplied = false;
 
 function readServiceAccountFromBase64(): ServiceAccountConfig | null {
   const base64 =
@@ -124,6 +125,9 @@ export function getAdmin() {
   if (!context) {
     throw new Error("FIREBASE_ADMIN_NOT_CONFIGURED");
   }
-  context.db.settings({ ignoreUndefinedProperties: true });
+  if (!firestoreSettingsApplied) {
+    context.db.settings({ ignoreUndefinedProperties: true });
+    firestoreSettingsApplied = true;
+  }
   return context;
 }
