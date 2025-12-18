@@ -84,7 +84,8 @@ function normaliseEvent(
   includeItems: boolean,
 ): ProgressEvent | null {
   const timestamp =
-    toMillis(data.date ?? data.reportDate) ??
+    toMillis(data.reportDate) ??
+    toMillis(data.date) ??
     toMillis((data.timeWindow as Record<string, unknown> | undefined)?.start) ??
     toMillis(data.createdAt) ??
     fallbackTimestamp;
