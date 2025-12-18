@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import {
   Timestamp,
@@ -135,6 +135,7 @@ type ServiceEditorClientProps = {
 
 export default function ServiceEditorClient({ serviceId }: ServiceEditorClientProps) {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const updateIdParam = searchParams?.get("updateId") ?? null;
   const [loading, setLoading] = useState(true);
   const [form, setForm] = useState({
@@ -595,7 +596,9 @@ export default function ServiceEditorClient({ serviceId }: ServiceEditorClientPr
         updatedAt: serverTimestamp(),
       };
       await updateDoc(ref, payload);
+      await recomputeProgressAfterEdit();
       toast.success("Serviço atualizado com sucesso.");
+      router.push(`/servicos/${encodeURIComponent(serviceId)}`);
     } catch (error) {
       console.error("[servicos/:id] Falha ao salvar", error);
       toast.error("Não foi possível salvar as alterações.");

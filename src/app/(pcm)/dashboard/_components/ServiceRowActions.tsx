@@ -46,17 +46,17 @@ export default function ServiceRowActions({ service }: Props) {
   }
 
   function openPdf() {
-    const url = `/(pcm)/servicos/${encodedId}?tab=graph&export=pdf`;
+    const url = `/servicos/${encodedId}?tab=graph&export=pdf`;
     window.open(url, "_blank", "noopener");
   }
 
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap gap-2">
-        <Link href={`/(pcm)/servicos/${encodedId}?tab=details`} className="btn btn-secondary text-xs">
+        <Link href={`/servicos/${encodedId}?tab=details`} className="btn btn-secondary text-xs">
           Editar
         </Link>
-        <Link href={`/(pcm)/servicos/${encodedId}?tab=updates`} className="btn btn-secondary text-xs">
+        <Link href={`/servicos/${encodedId}?tab=updates`} className="btn btn-secondary text-xs">
           Abrir serviço
         </Link>
         <button type="button" onClick={generateToken} disabled={isLoading} className="btn btn-primary text-xs">
