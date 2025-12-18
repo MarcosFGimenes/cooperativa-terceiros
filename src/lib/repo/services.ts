@@ -625,9 +625,24 @@ export async function findServicesByOsList(
 }
 
 export async function listRecentServices(): Promise<Service[]> {
-  const snap = await servicesCollection().orderBy("updatedAt", "desc").limit(20).get();
-  const services = snap.docs.map((doc) => mapServiceData(doc.id, (doc.data() ?? {}) as Record<string, unknown>));
-  return services.sort((a, b) => (b.updatedAt ?? b.createdAt ?? 0) - (a.updatedAt ?? a.createdAt ?? 0));
+  try {
+    const snap = await servicesCollection().orderBy("updatedAt", "desc").limit(20).get();
+    const services = snap.docs.map((doc) => mapServiceData(doc.id, (doc.data() ?? {}) as Record<string, unknown>));
+    return services.sort((a, b) => (b.updatedAt ?? b.createdAt ?? 0) - (a.updatedAt ?? a.createdAt ?? 0));
+  } catch (error) {
+    if (isMissingAdminError(error)) {
+      console.warn(
+        "[services:listRecentServices] Firebase Admin não configurado. Retornando lista vazia.",
+        error,
+      );
+      return [];
+    }
+    console.warn(
+      "[services:listRecentServices] Falha ao listar serviços recentes. Retornando lista vazia.",
+      error,
+    );
+    return [];
+  }
 }
 
 export type ServiceStatusSummary = {
@@ -1894,19 +1909,31 @@ export async function listServices(filter?: {
   company?: string;
   packageId?: string;
 }): Promise<Service[]> {
-  let query: FirebaseFirestore.Query = servicesCollection();
-  if (filter?.status) {
-    query = query.where("status", "==", filter.status);
+  try {
+    let query: FirebaseFirestore.Query = servicesCollection();
+    if (filter?.status) {
+      query = query.where("status", "==", filter.status);
+    }
+    if (filter?.company) {
+      query = query.where("company", "==", filter.company);
+    }
+    if (filter?.packageId) {
+      query = query.where("packageId", "==", filter.packageId);
+    }
+    query = query.orderBy("createdAt", "desc");
+    const snap = await query.get();
+    return snap.docs.map((doc) => mapServiceDoc(doc));
+  } catch (error) {
+    if (isMissingAdminError(error)) {
+      console.warn(
+        "[services:listServices] Firebase Admin não configurado. Retornando lista vazia.",
+        error,
+      );
+      return [];
+    }
+    console.warn("[services:listServices] Falha ao listar serviços. Retornando lista vazia.", error);
+    return [];
   }
-  if (filter?.company) {
-    query = query.where("company", "==", filter.company);
-  }
-  if (filter?.packageId) {
-    query = query.where("packageId", "==", filter.packageId);
-  }
-  query = query.orderBy("createdAt", "desc");
-  const snap = await query.get();
-  return snap.docs.map((doc) => mapServiceDoc(doc));
 }
 
 async function deleteSubcollection(
