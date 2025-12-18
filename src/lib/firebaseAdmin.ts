@@ -3,7 +3,7 @@ import "server-only";
 import { cert, getApps, initializeApp } from "firebase-admin/app";
 import type { App } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
-import { getFirestore } from "firebase-admin/firestore";
+import { getFirestore, type Firestore } from "firebase-admin/firestore";
 
 type ServiceAccountConfig = {
   projectId?: string;
@@ -13,6 +13,22 @@ type ServiceAccountConfig = {
 
 let adminApp: App | null = null;
 let missingAdminConfigWarned = false;
+let firestoreSettingsApplied = false;
+let firestoreSettingsFailed = false;
+
+function applyFirestoreSettings(db: Firestore) {
+  if (firestoreSettingsApplied || firestoreSettingsFailed) return;
+  try {
+    db.settings({ ignoreUndefinedProperties: true });
+    firestoreSettingsApplied = true;
+  } catch (error) {
+    firestoreSettingsFailed = true;
+    console.warn(
+      "[firebaseAdmin] Não foi possível aplicar db.settings(); prosseguindo com defaults.",
+      error,
+    );
+  }
+}
 
 function readServiceAccountFromBase64(): ServiceAccountConfig | null {
   const base64 =
@@ -112,9 +128,11 @@ export function getAdminApp() {
 export function getOptionalAdmin() {
   const app = getAdminApp();
   if (!app) return null;
+  const db = getFirestore(app);
+  applyFirestoreSettings(db);
   return {
     app,
-    db: getFirestore(app),
+    db,
     auth: getAuth(app),
   };
 }
@@ -124,6 +142,5 @@ export function getAdmin() {
   if (!context) {
     throw new Error("FIREBASE_ADMIN_NOT_CONFIGURED");
   }
-  context.db.settings({ ignoreUndefinedProperties: true });
   return context;
 }
