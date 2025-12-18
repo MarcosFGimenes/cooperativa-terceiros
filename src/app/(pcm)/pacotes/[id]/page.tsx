@@ -6,7 +6,7 @@ import SCurveDeferred from "@/components/SCurveDeferred";
 import { decodeRouteParam } from "@/lib/decodeRouteParam";
 import { getPackageByIdCached, listPackageServices } from "@/lib/repo/packages";
 import { listPackageFolders } from "@/lib/repo/folders";
-import { getServicesByIds, listAvailableOpenServices } from "@/lib/repo/services";
+import { getServicesByIds, listAvailableOpenServices, listUpdates } from "@/lib/repo/services";
 import { formatDate as formatDisplayDate } from "@/lib/formatDateTime";
 import {
   calcularCurvaSPlanejada,
@@ -427,6 +427,45 @@ async function renderPackageDetailPage(
     );
   }
 
+  const servicesMissingUpdates = services.filter(
+    (service) => !Array.isArray(service.updates) || service.updates.length === 0,
+  );
+
+  if (servicesMissingUpdates.length) {
+    const updatesById = new Map<string, Service["updates"]>();
+    const chunkSize = 15;
+
+    for (let i = 0; i < servicesMissingUpdates.length; i += chunkSize) {
+      const slice = servicesMissingUpdates.slice(i, i + chunkSize);
+      const results = await Promise.allSettled(
+        slice.map(async (service) => ({
+          id: service.id,
+          updates: await listUpdates(service.id, 200),
+        })),
+      );
+
+      results.forEach((result) => {
+        if (result.status === "fulfilled") {
+          updatesById.set(result.value.id, result.value.updates);
+        } else {
+          registerWarning(
+            "Alguns históricos de progresso não puderam ser carregados para a curva S consolidada.",
+            result.reason,
+            "Falha ao carregar histórico de atualizações do serviço",
+          );
+        }
+      });
+    }
+
+    if (updatesById.size > 0) {
+      services = services.map((service) => {
+        const resolvedUpdates = updatesById.get(service.id);
+        if (!resolvedUpdates) return service;
+        return { ...service, updates: resolvedUpdates };
+      });
+    }
+  }
+
   const hoursFromServices = Math.round(
     services.reduce((acc, service) => {
       const hours = Number(service.totalHours ?? 0);
@@ -493,11 +532,11 @@ async function renderPackageDetailPage(
   }
 
   const packageForCurve = { subpacotes: subpackagesForCurve };
-  const plannedCurvePoints = calcularCurvaSPlanejada(packageForCurve).map((point) => ({
+  const plannedCurvePoints = calcularCurvaSPlanejada(packageForCurve, referenceDate).map((point) => ({
     date: point.data.toISOString().slice(0, 10),
     percent: point.percentual,
   }));
-  const realizedSeriesData = calcularCurvaSRealizada(packageForCurve).map((point) => ({
+  const realizedSeriesData = calcularCurvaSRealizada(packageForCurve, referenceDate).map((point) => ({
     date: point.data.toISOString().slice(0, 10),
     percent: point.percentual,
   }));
@@ -512,33 +551,6 @@ async function renderPackageDetailPage(
   const realizedPercentNormalized = Number.isFinite(realizedPercentAtReference)
     ? realizedPercentAtReference
     : 0;
-
-  if (realizedSeriesData.length === 0) {
-    realizedSeriesData.push({
-      date: realizedReferenceDateIso,
-      percent: realizedPercentNormalized,
-    });
-  } else {
-    const lastPointIndex = realizedSeriesData.length - 1;
-    const lastPoint = realizedSeriesData[lastPointIndex];
-    const lastPointDate = startOfDay(new Date(lastPoint.date || realizedReferenceDateIso));
-    const referenceDay = startOfDay(referenceDate);
-    const resolvedLastPercent = Number.isFinite(lastPoint?.percent) ? Number(lastPoint.percent) : realizedPercentNormalized;
-
-    if (!Number.isFinite(lastPoint?.percent)) {
-      realizedSeriesData[lastPointIndex] = {
-        ...lastPoint,
-        percent: resolvedLastPercent,
-      };
-    }
-
-    if (lastPointDate.getTime() < referenceDay.getTime()) {
-      realizedSeriesData.push({
-        date: realizedReferenceDateIso,
-        percent: resolvedLastPercent,
-      });
-    }
-  }
 
   const realizedPercentForChart =
     Number.isFinite(realizedSeriesData[realizedSeriesData.length - 1]?.percent)
