@@ -354,14 +354,22 @@ function mapChecklistItemData(data: Record<string, unknown>): ChecklistItem {
 }
 
 function mapUpdateData(data: Record<string, unknown>): ServiceUpdate {
+  const reportDate =
+    toNumber((data as Record<string, unknown>).date) ??
+    toNumber((data as Record<string, unknown>).reportDate) ??
+    undefined;
+  const createdAt =
+    toNumber((data as Record<string, unknown>).createdAt ?? data.date ?? data.created_at ?? data.timestamp) ??
+    reportDate ??
+    Date.now();
   const percent = toNumber(
     data.percent ?? data.manualPercent ?? data.totalPct ?? data.realPercentSnapshot ?? data.pct,
   );
 
   return {
     id: String(data.id ?? crypto.randomUUID()),
-    createdAt:
-      toNumber(data.createdAt ?? data.date ?? data.created_at ?? data.timestamp) ?? Date.now(),
+    createdAt,
+    date: reportDate ?? null,
     description: String(data.description ?? data.note ?? data.observacao ?? ""),
     percent: percent ?? undefined,
   };
