@@ -363,6 +363,8 @@ const UPDATE_DATE_KEYS = [
   "createdAt",
   "updatedAt",
   "lastUpdateDate",
+  // Reconhecer o carimbo de data 'atualizadoEm' vindo do Firebase
+  "atualizadoEm",
 ];
 
 const UPDATE_PERCENT_KEYS = [

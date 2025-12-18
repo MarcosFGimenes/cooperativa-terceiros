@@ -354,6 +354,7 @@ export default function SCurve({
                   dot={{ r: DOT_RADIUS, stroke: REALIZED_COLOR, fill: REALIZED_COLOR }}
                   activeDot={{ r: ACTIVE_DOT_RADIUS, stroke: REALIZED_COLOR, fill: REALIZED_COLOR }}
                   strokeLinecap="round"
+                  connectNulls
                   isAnimationActive={false}
                 >
                   <LabelList

@@ -27,6 +27,7 @@ import {
 import { normaliseServiceStatus, resolveDisplayedServiceStatus } from "@/lib/serviceStatus";
 import type { Package, PackageFolder, Service } from "@/types";
 import { formatReferenceLabel, resolveReferenceDate } from "@/lib/referenceDate";
+import { startOfDay } from "date-fns";
 
 import type { ServiceInfo as FolderServiceInfo, ServiceOption as FolderServiceOption } from "./PackageFoldersManager";
 import ServicesCompaniesSection from "./ServicesCompaniesSection";
@@ -507,25 +508,42 @@ async function renderPackageDetailPage(
   const realizedPercentAtReference = Math.round(
     calcularPercentualRealizadoPacote(packageForCurve, referenceDate),
   );
-  const lastRealizedPercent = (() => {
-    for (let i = realizedSeriesData.length - 1; i >= 0; i--) {
-      const percent = realizedSeriesData[i]?.percent;
-      if (typeof percent === "number" && Number.isFinite(percent)) {
-        return percent;
-      }
-    }
-    return null;
-  })();
-  if (lastRealizedPercent === null) {
+  const realizedReferenceDateIso = new Date(referenceDate.getTime()).toISOString().slice(0, 10);
+  const realizedPercentNormalized = Number.isFinite(realizedPercentAtReference)
+    ? realizedPercentAtReference
+    : 0;
+
+  if (realizedSeriesData.length === 0) {
     realizedSeriesData.push({
-      date: new Date(referenceDate.getTime()).toISOString().slice(0, 10),
-      percent: realizedPercentAtReference,
+      date: realizedReferenceDateIso,
+      percent: realizedPercentNormalized,
     });
+  } else {
+    const lastPointIndex = realizedSeriesData.length - 1;
+    const lastPoint = realizedSeriesData[lastPointIndex];
+    const lastPointDate = startOfDay(new Date(lastPoint.date || realizedReferenceDateIso));
+    const referenceDay = startOfDay(referenceDate);
+    const resolvedLastPercent = Number.isFinite(lastPoint?.percent) ? Number(lastPoint.percent) : realizedPercentNormalized;
+
+    if (!Number.isFinite(lastPoint?.percent)) {
+      realizedSeriesData[lastPointIndex] = {
+        ...lastPoint,
+        percent: resolvedLastPercent,
+      };
+    }
+
+    if (lastPointDate.getTime() < referenceDay.getTime()) {
+      realizedSeriesData.push({
+        date: realizedReferenceDateIso,
+        percent: resolvedLastPercent,
+      });
+    }
   }
+
   const realizedPercentForChart =
-    lastRealizedPercent !== null && Number.isFinite(lastRealizedPercent)
-      ? Math.round(lastRealizedPercent)
-      : realizedPercentAtReference;
+    Number.isFinite(realizedSeriesData[realizedSeriesData.length - 1]?.percent)
+      ? Math.round(Number(realizedSeriesData[realizedSeriesData.length - 1]?.percent))
+      : realizedPercentNormalized;
   const realizedValueLabel = `${realizedPercentAtReference}%`;
   const realizedHeaderLabel = hasServiceOverflow
     ? `Realizado em ${referenceLabel} (parcial): ${realizedValueLabel}`
