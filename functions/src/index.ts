@@ -6,7 +6,83 @@ import type { Request, Response } from "express";
 if (!admin.apps.length) admin.initializeApp();
 const REGION = "southamerica-east1";
 
-type TimestampLike = Timestamp | Date | { toMillis?: () => number } | number | null | undefined;
+type TimestampLike = Timestamp | Date | { toMillis?: () => number } | number | string | null | undefined;
+
+const PORTUGUESE_MONTHS: Record<string, number> = {
+  janeiro: 1,
+  fevereiro: 2,
+  marco: 3,
+  abril: 4,
+  maio: 5,
+  junho: 6,
+  julho: 7,
+  agosto: 8,
+  setembro: 9,
+  outubro: 10,
+  novembro: 11,
+  dezembro: 12,
+};
+
+function normaliseMonthToken(value: string): string {
+  return value.toLowerCase().normalize("NFD").replace(/\p{Diacritic}/gu, "");
+}
+
+function parseDayFirstDateStringToUtcDate(value: string): Date | null {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+
+  const match = trimmed.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{2}|\d{4})$/);
+  if (!match) return null;
+
+  const [, dayRaw, monthRaw, yearRaw] = match;
+  const day = Number(dayRaw);
+  const month = Number(monthRaw);
+  const year =
+    yearRaw.length === 2
+      ? (Number(yearRaw) < 50 ? 2000 + Number(yearRaw) : 1900 + Number(yearRaw))
+      : Number(yearRaw);
+
+  if (!Number.isFinite(day) || !Number.isFinite(month) || !Number.isFinite(year)) return null;
+  if (month < 1 || month > 12) return null;
+  if (day < 1 || day > 31) return null;
+
+  const date = new Date(Date.UTC(year, month - 1, day));
+  if (
+    date.getUTCFullYear() !== year ||
+    date.getUTCMonth() !== month - 1 ||
+    date.getUTCDate() !== day
+  ) {
+    return null;
+  }
+  return date;
+}
+
+function parsePortugueseDateStringToUtcDate(value: string): Date | null {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+
+  const match = trimmed.match(/(\d{1,2})\s+de\s+([A-Za-zÀ-ÿ]+)\s+de\s+(\d{4})/i);
+  if (!match) return null;
+
+  const [, dayRaw, monthRaw, yearRaw] = match;
+  const day = Number(dayRaw);
+  const year = Number(yearRaw);
+  const month = PORTUGUESE_MONTHS[normaliseMonthToken(monthRaw)];
+
+  if (!Number.isFinite(day) || !Number.isFinite(year)) return null;
+  if (!month) return null;
+  if (day < 1 || day > 31) return null;
+
+  const date = new Date(Date.UTC(year, month - 1, day));
+  if (
+    date.getUTCFullYear() !== year ||
+    date.getUTCMonth() !== month - 1 ||
+    date.getUTCDate() !== day
+  ) {
+    return null;
+  }
+  return date;
+}
 
 function asTimestamp(value: TimestampLike): number | null {
   if (typeof value === "number") {
@@ -14,6 +90,23 @@ function asTimestamp(value: TimestampLike): number | null {
   }
 
   if (!value) return null;
+
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+
+    const numeric = Number(trimmed);
+    if (Number.isFinite(numeric)) return numeric;
+
+    const brDate = parseDayFirstDateStringToUtcDate(trimmed);
+    if (brDate) return brDate.getTime();
+
+    const ptDate = parsePortugueseDateStringToUtcDate(trimmed);
+    if (ptDate) return ptDate.getTime();
+
+    const parsed = new Date(trimmed);
+    return Number.isNaN(parsed.getTime()) ? null : parsed.getTime();
+  }
 
   if (value instanceof Timestamp) {
     return value.toMillis();
@@ -85,10 +178,10 @@ function normalisePercentFromUpdate(data: FirebaseFirestore.DocumentData): Progr
   // Prioritise the most recent manual edit fields so PCM/terceiro edits are not shadowed by stale percent values.
   const candidates = [data.manualPercent, data.realPercentSnapshot, data.percent];
   const createdAt =
-    asTimestamp((data.audit as FirebaseFirestore.DocumentData | undefined)?.submittedAt) ??
     asTimestamp(data.reportDate) ??
-    asTimestamp(data.createdAt) ??
     asTimestamp(data.date) ??
+    asTimestamp((data.audit as FirebaseFirestore.DocumentData | undefined)?.submittedAt) ??
+    asTimestamp(data.createdAt) ??
     Date.now();
 
   for (const candidate of candidates) {

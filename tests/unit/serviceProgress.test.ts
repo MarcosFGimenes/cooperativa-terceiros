@@ -26,6 +26,11 @@ describe("serviceProgress utilities", () => {
     expect(date?.toISOString()).toBe("2025-11-17T00:00:00.000Z");
   });
 
+  it("parses Portuguese month names for reportDate-like values", () => {
+    const date = toDate("20 de novembro de 2025 às 09:00");
+    expect(date?.toISOString()).toBe("2025-11-20T00:00:00.000Z");
+  });
+
   it("clamps progress to 0-100 range", () => {
     expect(clampProgress(-10)).toBe(0);
     expect(clampProgress(42.6)).toBe(42.6);

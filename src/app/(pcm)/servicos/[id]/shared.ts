@@ -5,6 +5,7 @@ import {
   formatDateTime as formatDateTimeDisplay,
   formatDayKey,
 } from "@/lib/formatDateTime";
+import { parseDayFirstDateStringToUtcDate, parsePortugueseDateStringToUtcDate } from "@/lib/dateParsing";
 import type {
   ChecklistItem,
   Service,
@@ -67,6 +68,12 @@ export function toMillis(value: unknown): number | null {
   if (value === null || value === undefined) return null;
   if (typeof value === "number" && Number.isFinite(value)) return value;
   if (typeof value === "string" && value.trim()) {
+    const brDate = parseDayFirstDateStringToUtcDate(value);
+    if (brDate) return brDate.getTime();
+
+    const ptDate = parsePortugueseDateStringToUtcDate(value);
+    if (ptDate) return ptDate.getTime();
+
     const date = new Date(value);
     if (!Number.isNaN(date.getTime())) {
       return date.getTime();

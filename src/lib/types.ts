@@ -34,7 +34,9 @@ export type ServiceUpdate = BaseServiceUpdate & {
   previousPercent?: number | null;
   declarationAccepted?: boolean;
   audit?: BaseServiceUpdate["audit"];
-  date?: number | null; // Data informada pelo terceiro no formulário (reportDate)
+  // Data informada pelo terceiro no formulário (reportDate), persistida como timestamp (ms).
+  // Strings devem ser normalizadas antes de salvar (ex.: dd/MM/yyyy ou "20 de novembro de 2025").
+  date?: number | null;
 };
 
 export type Service = BaseService & {

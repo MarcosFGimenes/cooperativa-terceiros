@@ -4,10 +4,31 @@ import { NextResponse } from "next/server";
 import { PublicAccessError, requireServiceAccess } from "@/lib/public-access";
 import { addManualUpdate } from "@/lib/repo/services";
 import { mapFirestoreError } from "@/lib/utils/firestoreErrors";
+import { parseDayFirstDateStringToUtcDate, parsePortugueseDateStringToUtcDate } from "@/lib/dateParsing";
 
 const SHIFT_VALUES = new Set(["manha", "tarde", "noite"]);
 const WEATHER_VALUES = new Set(["claro", "nublado", "chuvoso"]);
 const CONDITION_VALUES = new Set(["praticavel", "impraticavel"]);
+
+function parseReportDateInput(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+    const numeric = Number(trimmed);
+    if (Number.isFinite(numeric)) return numeric;
+
+    const brDate = parseDayFirstDateStringToUtcDate(trimmed);
+    if (brDate) return brDate.getTime();
+
+    const ptDate = parsePortugueseDateStringToUtcDate(trimmed);
+    if (ptDate) return ptDate.getTime();
+
+    const parsed = new Date(trimmed);
+    return Number.isNaN(parsed.getTime()) ? null : parsed.getTime();
+  }
+  return null;
+}
 
 export async function POST(req: Request) {
   const { searchParams } = new URL(req.url);
@@ -173,9 +194,8 @@ export async function POST(req: Request) {
 
     const ipHeader = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || req.headers.get("x-real-ip")?.trim() || null;
 
-    const reportDateMillis = Number.isFinite(Number(body.reportDate))
-      ? Number(body.reportDate)
-      : startDate.getTime();
+    // reportDate deve ser persistido como timestamp (millis) para evitar strings ambíguas.
+    const reportDateMillis = parseReportDateInput(body.reportDate) ?? startDate.getTime();
 
     const { realPercent, update } = await addManualUpdate(service.id, {
       manualPercent: percentRaw,
