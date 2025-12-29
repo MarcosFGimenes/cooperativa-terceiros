@@ -1034,10 +1034,11 @@ function mapUpdateDoc(
   const percent = Number.isFinite(realPercent ?? NaN) ? Number(realPercent) : 0;
 
   const auditSubmittedAt = toMillis((data as Record<string, unknown>).audit?.submittedAt);
+  const reportDate = toMillis((data as Record<string, unknown>).reportDate ?? (data as Record<string, unknown>).date);
   const createdAt =
     auditSubmittedAt ??
     toMillis((data as Record<string, unknown>).createdAt) ??
-    toMillis((data as Record<string, unknown>).date) ??
+    reportDate ??
     0;
 
   return {
@@ -1074,6 +1075,7 @@ function mapUpdateDoc(
     audit: mapAudit((data as Record<string, unknown>).audit),
     // Use the submission moment as the canonical timestamp for ordering and display.
     submittedAt: auditSubmittedAt ?? undefined,
+    date: reportDate ?? null,
     createdAt,
   };
 }

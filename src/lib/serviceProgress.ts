@@ -369,6 +369,7 @@ const UPDATE_DATE_KEYS = [
   "dataUltimaAtualizacao",
   "dataAtualizacaoPercentual",
   "date",
+  "reportDate",
   "timestamp",
   "createdAt",
   "updatedAt",
