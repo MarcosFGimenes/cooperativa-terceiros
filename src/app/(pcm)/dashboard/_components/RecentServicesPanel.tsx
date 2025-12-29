@@ -4,9 +4,8 @@ import { useMemo } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 
-import ReferenceDateSelector from "@/components/ReferenceDateSelector";
 import { formatDateTime } from "@/lib/formatDateTime";
-import { formatReferenceLabel, resolveReferenceDate } from "@/lib/referenceDate";
+import { resolveReferenceDate } from "@/lib/referenceDate";
 import { resolveServicoPercentualPlanejado, resolveServicoRealPercent } from "@/lib/serviceProgress";
 import { resolveDisplayedServiceStatus } from "@/lib/serviceStatus";
 import type { Service } from "@/types";
@@ -20,20 +19,10 @@ const STATUS_TONE: Record<string, string> = {
 export default function RecentServicesPanel({ services }: { services: Service[] }) {
   const searchParams = useSearchParams();
   const refDateParam = searchParams?.get("refDate") ?? null;
-  const { date: referenceDate, inputValue: referenceDateInput } = useMemo(
-    () => resolveReferenceDate(refDateParam),
-    [refDateParam],
-  );
-  const referenceLabel = useMemo(() => formatReferenceLabel(referenceDate), [referenceDate]);
+  const { date: referenceDate } = useMemo(() => resolveReferenceDate(refDateParam), [refDateParam]);
 
   return (
     <div className="space-y-2">
-      <div className="flex flex-wrap items-start justify-between gap-3 rounded-2xl border border-dashed border-border/70 bg-muted/20 p-3">
-        <div className="w-full max-w-[220px]">
-          <ReferenceDateSelector value={referenceDateInput} showTimeZoneNote={false} />
-        </div>
-      </div>
-
       {services.length === 0 ? (
         <div className="rounded-lg border border-dashed p-6 text-sm text-muted-foreground">
           Nenhum serviço cadastrado.
@@ -72,8 +61,8 @@ export default function RecentServicesPanel({ services }: { services: Service[] 
                   </span>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Planejado ({referenceLabel}): <span className="font-semibold text-foreground">{plannedPercent}%</span>
-                  {" "}| Real ({referenceLabel}): <span className="font-semibold text-foreground">{realPercent}%</span>
+                  Planejado: <span className="font-semibold text-foreground">{plannedPercent}%</span> | Real:{" "}
+                  <span className="font-semibold text-foreground">{realPercent}%</span>
                 </p>
               </Link>
             </div>
