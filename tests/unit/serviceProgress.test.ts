@@ -18,7 +18,8 @@ import {
   snapshotBeforeConclusion,
   toDate,
 } from "@/lib/serviceProgress";
-import { resolveReferenceDate } from "@/lib/referenceDate";
+import { formatDayKey } from "@/lib/formatDateTime";
+import { DEFAULT_TIME_ZONE, resolveReferenceDate } from "@/lib/referenceDate";
 
 describe("serviceProgress utilities", () => {
   it("parses dd/MM/yyyy date-only strings for updates and ranges", () => {
@@ -548,8 +549,10 @@ describe("serviceProgress utilities", () => {
     };
 
     const obterPercentual = (curva: { data: Date; percentual: number }[], iso: string) => {
-      const alvo = new Date(iso).getTime();
-      const ponto = curva.find((item) => item.data.getTime() === alvo);
+      const alvo = formatDayKey(new Date(iso), { timeZone: DEFAULT_TIME_ZONE });
+      const ponto = curva.find(
+        (item) => formatDayKey(item.data, { timeZone: DEFAULT_TIME_ZONE }) === alvo,
+      );
       if (!ponto) {
         throw new Error(`Ponto não encontrado para ${iso}`);
       }
@@ -559,11 +562,18 @@ describe("serviceProgress utilities", () => {
     it("monta a curva planejada apenas com os serviços de subpacotes", () => {
       const curvaPlanejada = calcularCurvaSPlanejada(pacoteCurva);
       expect(curvaPlanejada).toHaveLength(7);
-      expect(curvaPlanejada[0].data.toISOString()).toBe("2024-01-01T00:00:00.000Z");
-      expect(curvaPlanejada[curvaPlanejada.length - 1].data.toISOString()).toBe(
-        "2024-01-07T00:00:00.000Z",
+      expect(
+        formatDayKey(curvaPlanejada[0].data, { timeZone: DEFAULT_TIME_ZONE }),
+      ).toBe("2024-01-01");
+      expect(
+        formatDayKey(curvaPlanejada[curvaPlanejada.length - 1].data, {
+          timeZone: DEFAULT_TIME_ZONE,
+        }),
+      ).toBe("2024-01-07");
+      expect(obterPercentual(curvaPlanejada, "2024-01-03T00:00:00Z")).toBeCloseTo(
+        (60 * 10 + 20 * 5) / 15,
+        1,
       );
-      expect(obterPercentual(curvaPlanejada, "2024-01-03T00:00:00Z")).toBeCloseTo(40, 1);
     });
 
     it("usa o histórico do Terceiro para calcular a curva realizada", () => {
@@ -582,6 +592,81 @@ describe("serviceProgress utilities", () => {
       // `calcularIndicadoresCurvaS` arredonda os valores consolidados.
       expect(indicadores.realizado).toBe(53);
       expect(indicadores.diferenca).toBe(-34);
+    });
+
+    it("prioriza reportDate sobre createdAt ao montar a curva realizada", () => {
+      const pacote = {
+        subpacotes: [
+          {
+            servicos: [
+              {
+                horasPrevistas: 10,
+                dataInicio: "2025-12-27",
+                dataFim: "2025-12-31",
+                updates: [
+                  { percentual: 30, reportDate: "28/12/2025", createdAt: "2025-12-29" },
+                  { percentual: 40, reportDate: "31/12/2025", createdAt: "2025-12-29" },
+                ],
+              },
+            ],
+          },
+        ],
+      };
+
+      const curva = calcularCurvaSRealizada(pacote);
+      expect(obterPercentual(curva, "2025-12-28T00:00:00Z")).toBe(30);
+      expect(obterPercentual(curva, "2025-12-31T00:00:00Z")).toBe(40);
+    });
+
+    it("aplica reportDate em múltiplos serviços e subpacotes", () => {
+      const pacote = {
+        subpacotes: [
+          {
+            servicos: [
+              {
+                horasPrevistas: 8,
+                dataInicio: "2025-01-01",
+                dataFim: "2025-01-04",
+                updates: [{ percentual: 20, reportDate: "2025-01-02", createdAt: "2025-01-03" }],
+              },
+            ],
+          },
+          {
+            servicos: [
+              {
+                horasPrevistas: 12,
+                dataInicio: "2025-01-01",
+                dataFim: "2025-01-04",
+                updates: [{ percentual: 60, reportDate: "2025-01-03", createdAt: "2025-01-04" }],
+              },
+            ],
+          },
+        ],
+      };
+
+      const curva = calcularCurvaSRealizada(pacote);
+      expect(obterPercentual(curva, "2025-01-02T00:00:00Z")).toBeCloseTo(8);
+      expect(obterPercentual(curva, "2025-01-03T00:00:00Z")).toBeCloseTo(44);
+    });
+
+    it("mantém fallback para atualizações legadas sem reportDate", () => {
+      const pacote = {
+        subpacotes: [
+          {
+            servicos: [
+              {
+                horasPrevistas: 6,
+                dataInicio: "2025-02-01",
+                dataFim: "2025-02-03",
+                updates: [{ percentual: 55, createdAt: "2025-02-02" }],
+              },
+            ],
+          },
+        ],
+      };
+
+      const curva = calcularCurvaSRealizada(pacote);
+      expect(obterPercentual(curva, "2025-02-02T00:00:00Z")).toBe(55);
     });
   });
 
