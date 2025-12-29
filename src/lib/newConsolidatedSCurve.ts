@@ -295,6 +295,14 @@ function resolveServiceHours(service: ServiceLike): number | null {
   return null;
 }
 
+function resolveServiceWeight(service: ServiceLike): { weight: number; hasValidHours: boolean } {
+  const hours = resolveServiceHours(service);
+  if (typeof hours === "number" && Number.isFinite(hours) && hours > 0) {
+    return { weight: hours, hasValidHours: true };
+  }
+  return { weight: 1, hasValidHours: false };
+}
+
 function resolveServiceStart(service: ServiceLike): Date | null {
   const candidates = [
     service.dataInicio,
@@ -436,19 +444,14 @@ export function buildConsolidatedSCurve({
   }
 
   const serviceSnapshots = services.map((service) => {
-    const hours = resolveServiceHours(service);
+    const { weight, hasValidHours } = resolveServiceWeight(service);
     const start = resolveServiceStart(service);
     const end = resolveServiceEnd(service);
     const updates = normalizeUpdates(service, timeZone);
-    return { hours, start, end, updates };
+    return { weight, hasValidHours, start, end, updates };
   });
 
-  const hoursTotal = serviceSnapshots.reduce((total, service) => {
-    if (typeof service.hours === "number" && Number.isFinite(service.hours) && service.hours > 0) {
-      return total + service.hours;
-    }
-    return total;
-  }, 0);
+  const hoursTotal = serviceSnapshots.reduce((total, service) => total + service.weight, 0);
 
   const plannedSeries: ConsolidatedCurvePoint[] = [];
   const realizedSeries: ConsolidatedCurvePoint[] = [];
@@ -464,14 +467,10 @@ export function buildConsolidatedSCurve({
     let realizedWeighted = 0;
 
     serviceSnapshots.forEach((service, serviceIndex) => {
-      if (typeof service.hours !== "number" || !Number.isFinite(service.hours) || service.hours <= 0) {
-        return;
-      }
-
       const planned = calcPlannedPercentForService(day, service.start, service.end, timeZone);
       const realized = serviceRealizedSeries[serviceIndex]?.[index] ?? 0;
-      plannedWeighted += planned * service.hours;
-      realizedWeighted += realized * service.hours;
+      plannedWeighted += planned * service.weight;
+      realizedWeighted += realized * service.weight;
     });
 
     const plannedPercent = hoursTotal > 0 ? plannedWeighted / hoursTotal : 0;

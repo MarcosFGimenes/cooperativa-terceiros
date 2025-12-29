@@ -85,4 +85,24 @@ describe("buildConsolidatedSCurve", () => {
 
     expect(realizedSeries.map((point) => point.percent)).toEqual([0, 80, 80]);
   });
+
+  it("includes services without hours using a safe default weight", () => {
+    const { realizedSeries } = buildConsolidatedSCurve({
+      timeZone: TIME_ZONE,
+      services: [
+        {
+          plannedStart: "2024-03-01",
+          plannedEnd: "2024-03-02",
+          updates: [{ reportDate: "2024-03-01", percent: 50 }],
+        },
+        {
+          plannedStart: "2024-03-01",
+          plannedEnd: "2024-03-02",
+          updates: [{ reportDate: "2024-03-02", percent: 100 }],
+        },
+      ],
+    });
+
+    expect(realizedSeries.map((point) => point.percent)).toEqual([25, 75]);
+  });
 });
