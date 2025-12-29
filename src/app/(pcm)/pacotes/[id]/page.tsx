@@ -22,7 +22,9 @@ import {
 } from "@/lib/serviceProgress";
 import { normaliseServiceStatus, resolveDisplayedServiceStatus } from "@/lib/serviceStatus";
 import type { Package, PackageFolder, Service } from "@/types";
-import { resolveReferenceDate } from "@/lib/referenceDate";
+import { DEFAULT_TIME_ZONE, resolveReferenceDate } from "@/lib/referenceDate";
+import { buildConsolidatedSCurve } from "@/lib/newConsolidatedSCurve";
+import ConsolidatedSCurveV2 from "@/components/ConsolidatedSCurveV2";
 
 import type { ServiceInfo as FolderServiceInfo, ServiceOption as FolderServiceOption } from "./PackageFoldersManager";
 import ServicesCompaniesSection from "./ServicesCompaniesSection";
@@ -731,6 +733,16 @@ async function renderPackageDetailPage(
       : `Mais de ${Math.max(serviceCountReference, services.length)} serviços`
     : `${services.length} serviço${services.length === 1 ? "" : "s"}`;
 
+  const consolidatedCurve = buildConsolidatedSCurve({
+    services,
+    timeZone: DEFAULT_TIME_ZONE,
+  });
+  const realizedSeries = consolidatedCurve.realizedSeries;
+  const plannedSeries = consolidatedCurve.plannedSeries;
+  const consolidatedRealizedPercent = realizedSeries.length
+    ? realizedSeries[realizedSeries.length - 1]?.percent ?? 0
+    : 0;
+
   return (
     <div className="container mx-auto max-w-7xl space-y-6 px-6 py-6 package-print-layout print:m-0 print:w-full print:max-w-none print:space-y-3 print:px-0 print:py-0">
       <div className="print-summary-and-curve space-y-6 print:space-y-3">
@@ -806,6 +818,16 @@ async function renderPackageDetailPage(
           </div>
         ) : null}
 
+        <section className="rounded-2xl border bg-card/80 p-5 shadow-sm print-card print:w-full print:rounded-none print:border-0 print:bg-white print:shadow-none print:p-2">
+          <ConsolidatedSCurveV2
+            plannedSeries={plannedSeries}
+            realizedSeries={realizedSeries}
+            realizedPercent={consolidatedRealizedPercent}
+            title="Curva S consolidada"
+            description="Evolução planejada versus realizado considerando todos os serviços do pacote."
+            className="print-avoid-break"
+          />
+        </section>
       </div>
 
       <section className="summary-blocks print-summary-blocks mt-8 rounded-2xl border bg-card/80 p-5 shadow-sm space-y-8 print:mt-4 print:space-y-4 print-no-border print:w-full print:rounded-none print:border-0 print:bg-white print:shadow-none print:p-2 print-no-radius print-full-width">
