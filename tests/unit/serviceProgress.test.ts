@@ -618,6 +618,41 @@ describe("serviceProgress utilities", () => {
       expect(obterPercentual(curva, "2025-12-31T00:00:00Z")).toBe(40);
     });
 
+    it("mantém o degrau pelo dia trabalhado mesmo com createdAt no mesmo dia", () => {
+      const pacote = {
+        subpacotes: [
+          {
+            servicos: [
+              {
+                horasPrevistas: 10,
+                dataInicio: "2024-12-27",
+                dataFim: "2024-12-31",
+                updates: [
+                  {
+                    percentual: 20,
+                    reportDate: "2024-12-28",
+                    createdAt: "2024-12-29",
+                  },
+                  {
+                    percentual: 50,
+                    reportDate: "2024-12-30",
+                    createdAt: "2024-12-29",
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      };
+
+      const curva = calcularCurvaSRealizada(pacote);
+      expect(obterPercentual(curva, "2024-12-27T00:00:00Z")).toBe(0);
+      expect(obterPercentual(curva, "2024-12-28T00:00:00Z")).toBe(20);
+      expect(obterPercentual(curva, "2024-12-29T00:00:00Z")).toBe(20);
+      expect(obterPercentual(curva, "2024-12-30T00:00:00Z")).toBe(50);
+      expect(obterPercentual(curva, "2024-12-31T00:00:00Z")).toBe(50);
+    });
+
     it("aceita reportDateMillis como data efetiva das atualizações", () => {
       const reportDateMillis = new Date("2025-03-02T00:00:00Z").getTime();
       const pacote = {
@@ -637,6 +672,37 @@ describe("serviceProgress utilities", () => {
 
       const curva = calcularCurvaSRealizada(pacote);
       expect(obterPercentual(curva, "2025-03-02T00:00:00Z")).toBe(35);
+    });
+
+    it("consolida múltiplos serviços respeitando pesos e datas distintas", () => {
+      const pacote = {
+        subpacotes: [
+          {
+            servicos: [
+              {
+                horasPrevistas: 4,
+                dataInicio: "2024-11-01",
+                dataFim: "2024-11-03",
+                updates: [{ percentual: 25, reportDate: "2024-11-02" }],
+              },
+            ],
+          },
+          {
+            servicos: [
+              {
+                horasPrevistas: 12,
+                dataInicio: "2024-11-01",
+                dataFim: "2024-11-03",
+                updates: [{ percentual: 75, reportDate: "2024-11-03" }],
+              },
+            ],
+          },
+        ],
+      };
+
+      const curva = calcularCurvaSRealizada(pacote);
+      expect(obterPercentual(curva, "2024-11-02T00:00:00Z")).toBeCloseTo(6.25, 2);
+      expect(obterPercentual(curva, "2024-11-03T00:00:00Z")).toBeCloseTo(62.5, 2);
     });
 
     it("aplica reportDate em múltiplos serviços e subpacotes", () => {
@@ -670,7 +736,7 @@ describe("serviceProgress utilities", () => {
       expect(obterPercentual(curva, "2025-01-03T00:00:00Z")).toBeCloseTo(44);
     });
 
-    it("mantém fallback para atualizações legadas sem reportDate", () => {
+    it("faz fallback para createdAt quando não há dia trabalhado", () => {
       const pacote = {
         subpacotes: [
           {
@@ -680,6 +746,26 @@ describe("serviceProgress utilities", () => {
                 dataInicio: "2025-02-01",
                 dataFim: "2025-02-03",
                 updates: [{ percentual: 55, createdAt: "2025-02-02" }],
+              },
+            ],
+          },
+        ],
+      };
+
+      const curva = calcularCurvaSRealizada(pacote);
+      expect(obterPercentual(curva, "2025-02-02T00:00:00Z")).toBe(55);
+    });
+
+    it("mantém fallback para atualizações legadas com updatedAt", () => {
+      const pacote = {
+        subpacotes: [
+          {
+            servicos: [
+              {
+                horasPrevistas: 6,
+                dataInicio: "2025-02-01",
+                dataFim: "2025-02-03",
+                updates: [{ percentual: 55, updatedAt: "2025-02-02" }],
               },
             ],
           },
