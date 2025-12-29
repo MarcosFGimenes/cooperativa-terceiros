@@ -163,6 +163,9 @@ function mapServiceToSubpackageEntry(service: Service): ServicoDoSubpacote {
   });
 
   const updateDateKeys = [
+    "reportDate",
+    "reportDateMillis",
+    "date",
     "dataUltimaAtualizacao",
     "dataAtualizacao",
     "dataAtualizacaoPercentual",
