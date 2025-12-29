@@ -364,6 +364,7 @@ const UPDATE_LIST_KEYS = [
 
 const UPDATE_DATE_KEYS = [
   "reportDate",
+  "reportDateMillis",
   "data",
   "dataAtualizacao",
   "data_atualizacao",
@@ -391,19 +392,54 @@ const UPDATE_PERCENT_KEYS = [
   "progress",
 ];
 
+const DIRECT_PERCENT_DATE_KEYS = [
+  "reportDate",
+  "reportDateMillis",
+  "date",
+  "data",
+  "dataUltimaAtualizacao",
+  "dataAtualizacao",
+  "dataAtualizacaoPercentual",
+  "atualizadoEm",
+  "lastUpdateDate",
+  "updatedAt",
+];
+
+const REPORT_DATE_KEYS = ["reportDate", "reportDateMillis"] as const;
+
+function resolveEffectiveUpdateDate(
+  source: Record<string, unknown>,
+  keys: string[],
+  fallbackDate?: Date,
+): Date | null {
+  let invalidReportedDate = false;
+  for (const key of keys) {
+    if (!Object.hasOwn(source, key)) continue;
+    const parsed = toDate(source[key] as DateInput);
+    if (parsed) return parsed;
+    if (REPORT_DATE_KEYS.includes(key as (typeof REPORT_DATE_KEYS)[number])) {
+      invalidReportedDate = true;
+    }
+  }
+  if (invalidReportedDate) {
+    console.warn(
+      "[serviceProgress] reportDate inválido encontrado em atualização. Verifique a origem do dado.",
+      {
+        reportDate: Object.hasOwn(source, "reportDate") ? source["reportDate"] : undefined,
+        reportDateMillis: Object.hasOwn(source, "reportDateMillis") ? source["reportDateMillis"] : undefined,
+      },
+    );
+  }
+  if (fallbackDate) {
+    return new Date(fallbackDate.getTime());
+  }
+  return null;
+}
+
 function normalizeUpdateEntry(entry: unknown, fallbackDate?: Date): AtualizacaoPercentual | null {
   if (!entry || typeof entry !== "object") return null;
   const source = entry as Record<string, unknown>;
-  let data: Date | null = null;
-  for (const key of UPDATE_DATE_KEYS) {
-    if (Object.hasOwn(source, key)) {
-      data = toDate(source[key] as DateInput);
-      if (data) break;
-    }
-  }
-  if (!data && fallbackDate) {
-    data = new Date(fallbackDate.getTime());
-  }
+  const data = resolveEffectiveUpdateDate(source, UPDATE_DATE_KEYS, fallbackDate);
   if (!data) return null;
 
   let percentual: number | null = null;
@@ -445,21 +481,12 @@ function coletarAtualizacoesDoServico(
     parsePercentual((servico as Record<string, unknown>).currentProgress);
 
   if (percentualDireto !== null) {
-    let data =
-      getDateFromKeys(servico, [
-        "dataUltimaAtualizacao",
-        "dataAtualizacao",
-        "dataAtualizacaoPercentual",
-        "atualizadoEm",
-        "lastUpdateDate",
-        "updatedAt",
-      ]) ?? null;
-    if (!data && fallbackDate) {
-      data = new Date(fallbackDate.getTime());
-    }
-    if (!data) {
-      data = new Date(0);
-    }
+    const data =
+      resolveEffectiveUpdateDate(
+        servico as Record<string, unknown>,
+        DIRECT_PERCENT_DATE_KEYS,
+        fallbackDate,
+      ) ?? new Date(0);
     atualizacoes.push({ data: startOfDay(data), percentual: percentualDireto });
   }
 

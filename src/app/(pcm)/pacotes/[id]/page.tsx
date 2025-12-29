@@ -2,16 +2,12 @@ import Link from "next/link";
 import * as Navigation from "next/navigation";
 import { isRedirectError } from "next/dist/client/components/redirect";
 import DeletePackageButton from "@/components/DeletePackageButton.dynamic";
-import SCurveDeferred from "@/components/SCurveDeferred";
 import { decodeRouteParam } from "@/lib/decodeRouteParam";
 import { getPackageByIdCached, listPackageServices } from "@/lib/repo/packages";
 import { listPackageFolders } from "@/lib/repo/folders";
 import { getServicesByIds, listAvailableOpenServices, listUpdates } from "@/lib/repo/services";
 import { formatDate as formatDisplayDate } from "@/lib/formatDateTime";
 import {
-  calcularCurvaSPlanejada,
-  calcularCurvaSRealizada,
-  calcularIndicadoresCurvaS,
   calcularMetricasPorSetor,
   calcularMetricasSubpacote,
   calcularPercentualPlanejadoPacote,
@@ -27,7 +23,6 @@ import {
 import { normaliseServiceStatus, resolveDisplayedServiceStatus } from "@/lib/serviceStatus";
 import type { Package, PackageFolder, Service } from "@/types";
 import { resolveReferenceDate } from "@/lib/referenceDate";
-import { startOfDay } from "date-fns";
 
 import type { ServiceInfo as FolderServiceInfo, ServiceOption as FolderServiceOption } from "./PackageFoldersManager";
 import ServicesCompaniesSection from "./ServicesCompaniesSection";
@@ -163,6 +158,9 @@ function mapServiceToSubpackageEntry(service: Service): ServicoDoSubpacote {
   });
 
   const updateDateKeys = [
+    "reportDate",
+    "reportDateMillis",
+    "date",
     "dataUltimaAtualizacao",
     "dataAtualizacao",
     "dataAtualizacaoPercentual",
@@ -447,7 +445,7 @@ async function renderPackageDetailPage(
           updatesById.set(result.value.id, result.value.updates);
         } else {
           registerWarning(
-            "Alguns históricos de progresso não puderam ser carregados para a curva S consolidada.",
+            "Alguns históricos de progresso não puderam ser carregados.",
             result.reason,
             "Falha ao carregar histórico de atualizações do serviço",
           );
@@ -529,40 +527,17 @@ async function renderPackageDetailPage(
     });
   }
 
-  const packageForCurve = { subpacotes: subpackagesForCurve };
-  const plannedCurvePoints = calcularCurvaSPlanejada(packageForCurve).map((point) => ({
-    date: point.data.toISOString().slice(0, 10),
-    percent: point.percentual,
-  }));
-  const realizedSeriesData = calcularCurvaSRealizada(packageForCurve).map((point) => ({
-    date: point.data.toISOString().slice(0, 10),
-    percent: point.percentual,
-  }));
-  const curvaIndicators = calcularIndicadoresCurvaS(packageForCurve, referenceDate);
   const plannedPercentAtReference = Math.round(
-    calcularPercentualPlanejadoPacote(packageForCurve, referenceDate),
+    calcularPercentualPlanejadoPacote({ subpacotes: subpackagesForCurve }, referenceDate),
   );
   const realizedPercentAtReference = Math.round(
-    calcularPercentualRealizadoPacote(packageForCurve, referenceDate),
+    calcularPercentualRealizadoPacote({ subpacotes: subpackagesForCurve }, referenceDate),
   );
-  const realizedPercentNormalized = Number.isFinite(realizedPercentAtReference)
-    ? realizedPercentAtReference
-    : 0;
 
-  const realizedPercentForChart =
-    Number.isFinite(realizedSeriesData[realizedSeriesData.length - 1]?.percent)
-      ? Math.round(Number(realizedSeriesData[realizedSeriesData.length - 1]?.percent))
-      : realizedPercentNormalized;
   const realizedValueLabel = `${realizedPercentAtReference}%`;
   const realizedHeaderLabel = hasServiceOverflow
     ? `Realizado (parcial): ${realizedValueLabel}`
     : `Realizado: ${realizedValueLabel}`;
-  const curveMetrics = {
-    plannedTotal: curvaIndicators.planejadoTotal,
-    plannedToDate: curvaIndicators.planejadoAteHoje,
-    realized: curvaIndicators.realizado,
-    delta: curvaIndicators.diferenca,
-  };
 
   const folderAnalyticsMap = new Map<
     string,
@@ -773,7 +748,7 @@ async function renderPackageDetailPage(
               <div className="space-y-1">
                 <h1 className="text-2xl font-semibold tracking-tight">{packageLabel}</h1>
                 <p className="text-sm text-muted-foreground">
-                  Resumo do pacote, serviços vinculados e curva S consolidada.
+                  Resumo do pacote e serviços vinculados.
                 </p>
               </div>
             </div>
@@ -831,105 +806,6 @@ async function renderPackageDetailPage(
           </div>
         ) : null}
 
-        <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-start print:block print:gap-3">
-          <section
-            className="rounded-2xl border bg-card/80 p-5 shadow-sm scurve-card print-card print:w-full print:rounded-none print:border-0 print:bg-white print:shadow-none print:p-2 print-avoid-break"
-          >
-            <SCurveDeferred
-              planned={plannedCurvePoints}
-              realizedSeries={realizedSeriesData}
-              realizedPercent={realizedPercentForChart}
-              title="Curva S consolidada"
-              description="Planejado versus realizado considerando todos os serviços do pacote."
-              headerAside={<span className="font-medium text-foreground">{realizedHeaderLabel}</span>}
-              chartHeight={520}
-              metrics={curveMetrics}
-              showMetrics={false}
-              deferRendering
-              fallback={
-                <div className="flex h-[520px] w-full items-center justify-center rounded-xl border border-dashed border-border/70 bg-muted/40">
-                  <span className="text-sm text-muted-foreground">Carregando gráfico...</span>
-                </div>
-              }
-            />
-
-            <div className="mt-4 hidden print:grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-              {/* Incluindo indicadores da Curva S consolidada no PDF */}
-              <div className="rounded-xl border bg-muted/30 px-3 py-2.5">
-                <p className="text-muted-foreground">Planejado (total)</p>
-                <p className="text-lg font-semibold text-foreground">
-                  {Math.round(curveMetrics.plannedTotal ?? 0)}%
-                </p>
-              </div>
-              <div className="rounded-xl border bg-muted/30 px-3 py-2.5">
-                <p className="text-muted-foreground">Planejado até hoje</p>
-                <p className="text-lg font-semibold text-foreground">
-                  {Math.round(curveMetrics.plannedToDate ?? 0)}%
-                </p>
-              </div>
-              <div className="rounded-xl border bg-muted/30 px-3 py-2.5">
-                <p className="text-muted-foreground">Realizado</p>
-                <p className="text-lg font-semibold text-emerald-600 dark:text-emerald-400">
-                  {Math.round(realizedPercentAtReference)}%
-                </p>
-              </div>
-              <div className="rounded-xl border bg-muted/30 px-3 py-2.5">
-                <p className="text-muted-foreground">Diferença</p>
-                <p
-                  className={`text-lg font-semibold ${
-                    (curveMetrics.delta ?? 0) < -2
-                      ? "text-amber-600 dark:text-amber-400"
-                      : (curveMetrics.delta ?? 0) > 2
-                        ? "text-emerald-600 dark:text-emerald-400"
-                        : "text-foreground"
-                  }`}
-                >
-                  {(curveMetrics.delta ?? 0) > 0 ? "+" : ""}
-                  {Math.round(curveMetrics.delta ?? 0)}%
-                </p>
-              </div>
-            </div>
-          </section>
-
-          <section className="w-full rounded-2xl border bg-card/80 px-4 py-3 shadow-sm xl:max-w-[260px] print:hidden">
-            <h2 className="mb-3 text-lg font-semibold">Indicadores da curva</h2>
-            <dl className="space-y-3 text-sm">
-              <div className="rounded-xl border bg-muted/30 px-3 py-2.5">
-                <dt className="text-muted-foreground">Planejado (total)</dt>
-                <dd className="text-lg font-semibold text-foreground">
-                  {Math.round(curveMetrics.plannedTotal ?? 0)}%
-                </dd>
-              </div>
-              <div className="rounded-xl border bg-muted/30 px-3 py-2.5">
-                <dt className="text-muted-foreground">Planejado até hoje</dt>
-                <dd className="text-lg font-semibold text-foreground">
-                  {Math.round(curveMetrics.plannedToDate ?? 0)}%
-                </dd>
-              </div>
-              <div className="rounded-xl border bg-muted/30 px-3 py-2.5">
-                <dt className="text-muted-foreground">Realizado</dt>
-                <dd className="text-lg font-semibold text-emerald-600 dark:text-emerald-400">
-                  {Math.round(realizedPercentAtReference)}%
-                </dd>
-              </div>
-              <div className="rounded-xl border bg-muted/30 px-3 py-2.5">
-                <dt className="text-muted-foreground">Diferença</dt>
-                <dd
-                  className={`text-lg font-semibold ${
-                    (curveMetrics.delta ?? 0) < -2
-                      ? "text-amber-600 dark:text-amber-400"
-                      : (curveMetrics.delta ?? 0) > 2
-                        ? "text-emerald-600 dark:text-emerald-400"
-                        : "text-foreground"
-                  }`}
-                >
-                  {(curveMetrics.delta ?? 0) > 0 ? "+" : ""}
-                  {Math.round(curveMetrics.delta ?? 0)}%
-                </dd>
-              </div>
-            </dl>
-          </section>
-        </div>
       </div>
 
       <section className="summary-blocks print-summary-blocks mt-8 rounded-2xl border bg-card/80 p-5 shadow-sm space-y-8 print:mt-4 print:space-y-4 print-no-border print:w-full print:rounded-none print:border-0 print:bg-white print:shadow-none print:p-2 print-no-radius print-full-width">

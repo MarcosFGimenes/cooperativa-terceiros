@@ -618,6 +618,27 @@ describe("serviceProgress utilities", () => {
       expect(obterPercentual(curva, "2025-12-31T00:00:00Z")).toBe(40);
     });
 
+    it("aceita reportDateMillis como data efetiva das atualizações", () => {
+      const reportDateMillis = new Date("2025-03-02T00:00:00Z").getTime();
+      const pacote = {
+        subpacotes: [
+          {
+            servicos: [
+              {
+                horasPrevistas: 10,
+                dataInicio: "2025-03-01",
+                dataFim: "2025-03-04",
+                updates: [{ percentual: 35, reportDateMillis, createdAt: "2025-03-05" }],
+              },
+            ],
+          },
+        ],
+      };
+
+      const curva = calcularCurvaSRealizada(pacote);
+      expect(obterPercentual(curva, "2025-03-02T00:00:00Z")).toBe(35);
+    });
+
     it("aplica reportDate em múltiplos serviços e subpacotes", () => {
       const pacote = {
         subpacotes: [
