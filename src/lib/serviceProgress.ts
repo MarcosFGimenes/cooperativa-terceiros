@@ -368,6 +368,7 @@ const UPDATE_DATE_KEYS = [
   "data_atualizacao",
   "dataUltimaAtualizacao",
   "dataAtualizacaoPercentual",
+  "reportDate",
   "date",
   "timestamp",
   "createdAt",
@@ -443,7 +444,7 @@ function coletarAtualizacoesDoServico(
     parsePercentual((servico as Record<string, unknown>).realProgress) ??
     parsePercentual((servico as Record<string, unknown>).currentProgress);
 
-  if (percentualDireto !== null) {
+  if (percentualDireto !== null && atualizacoes.length === 0) {
     let data =
       getDateFromKeys(servico, [
         "dataUltimaAtualizacao",
