@@ -26,14 +26,13 @@ import {
 } from "@/lib/serviceProgress";
 import { normaliseServiceStatus, resolveDisplayedServiceStatus } from "@/lib/serviceStatus";
 import type { Package, PackageFolder, Service } from "@/types";
-import { formatReferenceLabel, resolveReferenceDate } from "@/lib/referenceDate";
+import { resolveReferenceDate } from "@/lib/referenceDate";
 import { startOfDay } from "date-fns";
 
 import type { ServiceInfo as FolderServiceInfo, ServiceOption as FolderServiceOption } from "./PackageFoldersManager";
 import ServicesCompaniesSection from "./ServicesCompaniesSection";
 import PackageFoldersManagerClient from "./PackageFoldersManager.client";
 import PackagePdfExportButton from "./PackagePdfExportButton";
-import ReferenceDateSelector from "@/components/ReferenceDateSelector";
 
 const { notFound } = Navigation;
 
@@ -275,8 +274,7 @@ async function renderPackageDetailPage(
 
   const refDateParamRaw = searchParams?.refDate;
   const refDateValue = Array.isArray(refDateParamRaw) ? refDateParamRaw[0] : refDateParamRaw ?? null;
-  const { date: referenceDate, inputValue: referenceDateInput } = resolveReferenceDate(refDateValue);
-  const referenceLabel = formatReferenceLabel(referenceDate);
+  const { date: referenceDate } = resolveReferenceDate(refDateValue);
 
   let pkg: Package | null = null;
   let resolvedPackageId = packageIdCandidates[0];
@@ -547,7 +545,6 @@ async function renderPackageDetailPage(
   const realizedPercentAtReference = Math.round(
     calcularPercentualRealizadoPacote(packageForCurve, referenceDate),
   );
-  const realizedReferenceDateIso = new Date(referenceDate.getTime()).toISOString().slice(0, 10);
   const realizedPercentNormalized = Number.isFinite(realizedPercentAtReference)
     ? realizedPercentAtReference
     : 0;
@@ -558,8 +555,8 @@ async function renderPackageDetailPage(
       : realizedPercentNormalized;
   const realizedValueLabel = `${realizedPercentAtReference}%`;
   const realizedHeaderLabel = hasServiceOverflow
-    ? `Realizado em ${referenceLabel} (parcial): ${realizedValueLabel}`
-    : `Realizado em ${referenceLabel}: ${realizedValueLabel}`;
+    ? `Realizado (parcial): ${realizedValueLabel}`
+    : `Realizado: ${realizedValueLabel}`;
   const curveMetrics = {
     plannedTotal: curvaIndicators.planejadoTotal,
     plannedToDate: curvaIndicators.planejadoAteHoje,
@@ -795,17 +792,10 @@ async function renderPackageDetailPage(
           <div className="mt-4 rounded-2xl border border-dashed border-border/70 bg-muted/20 p-4 print:mt-2 print:w-full print:rounded-none print:border-0 print:bg-white print:p-1.5">
             <div className="flex flex-wrap items-start justify-between gap-4 print:block print:w-full print:gap-1.5">
               <div className="space-y-1">
-                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  Data de referência
-                </p>
-                <p className="text-base font-semibold text-foreground">{referenceLabel}</p>
                 <p className="text-xs text-muted-foreground">
                   Planejado: <span className="font-semibold text-foreground">{plannedPercentAtReference}%</span> | Real:
                   <span className="font-semibold text-foreground"> {realizedPercentAtReference}%</span>
                 </p>
-              </div>
-              <div className="w-full max-w-[240px] print:max-w-none print:w-full">
-                <ReferenceDateSelector value={referenceDateInput} />
               </div>
             </div>
           </div>
@@ -951,8 +941,8 @@ async function renderPackageDetailPage(
                 <thead className="bg-muted/80 text-foreground print:bg-white">
                   <tr>
                     <th className="border border-border p-3 print:p-2 text-left">Subpacote</th>
-                    <th className="border border-border p-3 print:p-2">% Atual ({referenceLabel})</th>
-                    <th className="border border-border p-3 print:p-2">% Deveria Estar ({referenceLabel})</th>
+                    <th className="border border-border p-3 print:p-2">% Atual</th>
+                    <th className="border border-border p-3 print:p-2">% Deveria Estar</th>
                     <th className="border border-border p-3 print:p-2">Total de Horas</th>
                     <th className="border border-border p-3 print:p-2">Horas que Deveriam Estar</th>
                     <th className="border border-border p-3 print:p-2">Horas atual</th>
@@ -1001,8 +991,8 @@ async function renderPackageDetailPage(
                 <thead className="bg-muted/80 text-foreground print:bg-white">
                   <tr>
                     <th className="border border-border p-3 print:p-2 text-left">Setor</th>
-                    <th className="border border-border p-3 print:p-2">% Atual ({referenceLabel})</th>
-                    <th className="border border-border p-3 print:p-2">% Deveria Estar ({referenceLabel})</th>
+                    <th className="border border-border p-3 print:p-2">% Atual</th>
+                    <th className="border border-border p-3 print:p-2">% Deveria Estar</th>
                     <th className="border border-border p-3 print:p-2">Total de Horas</th>
                     <th className="border border-border p-3 print:p-2">Horas que Deveriam Estar</th>
                     <th className="border border-border p-3 print:p-2">Horas atual</th>

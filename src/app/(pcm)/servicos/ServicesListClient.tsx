@@ -9,8 +9,7 @@ import {
   resolveServicoRealPercent,
 } from "@/lib/serviceProgress";
 import { formatDateTime } from "@/lib/formatDateTime";
-import ReferenceDateSelector from "@/components/ReferenceDateSelector";
-import { formatReferenceLabel, resolveReferenceDate } from "@/lib/referenceDate";
+import { resolveReferenceDate } from "@/lib/referenceDate";
 import type { PCMListResponse, PCMServiceListItem } from "@/types/pcm";
 
 const STATUS_LABEL: Record<string, string> = {
@@ -114,11 +113,7 @@ export default function ServicesListClient({ initialItems, initialCursor }: Prop
   const [osFilter, setOsFilter] = useState("");
   const searchParams = useSearchParams();
   const refDateParam = searchParams?.get("refDate") ?? null;
-  const { date: referenceDate, inputValue: referenceDateInput } = useMemo(
-    () => resolveReferenceDate(refDateParam),
-    [refDateParam],
-  );
-  const referenceLabel = useMemo(() => formatReferenceLabel(referenceDate), [referenceDate]);
+  const { date: referenceDate } = useMemo(() => resolveReferenceDate(refDateParam), [refDateParam]);
   const filteredItems = useMemo(() => {
     const query = osFilter.trim().toLowerCase();
     if (!query) return items;
@@ -155,29 +150,19 @@ export default function ServicesListClient({ initialItems, initialCursor }: Prop
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-start justify-between gap-3 rounded-2xl border border-dashed border-border/70 bg-muted/20 p-4">
-        <div className="space-y-1 text-sm text-muted-foreground">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Data de referência</p>
-          <p className="font-semibold text-foreground">{referenceLabel}</p>
-          <p className="text-[13px]">Ajuste a data para ver percentuais planejados e realizados.</p>
-        </div>
-        <div className="flex w-full flex-col gap-3 sm:w-auto sm:min-w-[240px] sm:max-w-xs">
-          <div className="w-full">
-            <ReferenceDateSelector value={referenceDateInput} />
-          </div>
-          <div className="space-y-1 text-sm">
-            <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground" htmlFor="os-filter">
-              Filtrar por O.S
-            </label>
-            <input
-              id="os-filter"
-              type="text"
-              value={osFilter}
-              onChange={(event) => setOsFilter(event.target.value)}
-              placeholder="Digite o código da O.S"
-              className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm shadow-sm focus-visible:ring-2 focus-visible:ring-primary/40"
-            />
-          </div>
+      <div className="flex flex-wrap items-end justify-between gap-3 rounded-2xl border border-dashed border-border/70 bg-muted/20 p-4">
+        <div className="w-full space-y-1 text-sm sm:w-auto sm:min-w-[240px] sm:max-w-xs">
+          <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground" htmlFor="os-filter">
+            Filtrar por O.S
+          </label>
+          <input
+            id="os-filter"
+            type="text"
+            value={osFilter}
+            onChange={(event) => setOsFilter(event.target.value)}
+            placeholder="Digite o código da O.S"
+            className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm shadow-sm focus-visible:ring-2 focus-visible:ring-primary/40"
+          />
         </div>
       </div>
 
@@ -220,7 +205,7 @@ export default function ServicesListClient({ initialItems, initialCursor }: Prop
                           isComplete ? "bg-emerald-100 text-emerald-700" : "bg-muted/60 text-muted-foreground"
                         }`}
                       >
-                        {realPercent}% concluído (em {referenceLabel})
+                        {realPercent}% concluído
                       </span>
                     </div>
                     {lastUpdateLabel ? (
@@ -233,8 +218,8 @@ export default function ServicesListClient({ initialItems, initialCursor }: Prop
                     <p className="line-clamp-2 text-base font-semibold text-foreground">{identifier}</p>
                     {subtitle ? <p className="text-sm text-muted-foreground">{subtitle}</p> : null}
                     <p className="text-xs text-muted-foreground">
-                      Planejado ({referenceLabel}): <span className="font-semibold text-foreground">{plannedPercent}%</span> |
-                      Real ({referenceLabel}): <span className="font-semibold text-foreground">{realPercent}%</span>
+                      Planejado: <span className="font-semibold text-foreground">{plannedPercent}%</span> | Real:{" "}
+                      <span className="font-semibold text-foreground">{realPercent}%</span>
                     </p>
                   </div>
                 </div>
