@@ -1,5 +1,7 @@
 import type { Service } from "@/types";
+import { formatDayKey } from "@/lib/formatDateTime";
 import { parseDayFirstDateStringToUtcDate, parsePortugueseDateStringToUtcDate } from "@/lib/dateParsing";
+import { DEFAULT_TIME_ZONE, startOfDayInTimeZone } from "@/lib/referenceDate";
 
 export function clampProgress(value: number): number {
   if (!Number.isFinite(value)) return 0;
@@ -125,10 +127,7 @@ export type IndicadoresCurvaS = {
 const DAY_IN_MS = 24 * 60 * 60 * 1000;
 
 function startOfDay(date: Date): Date {
-  const year = date.getUTCFullYear();
-  const month = date.getUTCMonth();
-  const day = date.getUTCDate();
-  return new Date(Date.UTC(year, month, day));
+  return startOfDayInTimeZone(date, DEFAULT_TIME_ZONE);
 }
 
 function toPositiveNumber(value: unknown): number | null {
@@ -317,7 +316,12 @@ function gerarDatasPlanejadas(range: DateRange): string[] {
   const inicio = startOfDay(range.inicio).getTime();
   const fim = startOfDay(range.fim).getTime();
   for (let time = inicio; time <= fim; time += DAY_IN_MS) {
-    datas.push(new Date(time).toISOString().slice(0, 10));
+    datas.push(
+      formatDayKey(new Date(time), {
+        timeZone: DEFAULT_TIME_ZONE,
+        fallback: new Date(time).toISOString().slice(0, 10),
+      }),
+    );
   }
   return datas;
 }
@@ -331,7 +335,10 @@ function calcularPercentualUsandoSeriePlanejada(
   if (!serie.length) return null;
   const datas = gerarDatasPlanejadas(range);
   if (datas.length !== serie.length || !datas.length) return null;
-  const alvo = startOfDay(referencia).toISOString().slice(0, 10);
+  const alvo = formatDayKey(startOfDay(referencia), {
+    timeZone: DEFAULT_TIME_ZONE,
+    fallback: startOfDay(referencia).toISOString().slice(0, 10),
+  });
   if (alvo < datas[0]) return 0;
   let percentual = 0;
   for (let i = 0; i < datas.length; i++) {
@@ -491,26 +498,28 @@ function prepararServicoPlanejado(servico: ServicoDoSubpacote): PreparedServicoP
   if (!horasPrevistas) return null;
   const range = resolveDateRange(servico);
   if (!range) return null;
-  const totalDias = Math.max(1, daysBetween(range.inicio, range.fim));
-  return { horasPrevistas, inicio: range.inicio, fim: range.fim, totalDias, source: servico };
+  const inicio = startOfDay(range.inicio);
+  const fim = startOfDay(range.fim);
+  const totalDias = Math.max(1, daysBetween(inicio, fim));
+  return { horasPrevistas, inicio, fim, totalDias, source: servico };
 }
 
 function calcularPercentualPlanejadoDoServico(
   servico: PreparedServicoPlanejado,
   referencia: Date,
 ): number {
-  const referenciaMs = referencia.getTime();
+  const referenciaMs = startOfDay(referencia).getTime();
   const inicioMs = servico.inicio.getTime();
   const fimMs = servico.fim.getTime();
 
-  if (referenciaMs <= inicioMs) {
+  if (referenciaMs < inicioMs) {
     return 0;
   }
   if (referenciaMs >= fimMs) {
     return 100;
   }
 
-  const diasDecorridos = daysBetween(servico.inicio, referencia);
+  const diasDecorridos = daysBetween(servico.inicio, new Date(referenciaMs));
   return clampPercentage((diasDecorridos / servico.totalDias) * 100);
 }
 

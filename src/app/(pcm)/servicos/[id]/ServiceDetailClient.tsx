@@ -16,8 +16,7 @@ import {
 } from "firebase/firestore";
 import SCurveDeferred from "@/components/SCurveDeferred";
 import { plannedCurve } from "@/lib/curve";
-import ReferenceDateSelector from "@/components/ReferenceDateSelector";
-import { formatReferenceLabel, resolveReferenceDate } from "@/lib/referenceDate";
+import { resolveReferenceDate } from "@/lib/referenceDate";
 import { resolveServicoPercentualPlanejado } from "@/lib/serviceProgress";
 import { isFirestoreLongPollingForced, tryGetFirestore } from "@/lib/firebase";
 import { isConnectionResetError } from "@/lib/networkErrors";
@@ -106,11 +105,7 @@ export default function ServiceDetailClient({
   const searchParams = useSearchParams();
   const isPdfExport = searchParams?.get("export") === "pdf";
   const refDateParam = searchParams?.get("refDate") ?? null;
-  const { date: referenceDate, inputValue: referenceDateInput } = useMemo(
-    () => resolveReferenceDate(refDateParam),
-    [refDateParam],
-  );
-  const referenceLabel = useMemo(() => formatReferenceLabel(referenceDate), [referenceDate]);
+  const { date: referenceDate } = useMemo(() => resolveReferenceDate(refDateParam), [refDateParam]);
   const resolvedChartHeight = isPdfExport ? 540 : 560;
 
   const [service, setService] = useState<ServiceRealtimeData>(composedInitial);
@@ -697,19 +692,6 @@ export default function ServiceDetailClient({
         </div>
       </div>
 
-      <div className="flex flex-wrap items-start justify-between gap-3 rounded-2xl border border-dashed border-border/70 bg-muted/20 p-4 print:hidden">
-        <div className="space-y-1 text-sm text-muted-foreground">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Data de referência</p>
-          <p className="font-semibold text-foreground">{referenceLabel}</p>
-          <p className="text-[13px]">
-            Percentuais planejados e realizados são calculados com base nessa data.
-          </p>
-        </div>
-        <div className="w-full max-w-[220px]">
-          <ReferenceDateSelector value={referenceDateInput} />
-        </div>
-      </div>
-
       {authIssue || connectionIssue ? (
         <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-700">
           {authIssue ?? connectionIssue}
@@ -753,9 +735,7 @@ export default function ServiceDetailClient({
             </div>
             <div>
               <dt className="text-muted-foreground">Andamento</dt>
-              <dd className="font-medium">
-                {Math.round(realizedPercent)}% (em {referenceLabel})
-              </dd>
+              <dd className="font-medium">{Math.round(realizedPercent)}%</dd>
             </div>
             <div>
               <dt className="text-muted-foreground">Tag</dt>
