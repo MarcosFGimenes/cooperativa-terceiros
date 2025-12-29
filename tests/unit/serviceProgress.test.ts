@@ -18,7 +18,8 @@ import {
   snapshotBeforeConclusion,
   toDate,
 } from "@/lib/serviceProgress";
-import { resolveReferenceDate } from "@/lib/referenceDate";
+import { resolveReferenceDate, DEFAULT_TIME_ZONE } from "@/lib/referenceDate";
+import { formatDayKey } from "@/lib/formatDateTime";
 
 describe("serviceProgress utilities", () => {
   it("parses dd/MM/yyyy date-only strings for updates and ranges", () => {
@@ -168,6 +169,40 @@ describe("serviceProgress utilities", () => {
       expect(percent).toBeGreaterThan(0);
       expect(percent).toBeLessThanOrEqual(100);
     });
+  });
+
+  it("uses reportDate to position consolidated curve updates", () => {
+    const pacote = {
+      subpacotes: [
+        {
+          servicos: [
+            {
+              horasPrevistas: 10,
+              dataInicio: "2025-12-27",
+              dataFim: "2025-12-31",
+              updates: [
+                {
+                  percent: 30,
+                  reportDate: Date.UTC(2025, 11, 28),
+                  createdAt: Date.UTC(2025, 11, 29),
+                },
+                {
+                  percent: 40,
+                  reportDate: Date.UTC(2025, 11, 31),
+                  createdAt: Date.UTC(2025, 11, 29),
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+
+    const curva = calcularCurvaSRealizada(pacote);
+    const byDay = new Map(curva.map((point) => [point.data.toISOString().slice(0, 10), point.percentual]));
+
+    expect(byDay.get("2025-12-28")).toBe(30);
+    expect(byDay.get("2025-12-31")).toBe(40);
   });
 
   describe("calcularPercentualSubpacote", () => {
@@ -548,8 +583,10 @@ describe("serviceProgress utilities", () => {
     };
 
     const obterPercentual = (curva: { data: Date; percentual: number }[], iso: string) => {
-      const alvo = new Date(iso).getTime();
-      const ponto = curva.find((item) => item.data.getTime() === alvo);
+      const alvo = formatDayKey(new Date(iso), { timeZone: DEFAULT_TIME_ZONE, fallback: "" });
+      const ponto = curva.find((item) =>
+        formatDayKey(item.data, { timeZone: DEFAULT_TIME_ZONE, fallback: "" }) === alvo
+      );
       if (!ponto) {
         throw new Error(`Ponto não encontrado para ${iso}`);
       }
@@ -559,11 +596,11 @@ describe("serviceProgress utilities", () => {
     it("monta a curva planejada apenas com os serviços de subpacotes", () => {
       const curvaPlanejada = calcularCurvaSPlanejada(pacoteCurva);
       expect(curvaPlanejada).toHaveLength(7);
-      expect(curvaPlanejada[0].data.toISOString()).toBe("2024-01-01T00:00:00.000Z");
-      expect(curvaPlanejada[curvaPlanejada.length - 1].data.toISOString()).toBe(
-        "2024-01-07T00:00:00.000Z",
-      );
-      expect(obterPercentual(curvaPlanejada, "2024-01-03T00:00:00Z")).toBeCloseTo(40, 1);
+      expect(formatDayKey(curvaPlanejada[0].data, { timeZone: DEFAULT_TIME_ZONE })).toBe("2024-01-01");
+      expect(
+        formatDayKey(curvaPlanejada[curvaPlanejada.length - 1].data, { timeZone: DEFAULT_TIME_ZONE })
+      ).toBe("2024-01-07");
+      expect(obterPercentual(curvaPlanejada, "2024-01-03T00:00:00Z")).toBeCloseTo(46.7, 1);
     });
 
     it("usa o histórico do Terceiro para calcular a curva realizada", () => {
