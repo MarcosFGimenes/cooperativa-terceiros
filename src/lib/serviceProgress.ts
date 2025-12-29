@@ -363,6 +363,7 @@ const UPDATE_LIST_KEYS = [
 ];
 
 const UPDATE_DATE_KEYS = [
+  "reportDate",
   "data",
   "dataAtualizacao",
   "data_atualizacao",
