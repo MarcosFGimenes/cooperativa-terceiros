@@ -362,18 +362,23 @@ const UPDATE_LIST_KEYS = [
   "realUpdates",
 ];
 
-const UPDATE_DATE_KEYS = [
+const WORKED_DATE_KEYS = [
   "reportDate",
   "reportDateMillis",
+  // Alias usado pelo formulário do serviço (dia trabalhado).
+  "date",
+  // Alias legado usado em algumas integrações.
   "data",
+];
+
+const FALLBACK_DATE_KEYS = [
+  "createdAt",
+  "updatedAt",
   "dataAtualizacao",
   "data_atualizacao",
   "dataUltimaAtualizacao",
   "dataAtualizacaoPercentual",
-  "date",
   "timestamp",
-  "createdAt",
-  "updatedAt",
   "lastUpdateDate",
   // Reconhecer o carimbo de data 'atualizadoEm' vindo do Firebase
   "atualizadoEm",
@@ -392,44 +397,48 @@ const UPDATE_PERCENT_KEYS = [
   "progress",
 ];
 
-const DIRECT_PERCENT_DATE_KEYS = [
-  "reportDate",
-  "reportDateMillis",
-  "date",
-  "data",
-  "dataUltimaAtualizacao",
-  "dataAtualizacao",
-  "dataAtualizacaoPercentual",
-  "atualizadoEm",
-  "lastUpdateDate",
-  "updatedAt",
-];
-
 const REPORT_DATE_KEYS = ["reportDate", "reportDateMillis"] as const;
 
-function resolveEffectiveUpdateDate(
+function resolveDateFromKeys(
   source: Record<string, unknown>,
-  keys: string[],
-  fallbackDate?: Date,
+  keys: readonly string[],
+  onInvalidReportDate?: () => void,
 ): Date | null {
-  let invalidReportedDate = false;
+  let invalidReportDate = false;
   for (const key of keys) {
     if (!Object.hasOwn(source, key)) continue;
     const parsed = toDate(source[key] as DateInput);
     if (parsed) return parsed;
     if (REPORT_DATE_KEYS.includes(key as (typeof REPORT_DATE_KEYS)[number])) {
-      invalidReportedDate = true;
+      invalidReportDate = true;
     }
   }
-  if (invalidReportedDate) {
+  if (invalidReportDate && onInvalidReportDate) {
+    onInvalidReportDate();
+  }
+  return null;
+}
+
+function resolveEffectiveUpdateDate(
+  source: Record<string, unknown>,
+  fallbackDate?: Date,
+): Date | null {
+  const workedDate = resolveDateFromKeys(source, WORKED_DATE_KEYS, () => {
     console.warn(
       "[serviceProgress] reportDate inválido encontrado em atualização. Verifique a origem do dado.",
       {
         reportDate: Object.hasOwn(source, "reportDate") ? source["reportDate"] : undefined,
-        reportDateMillis: Object.hasOwn(source, "reportDateMillis") ? source["reportDateMillis"] : undefined,
+        reportDateMillis: Object.hasOwn(source, "reportDateMillis")
+          ? source["reportDateMillis"]
+          : undefined,
       },
     );
-  }
+  });
+  if (workedDate) return workedDate;
+
+  const fallbackResolved = resolveDateFromKeys(source, FALLBACK_DATE_KEYS);
+  if (fallbackResolved) return fallbackResolved;
+
   if (fallbackDate) {
     return new Date(fallbackDate.getTime());
   }
@@ -439,7 +448,7 @@ function resolveEffectiveUpdateDate(
 function normalizeUpdateEntry(entry: unknown, fallbackDate?: Date): AtualizacaoPercentual | null {
   if (!entry || typeof entry !== "object") return null;
   const source = entry as Record<string, unknown>;
-  const data = resolveEffectiveUpdateDate(source, UPDATE_DATE_KEYS, fallbackDate);
+  const data = resolveEffectiveUpdateDate(source, fallbackDate);
   if (!data) return null;
 
   let percentual: number | null = null;
@@ -457,14 +466,16 @@ function coletarAtualizacoesDoServico(
   servico: ServicoDoSubpacote,
   fallbackDate?: Date,
 ): AtualizacaoPercentual[] {
-  const atualizacoes: AtualizacaoPercentual[] = [];
+  const atualizacoes: Array<AtualizacaoPercentual & { ordem: number }> = [];
+  let ordem = 0;
   for (const key of UPDATE_LIST_KEYS) {
     const lista = (servico as Record<string, unknown>)[key];
     if (!Array.isArray(lista)) continue;
     for (const item of lista) {
       const normalizado = normalizeUpdateEntry(item, fallbackDate);
       if (normalizado) {
-        atualizacoes.push(normalizado);
+        atualizacoes.push({ ...normalizado, ordem });
+        ordem += 1;
       }
     }
   }
@@ -482,16 +493,29 @@ function coletarAtualizacoesDoServico(
 
   if (percentualDireto !== null) {
     const data =
-      resolveEffectiveUpdateDate(
-        servico as Record<string, unknown>,
-        DIRECT_PERCENT_DATE_KEYS,
-        fallbackDate,
-      ) ?? new Date(0);
-    atualizacoes.push({ data: startOfDay(data), percentual: percentualDireto });
+      resolveEffectiveUpdateDate(servico as Record<string, unknown>, fallbackDate) ?? new Date(0);
+    atualizacoes.push({ data: startOfDay(data), percentual: percentualDireto, ordem });
+    ordem += 1;
   }
 
-  atualizacoes.sort((a, b) => a.data.getTime() - b.data.getTime());
-  return atualizacoes;
+  atualizacoes.sort((a, b) => {
+    const diff = a.data.getTime() - b.data.getTime();
+    return diff === 0 ? a.ordem - b.ordem : diff;
+  });
+
+  const consolidadas: AtualizacaoPercentual[] = [];
+  for (const atualizacao of atualizacoes) {
+    const ultimo = consolidadas[consolidadas.length - 1];
+    if (ultimo && ultimo.data.getTime() === atualizacao.data.getTime()) {
+      consolidadas[consolidadas.length - 1] = {
+        data: atualizacao.data,
+        percentual: atualizacao.percentual,
+      };
+    } else {
+      consolidadas.push({ data: atualizacao.data, percentual: atualizacao.percentual });
+    }
+  }
+  return consolidadas;
 }
 
 function normalizeDescricao(servico: ServicoPlanejado | ServicoDoSubpacote | null | undefined): string | undefined {
@@ -1046,31 +1070,11 @@ export function calcularCurvaSRealizada(
     return linhaDoTempo.map((data) => ({ data, percentual: 0 }));
   }
   const servicosRealizados = prepararServicosRealizados(preparados);
-
-  const dataUltimaAtualizacao = servicosRealizados.reduce<Date | null>((maisRecente, servico) => {
-    const ultima = servico.atualizacoes.length ? servico.atualizacoes[servico.atualizacoes.length - 1].data : null;
-    if (!ultima) return maisRecente;
-    if (!maisRecente || ultima.getTime() > maisRecente.getTime()) {
-      return ultima;
-    }
-    return maisRecente;
-  }, null);
-
   const limiteReferencia = referencia ? startOfDay(referencia).getTime() : null;
-
-  const limiteData = (() => {
-    if (limiteReferencia !== null && dataUltimaAtualizacao) {
-      return Math.min(limiteReferencia, startOfDay(dataUltimaAtualizacao).getTime());
-    }
-    if (limiteReferencia !== null) return limiteReferencia;
-    if (dataUltimaAtualizacao) return startOfDay(dataUltimaAtualizacao).getTime();
-    return null;
-  })();
-
-  if (limiteData !== null) {
-    linhaDoTempo = linhaDoTempo.filter((data) => data.getTime() <= limiteData);
+  if (limiteReferencia !== null) {
+    linhaDoTempo = linhaDoTempo.filter((data) => data.getTime() <= limiteReferencia);
     if (!linhaDoTempo.length) {
-      linhaDoTempo = [new Date(limiteData)];
+      linhaDoTempo = [new Date(limiteReferencia)];
     }
   }
 
