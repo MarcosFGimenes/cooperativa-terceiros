@@ -444,7 +444,7 @@ function coletarAtualizacoesDoServico(
     parsePercentual((servico as Record<string, unknown>).realProgress) ??
     parsePercentual((servico as Record<string, unknown>).currentProgress);
 
-  if (percentualDireto !== null) {
+  if (percentualDireto !== null && atualizacoes.length === 0) {
     let data =
       getDateFromKeys(servico, [
         "dataUltimaAtualizacao",
