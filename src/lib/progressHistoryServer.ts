@@ -127,11 +127,11 @@ export async function loadProgressHistory(
   let lastManualUpdate: { percent: number; timestamp: number } | null = null;
   const updatesByToken = new Map<
     string,
-    {
+    Array<{
       data: Record<string, unknown>;
       hasExplicitDate: boolean;
       fallbackTimestamp: number | null;
-    }
+    }>
   >();
 
   const resolveExplicitTimestamp = (data: Record<string, unknown>) =>
@@ -145,41 +145,30 @@ export async function loadProgressHistory(
     const tokenValue = typeof data.token === "string" && data.token.trim().length ? data.token.trim() : doc.id;
     const explicitTimestamp = resolveExplicitTimestamp(data);
     const hasExplicitDate = Number.isFinite(explicitTimestamp ?? NaN);
-    const fallbackTimestamp = toMillis((data.audit as Record<string, unknown> | undefined)?.submittedAt) ?? toMillis(doc.createTime) ?? null;
+    const fallbackTimestamp =
+      toMillis((data.audit as Record<string, unknown> | undefined)?.submittedAt) ?? toMillis(doc.createTime) ?? null;
 
-    const existing = updatesByToken.get(tokenValue);
-    if (!existing) {
-      updatesByToken.set(tokenValue, { data, hasExplicitDate, fallbackTimestamp });
-      return;
-    }
-
-    const earliestFallback =
-      existing.fallbackTimestamp === null
-        ? fallbackTimestamp
-        : fallbackTimestamp === null
-          ? existing.fallbackTimestamp
-          : Math.min(existing.fallbackTimestamp, fallbackTimestamp);
-
-    if (!existing.hasExplicitDate && hasExplicitDate) {
-      updatesByToken.set(tokenValue, { data, hasExplicitDate, fallbackTimestamp: earliestFallback });
-      return;
-    }
-
-    updatesByToken.set(tokenValue, {
-      data: existing.data,
-      hasExplicitDate: existing.hasExplicitDate,
-      fallbackTimestamp: earliestFallback,
-    });
+    const list = updatesByToken.get(tokenValue) ?? [];
+    list.push({ data, hasExplicitDate, fallbackTimestamp });
+    updatesByToken.set(tokenValue, list);
   });
 
-  updatesByToken.forEach(({ data, fallbackTimestamp }) => {
-    const event = normaliseEvent(data, fallbackTimestamp, false);
-    if (event) events.push(event);
+  updatesByToken.forEach((entries) => {
+    const explicitEntries = entries.filter((entry) => entry.hasExplicitDate);
+    const chosenEntries = explicitEntries.length > 0 ? explicitEntries : entries.slice(0, 1);
 
-    const manualCandidate = typeof data.manualPercent === "number" ? data.manualPercent : Number(data.manualPercent ?? NaN);
-    if (event && typeof manualCandidate === "number" && Number.isFinite(manualCandidate)) {
-      lastManualUpdate = { percent: clampPercent(manualCandidate), timestamp: event.timestamp };
-    }
+    chosenEntries.forEach(({ data, fallbackTimestamp }) => {
+      const event = normaliseEvent(data, fallbackTimestamp, false);
+      if (event) events.push(event);
+
+      const manualCandidate =
+        typeof data.manualPercent === "number" ? data.manualPercent : Number(data.manualPercent ?? NaN);
+      if (event && typeof manualCandidate === "number" && Number.isFinite(manualCandidate)) {
+        if (!lastManualUpdate || event.timestamp >= lastManualUpdate.timestamp) {
+          lastManualUpdate = { percent: clampPercent(manualCandidate), timestamp: event.timestamp };
+        }
+      }
+    });
   });
 
   legacySnap.docs.forEach((doc) => {
