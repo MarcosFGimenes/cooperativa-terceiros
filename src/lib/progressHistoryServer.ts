@@ -125,54 +125,10 @@ export async function loadProgressHistory(
 
   const events: ProgressEvent[] = [];
   let lastManualUpdate: { percent: number; timestamp: number } | null = null;
-  const updatesByToken = new Map<
-    string,
-    {
-      data: Record<string, unknown>;
-      hasExplicitDate: boolean;
-      fallbackTimestamp: number | null;
-    }
-  >();
-
-  const resolveExplicitTimestamp = (data: Record<string, unknown>) =>
-    toMillis(data.reportDate) ??
-    toMillis(data.date) ??
-    toMillis((data.timeWindow as Record<string, unknown> | undefined)?.start) ??
-    null;
-
   updatesSnap.docs.forEach((doc) => {
     const data = (doc.data() ?? {}) as Record<string, unknown>;
-    const tokenValue = typeof data.token === "string" && data.token.trim().length ? data.token.trim() : doc.id;
-    const explicitTimestamp = resolveExplicitTimestamp(data);
-    const hasExplicitDate = Number.isFinite(explicitTimestamp ?? NaN);
-    const fallbackTimestamp = toMillis((data.audit as Record<string, unknown> | undefined)?.submittedAt) ?? toMillis(doc.createTime) ?? null;
-
-    const existing = updatesByToken.get(tokenValue);
-    if (!existing) {
-      updatesByToken.set(tokenValue, { data, hasExplicitDate, fallbackTimestamp });
-      return;
-    }
-
-    const earliestFallback =
-      existing.fallbackTimestamp === null
-        ? fallbackTimestamp
-        : fallbackTimestamp === null
-          ? existing.fallbackTimestamp
-          : Math.min(existing.fallbackTimestamp, fallbackTimestamp);
-
-    if (!existing.hasExplicitDate && hasExplicitDate) {
-      updatesByToken.set(tokenValue, { data, hasExplicitDate, fallbackTimestamp: earliestFallback });
-      return;
-    }
-
-    updatesByToken.set(tokenValue, {
-      data: existing.data,
-      hasExplicitDate: existing.hasExplicitDate,
-      fallbackTimestamp: earliestFallback,
-    });
-  });
-
-  updatesByToken.forEach(({ data, fallbackTimestamp }) => {
+    const fallbackTimestamp =
+      toMillis((data.audit as Record<string, unknown> | undefined)?.submittedAt) ?? toMillis(doc.createTime) ?? null;
     const event = normaliseEvent(data, fallbackTimestamp, false);
     if (event) events.push(event);
 
