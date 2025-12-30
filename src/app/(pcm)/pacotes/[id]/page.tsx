@@ -223,9 +223,6 @@ const UPDATE_DATE_KEYS = [
   "data_atualizacao",
   "dataUltimaAtualizacao",
   "dataAtualizacaoPercentual",
-  "timestamp",
-  "updatedAt",
-  "createdAt",
 ] as const;
 
 function resolveUpdateDate(update: ServiceUpdate): Date | null {
@@ -235,21 +232,6 @@ function resolveUpdateDate(update: ServiceUpdate): Date | null {
     const parsed = parseDateValue(record[key]);
     if (parsed) return parsed;
   }
-
-  const candidates = [
-    update.audit?.submittedAt,
-    update.submittedAt,
-    update.timeWindow?.end,
-    update.timeWindow?.start,
-    update.forecastDate,
-    update.createdAt,
-  ];
-
-  for (const candidate of candidates) {
-    const parsed = parseDateValue(candidate);
-    if (parsed) return parsed;
-  }
-
   return null;
 }
 
