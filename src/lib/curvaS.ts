@@ -22,6 +22,11 @@ const normaliseDate = (value: Date | null | undefined): Date | null => {
 };
 
 const toIsoDate = (value: Date): IsoDate => value.toISOString().slice(0, 10) as IsoDate;
+const toIsoDateFromMillis = (value: number): IsoDate => {
+  const date = new Date(value);
+  const day = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+  return toIsoDate(day);
+};
 
 type PackageServiceHours = {
   id: string;
@@ -92,10 +97,22 @@ export async function curvaRealizadaPacote(
   );
 
   const dateSet = new Set<IsoDate>();
+  let lastHistoryDate: IsoDate | null = null;
+  let lastExplicitHistoryDate: IsoDate | null = null;
   histories.forEach(({ history }) => {
     history?.byDay.forEach((_, key) => {
-      dateSet.add(key as IsoDate);
+      const isoKey = key as IsoDate;
+      dateSet.add(isoKey);
+      if (!lastHistoryDate || isoKey.localeCompare(lastHistoryDate) > 0) {
+        lastHistoryDate = isoKey;
+      }
     });
+    if (history?.lastExplicitTimestamp) {
+      const explicitDate = toIsoDateFromMillis(history.lastExplicitTimestamp);
+      if (!lastExplicitHistoryDate || explicitDate.localeCompare(lastExplicitHistoryDate) > 0) {
+        lastExplicitHistoryDate = explicitDate;
+      }
+    }
   });
 
   const start = normaliseDate(plannedStart ?? null);
@@ -105,12 +122,15 @@ export async function curvaRealizadaPacote(
   }
 
   const allDates = Array.from(dateSet).sort((left, right) => left.localeCompare(right));
-  if (!allDates.length) return [];
+  const cutoffDate = lastExplicitHistoryDate ?? lastHistoryDate;
+  const curveDates =
+    cutoffDate === null ? allDates : allDates.filter((dateKey) => dateKey.localeCompare(cutoffDate) <= 0);
+  if (!curveDates.length) return [];
 
   const lastPercentByService = new Map<string, number>();
   const curve: CurvePoint[] = [];
 
-  allDates.forEach((dateKey) => {
+  curveDates.forEach((dateKey) => {
     let earnedHours = 0;
     histories.forEach(({ service, history }) => {
       if (!history) return;
