@@ -92,9 +92,14 @@ export async function curvaRealizadaPacote(
   );
 
   const dateSet = new Set<IsoDate>();
+  let lastHistoryDate: IsoDate | null = null;
   histories.forEach(({ history }) => {
     history?.byDay.forEach((_, key) => {
-      dateSet.add(key as IsoDate);
+      const isoKey = key as IsoDate;
+      dateSet.add(isoKey);
+      if (!lastHistoryDate || isoKey.localeCompare(lastHistoryDate) > 0) {
+        lastHistoryDate = isoKey;
+      }
     });
   });
 
@@ -105,12 +110,14 @@ export async function curvaRealizadaPacote(
   }
 
   const allDates = Array.from(dateSet).sort((left, right) => left.localeCompare(right));
-  if (!allDates.length) return [];
+  const curveDates =
+    lastHistoryDate === null ? allDates : allDates.filter((dateKey) => dateKey.localeCompare(lastHistoryDate) <= 0);
+  if (!curveDates.length) return [];
 
   const lastPercentByService = new Map<string, number>();
   const curve: CurvePoint[] = [];
 
-  allDates.forEach((dateKey) => {
+  curveDates.forEach((dateKey) => {
     let earnedHours = 0;
     histories.forEach(({ service, history }) => {
       if (!history) return;
