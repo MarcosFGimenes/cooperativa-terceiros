@@ -86,18 +86,23 @@ function normaliseEvent(
   fallbackTimestamp: number | null,
   includeItems: boolean,
 ): ProgressEvent | null {
-  const timestamp =
+  const explicitTimestamp =
     toMillis(data.reportDate) ??
     toMillis(data.date) ??
     toMillis((data.timeWindow as Record<string, unknown> | undefined)?.start) ??
-    toMillis(data.createdAt) ??
-    fallbackTimestamp;
+    null;
+  const timestamp = explicitTimestamp ?? toMillis(data.createdAt) ?? fallbackTimestamp;
 
   if (!Number.isFinite(timestamp ?? NaN)) return null;
 
   const percent = normalisePercentFromUpdate(data);
   const items = includeItems ? normaliseItems(data.items) : [];
-  return { timestamp: Number(timestamp), percent, items: items.length ? items : undefined };
+  return {
+    timestamp: Number(timestamp),
+    percent,
+    items: items.length ? items : undefined,
+    explicitDate: Number.isFinite(explicitTimestamp ?? NaN),
+  };
 }
 
 export async function loadProgressHistory(

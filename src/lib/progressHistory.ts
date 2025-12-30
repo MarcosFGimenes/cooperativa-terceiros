@@ -4,6 +4,7 @@ export type ProgressEvent = {
   timestamp: number;
   percent?: number | null;
   items?: Array<{ id: string; pct: number }>;
+  explicitDate?: boolean;
 };
 
 function normaliseId(raw: unknown): string | null {
@@ -69,9 +70,13 @@ export function computeProgressFromEvents(
   const byDay = new Map<string, number>();
   let currentPercent = 0;
   let lastTimestamp: number | null = null;
+  let lastExplicitTimestamp: number | null = null;
 
   sorted.forEach((event) => {
     lastTimestamp = event.timestamp;
+    if (event.explicitDate) {
+      lastExplicitTimestamp = event.timestamp;
+    }
 
     if (Array.isArray(event.items) && event.items.length > 0) {
       event.items.forEach((item) => {
@@ -99,5 +104,5 @@ export function computeProgressFromEvents(
   // Preservar o valor exato sem arredondamento desnecessário que pode alterar o valor digitado
   // Apenas garantir que está no range 0-100
   const finalPercent = clampPercent(currentPercent);
-  return { currentPercent: finalPercent, lastTimestamp, byDay };
+  return { currentPercent: finalPercent, lastTimestamp, lastExplicitTimestamp, byDay };
 }
