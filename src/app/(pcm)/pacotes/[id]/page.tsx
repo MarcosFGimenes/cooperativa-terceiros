@@ -7,6 +7,12 @@ import { getPackageByIdCached, listPackageServices } from "@/lib/repo/packages";
 import { listPackageFolders } from "@/lib/repo/folders";
 import { getServicesByIds, listAvailableOpenServices, listUpdates } from "@/lib/repo/services";
 import { formatDate as formatDisplayDate } from "@/lib/formatDateTime";
+import { curvaPlanejada } from "@/lib/curvaS";
+import {
+  computePackageSCurve,
+  type PackageProgressEntry,
+  type PackageService,
+} from "@/lib/package-scurve/computePackageSCurve";
 import {
   calcularMetricasPorSetor,
   calcularMetricasSubpacote,
@@ -21,13 +27,14 @@ import {
   type ServicoDoSubpacote,
 } from "@/lib/serviceProgress";
 import { normaliseServiceStatus, resolveDisplayedServiceStatus } from "@/lib/serviceStatus";
-import type { Package, PackageFolder, Service } from "@/types";
+import type { Package, PackageFolder, Service, ServiceUpdate } from "@/types";
 import { resolveReferenceDate } from "@/lib/referenceDate";
 
 import type { ServiceInfo as FolderServiceInfo, ServiceOption as FolderServiceOption } from "./PackageFoldersManager";
 import ServicesCompaniesSection from "./ServicesCompaniesSection";
 import PackageFoldersManagerClient from "./PackageFoldersManager.client";
 import PackagePdfExportButton from "./PackagePdfExportButton";
+import PackageSCurveSection from "./_components/package-scurve/PackageSCurveSection";
 
 const { notFound } = Navigation;
 
@@ -192,6 +199,98 @@ function parsePercent(value: unknown): number | null {
     if (Number.isFinite(parsed)) return clampPercent(parsed);
   }
   return null;
+}
+
+function parseDateValue(value: unknown): Date | null {
+  if (value instanceof Date && Number.isFinite(value.getTime())) return value;
+  if (typeof value === "number" && Number.isFinite(value)) {
+    const date = new Date(value);
+    return Number.isFinite(date.getTime()) ? date : null;
+  }
+  if (typeof value === "string" && value.trim()) {
+    const date = new Date(value);
+    return Number.isFinite(date.getTime()) ? date : null;
+  }
+  return null;
+}
+
+const UPDATE_DATE_KEYS = [
+  "reportDate",
+  "reportDateMillis",
+  "date",
+  "data",
+  "dataAtualizacao",
+  "data_atualizacao",
+  "dataUltimaAtualizacao",
+  "dataAtualizacaoPercentual",
+  "timestamp",
+  "updatedAt",
+  "createdAt",
+] as const;
+
+function resolveUpdateDate(update: ServiceUpdate): Date | null {
+  const record = update as Record<string, unknown>;
+  for (const key of UPDATE_DATE_KEYS) {
+    if (!Object.hasOwn(record, key)) continue;
+    const parsed = parseDateValue(record[key]);
+    if (parsed) return parsed;
+  }
+
+  const candidates = [
+    update.audit?.submittedAt,
+    update.submittedAt,
+    update.timeWindow?.end,
+    update.timeWindow?.start,
+    update.forecastDate,
+    update.createdAt,
+  ];
+
+  for (const candidate of candidates) {
+    const parsed = parseDateValue(candidate);
+    if (parsed) return parsed;
+  }
+
+  return null;
+}
+
+function resolveUpdatePercent(update: ServiceUpdate): number | null {
+  const record = update as Record<string, unknown>;
+  const candidates = [
+    update.percent,
+    update.audit?.newPercent,
+    update.audit?.previousPercent,
+    record.percentual,
+    record.percentualReal,
+    record.percentualInformado,
+    record.realPercent,
+    record.andamento,
+    record.progress,
+  ];
+
+  for (const candidate of candidates) {
+    const parsed = parsePercent(candidate);
+    if (parsed !== null) return parsed;
+  }
+
+  return null;
+}
+
+function toIsoDay(date: Date) {
+  const year = date.getUTCFullYear();
+  const month = String(date.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(date.getUTCDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function resolveServiceHours(service: Service) {
+  const hours =
+    service.totalHours ??
+    (service as { horas?: number | null }).horas ??
+    (service as { hours?: number | null }).hours ??
+    (service as { peso?: number | null }).peso ??
+    (service as { weight?: number | null }).weight ??
+    0;
+  return Number.isFinite(hours) ? Number(hours) : 0;
 }
 
 function extractDateMs(value: unknown): number | null {
@@ -731,6 +830,41 @@ async function renderPackageDetailPage(
       : `Mais de ${Math.max(serviceCountReference, services.length)} serviços`
     : `${services.length} serviço${services.length === 1 ? "" : "s"}`;
 
+  const packageServicesForCurve: PackageService[] = services
+    .map((service) => ({
+      id: service.id,
+      hours: resolveServiceHours(service),
+    }))
+    .filter((service) => service.hours > 0);
+
+  const progressEntries: PackageProgressEntry[] = [];
+  services.forEach((service) => {
+    const updates = service.updates ?? [];
+    updates.forEach((update) => {
+      const percent = resolveUpdatePercent(update);
+      if (percent === null) return;
+      const updateDate = resolveUpdateDate(update);
+      if (!updateDate) return;
+      progressEntries.push({
+        serviceId: service.id,
+        workedDate: toIsoDay(updateDate),
+        percent,
+      });
+    });
+  });
+
+  const realizedCurve = computePackageSCurve(packageServicesForCurve, progressEntries);
+  const plannedCurve = (() => {
+    const plannedStart = parseISO(pkg.plannedStart);
+    const plannedEnd = parseISO(pkg.plannedEnd);
+    const totalHours = Number.isFinite(resolvedTotalHours ?? NaN) ? Number(resolvedTotalHours) : 0;
+    if (!plannedStart || !plannedEnd || totalHours <= 0) return [];
+    return curvaPlanejada(plannedStart, plannedEnd, totalHours).map((point) => ({
+      date: point.d,
+      percent: point.pct,
+    }));
+  })();
+
   return (
     <div className="container mx-auto max-w-7xl space-y-6 px-6 py-6 package-print-layout print:m-0 print:w-full print:max-w-none print:space-y-3 print:px-0 print:py-0">
       <div className="print-summary-and-curve space-y-6 print:space-y-3">
@@ -794,6 +928,8 @@ async function renderPackageDetailPage(
             </div>
           </dl>
         </section>
+
+        <PackageSCurveSection planned={plannedCurve} realized={realizedCurve} />
 
         {warningMessages.length ? (
           <div className="rounded-2xl border border-amber-200 bg-amber-50/90 p-4 text-sm text-amber-900 shadow-sm print:hidden">
