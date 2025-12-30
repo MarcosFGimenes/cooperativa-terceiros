@@ -125,15 +125,50 @@ export async function loadProgressHistory(
 
   const events: ProgressEvent[] = [];
   let lastManualUpdate: { percent: number; timestamp: number } | null = null;
+  const updatesByToken = new Map<
+    string,
+    Array<{
+      data: Record<string, unknown>;
+      hasExplicitDate: boolean;
+      fallbackTimestamp: number | null;
+    }>
+  >();
+
+  const resolveExplicitTimestamp = (data: Record<string, unknown>) =>
+    toMillis(data.reportDate) ??
+    toMillis(data.date) ??
+    toMillis((data.timeWindow as Record<string, unknown> | undefined)?.start) ??
+    null;
+
   updatesSnap.docs.forEach((doc) => {
     const data = (doc.data() ?? {}) as Record<string, unknown>;
-    const event = normaliseEvent(data, toMillis(doc.createTime) ?? null, false);
-    if (event) events.push(event);
+    const tokenValue = typeof data.token === "string" && data.token.trim().length ? data.token.trim() : doc.id;
+    const explicitTimestamp = resolveExplicitTimestamp(data);
+    const hasExplicitDate = Number.isFinite(explicitTimestamp ?? NaN);
+    const fallbackTimestamp =
+      toMillis((data.audit as Record<string, unknown> | undefined)?.submittedAt) ?? toMillis(doc.createTime) ?? null;
 
-    const manualCandidate = typeof data.manualPercent === "number" ? data.manualPercent : Number(data.manualPercent ?? NaN);
-    if (event && typeof manualCandidate === "number" && Number.isFinite(manualCandidate)) {
-      lastManualUpdate = { percent: clampPercent(manualCandidate), timestamp: event.timestamp };
-    }
+    const list = updatesByToken.get(tokenValue) ?? [];
+    list.push({ data, hasExplicitDate, fallbackTimestamp });
+    updatesByToken.set(tokenValue, list);
+  });
+
+  updatesByToken.forEach((entries) => {
+    const explicitEntries = entries.filter((entry) => entry.hasExplicitDate);
+    const chosenEntries = explicitEntries.length > 0 ? explicitEntries : entries.slice(0, 1);
+
+    chosenEntries.forEach(({ data, fallbackTimestamp }) => {
+      const event = normaliseEvent(data, fallbackTimestamp, false);
+      if (event) events.push(event);
+
+      const manualCandidate =
+        typeof data.manualPercent === "number" ? data.manualPercent : Number(data.manualPercent ?? NaN);
+      if (event && typeof manualCandidate === "number" && Number.isFinite(manualCandidate)) {
+        if (!lastManualUpdate || event.timestamp >= lastManualUpdate.timestamp) {
+          lastManualUpdate = { percent: clampPercent(manualCandidate), timestamp: event.timestamp };
+        }
+      }
+    });
   });
 
   legacySnap.docs.forEach((doc) => {
