@@ -22,7 +22,7 @@ import {
   type ServicoDoSubpacote,
 } from "@/lib/serviceProgress";
 import { normaliseServiceStatus, resolveDisplayedServiceStatus } from "@/lib/serviceStatus";
-import type { Package, PackageFolder, Service } from "@/types";
+import type { Package, PackageFolder, Service, ServiceUpdate } from "@/types";
 import { resolveReferenceDate } from "@/lib/referenceDate";
 
 import type { ServiceInfo as FolderServiceInfo, ServiceOption as FolderServiceOption } from "./PackageFoldersManager";
