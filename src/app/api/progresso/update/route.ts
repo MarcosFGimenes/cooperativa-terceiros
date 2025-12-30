@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Timestamp, type Firestore } from "firebase-admin/firestore";
 
+import { parseDayFirstDateStringToUtcDate, parsePortugueseDateStringToUtcDate } from "@/lib/dateParsing";
 import { AdminDbUnavailableError, getAdminDbOrThrow } from "@/lib/serverDb";
 import { mapFirestoreError } from "@/lib/utils/firestoreErrors";
 import { recomputeServiceProgress } from "@/lib/progressHistoryServer";
@@ -183,8 +184,24 @@ async function handleWithAdmin(
 
   let updateDate = Timestamp.now();
   if (payload.date) {
-    const parsed = new Date(payload.date);
-    if (!Number.isNaN(parsed.getTime())) {
+    let parsed: Date | null = null;
+    if (typeof payload.date === "string") {
+      const trimmed = payload.date.trim();
+      parsed =
+        parseDayFirstDateStringToUtcDate(trimmed) ??
+        parsePortugueseDateStringToUtcDate(trimmed) ??
+        (() => {
+          const candidate = new Date(trimmed);
+          return Number.isNaN(candidate.getTime()) ? null : candidate;
+        })();
+    } else if (typeof payload.date === "number") {
+      const candidate = new Date(payload.date);
+      parsed = Number.isNaN(candidate.getTime()) ? null : candidate;
+    } else if (payload.date instanceof Date) {
+      parsed = Number.isNaN(payload.date.getTime()) ? null : payload.date;
+    }
+
+    if (parsed) {
       updateDate = Timestamp.fromDate(parsed);
     }
   }
