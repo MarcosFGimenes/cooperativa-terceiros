@@ -21,6 +21,13 @@ const normaliseDate = (value: Date | null | undefined): Date | null => {
   return new Date(Date.UTC(value.getUTCFullYear(), value.getUTCMonth(), value.getUTCDate()));
 };
 
+const toIsoDate = (value: Date): IsoDate => value.toISOString().slice(0, 10) as IsoDate;
+
+type PackageServiceHours = {
+  id: string;
+  hours: number;
+};
+
 export function curvaPlanejada(inicio: Date, fim: Date, horasTotais: number): CurvePoint[] {
   const start = normaliseDate(inicio);
   const end = normaliseDate(fim);
@@ -64,4 +71,60 @@ export async function curvaRealizada(serviceId: string): Promise<CurvePoint[]> {
   return Array.from(history.byDay.entries())
     .sort(([left], [right]) => left.localeCompare(right))
     .map(([d, pct]) => ({ d: d as IsoDate, pct: Math.round(pct) }));
+}
+
+export async function curvaRealizadaPacote(
+  services: PackageServiceHours[],
+  plannedStart?: Date | null,
+  plannedEnd?: Date | null,
+): Promise<CurvePoint[]> {
+  if (!services.length) return [];
+
+  const validServices = services.filter((service) => Number.isFinite(service.hours) && service.hours > 0);
+  const totalHours = validServices.reduce((sum, service) => sum + service.hours, 0);
+  if (!validServices.length || totalHours <= 0) return [];
+
+  const histories = await Promise.all(
+    validServices.map(async (service) => {
+      const history = await computeProgressHistory(service.id);
+      return { service, history };
+    }),
+  );
+
+  const dateSet = new Set<IsoDate>();
+  histories.forEach(({ history }) => {
+    history?.byDay.forEach((_, key) => {
+      dateSet.add(key as IsoDate);
+    });
+  });
+
+  const start = normaliseDate(plannedStart ?? null);
+  const end = normaliseDate(plannedEnd ?? null);
+  if (start && end) {
+    dateRangeInclusive(start, end).forEach((date) => dateSet.add(date));
+  }
+
+  const allDates = Array.from(dateSet).sort((left, right) => left.localeCompare(right));
+  if (!allDates.length) return [];
+
+  const lastPercentByService = new Map<string, number>();
+  const curve: CurvePoint[] = [];
+
+  allDates.forEach((dateKey) => {
+    let earnedHours = 0;
+    histories.forEach(({ service, history }) => {
+      if (!history) return;
+      const percentForDay = history.byDay.get(dateKey);
+      if (typeof percentForDay === "number" && Number.isFinite(percentForDay)) {
+        lastPercentByService.set(service.id, percentForDay);
+      }
+      const resolvedPercent = lastPercentByService.get(service.id) ?? 0;
+      earnedHours += (service.hours * resolvedPercent) / 100;
+    });
+
+    const percent = clampPercent((earnedHours / totalHours) * 100);
+    curve.push({ d: dateKey, pct: Math.round(percent) });
+  });
+
+  return curve;
 }
