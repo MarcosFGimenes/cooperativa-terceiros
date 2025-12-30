@@ -7,12 +7,7 @@ import { getPackageByIdCached, listPackageServices } from "@/lib/repo/packages";
 import { listPackageFolders } from "@/lib/repo/folders";
 import { getServicesByIds, listAvailableOpenServices, listUpdates } from "@/lib/repo/services";
 import { formatDate as formatDisplayDate } from "@/lib/formatDateTime";
-import { curvaPlanejada } from "@/lib/curvaS";
-import {
-  computePackageSCurve,
-  type PackageProgressEntry,
-  type PackageService,
-} from "@/lib/package-scurve/computePackageSCurve";
+import { curvaPlanejada, curvaRealizadaPacote } from "@/lib/curvaS";
 import {
   calcularMetricasPorSetor,
   calcularMetricasSubpacote,
@@ -199,69 +194,6 @@ function parsePercent(value: unknown): number | null {
     if (Number.isFinite(parsed)) return clampPercent(parsed);
   }
   return null;
-}
-
-function parseDateValue(value: unknown): Date | null {
-  if (value instanceof Date && Number.isFinite(value.getTime())) return value;
-  if (typeof value === "number" && Number.isFinite(value)) {
-    const date = new Date(value);
-    return Number.isFinite(date.getTime()) ? date : null;
-  }
-  if (typeof value === "string" && value.trim()) {
-    const date = new Date(value);
-    return Number.isFinite(date.getTime()) ? date : null;
-  }
-  return null;
-}
-
-const UPDATE_DATE_KEYS = [
-  "reportDate",
-  "reportDateMillis",
-  "date",
-  "data",
-  "dataAtualizacao",
-  "data_atualizacao",
-  "dataUltimaAtualizacao",
-  "dataAtualizacaoPercentual",
-] as const;
-
-function resolveUpdateDate(update: ServiceUpdate): Date | null {
-  const record = update as Record<string, unknown>;
-  for (const key of UPDATE_DATE_KEYS) {
-    if (!Object.hasOwn(record, key)) continue;
-    const parsed = parseDateValue(record[key]);
-    if (parsed) return parsed;
-  }
-  return null;
-}
-
-function resolveUpdatePercent(update: ServiceUpdate): number | null {
-  const record = update as Record<string, unknown>;
-  const candidates = [
-    update.percent,
-    update.audit?.newPercent,
-    update.audit?.previousPercent,
-    record.percentual,
-    record.percentualReal,
-    record.percentualInformado,
-    record.realPercent,
-    record.andamento,
-    record.progress,
-  ];
-
-  for (const candidate of candidates) {
-    const parsed = parsePercent(candidate);
-    if (parsed !== null) return parsed;
-  }
-
-  return null;
-}
-
-function toIsoDay(date: Date) {
-  const year = date.getUTCFullYear();
-  const month = String(date.getUTCMonth() + 1).padStart(2, "0");
-  const day = String(date.getUTCDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
 }
 
 function resolveServiceHours(service: Service) {
@@ -812,30 +744,13 @@ async function renderPackageDetailPage(
       : `Mais de ${Math.max(serviceCountReference, services.length)} serviços`
     : `${services.length} serviço${services.length === 1 ? "" : "s"}`;
 
-  const packageServicesForCurve: PackageService[] = services
+  const packageServicesForCurve = services
     .map((service) => ({
       id: service.id,
       hours: resolveServiceHours(service),
     }))
     .filter((service) => service.hours > 0);
 
-  const progressEntries: PackageProgressEntry[] = [];
-  services.forEach((service) => {
-    const updates = service.updates ?? [];
-    updates.forEach((update) => {
-      const percent = resolveUpdatePercent(update);
-      if (percent === null) return;
-      const updateDate = resolveUpdateDate(update);
-      if (!updateDate) return;
-      progressEntries.push({
-        serviceId: service.id,
-        workedDate: toIsoDay(updateDate),
-        percent,
-      });
-    });
-  });
-
-  const realizedCurve = computePackageSCurve(packageServicesForCurve, progressEntries);
   const plannedCurve = (() => {
     const plannedStart = parseISO(pkg.plannedStart);
     const plannedEnd = parseISO(pkg.plannedEnd);
@@ -846,6 +761,15 @@ async function renderPackageDetailPage(
       percent: point.pct,
     }));
   })();
+
+  const realizedCurve = (await curvaRealizadaPacote(
+    packageServicesForCurve,
+    parseISO(pkg.plannedStart),
+    parseISO(pkg.plannedEnd),
+  )).map((point) => ({
+    date: point.d,
+    percent: point.pct,
+  }));
 
   return (
     <div className="container mx-auto max-w-7xl space-y-6 px-6 py-6 package-print-layout print:m-0 print:w-full print:max-w-none print:space-y-3 print:px-0 print:py-0">
