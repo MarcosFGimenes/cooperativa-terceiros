@@ -163,6 +163,7 @@ export default async function FolderPublicPage({
                       <InfoItem label="Tag" value={service.tag?.trim() || "—"} />
                       <InfoItem label="Código" value={service.code?.trim() || "—"} />
                       <InfoItem label="Equipamento" value={service.equipmentName?.trim() || "—"} />
+                      <InfoItem label="Descrição" value={service.description?.trim() || "—"} />
                       <InfoItem label="Setor" value={service.sector?.trim() || service.setor?.trim() || "—"} />
                       <InfoItem label="Empresa" value={service.company?.trim() || service.empresa?.trim() || "—"} />
                       <InfoItem label="CNPJ" value={service.cnpj?.trim() || "—"} />

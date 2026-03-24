@@ -195,6 +195,8 @@ export async function createService(payload: CreateServicePayload) {
     fimPrevisto: Timestamp.fromMillis(payload.fimPrevistoMillis),
     horasPrevistas: payload.horasPrevistas,
     empresaId: payload.empresaId,
+    empresa: payload.empresaId,
+    companyId: payload.empresaId,
     company: payload.empresaId,
     cnpj: payload.cnpj || null,
     status: payload.status,

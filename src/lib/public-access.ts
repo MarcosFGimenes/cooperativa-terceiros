@@ -155,41 +155,91 @@ async function fetchToken(tokenId: string): Promise<AccessTokenData> {
 }
 
 function normalizeCompany(data: FirebaseFirestore.DocumentData): string | undefined {
-  if (typeof data.company === "string" && data.company.trim()) return data.company.trim();
-  if (typeof data.companyId === "string" && data.companyId.trim()) return data.companyId.trim();
+  const candidates = [
+    data.company,
+    data.companyId,
+    (data as Record<string, unknown>).empresa,
+    (data as Record<string, unknown>).empresaId,
+  ];
+
+  for (const value of candidates) {
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+
   return undefined;
 }
 
 function mapServiceDoc(doc: FirebaseFirestore.DocumentSnapshot): Service {
   const data = doc.data() ?? {};
+  const record = data as Record<string, unknown>;
   const totalHoursCandidate =
     toNumber(data.totalHours) ??
-    toNumber((data as Record<string, unknown>).totalHoras) ??
-    toNumber((data as Record<string, unknown>).horasTotais) ??
-    toNumber((data as Record<string, unknown>).horasPrevistas) ??
-    toNumber((data as Record<string, unknown>).hours) ??
+    toNumber(record.totalHoras) ??
+    toNumber(record.horasTotais) ??
+    toNumber(record.horasPrevistas) ??
+    toNumber(record.hours) ??
     0;
+
+  const equipmentName =
+    (typeof data.equipmentName === "string" && data.equipmentName.trim())
+      ? data.equipmentName.trim()
+      : (typeof record.equipamento === "string" && record.equipamento.trim())
+        ? record.equipamento.trim()
+        : "";
+
+  const sector =
+    (typeof data.sector === "string" && data.sector.trim())
+      ? data.sector.trim()
+      : (typeof record.setor === "string" && record.setor.trim())
+        ? record.setor.trim()
+        : "";
+
+  const description =
+    (typeof data.description === "string" && data.description.trim())
+      ? data.description.trim()
+      : (typeof record.descricao === "string" && record.descricao.trim())
+        ? record.descricao.trim()
+        : undefined;
+
+  const plannedStart =
+    data.plannedStart ??
+    record.inicioPrevisto ??
+    record.inicioPlanejado ??
+    record.dataInicio ??
+    record.startDate ??
+    "";
+
+  const plannedEnd =
+    data.plannedEnd ??
+    record.fimPrevisto ??
+    record.fimPlanejado ??
+    record.dataFim ??
+    record.endDate ??
+    "";
+
   return {
     id: doc.id,
     os: data.os ?? "",
     oc: data.oc ?? undefined,
     tag: data.tag ?? "",
-    equipmentName: data.equipmentName ?? "",
-    sector: data.sector ?? "",
-    plannedStart: data.plannedStart ?? "",
-    plannedEnd: data.plannedEnd ?? "",
+    equipmentName,
+    setor: typeof record.setor === "string" ? record.setor : undefined,
+    sector,
+    plannedStart,
+    plannedEnd,
     totalHours: totalHoursCandidate,
+    description,
     status: (data.status ?? "aberto") as ServiceStatus,
     company: normalizeCompany(data),
+    empresa: typeof record.empresa === "string" ? record.empresa : typeof record.empresaId === "string" ? record.empresaId : undefined,
     cnpj: typeof data.cnpj === "string" ? data.cnpj.trim() || null : undefined,
     createdAt: toMillis(data.createdAt),
     updatedAt: toMillis(data.updatedAt),
     hasChecklist: data.hasChecklist ?? false,
-    realPercent: data.realPercent ?? 0,
+    realPercent: data.realPercent ?? data.progress ?? data.andamento ?? 0,
     previousProgress:
-      toNumber((data as Record<string, unknown>).previousProgress ?? (data as Record<string, unknown>).progressBeforeConclusion ?? (data as Record<string, unknown>).previousPercent) ??
-      null,
-    packageId: data.packageId ?? undefined,
+      toNumber(record.previousProgress ?? record.progressBeforeConclusion ?? record.previousPercent) ?? null,
+    packageId: data.packageId ?? record.pacoteId ?? undefined,
   };
 }
 

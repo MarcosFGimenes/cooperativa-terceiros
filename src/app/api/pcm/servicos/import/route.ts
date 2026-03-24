@@ -23,7 +23,7 @@ const HEADER_ALIASES: Record<string, string[]> = {
   descricao: ["DESCRIÇÃO SERVIÇOS", "DESCRICAO SERVICOS", "DESCRIÇÃO SERVIÇO", "DESCRICAO SERVICO"],
   dataInicio: ["DATA DE INICIO", "DATA DE INÍCIO", "DATA INICIO", "INICIO"],
   dataFim: ["DATA FINAL", "DATA FIM", "FIM"],
-  empresa: ["EMPRESA"],
+  empresa: ["EMPRESA", "EMPRESA EXECUTANTE", "EMPRESA RESPONSAVEL", "EMPRESA RESPONSÁVEL", "CONTRATADA", "TERCEIRIZADA"],
   cnpj: ["CNPJ", "C.N.P.J.", "CNPJ "],
   horas: ["TOTAL DE HORA HOMEM", "TOTAL HORA HOMEM", "TOTAL DE HORA-HOMEM"],
 };
@@ -146,15 +146,20 @@ type ParsedRow = {
   importKey: string;
 };
 
-async function sanitiseRow(row: Record<string, unknown>): Promise<ParsedRow | { error: string }> {
+async function sanitiseRow(
+  row: Record<string, unknown>,
+  fallback?: { empresa: string | null; cnpj: string | null },
+): Promise<ParsedRow | { error: string }> {
   const os = toText(pickField(row, HEADER_ALIASES.os)).trim();
   const tag = toText(pickField(row, HEADER_ALIASES.tag)).trim();
   const equipamento = toText(pickField(row, HEADER_ALIASES.equipamento)).trim();
   const descricao = toText(pickField(row, HEADER_ALIASES.descricao)).trim();
   const setor = toText(pickField(row, HEADER_ALIASES.setor)).trim() || null;
-  const empresa = toText(pickField(row, HEADER_ALIASES.empresa)).trim() || null;
+  const empresaFromRow = toText(pickField(row, HEADER_ALIASES.empresa)).trim() || null;
+  const empresa = empresaFromRow || fallback?.empresa || null;
   const cnpjRaw = toText(pickField(row, HEADER_ALIASES.cnpj)).trim();
-  const cnpj = cnpjRaw ? normalizeCnpj(cnpjRaw).trim() || null : null;
+  const cnpjParsed = cnpjRaw ? normalizeCnpj(cnpjRaw).trim() || null : null;
+  const cnpj = cnpjParsed || fallback?.cnpj || null;
   const horas = parseHours(pickField(row, HEADER_ALIASES.horas));
   const inicio = parseDateValue(pickField(row, HEADER_ALIASES.dataInicio));
   const fim = parseDateValue(pickField(row, HEADER_ALIASES.dataFim));
@@ -230,12 +235,18 @@ export async function POST(request: Request) {
   const seenKeys = new Set<string>();
   const parsedRows: ParsedRow[] = [];
 
+  let lastKnownCompany: string | null = null;
+  let lastKnownCnpj: string | null = null;
+
   for (const row of rows) {
-    const parsed = await sanitiseRow(row);
+    const parsed = await sanitiseRow(row, { empresa: lastKnownCompany, cnpj: lastKnownCnpj });
     if ("error" in parsed) {
       skipped += 1;
       continue;
     }
+    if (parsed.empresa) lastKnownCompany = parsed.empresa;
+    if (parsed.cnpj) lastKnownCnpj = parsed.cnpj;
+
     if (seenKeys.has(parsed.importKey)) {
       duplicateKeys += 1;
       continue;

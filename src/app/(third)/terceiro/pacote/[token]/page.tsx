@@ -161,6 +161,10 @@ export default async function TerceiroPacotePublicoPage({ params }: { params: { 
                         <dd className="text-sm text-foreground">{service.equipmentName?.trim() || "—"}</dd>
                       </div>
                       <div className="space-y-1">
+                        <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Descrição</dt>
+                        <dd className="text-sm text-foreground">{service.description?.trim() || "—"}</dd>
+                      </div>
+                      <div className="space-y-1">
                         <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Setor</dt>
                         <dd className="text-sm text-foreground">{service.sector?.trim() || service.setor?.trim() || "—"}</dd>
                       </div>
