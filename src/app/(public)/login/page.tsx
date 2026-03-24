@@ -14,19 +14,26 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const { auth: authInstance, error: authError } = useMemo(() => tryGetAuth(), []);
-  const lastLoginStorageKey = "pcm_last_login_email";
+  const lastLoginEmailStorageKey = "pcm_last_login_email";
+  const lastLoginPassStorageKey = "pcm_last_login_password";
 
   useEffect(() => {
     if (typeof window === "undefined") return;
     try {
-      const savedEmail = window.localStorage.getItem(lastLoginStorageKey);
+      const savedEmail = window.localStorage.getItem(lastLoginEmailStorageKey);
+      const savedPass = window.localStorage.getItem(lastLoginPassStorageKey);
+
       if (savedEmail) {
         setEmail((current) => current || savedEmail);
+      }
+
+      if (savedPass) {
+        setPass((current) => current || savedPass);
       }
     } catch (storageError) {
       console.warn("[login] Falha ao ler último login", storageError);
     }
-  }, [lastLoginStorageKey]);
+  }, [lastLoginEmailStorageKey, lastLoginPassStorageKey]);
 
   useEffect(() => {
     if (authError) {
@@ -44,7 +51,8 @@ export default function LoginPage() {
     setErr(null);
     setLoading(true);
     try {
-      const credential = await signInWithEmailAndPassword(authInstance, email.trim(), pass);
+      const trimmedEmail = email.trim();
+      const credential = await signInWithEmailAndPassword(authInstance, trimmedEmail, pass);
       // O cookie de sessão do Firebase exige um ID token emitido recentemente.
       // Forçar o refresh evita erros "id-token-expired" vindos do backend.
       const idToken = await credential.user.getIdToken(true);
@@ -78,7 +86,8 @@ export default function LoginPage() {
       }
 
       try {
-        window.localStorage.setItem(lastLoginStorageKey, email.trim());
+        window.localStorage.setItem(lastLoginEmailStorageKey, trimmedEmail);
+        window.localStorage.setItem(lastLoginPassStorageKey, pass);
       } catch (storageError) {
         console.warn("[login] Não foi possível salvar último login", storageError);
       }
@@ -111,7 +120,8 @@ export default function LoginPage() {
             <span className="text-sm">E-mail</span>
             <input
               type="email"
-              autoComplete="email"
+              name="email"
+              autoComplete="username"
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -124,6 +134,7 @@ export default function LoginPage() {
             <span className="text-sm">Senha</span>
             <input
               type="password"
+              name="password"
               autoComplete="current-password"
               required
               value={pass}
