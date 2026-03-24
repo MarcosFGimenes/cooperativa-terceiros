@@ -17,6 +17,7 @@ type ServiceDoc = {
   packageId?: string | null;
   empresa?: string | null;
   cnpj?: string | null;
+  description?: string | null;
 };
 
 export type TokenDoc = { id: string } & Record<string, unknown>;
@@ -47,8 +48,9 @@ function mapServiceDoc(id: string, raw: Record<string, unknown>): ServiceDoc {
     status: toOptionalString(raw.status),
     andamento: toOptionalNumber(raw.andamento ?? raw.progress ?? raw.realPercent),
     packageId: toOptionalString(raw.packageId ?? raw.pacoteId) ?? null,
-    empresa: toOptionalString(raw.empresa ?? raw.empresaId ?? raw.company) ?? null,
+    empresa: toOptionalString(raw.empresa ?? raw.empresaId ?? raw.company ?? raw.companyId) ?? null,
     cnpj: toOptionalString(raw.cnpj) ?? null,
+    description: toOptionalString(raw.description ?? raw.descricao) ?? null,
   };
 }
 
