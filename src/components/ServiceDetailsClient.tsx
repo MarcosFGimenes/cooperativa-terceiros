@@ -634,6 +634,28 @@ export default function ServiceDetailsClient({
     [service.hasChecklist, service.id, trimmedToken],
   );
 
+
+  const uploadEvidencePhoto = useCallback(async (file: File) => {
+    const url = new URL(`/api/public/service/upload-evidence`, window.location.origin);
+    url.searchParams.set("serviceId", service.id);
+    if (trimmedToken) {
+      url.searchParams.set("token", trimmedToken);
+    }
+
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const response = await fetch(url.toString(), {
+      method: "POST",
+      body: formData,
+    });
+    const json = (await response.json().catch(() => null)) as { ok?: boolean; error?: string; evidence?: { url: string; label?: string } } | null;
+    if (!response.ok || !json?.ok || !json.evidence) {
+      throw new Error(json?.error ?? "Não foi possível enviar a foto.");
+    }
+    return json.evidence;
+  }, [service.id, trimmedToken]);
+
   const handleUpdateSubmit = useCallback(
     async (payload: ServiceUpdateFormPayload) => {
       const initialPercent = clampPercent(payload.percent);
@@ -685,6 +707,7 @@ export default function ServiceDetailsClient({
         : null;
 
       const body: Record<string, unknown> = {
+        evidences: payload.evidences,
         percent: percentToSend,
         description: payload.description,
         timeWindow: {
@@ -749,6 +772,7 @@ export default function ServiceDetailsClient({
               shiftConditions: payload.shiftConditions,
               previousPercent: canonicalProgress,
               declarationAccepted: true,
+              evidences: payload.evidences,
             });
             return dedupeUpdates([optimistic, ...prev]).slice(0, MAX_UPDATES);
           });
@@ -856,6 +880,7 @@ export default function ServiceDetailsClient({
               lastProgress={canonicalProgress}
               checklist={checklistOptions}
               onSubmit={handleUpdateSubmit}
+              onUploadEvidence={uploadEvidencePhoto}
               realizedPercent={canonicalProgress}
               companyName={service.company}
               companyCnpj={service.cnpj}
@@ -994,8 +1019,9 @@ export default function ServiceDetailsClient({
                           {update.evidences.map((item, index) => (
                             <li key={index}>
                               <a href={item.url} target="_blank" rel="noreferrer" className="text-primary underline">
-                                {item.label || item.url}
+                                {item.label || `Foto ${index + 1}`}
                               </a>
+                              <img src={item.url} alt={item.label || `Foto ${index + 1}`} className="mt-1 h-24 w-full rounded border object-cover" />
                             </li>
                           ))}
                         </ul>

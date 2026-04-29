@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useFieldArray, useForm } from "react-hook-form";
 import { Check } from "lucide-react";
 import { z } from "zod";
@@ -26,6 +26,7 @@ export type ServiceUpdateFormPayload = {
     condition: "praticavel" | "impraticavel";
   }>;
   declarationAccepted: true;
+  evidences: Array<{ url: string; label?: string }>;
 };
 
 type ChecklistOption = { id: string; description: string; progress?: number; weight?: number };
@@ -35,6 +36,7 @@ type ServiceUpdateFormProps = {
   lastProgress: number;
   checklist: ChecklistOption[];
   onSubmit: (payload: ServiceUpdateFormPayload) => Promise<void> | void;
+  onUploadEvidence?: (file: File) => Promise<{ url: string; label?: string }>;
   realizedPercent?: number;
   companyName?: string | null;
   companyCnpj?: string | null;
@@ -259,10 +261,13 @@ export default function ServiceUpdateForm({
   lastProgress,
   checklist,
   onSubmit,
+  onUploadEvidence,
   realizedPercent,
   companyName,
   companyCnpj,
 }: ServiceUpdateFormProps) {
+  const [uploadedEvidences, setUploadedEvidences] = useState<Array<{ url: string; label?: string }>>([]);
+  const [uploadingEvidence, setUploadingEvidence] = useState(false);
   const router = useRouter();
   const handleBack = useCallback(() => {
     if (typeof window !== "undefined" && window.history.length > 1) {
@@ -403,6 +408,7 @@ export default function ServiceUpdateForm({
         condition: item.condition,
       })),
       declarationAccepted: true,
+      evidences: uploadedEvidences,
     });
 
     // Após um envio, permitir que o percentual volte a acompanhar o progresso do serviço
@@ -415,10 +421,49 @@ export default function ServiceUpdateForm({
       declarationAccepted: false,
       subactivities: checklist.map((item) => ({ id: item.id, progress: undefined })),
     });
+    setUploadedEvidences([]);
+  }
+
+  async function handleEvidenceFileChange(event: { target: { files?: FileList | null }; currentTarget: HTMLInputElement; }) {
+    if (!onUploadEvidence) return;
+    const file = event.target.files?.[0];
+    if (!file) return;
+    try {
+      setUploadingEvidence(true);
+      const uploaded = await onUploadEvidence(file);
+      setUploadedEvidences((prev) => [...prev, uploaded].slice(0, 5));
+    } finally {
+      setUploadingEvidence(false);
+      event.currentTarget.value = "";
+    }
   }
 
   return (
     <form onSubmit={handleSubmit(submit)} className="space-y-6">
+      <div>
+        <label htmlFor={`${serviceId}-evidence`} className="text-sm font-medium text-foreground">
+          Fotos da atualização (até 5)
+        </label>
+        <input
+          id={`${serviceId}-evidence`}
+          type="file"
+          accept="image/*"
+          className="input mt-1 w-full"
+          disabled={!onUploadEvidence || uploadingEvidence || uploadedEvidences.length >= 5}
+          onChange={handleEvidenceFileChange}
+        />
+        {uploadingEvidence ? <p className="mt-1 text-xs text-muted-foreground">Enviando foto...</p> : null}
+        {uploadedEvidences.length > 0 ? (
+          <ul className="mt-2 grid grid-cols-2 gap-2 md:grid-cols-3">
+            {uploadedEvidences.map((item, index) => (
+              <li key={`${item.url}-${index}`} className="rounded-md border p-2">
+                <img src={item.url} alt={item.label || `Evidência ${index + 1}`} className="h-24 w-full rounded object-cover" />
+              </li>
+            ))}
+          </ul>
+        ) : null}
+      </div>
+
       <div>
         <label htmlFor={`${serviceId}-date`} className="text-sm font-medium text-foreground">
           Data
