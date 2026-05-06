@@ -9,6 +9,7 @@ import { parseDateOnly, dateOnlyToMillis, formatDateOnly, formatDateOnlyBR, mask
 import { tryGetAuth } from "@/lib/firebase";
 import { useFirebaseAuthSession } from "@/lib/useFirebaseAuthSession";
 import type { Package } from "@/types";
+import PackageImportServicesButton from "./PackageImportServicesButton";
 
 function normaliseStatus(status: Package["status"]): "Aberto" | "Pendente" | "Concluído" | "Encerrado" {
   const raw = String(status ?? "").toLowerCase();
@@ -179,6 +180,9 @@ export default function PackageEditorClient({ packageId, initialPackage }: Packa
 
   return (
     <form onSubmit={onSubmit} className="space-y-5 rounded-2xl border bg-card/80 p-6 shadow-sm">
+      <div className="flex justify-end">
+        <PackageImportServicesButton packageId={packageId} />
+      </div>
       <Field
         label="Nome do pacote"
         value={form.name}

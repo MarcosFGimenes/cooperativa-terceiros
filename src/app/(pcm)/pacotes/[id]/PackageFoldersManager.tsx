@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 import { tryGetAuth } from "@/lib/firebase";
 import { cn } from "@/lib/utils";
@@ -198,6 +199,7 @@ export default function PackageFoldersManager({
   const [editName, setEditName] = useState("");
   const [editCompany, setEditCompany] = useState("");
   const [savingFolderInfo, setSavingFolderInfo] = useState(false);
+  const [deletingFolderId, setDeletingFolderId] = useState<string | null>(null);
   const [addingServicesFor, setAddingServicesFor] = useState<string | null>(null);
   const [serviceSearch, setServiceSearch] = useState("");
   const [expandedSelection, setExpandedSelection] = useState<Record<string, boolean>>({});
@@ -540,6 +542,38 @@ export default function PackageFoldersManager({
     }
   }
 
+  async function deleteFolder(folderId: string) {
+    setDeletingFolderId(folderId);
+    try {
+      const encodedFolderId = encodeURIComponent(folderId);
+      const response = await authorisedFetch(`/api/pcm/packages/${encodedPackageId}/folders/${encodedFolderId}`, {
+        method: "DELETE",
+      });
+      const data = await response.json();
+      if (!response.ok || !data?.ok) {
+        const message =
+          typeof data?.error === "string" && data.error ? data.error : "Não foi possível excluir o subpacote.";
+        throw new Error(message);
+      }
+      setFolders((prev) => prev.filter((folder) => folder.id !== folderId));
+      setServiceSelections((prev) => {
+        const next = { ...prev };
+        delete next[folderId];
+        return next;
+      });
+      setEditingFolderId(null);
+      const unlinkedServices =
+        typeof data.unlinkedServices === "number" && Number.isFinite(data.unlinkedServices) ? data.unlinkedServices : 0;
+      toast.success(`Subpacote excluído. ${unlinkedServices} serviço(s) foram desvinculados.`);
+    } catch (error) {
+      console.error("[PackageFoldersManager] Falha ao excluir subpacote", error);
+      const message = error instanceof Error ? error.message : "Não foi possível excluir o subpacote.";
+      toast.error(message);
+    } finally {
+      setDeletingFolderId(null);
+    }
+  }
+
   const activeFolder = useMemo(() => {
     if (!activeFolderId) return null;
     return folders.find((folder) => folder.id === activeFolderId) ?? null;
@@ -744,42 +778,6 @@ export default function PackageFoldersManager({
                       );
                     })()}
 
-                    {editingFolderId === activeFolder.id ? (
-                    <div className="mt-4 grid gap-3 rounded-lg bg-muted/40 p-3 sm:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_auto_auto]">
-                      <div className="flex flex-col gap-1">
-                        <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                          Nome
-                        </label>
-                        <input value={editName} onChange={(event) => setEditName(event.target.value)} className="input" />
-                      </div>
-                      <div className="flex flex-col gap-1">
-                        <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                          Empresa/terceiro
-                        </label>
-                        <input value={editCompany} onChange={(event) => setEditCompany(event.target.value)} className="input" />
-                      </div>
-                      <div className="flex items-end">
-                        <button
-                          type="button"
-                          className="btn btn-secondary w-full"
-                          onClick={cancelEditing}
-                          disabled={savingFolderInfo}
-                        >
-                          Cancelar
-                        </button>
-                      </div>
-                      <div className="flex items-end">
-                        <button
-                          type="button"
-                          className="btn btn-primary w-full"
-                          onClick={() => saveFolderInfo(activeFolder.id)}
-                          disabled={savingFolderInfo}
-                        >
-                          {savingFolderInfo ? "Salvando…" : "Salvar"}
-                        </button>
-                      </div>
-                    </div>
-                  ) : null}
                 </div>
 
                 <div className="rounded-lg border p-4 shadow-sm">
@@ -1019,6 +1017,48 @@ export default function PackageFoldersManager({
           </div>
         </div>
       )}
+
+      <Dialog open={Boolean(editingFolderId)} onOpenChange={(open) => (!open ? cancelEditing() : undefined)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Editar subpacote</DialogTitle>
+            <DialogDescription>Atualize nome e empresa/CNPJ vinculados ao subpacote.</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-3">
+            <div className="space-y-1">
+              <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Nome</label>
+              <input value={editName} onChange={(event) => setEditName(event.target.value)} className="input" />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Empresa/CNPJ</label>
+              <input value={editCompany} onChange={(event) => setEditCompany(event.target.value)} className="input" />
+            </div>
+            <div className="flex flex-wrap justify-between gap-2 pt-2">
+              <button
+                type="button"
+                className="btn btn-destructive"
+                onClick={() => editingFolderId && deleteFolder(editingFolderId)}
+                disabled={savingFolderInfo || Boolean(deletingFolderId)}
+              >
+                {deletingFolderId ? "Excluindo…" : "Excluir subpacote"}
+              </button>
+              <div className="flex gap-2">
+                <button type="button" className="btn btn-secondary" onClick={cancelEditing} disabled={savingFolderInfo}>
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={() => editingFolderId && saveFolderInfo(editingFolderId)}
+                  disabled={savingFolderInfo}
+                >
+                  {savingFolderInfo ? "Salvando…" : "Salvar"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

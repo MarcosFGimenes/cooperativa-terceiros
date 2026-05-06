@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 import { requirePcmUser } from "@/app/api/management/tokens/_lib/auth";
 import { decodeRouteParam } from "@/lib/decodeRouteParam";
-import { updatePackageFolder } from "@/lib/repo/folders";
+import { deletePackageFolder, updatePackageFolder } from "@/lib/repo/folders";
 
 function normaliseParam(value: string | string[] | undefined): string {
   if (typeof value === "string") return decodeRouteParam(value.trim());
@@ -50,6 +50,28 @@ export async function PATCH(
   } catch (error) {
     console.error("[folders] Falha ao atualizar subpacote", error);
     const message = error instanceof Error ? error.message : "Não foi possível atualizar o subpacote.";
+    return NextResponse.json({ ok: false, error: message }, { status: 500 });
+  }
+}
+
+export async function DELETE(
+  req: Request,
+  context: { params: Record<string, string | string[] | undefined> },
+) {
+  await requirePcmUser(req);
+  const packageId = normaliseParam(context.params.packageId);
+  const folderId = normaliseParam(context.params.folderId);
+
+  if (!packageId || !folderId) {
+    return NextResponse.json({ ok: false, error: "Parâmetros inválidos" }, { status: 400 });
+  }
+
+  try {
+    const result = await deletePackageFolder(folderId);
+    return NextResponse.json({ ok: true, ...result });
+  } catch (error) {
+    console.error("[folders] Falha ao excluir subpacote", error);
+    const message = error instanceof Error ? error.message : "Não foi possível excluir o subpacote.";
     return NextResponse.json({ ok: false, error: message }, { status: 500 });
   }
 }
