@@ -414,3 +414,47 @@ export async function rotateFolderToken(folderId: string): Promise<PackageFolder
   revalidateFolderCaches();
   return updatedFolder;
 }
+
+export async function deletePackageFolder(folderId: string): Promise<{ deletedId: string; unlinkedServices: number }> {
+  if (!folderId) {
+    throw new Error("Pasta inválida.");
+  }
+
+  const folderRef = foldersCollection().doc(folderId);
+  const folderSnap = await folderRef.get();
+  if (!folderSnap.exists) {
+    throw new Error("Pasta não encontrada.");
+  }
+
+  const folder = mapFolderDoc(folderSnap);
+  const uniqueServiceIds = Array.from(new Set(folder.services.map((value) => value.trim()).filter(Boolean)));
+
+  if (uniqueServiceIds.length) {
+    await Promise.all(
+      uniqueServiceIds.map((serviceId) =>
+        servicesCollection()
+          .doc(serviceId)
+          .set(
+            {
+              folderId: FieldValue.delete(),
+              subpackageId: FieldValue.delete(),
+              updatedAt: FieldValue.serverTimestamp(),
+            },
+            { merge: true },
+          ),
+      ),
+    );
+  }
+
+  await deactivateToken(folder.tokenId ?? folder.tokenCode ?? undefined);
+  await folderRef.delete();
+
+  revalidateFolderCaches();
+  revalidateTag("packages:detail");
+  revalidateTag("packages:summary");
+  revalidateTag("packages:services");
+  revalidateTag("services:detail");
+  revalidateTag("services:available");
+
+  return { deletedId: folderId, unlinkedServices: uniqueServiceIds.length };
+}

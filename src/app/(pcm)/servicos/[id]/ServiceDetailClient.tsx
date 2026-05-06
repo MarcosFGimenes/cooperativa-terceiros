@@ -79,6 +79,53 @@ type ServiceFallbackSuccess = {
 
 type ServiceFallbackError = { ok: false; error?: string };
 
+type UpdateEvidenceItem = string | { url?: string | null; label?: string | null };
+
+const resolveEvidenceUrl = (item: UpdateEvidenceItem): string | null => {
+  if (typeof item === "string") {
+    return item.trim() || null;
+  }
+
+  if (item && typeof item.url === "string") {
+    const normalized = item.url.trim();
+    return normalized || null;
+  }
+
+  return null;
+};
+
+function EvidenceThumbnail({ url, index }: { url: string; index: number }) {
+  const [isLoaded, setIsLoaded] = useState(false);
+  const [hasError, setHasError] = useState(false);
+
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noreferrer"
+      className="relative block h-20 w-20 overflow-hidden rounded-md border border-border/60 bg-muted/40"
+      title="Abrir imagem em nova aba"
+      aria-label={`Abrir evidência ${index + 1} em nova aba`}
+    >
+      {!isLoaded && !hasError ? <div className="h-full w-full animate-pulse bg-muted" aria-hidden="true" /> : null}
+      {hasError ? (
+        <div className="flex h-full w-full items-center justify-center px-1 text-center text-[10px] text-muted-foreground">
+          Falha ao carregar
+        </div>
+      ) : (
+        <img
+          src={url}
+          alt={`Evidência ${index + 1}`}
+          className={`h-full w-full object-cover transition-opacity ${isLoaded ? "opacity-100" : "opacity-0"}`}
+          loading="lazy"
+          onLoad={() => setIsLoaded(true)}
+          onError={() => setHasError(true)}
+        />
+      )}
+    </a>
+  );
+}
+
 const formatHoursValue = (value?: number | null): string => {
   if (typeof value !== "number" || !Number.isFinite(value)) return "-";
   const rounded = Math.round(value * 100) / 100;
@@ -956,6 +1003,9 @@ export default function ServiceDetailClient({
             {displayedUpdates.slice(0, 6).map((update) => {
               const summary = formatUpdateSummary(update);
               const hours = computeTimeWindowHours(update);
+              const evidences = ((update as { evidence?: UpdateEvidenceItem[] }).evidence ??
+                update.evidences) as UpdateEvidenceItem[] | undefined;
+              const evidenceUrls = evidences.map(resolveEvidenceUrl).filter((item): item is string => Boolean(item));
               return (
                 <li key={update.id} className="space-y-3 rounded-xl border border-border/60 bg-background/60 p-4 shadow-sm">
                   <div className="flex flex-wrap items-center justify-between gap-2">
@@ -1038,18 +1088,14 @@ export default function ServiceDetailClient({
                       </div>
                     </div>
                   ) : null}
-                  {update.evidences && update.evidences.length > 0 ? (
+                  {evidenceUrls.length > 0 ? (
                     <div className="text-xs text-muted-foreground">
                       <span className="font-semibold text-foreground">Evidências:</span>
-                      <ul className="mt-1 space-y-1">
-                        {update.evidences.map((item, index) => (
-                          <li key={index}>
-                            <a href={item.url} target="_blank" rel="noreferrer" className="text-primary underline">
-                              {item.label || item.url}
-                            </a>
-                          </li>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {evidenceUrls.map((url, index) => (
+                          <EvidenceThumbnail key={`${update.id}-evidence-${index}`} url={url} index={index} />
                         ))}
-                      </ul>
+                      </div>
                     </div>
                   ) : null}
                   {update.justification ? (
