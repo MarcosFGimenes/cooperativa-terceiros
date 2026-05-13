@@ -512,8 +512,8 @@ export default function ServiceDetailsClient({
   );
 
   useEffect(() => {
-    setChecklistItems(normaliseChecklistItems(checklist));
-  }, [checklist]);
+    setChecklistItems(normaliseChecklistItems(safeChecklist));
+  }, [safeChecklist]);
 
   useEffect(() => {
     setServiceStatus(service.status);
