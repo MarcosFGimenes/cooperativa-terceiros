@@ -549,7 +549,8 @@ export function normaliseProgress(value?: number | null): number {
   return Math.max(0, Math.min(100, Math.round(Number(value ?? 0))));
 }
 
-export function toNewChecklist(items: ChecklistItem[]): ChecklistItem[] {
+export function toNewChecklist(items: ChecklistItem[] | null | undefined): ChecklistItem[] {
+  if (!Array.isArray(items)) return [];
   return items.map((item) => {
     const status = mapChecklistStatus(item.status);
     return {
@@ -648,7 +649,8 @@ export function filterUpdatesWithRelevantContent(updates: ServiceUpdate[]): Serv
   return updates.filter(hasRelevantContent);
 }
 
-export function toNewUpdates(updates: ServiceUpdate[]): ServiceUpdate[] {
+export function toNewUpdates(updates: ServiceUpdate[] | null | undefined): ServiceUpdate[] {
+  if (!Array.isArray(updates)) return [];
   const normalised = updates.map((update) => sanitiseResourceQuantities(update));
   const filtered = normalised.filter(isMeaningfulUpdate);
   return dedupeUpdates(filtered);

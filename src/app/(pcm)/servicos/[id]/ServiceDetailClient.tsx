@@ -1005,7 +1005,9 @@ export default function ServiceDetailClient({
               const hours = computeTimeWindowHours(update);
               const evidences = ((update as { evidence?: UpdateEvidenceItem[] }).evidence ??
                 update.evidences) as UpdateEvidenceItem[] | undefined;
-              const evidenceUrls = evidences.map(resolveEvidenceUrl).filter((item): item is string => Boolean(item));
+              const evidenceUrls = (Array.isArray(evidences) ? evidences : [])
+                .map(resolveEvidenceUrl)
+                .filter((item): item is string => Boolean(item));
               return (
                 <li key={update.id} className="space-y-3 rounded-xl border border-border/60 bg-background/60 p-4 shadow-sm">
                   <div className="flex flex-wrap items-center justify-between gap-2">
