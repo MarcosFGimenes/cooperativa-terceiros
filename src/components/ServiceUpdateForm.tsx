@@ -266,6 +266,10 @@ export default function ServiceUpdateForm({
   companyName,
   companyCnpj,
 }: ServiceUpdateFormProps) {
+  const safeChecklist = useMemo(
+    () => (Array.isArray(checklist) ? checklist : []),
+    [checklist],
+  );
   const [uploadedEvidences, setUploadedEvidences] = useState<Array<{ url: string; label?: string }>>([]);
   const [uploadingEvidence, setUploadingEvidence] = useState(false);
   const router = useRouter();
@@ -279,11 +283,11 @@ export default function ServiceUpdateForm({
 
   const checklistDefaults = useMemo(
     () =>
-      checklist.map((item) => ({
+      safeChecklist.map((item) => ({
         id: item.id,
         progress: undefined,
       })),
-    [checklist],
+    [safeChecklist],
   );
 
   const form = useForm<FormValues>({
@@ -326,9 +330,9 @@ export default function ServiceUpdateForm({
   const computedPercent = useMemo(
     () => {
       const normalizedLastProgress = clampPercentValue(lastProgress);
-      return computeChecklistPercent(checklist, subactivityValues, normalizedLastProgress);
+      return computeChecklistPercent(safeChecklist, subactivityValues, normalizedLastProgress);
     },
-    [checklist, subactivityValues, lastProgress],
+    [safeChecklist, subactivityValues, lastProgress],
   );
 
   useEffect(() => {
@@ -374,7 +378,7 @@ export default function ServiceUpdateForm({
 
     const subactivityUpdates = values.subactivities
       .map((item, index) => {
-        const meta = checklist[index];
+        const meta = safeChecklist[index];
         if (!meta) return null;
         const progress = typeof item?.progress === "number" && Number.isFinite(item.progress)
           ? Math.max(0, Math.min(100, Math.round(item.progress)))
@@ -419,7 +423,7 @@ export default function ServiceUpdateForm({
       workforce: [{ role: "", quantity: 1 }],
       shifts: [],
       declarationAccepted: false,
-      subactivities: checklist.map((item) => ({ id: item.id, progress: undefined })),
+      subactivities: safeChecklist.map((item) => ({ id: item.id, progress: undefined })),
     });
     setUploadedEvidences([]);
   }
@@ -471,14 +475,14 @@ export default function ServiceUpdateForm({
         <input id={`${serviceId}-date`} type="date" className="input mt-1 w-full" {...register("date")} />
         {errors.date ? <p className="mt-1 text-xs text-destructive">{errors.date.message}</p> : null}
       </div>
-      {checklist.length > 0 ? (
+      {safeChecklist.length > 0 ? (
         <div className="space-y-4">
           <h3 className="text-sm font-semibold text-foreground">Subatividades / Etapas</h3>
           <p className="text-xs text-muted-foreground">
             Informe o percentual atualizado para cada subatividade de acordo com o progresso realizado.
           </p>
           <ul className="grid gap-3 text-sm md:grid-cols-2">
-            {checklist.map((item, index) => {
+            {safeChecklist.map((item, index) => {
               const fieldError = extractFieldErrorMessage(errors.subactivities?.[index]?.progress);
               const currentValue =
                 typeof subactivityValues?.[index]?.progress === "number"
