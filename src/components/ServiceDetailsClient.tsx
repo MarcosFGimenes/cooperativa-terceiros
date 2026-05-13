@@ -411,9 +411,18 @@ export default function ServiceDetailsClient({
   checklist,
   token,
 }: ServiceDetailsClientProps) {
-  const normalisedInitialUpdates = useMemo(
-    () => dedupeUpdates(initialUpdates.map((item) => sanitiseResourceQuantities(item))).slice(0, MAX_UPDATES),
+  const safeInitialUpdates = useMemo(
+    () => (Array.isArray(initialUpdates) ? initialUpdates : []),
     [initialUpdates],
+  );
+  const safeChecklist = useMemo(
+    () => (Array.isArray(checklist) ? checklist : []),
+    [checklist],
+  );
+
+  const normalisedInitialUpdates = useMemo(
+    () => dedupeUpdates(safeInitialUpdates.map((item) => sanitiseResourceQuantities(item))).slice(0, MAX_UPDATES),
+    [safeInitialUpdates],
   );
 
   const [updates, setUpdates] = useState(normalisedInitialUpdates);
@@ -427,8 +436,11 @@ export default function ServiceDetailsClient({
   const [serviceStatus, setServiceStatus] = useState(service.status);
   const [progress, setProgress] = useState(() => computeInitialProgress(service, normalisedInitialUpdates));
   const [checklistItems, setChecklistItems] = useState<ThirdChecklistItem[]>(() =>
-    normaliseChecklistItems(checklist),
+    normaliseChecklistItems(safeChecklist),
   );
+  useEffect(() => {
+    setChecklistItems(normaliseChecklistItems(safeChecklist));
+  }, [safeChecklist]);
 
   const serviceLabel = useMemo(() => {
     if (service.os && service.os.trim()) return service.os.trim();
