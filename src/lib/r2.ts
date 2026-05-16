@@ -216,8 +216,11 @@ export async function generatePresignedUrl(
   const method = operation === "delete" ? "DELETE" : operation === "put" ? "PUT" : "GET";
 
   const requestInit: RequestInit = { method };
-  if (operation === "put" && options?.contentType) {
-    requestInit.headers = { "Content-Type": options.contentType };
+  if (operation === "put") {
+    requestInit.headers = {
+      ...(options?.contentType ? { "Content-Type": options.contentType } : {}),
+      "x-amz-content-sha256": "UNSIGNED-PAYLOAD",
+    };
   }
 
   const signed = await r2.sign(
