@@ -2,32 +2,21 @@ import { nanoid } from "nanoid";
 import { NextRequest, NextResponse } from "next/server";
 
 import { requireServiceAccess, PublicAccessError } from "@/lib/public-access";
-import { uploadImage, handleR2Error, isAllowedImageType } from "@/lib/r2";
+import { generatePresignedUrl, handleR2Error, isAllowedImageType } from "@/lib/r2";
 import { IMAGE_UPLOAD_CONSTRAINTS } from "@/types/r2";
 import type { R2Env } from "@/types/r2";
 
 // Get environment variables for R2
 function getEnv(): R2Env {
-  const env: Partial<R2Env> = {
-    R2_BUCKET: process.env.R2_BUCKET as any,
-    R2_ACCESS_KEY_ID: process.env.R2_ACCESS_KEY_ID,
-    R2_SECRET_ACCESS_KEY: process.env.R2_SECRET_ACCESS_KEY,
-    CLOUDFLARE_ACCOUNT_ID: process.env.CLOUDFLARE_ACCOUNT_ID,
-    R2_BUCKET_NAME: process.env.R2_BUCKET_NAME,
-    PUBLIC_DOMAIN: process.env.PUBLIC_DOMAIN,
+  return {
+    R2_BUCKET: undefined as any, // Not used in presigned URL generation
+    R2_ACCESS_KEY_ID: process.env.R2_ACCESS_KEY_ID!,
+    R2_SECRET_ACCESS_KEY: process.env.R2_SECRET_ACCESS_KEY!,
+    CLOUDFLARE_ACCOUNT_ID: process.env.CLOUDFLARE_ACCOUNT_ID!,
+    R2_BUCKET_NAME: process.env.R2_BUCKET_NAME!,
+    PUBLIC_DOMAIN: process.env.PUBLIC_DOMAIN!,
     PRESIGNED_URL_EXPIRY: process.env.PRESIGNED_URL_EXPIRY || "3600",
   };
-
-  // Validate required environment variables
-  const missing = Object.entries(env)
-    .filter(([, value]) => !value)
-    .map(([key]) => key);
-
-  if (missing.length > 0) {
-    throw new Error(`Missing environment variables: ${missing.join(", ")}`);
-  }
-
-  return env as R2Env;
 }
 
 export async function POST(req: NextRequest) {
@@ -51,7 +40,10 @@ export async function POST(req: NextRequest) {
     // Validate file type
     if (!isAllowedImageType(file.type)) {
       return NextResponse.json(
-        { ok: false, error: `Tipo de imagem inválido. Formatos permitidos: ${IMAGE_UPLOAD_CONSTRAINTS.allowedTypes.join(", ")}` },
+        {
+          ok: false,
+          error: `Tipo de imagem inválido. Formatos permitidos: ${IMAGE_UPLOAD_CONSTRAINTS.allowedTypes.join(", ")}`,
+        },
         { status: 400 }
       );
     }
@@ -59,34 +51,43 @@ export async function POST(req: NextRequest) {
     // Validate file size
     if (file.size > IMAGE_UPLOAD_CONSTRAINTS.maxSize) {
       return NextResponse.json(
-        { ok: false, error: `Imagem deve ter até ${IMAGE_UPLOAD_CONSTRAINTS.maxSize / 1024 / 1024}MB` },
+        {
+          ok: false,
+          error: `Imagem deve ter até ${IMAGE_UPLOAD_CONSTRAINTS.maxSize / 1024 / 1024}MB`,
+        },
         { status: 400 }
       );
     }
-
-    // Get environment variables
-    const env = getEnv();
 
     // Build R2 key for service update evidence
     const ext = file.name.includes(".") ? file.name.split(".").pop()?.toLowerCase() : "jpg";
     const filename = `${Date.now()}-${nanoid(8)}.${ext || "jpg"}`;
     const key = `services/${serviceId}/updates/${filename}`;
 
-    // Upload to R2
-    const result = await uploadImage(env, key, file.stream(), {
-      inspectionId: serviceId, // Using inspectionId field to store serviceId
-      uploadedBy: "public-upload",
-      description: "Service update evidence",
-      originalName: file.name,
+    // Get environment variables
+    const env = getEnv();
+
+    // Validate environment variables
+    if (!env.R2_ACCESS_KEY_ID || !env.R2_SECRET_ACCESS_KEY) {
+      return NextResponse.json(
+        { ok: false, error: "Storage de fotos ainda não configurado no ambiente" },
+        { status: 500 }
+      );
+    }
+
+    // Generate presigned URL for direct upload
+    const presignedUrl = await generatePresignedUrl(env, key, "put", {
+      contentType: file.type,
+      expirySeconds: 900, // 15 minutes to complete upload
     });
 
+    // Return presigned URL to client
+    // Client will then upload the file directly to R2 using this URL
     return NextResponse.json({
       ok: true,
-      evidence: {
-        url: result.url,
-        label: file.name,
-        key: result.key,
-      },
+      presignedUrl: presignedUrl.url,
+      key: key,
+      expiresInSeconds: presignedUrl.expiresInSeconds,
     });
   } catch (error) {
     if (error instanceof PublicAccessError) {
@@ -104,7 +105,7 @@ export async function POST(req: NextRequest) {
     const { code, message } = handleR2Error(error);
     console.error("[api/public/service/upload-evidence] erro", error);
     return NextResponse.json(
-      { ok: false, error: "Falha ao salvar foto no R2", code },
+      { ok: false, error: "Falha ao gerar URL de upload", code },
       { status: 500 }
     );
   }
