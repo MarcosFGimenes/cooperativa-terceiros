@@ -16,6 +16,7 @@
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
     "@radix-ui/react-dialog": "^1.1.1",
+    "aws4fetch": "^1.0.15",
     "date-fns": "^4.1.0",
     "firebase": "^10.13.2",
     "firebase-admin": "^12.6.0",
