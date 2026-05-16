@@ -19,6 +19,20 @@ function getEnv(): R2Env {
   };
 }
 
+function buildPublicUrl(env: R2Env, key: string): string {
+  const base = env.PUBLIC_DOMAIN.trim();
+  if (!base) {
+    throw new Error("PUBLIC_DOMAIN não está configurado");
+  }
+
+  const trimmed = base.replace(/\/$/, "");
+  if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
+    return `${trimmed}/${key}`;
+  }
+
+  return `https://${trimmed}/${key}`;
+}
+
 export async function POST(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
@@ -75,19 +89,48 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Generate presigned URL for direct upload
+    // Step 1: Generate presigned URL for upload
     const presignedUrl = await generatePresignedUrl(env, key, "put", {
       contentType: file.type,
       expirySeconds: 900, // 15 minutes to complete upload
     });
 
-    // Return presigned URL to client
-    // Client will then upload the file directly to R2 using this URL
+    // Step 2: Convert File to Buffer and upload via presigned URL
+    const buffer = Buffer.from(await file.arrayBuffer());
+
+    const uploadResponse = await fetch(presignedUrl.url, {
+      method: "PUT",
+      headers: {
+        "Content-Type": file.type,
+        "Content-Length": buffer.length.toString(),
+      },
+      body: buffer,
+    });
+
+    if (!uploadResponse.ok) {
+      console.error(
+        "[api/public/service/upload-evidence] R2 upload failed",
+        await uploadResponse.text()
+      );
+      return NextResponse.json(
+        {
+          ok: false,
+          error: `Falha ao salvar foto no R2: ${uploadResponse.statusText}`,
+        },
+        { status: 502 }
+      );
+    }
+
+    // Step 3: Return success with public URL
+    const publicUrl = buildPublicUrl(env, key);
+
     return NextResponse.json({
       ok: true,
-      presignedUrl: presignedUrl.url,
-      key: key,
-      expiresInSeconds: presignedUrl.expiresInSeconds,
+      evidence: {
+        url: publicUrl,
+        label: file.name,
+        key: key,
+      },
     });
   } catch (error) {
     if (error instanceof PublicAccessError) {
@@ -105,7 +148,7 @@ export async function POST(req: NextRequest) {
     const { code, message } = handleR2Error(error);
     console.error("[api/public/service/upload-evidence] erro", error);
     return NextResponse.json(
-      { ok: false, error: "Falha ao gerar URL de upload", code },
+      { ok: false, error: "Falha ao salvar foto no R2", code },
       { status: 500 }
     );
   }
