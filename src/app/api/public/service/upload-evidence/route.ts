@@ -103,6 +103,7 @@ export async function POST(req: NextRequest) {
       headers: {
         "Content-Type": file.type,
         "Content-Length": buffer.length.toString(),
+        "x-amz-content-sha256": "UNSIGNED-PAYLOAD",
       },
       body: buffer,
     });
