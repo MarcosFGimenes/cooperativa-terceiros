@@ -7,6 +7,7 @@ import { normalizeCnpj } from "@/lib/cnpj";
 import { excelDateNumberToMillis, parseXlsxTable } from "@/lib/xlsxParser";
 import { getAdmin } from "@/lib/firebaseAdmin";
 import { buildServiceImportKey } from "@/lib/repo/services";
+import { ensureServiceAccessToken } from "@/lib/repo/accessTokens";
 import { createPackageFolder, listPackageFolders, setFolderServices } from "@/lib/repo/folders";
 
 export const runtime = "nodejs";
@@ -176,6 +177,20 @@ export async function POST(req: Request, ctx: { params: { packageId: string } })
           const list = createdServiceIdsByFolder.get(folder.id) ?? [];
           list.push(createdRef.id);
           createdServiceIdsByFolder.set(folder.id, list);
+        }
+        try {
+          await ensureServiceAccessToken({
+            serviceId: createdRef.id,
+            company: row.empresa || undefined,
+          });
+        } catch (tokenError) {
+          errors.push({
+            row: row.rowNumber,
+            error:
+              tokenError instanceof Error
+                ? `Serviço criado, mas falhou ao gerar token: ${tokenError.message}`
+                : "Serviço criado, mas falhou ao gerar token.",
+          });
         }
         created += 1;
       } catch (error) {
