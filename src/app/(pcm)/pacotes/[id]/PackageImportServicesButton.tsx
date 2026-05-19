@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { UploadCloud } from "lucide-react";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
+import { managementFetch } from "@/lib/managementFetch";
 
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 
@@ -19,7 +20,7 @@ export default function PackageImportServicesButton({ packageId }: { packageId: 
       const formData = new FormData();
       formData.append("file", file);
 
-      const response = await fetch(`/api/pcm/packages/${encodeURIComponent(packageId)}/import`, {
+      const response = await managementFetch(`/api/pcm/packages/${encodeURIComponent(packageId)}/import`, {
         method: "POST",
         body: formData,
       });
