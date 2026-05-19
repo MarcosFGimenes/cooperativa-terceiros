@@ -789,6 +789,10 @@ export default function ServiceDetailClient({
               <dd className="font-medium">{service.tag || "-"}</dd>
             </div>
             <div>
+              <dt className="text-muted-foreground">O.C</dt>
+              <dd className="font-medium">{service.oc || "-"}</dd>
+            </div>
+            <div>
               <dt className="text-muted-foreground">Equipamento</dt>
               <dd className="font-medium">{service.equipmentName || "-"}</dd>
             </div>
