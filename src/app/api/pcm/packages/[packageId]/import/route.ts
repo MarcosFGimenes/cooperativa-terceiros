@@ -7,7 +7,7 @@ import { normalizeCnpj } from "@/lib/cnpj";
 import { excelDateNumberToMillis, parseXlsxTable } from "@/lib/xlsxParser";
 import { getAdmin } from "@/lib/firebaseAdmin";
 import { buildServiceImportKey } from "@/lib/repo/services";
-import { createPackageFolder, listPackageFolders } from "@/lib/repo/folders";
+import { createPackageFolder, listPackageFolders, setFolderServices } from "@/lib/repo/folders";
 
 export const runtime = "nodejs";
 
@@ -141,21 +141,27 @@ export async function POST(req: Request, ctx: { params: { packageId: string } })
     if (!parsedRows.length) return NextResponse.json({ ok: false, error: "Nenhuma linha válida para importar.", errors }, { status: 400 });
 
     const folderByCompanyKey = new Map((await listPackageFolders(packageId)).map((folder) => [normaliseCompanyName(folder.name).key, folder] as const));
+    const folderServicesSnapshot = new Map<string, string[]>(
+      Array.from(folderByCompanyKey.values()).map((folder) => [folder.id, [...(folder.services ?? [])]),
+      ),
+    );
     let foldersCreated = 0;
     for (const row of parsedRows) {
       const normalized = normaliseCompanyName(row.empresa);
       if (folderByCompanyKey.has(normalized.key)) continue;
       const createdFolder = await createPackageFolder({ packageId, name: normalized.raw, companyId: row.cnpj });
       folderByCompanyKey.set(normalized.key, createdFolder);
+      folderServicesSnapshot.set(createdFolder.id, [...(createdFolder.services ?? [])]);
       foldersCreated += 1;
     }
 
     const db = getAdmin().db;
     let created = 0;
+    const createdServiceIdsByFolder = new Map<string, string[]>();
     for (const row of parsedRows) {
       const folder = folderByCompanyKey.get(normaliseCompanyName(row.empresa).key);
       try {
-        await db.collection("services").add({
+        const createdRef = await db.collection("services").add({
           os: row.os, oc: row.oc, cnpj: row.cnpj, tag: row.tag,
           equipamento: row.equipamento, equipmentName: row.equipamento, setor: row.setor,
           empresa: row.empresa, empresaId: row.empresa, company: row.empresa, companyId: row.empresa,
@@ -164,9 +170,29 @@ export async function POST(req: Request, ctx: { params: { packageId: string } })
           importKey: row.importKey, packageId, pacoteId: packageId, folderId: folder?.id ?? null, subpackageId: folder?.id ?? null,
           status: "Aberto", createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp(), createdBy: "pcm",
         });
+        if (folder?.id) {
+          const list = createdServiceIdsByFolder.get(folder.id) ?? [];
+          list.push(createdRef.id);
+          createdServiceIdsByFolder.set(folder.id, list);
+        }
         created += 1;
       } catch (error) {
         errors.push({ row: row.rowNumber, error: error instanceof Error ? error.message : "Falha ao criar serviço." });
+      }
+    }
+
+    for (const [folderId, createdIds] of createdServiceIdsByFolder.entries()) {
+      const merged = Array.from(new Set([...(folderServicesSnapshot.get(folderId) ?? []), ...createdIds]));
+      try {
+        const updatedFolder = await setFolderServices(folderId, merged);
+        folderServicesSnapshot.set(folderId, [...updatedFolder.services]);
+        const key = normaliseCompanyName(updatedFolder.name).key;
+        folderByCompanyKey.set(key, updatedFolder);
+      } catch (error) {
+        errors.push({
+          row: 0,
+          error: `Falha ao vincular serviços ao subpacote ${folderId}: ${error instanceof Error ? error.message : "erro desconhecido"}`,
+        });
       }
     }
 
