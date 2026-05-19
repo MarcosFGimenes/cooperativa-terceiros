@@ -142,8 +142,10 @@ export async function POST(req: Request, ctx: { params: { packageId: string } })
 
     const folderByCompanyKey = new Map((await listPackageFolders(packageId)).map((folder) => [normaliseCompanyName(folder.name).key, folder] as const));
     const folderServicesSnapshot = new Map<string, string[]>(
-      Array.from(folderByCompanyKey.values()).map((folder) => [folder.id, [...(folder.services ?? [])]),
-      ),
+      Array.from(folderByCompanyKey.values()).map((folder) => [
+        folder.id,
+        [...(folder.services ?? [])],
+      ]),
     );
     let foldersCreated = 0;
     for (const row of parsedRows) {
