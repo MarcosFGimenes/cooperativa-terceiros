@@ -29,7 +29,8 @@ export default function PackageImportServicesButton({ packageId }: { packageId: 
         | null;
 
       if (!response.ok || !payload?.ok) {
-        throw new Error(payload?.error || "Não foi possível importar a planilha para o pacote.");
+        const fallbackMessage = payload?.error || `Não foi possível importar a planilha para o pacote (HTTP ${response.status}).`;
+        throw new Error(fallbackMessage);
       }
 
       toast.success(`Importação concluída: ${payload.created ?? 0} serviço(s) criado(s), ${payload.foldersCreated ?? 0} subpacote(s) criado(s).`);

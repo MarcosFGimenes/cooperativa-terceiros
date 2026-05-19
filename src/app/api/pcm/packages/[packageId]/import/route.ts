@@ -42,65 +42,38 @@ const HEADER_ALIASES: Record<string, string[]> = {
 };
 
 function normaliseHeaderKey(value: string): string {
-  return value
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-zA-Z0-9]+/g, " ")
-    .trim()
-    .toUpperCase();
+  return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9]+/g, " ").trim().toUpperCase();
 }
 
 function pickField(row: Record<string, unknown>, aliases: string[]): unknown {
-  const keys = Object.keys(row);
-  const normalisedMap = new Map<string, string>(keys.map((key) => [normaliseHeaderKey(key), key]));
-
+  const normalisedMap = new Map<string, string>(Object.keys(row).map((key) => [normaliseHeaderKey(key), key]));
   for (const alias of aliases) {
     const match = normalisedMap.get(normaliseHeaderKey(alias));
     if (match) return row[match];
   }
-
   return undefined;
 }
 
-function toText(value: unknown): string {
-  if (value === null || value === undefined) return "";
-  return String(value);
-}
+const toText = (value: unknown) => (value === null || value === undefined ? "" : String(value));
 
 function normaliseCompanyName(value: string): { raw: string; key: string } {
   const raw = value.trim().replace(/\s+/g, " ");
-  const key = raw.toLocaleLowerCase("pt-BR");
-  return { raw, key };
+  return { raw, key: raw.toLocaleLowerCase("pt-BR") };
 }
 
 function parseDateValue(value: unknown): number | null {
   if (value === null || value === undefined) return null;
-
-  if (typeof value === "number" && Number.isFinite(value)) {
-    return excelDateNumberToMillis(value);
-  }
+  if (typeof value === "number" && Number.isFinite(value)) return excelDateNumberToMillis(value);
 
   const text = toText(value).trim();
   if (!text) return null;
-
   const dmy = text.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
   if (dmy) {
-    const day = Number(dmy[1]);
-    const month = Number(dmy[2]);
-    const yearRaw = Number(dmy[3]);
-    const year = yearRaw < 100 ? 2000 + yearRaw : yearRaw;
-    const asUtc = Date.UTC(year, month - 1, day);
-    return Number.isFinite(asUtc) ? asUtc : null;
+    const year = Number(dmy[3]) < 100 ? 2000 + Number(dmy[3]) : Number(dmy[3]);
+    return Date.UTC(year, Number(dmy[2]) - 1, Number(dmy[1]));
   }
-
   const ymd = text.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
-  if (ymd) {
-    const year = Number(ymd[1]);
-    const month = Number(ymd[2]);
-    const day = Number(ymd[3]);
-    const asUtc = Date.UTC(year, month - 1, day);
-    return Number.isFinite(asUtc) ? asUtc : null;
-  }
+  if (ymd) return Date.UTC(Number(ymd[1]), Number(ymd[2]) - 1, Number(ymd[3]));
 
   const parsed = Date.parse(text);
   return Number.isFinite(parsed) ? parsed : null;
@@ -108,190 +81,98 @@ function parseDateValue(value: unknown): number | null {
 
 function parseHours(value: unknown): number | null {
   if (typeof value === "number" && Number.isFinite(value)) {
-    if (value > 0 && value < 1000 && !Number.isInteger(value)) {
-      return value * 24;
-    }
+    if (value > 0 && value < 1000 && !Number.isInteger(value)) return value * 24;
     return value;
   }
-
   const text = toText(value).trim();
   if (!text) return null;
-
   const timeMatch = text.match(/^(\d{1,3})(?::(\d{1,2}))(?::(\d{1,2}))?$/);
-  if (timeMatch) {
-    const hours = Number(timeMatch[1] ?? 0);
-    const minutes = Number(timeMatch[2] ?? 0);
-    const seconds = Number(timeMatch[3] ?? 0);
-    if ([hours, minutes, seconds].every((part) => Number.isFinite(part))) {
-      return hours + minutes / 60 + seconds / 3600;
-    }
-  }
+  if (timeMatch) return Number(timeMatch[1]) + Number(timeMatch[2] ?? 0) / 60 + Number(timeMatch[3] ?? 0) / 3600;
 
-  const decimal = Number(text.replace(/\./g, "").replace(",", "."));
-  if (Number.isFinite(decimal)) return decimal;
-
-  return null;
+  const decimal = Number(text.replace(",", "."));
+  return Number.isFinite(decimal) ? decimal : null;
 }
 
 export async function POST(req: Request, ctx: { params: { packageId: string } }) {
-  await requirePcmUser(req);
+  try {
+    await requirePcmUser(req);
 
-  const packageId = decodeRouteParam(ctx.params.packageId || "").trim();
-  if (!packageId) {
-    return NextResponse.json({ ok: false, error: "packageId inválido" }, { status: 400 });
-  }
+    const packageId = decodeRouteParam(ctx.params.packageId || "").trim();
+    if (!packageId) return NextResponse.json({ ok: false, error: "packageId inválido" }, { status: 400 });
 
-  const formData = await req.formData();
-  const file = formData.get("file");
-  if (!(file instanceof File)) {
-    return NextResponse.json({ ok: false, error: "Envie o arquivo." }, { status: 400 });
-  }
+    const formData = await req.formData();
+    const file = formData.get("file");
+    if (!(file instanceof File)) return NextResponse.json({ ok: false, error: "Envie o arquivo." }, { status: 400 });
 
-  const rows = parseXlsxTable(await file.arrayBuffer(), 8);
+    const rows = parseXlsxTable(await file.arrayBuffer(), 8); // header line 8, data from line 9
+    const parsedRows: ParsedRow[] = [];
+    const errors: Array<{ row: number; error: string }> = [];
 
-  const parsedRows: ParsedRow[] = [];
-  const errors: Array<{ row: number; error: string }> = [];
+    for (let index = 0; index < rows.length; index += 1) {
+      const row = rows[index];
+      const rowNumber = index + 9;
+      const os = toText(pickField(row, HEADER_ALIASES.os)).trim();
+      const oc = toText(pickField(row, HEADER_ALIASES.oc)).trim() || null;
+      const cnpj = normalizeCnpj(toText(pickField(row, HEADER_ALIASES.cnpj)).trim()) || null;
+      const tag = toText(pickField(row, HEADER_ALIASES.tag)).trim();
+      const equipamento = toText(pickField(row, HEADER_ALIASES.equipamento)).trim();
+      const setor = toText(pickField(row, HEADER_ALIASES.setor)).trim() || null;
+      const empresaOriginal = toText(pickField(row, HEADER_ALIASES.empresa)).trim();
+      const descricao = toText(pickField(row, HEADER_ALIASES.descricao)).trim();
+      const dataInicioPrevista = parseDateValue(pickField(row, HEADER_ALIASES.dataInicio));
+      const dataFimPrevista = parseDateValue(pickField(row, HEADER_ALIASES.dataFim));
+      const horasPrevistas = parseHours(pickField(row, HEADER_ALIASES.horas));
 
-  for (let index = 0; index < rows.length; index += 1) {
-    const row = rows[index];
-    const rowNumber = index + 9;
+      if (!os && !oc && !tag && !equipamento && !setor && !empresaOriginal && !descricao) continue;
+      if (!empresaOriginal || !descricao) { errors.push({ row: rowNumber, error: "EMPRESA e DESCRIÇÃO SERVIÇOS são obrigatórios." }); continue; }
+      if (!os || !tag || !equipamento) { errors.push({ row: rowNumber, error: "O.S, TAG MAQUINA e EQUIP. NOVO são obrigatórios." }); continue; }
+      if (!dataInicioPrevista || !dataFimPrevista) { errors.push({ row: rowNumber, error: "DATA DE INICIO e DATA FINAL inválidas." }); continue; }
+      if (dataFimPrevista < dataInicioPrevista) { errors.push({ row: rowNumber, error: "DATA FINAL menor que DATA DE INICIO." }); continue; }
+      if (horasPrevistas === null || horasPrevistas <= 0) { errors.push({ row: rowNumber, error: "TOTAL DE HORA HOMEM inválido." }); continue; }
 
-    const os = toText(pickField(row, HEADER_ALIASES.os)).trim();
-    const oc = toText(pickField(row, HEADER_ALIASES.oc)).trim() || null;
-    const cnpj = normalizeCnpj(toText(pickField(row, HEADER_ALIASES.cnpj)).trim()) || null;
-    const tag = toText(pickField(row, HEADER_ALIASES.tag)).trim();
-    const equipamento = toText(pickField(row, HEADER_ALIASES.equipamento)).trim();
-    const setor = toText(pickField(row, HEADER_ALIASES.setor)).trim() || null;
-    const empresaOriginal = toText(pickField(row, HEADER_ALIASES.empresa)).trim();
-    const descricao = toText(pickField(row, HEADER_ALIASES.descricao)).trim();
-    const dataInicioPrevista = parseDateValue(pickField(row, HEADER_ALIASES.dataInicio));
-    const dataFimPrevista = parseDateValue(pickField(row, HEADER_ALIASES.dataFim));
-    const horasPrevistas = parseHours(pickField(row, HEADER_ALIASES.horas));
-
-    const isEmptyRow = !os && !oc && !tag && !equipamento && !setor && !empresaOriginal && !descricao;
-    if (isEmptyRow) continue;
-
-    if (!empresaOriginal || !descricao) {
-      errors.push({ row: rowNumber, error: "EMPRESA e DESCRIÇÃO SERVIÇOS são obrigatórios." });
-      continue;
-    }
-    if (!os || !tag || !equipamento) {
-      errors.push({ row: rowNumber, error: "O.S, TAG MAQUINA e EQUIP. NOVO são obrigatórios." });
-      continue;
-    }
-    if (!dataInicioPrevista || !dataFimPrevista) {
-      errors.push({ row: rowNumber, error: "DATA DE INICIO e DATA FINAL inválidas." });
-      continue;
-    }
-    if (dataFimPrevista < dataInicioPrevista) {
-      errors.push({ row: rowNumber, error: "DATA FINAL menor que DATA DE INICIO." });
-      continue;
-    }
-    if (horasPrevistas === null || horasPrevistas <= 0) {
-      errors.push({ row: rowNumber, error: "TOTAL DE HORA HOMEM inválido." });
-      continue;
-    }
-
-    const { raw: empresa } = normaliseCompanyName(empresaOriginal);
-    const importKey = await buildServiceImportKey({
-      os,
-      tag,
-      setor,
-      equipmentName: equipamento,
-      plannedStart: dataInicioPrevista,
-      plannedEnd: dataFimPrevista,
-      empresa,
-      cnpj,
-    });
-
-    parsedRows.push({
-      rowNumber,
-      os,
-      oc,
-      cnpj,
-      tag,
-      equipamento,
-      setor,
-      empresa,
-      descricao,
-      dataInicioPrevista,
-      dataFimPrevista,
-      horasPrevistas,
-      importKey,
-    });
-  }
-
-  if (!parsedRows.length) {
-    return NextResponse.json({ ok: false, error: "Nenhuma linha válida para importar.", errors }, { status: 400 });
-  }
-
-  const folders = await listPackageFolders(packageId);
-  const folderByCompanyKey = new Map(
-    folders.map((folder) => {
-      const normalized = normaliseCompanyName(folder.name);
-      return [normalized.key, folder] as const;
-    }),
-  );
-
-  let foldersCreated = 0;
-  for (const row of parsedRows) {
-    const normalized = normaliseCompanyName(row.empresa);
-    if (folderByCompanyKey.has(normalized.key)) continue;
-
-    const createdFolder = await createPackageFolder({
-      packageId,
-      name: normalized.raw,
-      companyId: row.cnpj,
-    });
-    folderByCompanyKey.set(normalized.key, createdFolder);
-    foldersCreated += 1;
-  }
-
-  const db = getAdmin().db;
-  let created = 0;
-
-  for (const row of parsedRows) {
-    const folder = folderByCompanyKey.get(normaliseCompanyName(row.empresa).key);
-
-    try {
-      await db.collection("services").add({
-        os: row.os,
-        oc: row.oc,
-        cnpj: row.cnpj,
-        tag: row.tag,
-        equipamento: row.equipamento,
-        equipmentName: row.equipamento,
-        setor: row.setor,
-        empresa: row.empresa,
-        empresaId: row.empresa,
-        company: row.empresa,
-        companyId: row.empresa,
-        inicioPrevisto: Timestamp.fromMillis(row.dataInicioPrevista),
-        fimPrevisto: Timestamp.fromMillis(row.dataFimPrevista),
-        horasPrevistas: row.horasPrevistas,
-        description: row.descricao,
-        descricao: row.descricao,
-        importKey: row.importKey,
-        packageId,
-        pacoteId: packageId,
-        folderId: folder?.id ?? null,
-        subpackageId: folder?.id ?? null,
-        status: "Aberto",
-        createdAt: FieldValue.serverTimestamp(),
-        updatedAt: FieldValue.serverTimestamp(),
-        createdBy: "pcm",
+      const { raw: empresa } = normaliseCompanyName(empresaOriginal);
+      parsedRows.push({
+        rowNumber, os, oc, cnpj, tag, equipamento, setor, empresa, descricao,
+        dataInicioPrevista, dataFimPrevista, horasPrevistas,
+        importKey: await buildServiceImportKey({ os, tag, setor, equipmentName: equipamento, plannedStart: dataInicioPrevista, plannedEnd: dataFimPrevista, empresa, cnpj }),
       });
-      created += 1;
-    } catch (error) {
-      errors.push({ row: row.rowNumber, error: error instanceof Error ? error.message : "Falha ao criar serviço." });
     }
-  }
 
-  return NextResponse.json({
-    ok: true,
-    created,
-    skipped: errors.length,
-    foldersCreated,
-    errors,
-  });
+    if (!parsedRows.length) return NextResponse.json({ ok: false, error: "Nenhuma linha válida para importar.", errors }, { status: 400 });
+
+    const folderByCompanyKey = new Map((await listPackageFolders(packageId)).map((folder) => [normaliseCompanyName(folder.name).key, folder] as const));
+    let foldersCreated = 0;
+    for (const row of parsedRows) {
+      const normalized = normaliseCompanyName(row.empresa);
+      if (folderByCompanyKey.has(normalized.key)) continue;
+      const createdFolder = await createPackageFolder({ packageId, name: normalized.raw, companyId: row.cnpj });
+      folderByCompanyKey.set(normalized.key, createdFolder);
+      foldersCreated += 1;
+    }
+
+    const db = getAdmin().db;
+    let created = 0;
+    for (const row of parsedRows) {
+      const folder = folderByCompanyKey.get(normaliseCompanyName(row.empresa).key);
+      try {
+        await db.collection("services").add({
+          os: row.os, oc: row.oc, cnpj: row.cnpj, tag: row.tag,
+          equipamento: row.equipamento, equipmentName: row.equipamento, setor: row.setor,
+          empresa: row.empresa, empresaId: row.empresa, company: row.empresa, companyId: row.empresa,
+          inicioPrevisto: Timestamp.fromMillis(row.dataInicioPrevista), fimPrevisto: Timestamp.fromMillis(row.dataFimPrevista),
+          horasPrevistas: row.horasPrevistas, description: row.descricao, descricao: row.descricao,
+          importKey: row.importKey, packageId, pacoteId: packageId, folderId: folder?.id ?? null, subpackageId: folder?.id ?? null,
+          status: "Aberto", createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp(), createdBy: "pcm",
+        });
+        created += 1;
+      } catch (error) {
+        errors.push({ row: row.rowNumber, error: error instanceof Error ? error.message : "Falha ao criar serviço." });
+      }
+    }
+
+    return NextResponse.json({ ok: true, created, skipped: errors.length, foldersCreated, errors });
+  } catch (error) {
+    console.error("[api/pcm/packages/import] Falha inesperada ao importar planilha", error);
+    return NextResponse.json({ ok: false, error: error instanceof Error ? error.message : "Não foi possível importar a planilha para o pacote." }, { status: 500 });
+  }
 }
