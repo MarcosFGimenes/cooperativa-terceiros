@@ -669,24 +669,29 @@ export function buildRealizedSeries(params: {
   const points: Array<{ date: string; percent: number; timestamp: number }> = [];
 
   params.updates.forEach((update) => {
-    // Priorizar o campo 'date' (reportDate) que é a data informada pelo terceiro no formulário
-    // Se não houver, usar resolveUpdateTimestamp como fallback
-    const timestamp = update.date ?? resolveUpdateTimestamp(update);
-    if (!timestamp) return;
-    
-    const day = toDayIso(timestamp);
+    // Regra do gráfico: usar SOMENTE o campo `date` (reportDate) informado pelo terceiro.
+    // Não usar submittedAt/createdAt para posicionar o ponto no dia da curva.
+    const reportDate = update.date;
+    if (!reportDate) return;
+
+    const day = toDayIso(reportDate);
     if (!day) return;
     
     // Incluir updates que tenham percentual válido (mesmo que seja 0)
     // ou que tenham realPercentSnapshot
-    const percentValue = update.percent ?? update.realPercentSnapshot ?? null;
+    const percentValue =
+      update.manualPercent ??
+      update.percent ??
+      update.realPercentSnapshot ??
+      null;
     if (percentValue === null || percentValue === undefined) return;
     
     const percent = normaliseProgress(percentValue);
     if (!Number.isFinite(percent)) return;
     
-    // Incluir todos os updates, mesmo que sejam no mesmo dia
-    // Usar timestamp para ordenação precisa
+    // Em caso de múltiplos lançamentos no mesmo dia de `date`,
+    // usar submittedAt/createdAt apenas para desempatar qual é o último do dia.
+    const timestamp = resolveUpdateTimestamp(update) ?? reportDate;
     points.push({ date: day, percent, timestamp });
   });
 
