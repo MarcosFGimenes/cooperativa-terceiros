@@ -265,9 +265,13 @@ function ensureCompanyMatch(token: AccessTokenData, data: FirebaseFirestore.Docu
   const tokenCompany = getTokenCompany(token)?.toLowerCase();
   if (!tokenCompany) return;
 
-  const serviceCompany = normalizeCompany(data)?.toLowerCase();
+  const serviceCompanies = new Set<string>();
+  const normalizedCompany = normalizeCompany(data)?.toLowerCase();
+  if (normalizedCompany) serviceCompanies.add(normalizedCompany);
+  const cnpj = typeof data.cnpj === "string" ? data.cnpj.trim().toLowerCase() : "";
+  if (cnpj) serviceCompanies.add(cnpj);
 
-  if (serviceCompany && serviceCompany !== tokenCompany) {
+  if (serviceCompanies.size > 0 && !serviceCompanies.has(tokenCompany)) {
     throw new PublicAccessError(403, "Token não possui acesso a este serviço");
   }
 }

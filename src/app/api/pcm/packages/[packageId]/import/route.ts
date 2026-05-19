@@ -6,7 +6,7 @@ import { decodeRouteParam } from "@/lib/decodeRouteParam";
 import { normalizeCnpj } from "@/lib/cnpj";
 import { excelDateNumberToMillis, parseXlsxTable } from "@/lib/xlsxParser";
 import { getAdmin } from "@/lib/firebaseAdmin";
-import { buildServiceImportKey } from "@/lib/repo/services";
+import { buildServiceImportKey, findServicesByImportKeys } from "@/lib/repo/services";
 import { ensureServiceAccessToken } from "@/lib/repo/accessTokens";
 import { createPackageFolder, listPackageFolders, setFolderServices } from "@/lib/repo/folders";
 
@@ -140,6 +140,10 @@ export async function POST(req: Request, ctx: { params: { packageId: string } })
     }
 
     if (!parsedRows.length) return NextResponse.json({ ok: false, error: "Nenhuma linha válida para importar.", errors }, { status: 400 });
+    const existingServices = await findServicesByImportKeys(parsedRows.map((row) => row.importKey));
+    const existingImportKeys = new Set(
+      existingServices.map((service) => (typeof service.importKey === "string" ? service.importKey.trim() : "")).filter(Boolean),
+    );
 
     const folderByCompanyKey = new Map((await listPackageFolders(packageId)).map((folder) => [normaliseCompanyName(folder.name).key, folder] as const));
     const folderServicesSnapshot = new Map<string, string[]>(
@@ -162,6 +166,13 @@ export async function POST(req: Request, ctx: { params: { packageId: string } })
     let created = 0;
     const createdServiceIdsByFolder = new Map<string, string[]>();
     for (const row of parsedRows) {
+      if (existingImportKeys.has(row.importKey)) {
+        errors.push({
+          row: row.rowNumber,
+          error: "Serviço já existe no sistema e não pode ser vinculado a outro pacote.",
+        });
+        continue;
+      }
       const folder = folderByCompanyKey.get(normaliseCompanyName(row.empresa).key);
       try {
         const createdRef = await db.collection("services").add({
