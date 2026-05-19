@@ -262,16 +262,24 @@ function isServiceOpen(data: FirebaseFirestore.DocumentData): boolean {
 }
 
 function ensureCompanyMatch(token: AccessTokenData, data: FirebaseFirestore.DocumentData) {
-  const tokenCompany = getTokenCompany(token)?.toLowerCase();
+  const tokenCompanyRaw = getTokenCompany(token)?.trim();
+  const tokenCompany = tokenCompanyRaw?.toLowerCase();
   if (!tokenCompany) return;
+  const tokenCompanyDigits = tokenCompany.replace(/\D+/g, "");
 
   const serviceCompanies = new Set<string>();
   const normalizedCompany = normalizeCompany(data)?.toLowerCase();
   if (normalizedCompany) serviceCompanies.add(normalizedCompany);
   const cnpj = typeof data.cnpj === "string" ? data.cnpj.trim().toLowerCase() : "";
   if (cnpj) serviceCompanies.add(cnpj);
+  const serviceCompanyDigits = Array.from(serviceCompanies)
+    .map((value) => value.replace(/\D+/g, ""))
+    .filter((value) => value.length > 0);
 
-  if (serviceCompanies.size > 0 && !serviceCompanies.has(tokenCompany)) {
+  const directMatch = serviceCompanies.has(tokenCompany);
+  const digitMatch = tokenCompanyDigits.length > 0 && serviceCompanyDigits.includes(tokenCompanyDigits);
+
+  if (serviceCompanies.size > 0 && !directMatch && !digitMatch) {
     throw new PublicAccessError(403, "Token não possui acesso a este serviço");
   }
 }

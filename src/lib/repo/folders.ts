@@ -271,6 +271,22 @@ export async function setFolderServices(folderId: string, serviceIds: string[]):
     throw new Error("Pasta não encontrada.");
   }
   const originalFolder = mapFolderDoc(folderSnap);
+  const targetPackageId = originalFolder.packageId?.trim() || null;
+
+  if (targetPackageId && unique.length > 0) {
+    const serviceSnaps = await Promise.all(unique.map((serviceId) => servicesCollection().doc(serviceId).get()));
+    for (const snap of serviceSnaps) {
+      if (!snap.exists) continue;
+      const data = (snap.data() ?? {}) as Record<string, unknown>;
+      const servicePackageId =
+        (typeof data.packageId === "string" && data.packageId.trim()) ||
+        (typeof data.pacoteId === "string" && data.pacoteId.trim()) ||
+        null;
+      if (servicePackageId && servicePackageId !== targetPackageId) {
+        throw new Error("Não é permitido vincular um serviço que já pertence a outro pacote.");
+      }
+    }
+  }
 
   await folderRef.update({
     services: unique,

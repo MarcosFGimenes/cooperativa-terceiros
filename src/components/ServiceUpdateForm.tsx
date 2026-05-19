@@ -462,6 +462,15 @@ export default function ServiceUpdateForm({
             {uploadedEvidences.map((item, index) => (
               <li key={`${item.url}-${index}`} className="rounded-md border p-2">
                 <img src={item.url} alt={item.label || `Evidência ${index + 1}`} className="h-24 w-full rounded object-cover" />
+                <button
+                  type="button"
+                  className="mt-2 w-full rounded-md border px-2 py-1 text-xs text-destructive hover:bg-destructive/10"
+                  onClick={() =>
+                    setUploadedEvidences((prev) => prev.filter((_, evidenceIndex) => evidenceIndex !== index))
+                  }
+                >
+                  Remover imagem
+                </button>
               </li>
             ))}
           </ul>
