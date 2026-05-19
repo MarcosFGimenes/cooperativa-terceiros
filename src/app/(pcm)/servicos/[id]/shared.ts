@@ -679,7 +679,11 @@ export function buildRealizedSeries(params: {
     
     // Incluir updates que tenham percentual válido (mesmo que seja 0)
     // ou que tenham realPercentSnapshot
-    const percentValue = update.percent ?? update.realPercentSnapshot ?? null;
+    const percentValue =
+      update.manualPercent ??
+      update.percent ??
+      update.realPercentSnapshot ??
+      null;
     if (percentValue === null || percentValue === undefined) return;
     
     const percent = normaliseProgress(percentValue);

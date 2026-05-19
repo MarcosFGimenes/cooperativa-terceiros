@@ -9,6 +9,7 @@ import { getAdmin } from "@/lib/firebaseAdmin";
 import { buildServiceImportKey, findServicesByImportKeys } from "@/lib/repo/services";
 import { ensureServiceAccessToken } from "@/lib/repo/accessTokens";
 import { createPackageFolder, listPackageFolders, setFolderServices } from "@/lib/repo/folders";
+import { randomUUID } from "crypto";
 
 export const runtime = "nodejs";
 
@@ -183,12 +184,21 @@ export async function POST(req: Request, ctx: { params: { packageId: string } })
           horasPrevistas: row.horasPrevistas, description: row.descricao, descricao: row.descricao,
           importKey: row.importKey, packageId, pacoteId: packageId, folderId: folder?.id ?? null, subpackageId: folder?.id ?? null,
           status: "Aberto", createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp(), createdBy: "pcm",
+          checklist: [{ id: randomUUID(), descricao: "GERAL", peso: 100 }],
+          hasChecklist: true,
         });
         if (folder?.id) {
           const list = createdServiceIdsByFolder.get(folder.id) ?? [];
           list.push(createdRef.id);
           createdServiceIdsByFolder.set(folder.id, list);
         }
+        await createdRef.collection("checklist").doc("GERAL").set({
+          description: "GERAL",
+          weight: 100,
+          progress: 0,
+          status: "nao_iniciado",
+          updatedAt: FieldValue.serverTimestamp(),
+        });
         try {
           await ensureServiceAccessToken({
             serviceId: createdRef.id,
