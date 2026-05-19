@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { UploadCloud } from "lucide-react";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
+import { managementFetch } from "@/lib/managementFetch";
 
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 
@@ -19,20 +20,25 @@ export default function PackageImportServicesButton({ packageId }: { packageId: 
       const formData = new FormData();
       formData.append("file", file);
 
-      const response = await fetch(`/api/pcm/packages/${encodeURIComponent(packageId)}/import`, {
+      const response = await managementFetch(`/api/pcm/packages/${encodeURIComponent(packageId)}/import`, {
         method: "POST",
         body: formData,
       });
 
       const payload = await response.json().catch(() => null) as
-        | { ok: boolean; created?: number; updated?: number; skipped?: number; foldersCreated?: number; error?: string }
+        | { ok: boolean; created?: number; skipped?: number; foldersCreated?: number; errors?: Array<{ row: number; error: string }>; error?: string }
         | null;
 
       if (!response.ok || !payload?.ok) {
-        throw new Error(payload?.error || "Não foi possível importar a planilha para o pacote.");
+        const fallbackMessage = payload?.error || `Não foi possível importar a planilha para o pacote (HTTP ${response.status}).`;
+        throw new Error(fallbackMessage);
       }
 
-      toast.success(`Importação concluída: ${payload.created ?? 0} criado(s), ${payload.updated ?? 0} atualizado(s), ${payload.foldersCreated ?? 0} subpacote(s) criado(s).`);
+      toast.success(`Importação concluída: ${payload.created ?? 0} serviço(s) criado(s), ${payload.foldersCreated ?? 0} subpacote(s) criado(s).`);
+      if ((payload.errors?.length ?? 0) > 0) {
+        const firstError = payload.errors?.[0];
+        toast.warning(`Algumas linhas falharam (${payload.errors?.length}): linha ${firstError?.row} - ${firstError?.error}`);
+      }
       setOpen(false);
       router.refresh();
     } catch (error) {
@@ -48,14 +54,14 @@ export default function PackageImportServicesButton({ packageId }: { packageId: 
       <DialogTrigger asChild>
         <button type="button" className="btn btn-secondary gap-2">
           <UploadCloud className="h-4 w-4" />
-          Importar serviços para este pacote
+          Importar Planilha
         </button>
       </DialogTrigger>
       <DialogContent className="max-w-xl">
         <DialogHeader>
-          <DialogTitle>Importar serviços no pacote</DialogTitle>
+          <DialogTitle>Importar planilha no pacote</DialogTitle>
           <DialogDescription>
-            A importação agrupa por EMPRESA, cria subpacotes automaticamente e vincula cada serviço ao pacote/subpacote correto.
+            Importa a planilha Excel, cria/reutiliza subpacotes por EMPRESA e vincula cada serviço ao subpacote correto.
           </DialogDescription>
         </DialogHeader>
         <input ref={fileInputRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={(e) => {
