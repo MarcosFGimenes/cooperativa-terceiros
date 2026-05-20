@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useFieldArray, useForm } from "react-hook-form";
-import { Check } from "lucide-react";
+import { Check, ImagePlus, X } from "lucide-react";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 
@@ -272,6 +272,7 @@ export default function ServiceUpdateForm({
   );
   const [uploadedEvidences, setUploadedEvidences] = useState<Array<{ url: string; label?: string }>>([]);
   const [uploadingEvidence, setUploadingEvidence] = useState(false);
+  const evidenceInputRef = useRef<HTMLInputElement | null>(null);
   const router = useRouter();
   const handleBack = useCallback(() => {
     if (typeof window !== "undefined" && window.history.length > 1) {
@@ -432,9 +433,43 @@ export default function ServiceUpdateForm({
     if (!onUploadEvidence) return;
     const file = event.target.files?.[0];
     if (!file) return;
+
+    async function optimizeImageForUpload(originalFile: File): Promise<File> {
+      const shouldOptimize = originalFile.type.startsWith("image/") && (originalFile.size > 1_500_000);
+      if (!shouldOptimize) return originalFile;
+      try {
+        const bitmap = await createImageBitmap(originalFile);
+        const maxDimension = 1600;
+        const scale = Math.min(1, maxDimension / Math.max(bitmap.width, bitmap.height));
+        const targetWidth = Math.max(1, Math.round(bitmap.width * scale));
+        const targetHeight = Math.max(1, Math.round(bitmap.height * scale));
+
+        const canvas = document.createElement("canvas");
+        canvas.width = targetWidth;
+        canvas.height = targetHeight;
+        const context = canvas.getContext("2d");
+        if (!context) return originalFile;
+        context.drawImage(bitmap, 0, 0, targetWidth, targetHeight);
+        bitmap.close();
+
+        const blob = await new Promise<Blob | null>((resolve) => {
+          canvas.toBlob(resolve, "image/jpeg", 0.82);
+        });
+        if (!blob) return originalFile;
+
+        return new File([blob], originalFile.name.replace(/\.[^.]+$/, ".jpg"), {
+          type: "image/jpeg",
+          lastModified: Date.now(),
+        });
+      } catch {
+        return originalFile;
+      }
+    }
+
     try {
       setUploadingEvidence(true);
-      const uploaded = await onUploadEvidence(file);
+      const optimizedFile = await optimizeImageForUpload(file);
+      const uploaded = await onUploadEvidence(optimizedFile);
       setUploadedEvidences((prev) => [...prev, uploaded].slice(0, 5));
     } finally {
       setUploadingEvidence(false);
@@ -444,32 +479,53 @@ export default function ServiceUpdateForm({
 
   return (
     <form onSubmit={handleSubmit(submit)} className="space-y-6">
-      <div>
+      <div className="rounded-xl border bg-card/80 p-4 shadow-sm">
         <label htmlFor={`${serviceId}-evidence`} className="text-sm font-medium text-foreground">
           Fotos da atualização (até 5)
         </label>
         <input
+          ref={evidenceInputRef}
           id={`${serviceId}-evidence`}
           type="file"
           accept="image/*"
-          className="input mt-1 w-full"
+          className="sr-only"
           disabled={!onUploadEvidence || uploadingEvidence || uploadedEvidences.length >= 5}
           onChange={handleEvidenceFileChange}
         />
+        <button
+          type="button"
+          className={cn(
+            "mt-2 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-border bg-background px-3 py-2 text-sm font-medium transition-colors",
+            "hover:bg-accent hover:text-accent-foreground active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50",
+          )}
+          disabled={!onUploadEvidence || uploadingEvidence || uploadedEvidences.length >= 5}
+          onClick={() => evidenceInputRef.current?.click()}
+        >
+          <ImagePlus className="h-4 w-4" />
+          {uploadingEvidence ? "Enviando foto..." : "Adicionar foto"}
+        </button>
+        <p className="mt-2 text-xs text-muted-foreground">
+          Escolha da câmera ou da galeria. Imagens grandes são reduzidas automaticamente para upload mais rápido.
+        </p>
         {uploadingEvidence ? <p className="mt-1 text-xs text-muted-foreground">Enviando foto...</p> : null}
         {uploadedEvidences.length > 0 ? (
-          <ul className="mt-2 grid grid-cols-2 gap-2 md:grid-cols-3">
+          <ul className="mt-3 flex flex-wrap gap-2">
             {uploadedEvidences.map((item, index) => (
-              <li key={`${item.url}-${index}`} className="rounded-md border p-2">
-                <img src={item.url} alt={item.label || `Evidência ${index + 1}`} className="h-24 w-full rounded object-cover" />
+              <li key={`${item.url}-${index}`} className="relative">
+                <img
+                  src={item.url}
+                  alt={item.label || `Evidência ${index + 1}`}
+                  className="h-16 w-16 rounded-md border object-cover sm:h-20 sm:w-20"
+                />
                 <button
                   type="button"
-                  className="mt-2 w-full rounded-md border px-2 py-1 text-xs text-destructive hover:bg-destructive/10"
+                  aria-label={`Remover imagem ${index + 1}`}
+                  className="absolute -right-2 -top-2 inline-flex h-7 w-7 items-center justify-center rounded-full border bg-background text-destructive shadow-sm transition-colors hover:bg-destructive/10 active:scale-95"
                   onClick={() =>
                     setUploadedEvidences((prev) => prev.filter((_, evidenceIndex) => evidenceIndex !== index))
                   }
                 >
-                  Remover imagem
+                  <X className="h-4 w-4" />
                 </button>
               </li>
             ))}
