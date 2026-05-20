@@ -272,6 +272,7 @@ export default function ServiceUpdateForm({
   );
   const [uploadedEvidences, setUploadedEvidences] = useState<Array<{ url: string; label?: string }>>([]);
   const [uploadingEvidence, setUploadingEvidence] = useState(false);
+  const [evidenceUploadError, setEvidenceUploadError] = useState<string | null>(null);
   const evidenceInputRef = useRef<HTMLInputElement | null>(null);
   const router = useRouter();
   const handleBack = useCallback(() => {
@@ -438,22 +439,34 @@ export default function ServiceUpdateForm({
       const shouldOptimize = originalFile.type.startsWith("image/") && (originalFile.size > 1_500_000);
       if (!shouldOptimize) return originalFile;
       try {
-        const bitmap = await createImageBitmap(originalFile);
-        const maxDimension = 1600;
-        const scale = Math.min(1, maxDimension / Math.max(bitmap.width, bitmap.height));
-        const targetWidth = Math.max(1, Math.round(bitmap.width * scale));
-        const targetHeight = Math.max(1, Math.round(bitmap.height * scale));
+        // HEIC/HEIF costuma ter baixa compatibilidade de decode em canvas no mobile.
+        // Nesses casos mantemos o arquivo original para evitar falha silenciosa.
+        if (originalFile.type.includes("heic") || originalFile.type.includes("heif")) {
+          return originalFile;
+        }
+
+        const imageUrl = URL.createObjectURL(originalFile);
+        const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+          const img = new Image();
+          img.onload = () => resolve(img);
+          img.onerror = () => reject(new Error("Falha ao carregar imagem para otimização."));
+          img.src = imageUrl;
+        });
+        const maxDimension = 1280;
+        const scale = Math.min(1, maxDimension / Math.max(image.width, image.height));
+        const targetWidth = Math.max(1, Math.round(image.width * scale));
+        const targetHeight = Math.max(1, Math.round(image.height * scale));
 
         const canvas = document.createElement("canvas");
         canvas.width = targetWidth;
         canvas.height = targetHeight;
         const context = canvas.getContext("2d");
         if (!context) return originalFile;
-        context.drawImage(bitmap, 0, 0, targetWidth, targetHeight);
-        bitmap.close();
+        context.drawImage(image, 0, 0, targetWidth, targetHeight);
+        URL.revokeObjectURL(imageUrl);
 
         const blob = await new Promise<Blob | null>((resolve) => {
-          canvas.toBlob(resolve, "image/jpeg", 0.82);
+          canvas.toBlob(resolve, "image/jpeg", 0.75);
         });
         if (!blob) return originalFile;
 
@@ -467,10 +480,13 @@ export default function ServiceUpdateForm({
     }
 
     try {
+      setEvidenceUploadError(null);
       setUploadingEvidence(true);
       const optimizedFile = await optimizeImageForUpload(file);
       const uploaded = await onUploadEvidence(optimizedFile);
       setUploadedEvidences((prev) => [...prev, uploaded].slice(0, 5));
+    } catch {
+      setEvidenceUploadError("Não foi possível adicionar a foto. Tente outra imagem ou aguarde e tente novamente.");
     } finally {
       setUploadingEvidence(false);
       event.currentTarget.value = "";
@@ -508,6 +524,7 @@ export default function ServiceUpdateForm({
           Escolha da câmera ou da galeria. Imagens grandes são reduzidas automaticamente para upload mais rápido.
         </p>
         {uploadingEvidence ? <p className="mt-1 text-xs text-muted-foreground">Enviando foto...</p> : null}
+        {evidenceUploadError ? <p className="mt-1 text-xs text-destructive">{evidenceUploadError}</p> : null}
         {uploadedEvidences.length > 0 ? (
           <ul className="mt-3 flex flex-wrap gap-2">
             {uploadedEvidences.map((item, index) => (
