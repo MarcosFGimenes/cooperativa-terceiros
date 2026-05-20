@@ -29,6 +29,7 @@ import type { ServiceInfo as FolderServiceInfo, ServiceOption as FolderServiceOp
 import ServicesCompaniesSection from "./ServicesCompaniesSection";
 import PackageFoldersManagerClient from "./PackageFoldersManager.client";
 import PackagePdfExportButton from "./PackagePdfExportButton";
+import PackageImportServicesButton from "./PackageImportServicesButton";
 import PackageSCurveSection from "./_components/package-scurve/PackageSCurveSection";
 
 const { notFound } = Navigation;
@@ -799,6 +800,7 @@ async function renderPackageDetailPage(
               <Link className="btn btn-primary" href={`/pacotes/${encodedPackageId}/editar`}>
                 Editar
               </Link>
+              <PackageImportServicesButton packageId={pkg.id} />
               <PackagePdfExportButton />
               <DeletePackageButton packageId={pkg.id} packageLabel={packageLabel} />
             </div>

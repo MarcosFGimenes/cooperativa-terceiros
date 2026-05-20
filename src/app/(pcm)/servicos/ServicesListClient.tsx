@@ -43,6 +43,11 @@ function resolveIdentifier(service: PCMServiceListItem) {
   return service.os || service.code || service.tag || service.id;
 }
 
+function resolveOc(service: PCMServiceListItem) {
+  const oc = typeof service.oc === "string" ? service.oc.trim() : "";
+  return oc || null;
+}
+
 function resolveSubtitle(service: PCMServiceListItem) {
   return service.equipmentName || service.equipamento || service.setor || service.sector || "";
 }
@@ -180,6 +185,7 @@ export default function ServicesListClient({ initialItems, initialCursor }: Prop
             const statusTone = STATUS_TONE[statusLabel] ?? "border-border bg-muted text-foreground/80";
           const isComplete = realPercent >= 100;
           const identifier = resolveIdentifier(service);
+          const oc = resolveOc(service);
           const subtitle = resolveSubtitle(service);
           const companyLabel = resolveCompanyLabel(service);
           const lastUpdate = service.updatedAt ?? service.createdAt ?? null;
@@ -216,6 +222,7 @@ export default function ServicesListClient({ initialItems, initialCursor }: Prop
                   </div>
                   <div className="space-y-1">
                     <p className="line-clamp-2 text-base font-semibold text-foreground">{identifier}</p>
+                    {oc ? <p className="text-xs text-muted-foreground">O.C: {oc}</p> : null}
                     {subtitle ? <p className="text-sm text-muted-foreground">{subtitle}</p> : null}
                     <p className="text-xs text-muted-foreground">
                       Planejado: <span className="font-semibold text-foreground">{plannedPercent}%</span> | Real:{" "}
