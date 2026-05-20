@@ -6,10 +6,9 @@ import { decodeRouteParam } from "@/lib/decodeRouteParam";
 import { normalizeCnpj } from "@/lib/cnpj";
 import { excelDateNumberToMillis, parseXlsxTable } from "@/lib/xlsxParser";
 import { getAdmin } from "@/lib/firebaseAdmin";
-import { buildServiceImportKey, findServicesByImportKeys } from "@/lib/repo/services";
+import { buildServiceImportKey, createService, findServicesByImportKeys } from "@/lib/repo/services";
 import { ensureServiceAccessToken } from "@/lib/repo/accessTokens";
 import { createPackageFolder, listPackageFolders, setFolderServices } from "@/lib/repo/folders";
-import { randomUUID } from "crypto";
 
 export const runtime = "nodejs";
 
@@ -176,32 +175,46 @@ export async function POST(req: Request, ctx: { params: { packageId: string } })
       }
       const folder = folderByCompanyKey.get(normaliseCompanyName(row.empresa).key);
       try {
-        const createdRef = await db.collection("services").add({
-          os: row.os, oc: row.oc, cnpj: row.cnpj, tag: row.tag,
-          equipamento: row.equipamento, equipmentName: row.equipamento, setor: row.setor,
-          empresa: row.empresa, empresaId: row.empresa, company: row.empresa, companyId: row.empresa,
-          inicioPrevisto: Timestamp.fromMillis(row.dataInicioPrevista), fimPrevisto: Timestamp.fromMillis(row.dataFimPrevista),
-          horasPrevistas: row.horasPrevistas, description: row.descricao, descricao: row.descricao,
-          importKey: row.importKey, packageId, pacoteId: packageId, folderId: folder?.id ?? null, subpackageId: folder?.id ?? null,
-          status: "Aberto", createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp(), createdBy: "pcm",
-          checklist: [{ id: randomUUID(), descricao: "GERAL", peso: 100 }],
-          hasChecklist: true,
+        const created = await createService({
+          os: row.os,
+          oc: row.oc,
+          tag: row.tag,
+          equipamento: row.equipamento,
+          equipmentName: row.equipamento,
+          setor: row.setor,
+          inicioPrevistoMillis: row.dataInicioPrevista,
+          fimPrevistoMillis: row.dataFimPrevista,
+          horasPrevistas: row.horasPrevistas,
+          empresaId: row.empresa,
+          cnpj: row.cnpj,
+          status: "Aberto",
+          checklist: [{ id: "GERAL", descricao: "GERAL", peso: 100 }],
+          description: row.descricao,
+          importKey: row.importKey,
         });
+        const createdRef = db.collection("services").doc(created.id);
+        await createdRef.set({
+          empresa: row.empresa,
+          company: row.empresa,
+          companyId: row.empresa,
+          empresaId: row.empresa,
+          descricao: row.descricao,
+          packageId,
+          pacoteId: packageId,
+          folderId: folder?.id ?? null,
+          subpackageId: folder?.id ?? null,
+          inicioPrevisto: Timestamp.fromMillis(row.dataInicioPrevista),
+          fimPrevisto: Timestamp.fromMillis(row.dataFimPrevista),
+          updatedAt: FieldValue.serverTimestamp(),
+        }, { merge: true });
         if (folder?.id) {
           const list = createdServiceIdsByFolder.get(folder.id) ?? [];
-          list.push(createdRef.id);
+          list.push(created.id);
           createdServiceIdsByFolder.set(folder.id, list);
         }
-        await createdRef.collection("checklist").doc("GERAL").set({
-          description: "GERAL",
-          weight: 100,
-          progress: 0,
-          status: "nao_iniciado",
-          updatedAt: FieldValue.serverTimestamp(),
-        });
         try {
           await ensureServiceAccessToken({
-            serviceId: createdRef.id,
+            serviceId: created.id,
             company: row.empresa || undefined,
           });
         } catch (tokenError) {

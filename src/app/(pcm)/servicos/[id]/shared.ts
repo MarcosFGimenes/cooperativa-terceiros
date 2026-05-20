@@ -451,7 +451,7 @@ export function mapUpdateSnapshot(
   const submittedAt = auditSubmittedAt ?? toMillis(data.submittedAt);
   // Priorizar o campo 'date' (reportDate) que é a data informada pelo terceiro
   const reportDate = toMillis(data.date ?? data.reportDate);
-  const createdAt = submittedAt ?? reportDate ?? toMillis(data.createdAt) ?? 0;
+  const createdAt = toMillis(data.createdAt) ?? submittedAt ?? reportDate ?? 0;
 
   return {
     id: doc.id,

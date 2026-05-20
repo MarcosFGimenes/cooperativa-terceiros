@@ -71,6 +71,7 @@ export function computeProgressFromEvents(
   let currentPercent = 0;
   let lastTimestamp: number | null = null;
   let lastExplicitTimestamp: number | null = null;
+  const hasAnyExplicitDate = sorted.some((event) => event.explicitDate === true);
 
   sorted.forEach((event) => {
     lastTimestamp = event.timestamp;
@@ -94,11 +95,16 @@ export function computeProgressFromEvents(
       currentPercent = clampPercent(event.percent);
     }
 
-    const date = new Date(event.timestamp);
-    const day = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
-    const iso = day.toISOString().slice(0, 10);
-    // Preservar valor exato, apenas garantir que está no range válido
-    byDay.set(iso, clampPercent(currentPercent));
+    // Regra da curva diária:
+    // - quando houver pelo menos um lançamento com data explícita (reportDate/date),
+    //   apenas esses lançamentos entram no eixo diário;
+    // - sem datas explícitas (legado), usa o timestamp do evento como fallback.
+    if (!hasAnyExplicitDate || event.explicitDate === true) {
+      const date = new Date(event.timestamp);
+      const day = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+      const iso = day.toISOString().slice(0, 10);
+      byDay.set(iso, clampPercent(currentPercent));
+    }
   });
 
   // Preservar o valor exato sem arredondamento desnecessário que pode alterar o valor digitado
