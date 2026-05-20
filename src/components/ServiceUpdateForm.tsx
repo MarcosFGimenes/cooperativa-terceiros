@@ -28,6 +28,7 @@ export type ServiceUpdateFormPayload = {
   declarationAccepted: true;
   evidences: Array<{ url: string; label?: string }>;
 };
+type PendingEvidence = { file: File; previewUrl: string; label?: string };
 
 type ChecklistOption = { id: string; description: string; progress?: number; weight?: number };
 
@@ -270,7 +271,7 @@ export default function ServiceUpdateForm({
     () => (Array.isArray(checklist) ? checklist : []),
     [checklist],
   );
-  const [uploadedEvidences, setUploadedEvidences] = useState<Array<{ url: string; label?: string }>>([]);
+  const [pendingEvidences, setPendingEvidences] = useState<PendingEvidence[]>([]);
   const [uploadingEvidence, setUploadingEvidence] = useState(false);
   const [evidenceUploadError, setEvidenceUploadError] = useState<string | null>(null);
   const evidenceInputRef = useRef<HTMLInputElement | null>(null);
@@ -365,7 +366,7 @@ export default function ServiceUpdateForm({
     shiftArray.append({ shift: shiftId, weather: "claro", condition: "praticavel" });
   }
 
-  async function submit(values: FormValues) {
+  async function submit(values: FormValues, evidences: Array<{ url: string; label?: string }>) {
     const range = toDateRangeIso(values.date);
     if (!range) {
       form.setError("date", { type: "custom", message: "Data inválida" });
@@ -414,7 +415,7 @@ export default function ServiceUpdateForm({
         condition: item.condition,
       })),
       declarationAccepted: true,
-      evidences: uploadedEvidences,
+      evidences,
     });
 
     // Após um envio, permitir que o percentual volte a acompanhar o progresso do serviço
@@ -427,7 +428,8 @@ export default function ServiceUpdateForm({
       declarationAccepted: false,
       subactivities: safeChecklist.map((item) => ({ id: item.id, progress: undefined })),
     });
-    setUploadedEvidences([]);
+    pendingEvidences.forEach((item) => URL.revokeObjectURL(item.previewUrl));
+    setPendingEvidences([]);
   }
 
   async function handleEvidenceFileChange(event: { target: { files?: FileList | null }; currentTarget: HTMLInputElement; }) {
@@ -483,8 +485,8 @@ export default function ServiceUpdateForm({
       setEvidenceUploadError(null);
       setUploadingEvidence(true);
       const optimizedFile = await optimizeImageForUpload(file);
-      const uploaded = await onUploadEvidence(optimizedFile);
-      setUploadedEvidences((prev) => [...prev, uploaded].slice(0, 5));
+      const previewUrl = URL.createObjectURL(optimizedFile);
+      setPendingEvidences((prev) => [...prev, { file: optimizedFile, previewUrl, label: optimizedFile.name }].slice(0, 5));
     } catch {
       setEvidenceUploadError("Não foi possível adicionar a foto. Tente outra imagem ou aguarde e tente novamente.");
     } finally {
@@ -493,8 +495,26 @@ export default function ServiceUpdateForm({
     }
   }
 
+  async function submitWithEvidenceUpload(values: FormValues) {
+    if (!onUploadEvidence) return;
+    setEvidenceUploadError(null);
+    setUploadingEvidence(true);
+    try {
+      const evidences: Array<{ url: string; label?: string }> = [];
+      for (const evidence of pendingEvidences) {
+        const uploaded = await onUploadEvidence(evidence.file);
+        evidences.push(uploaded);
+      }
+      await submit(values, evidences);
+    } catch {
+      setEvidenceUploadError("Falha ao enviar as fotos. A atualização não foi registrada.");
+    } finally {
+      setUploadingEvidence(false);
+    }
+  }
+
   return (
-    <form onSubmit={handleSubmit(submit)} className="space-y-6">
+    <form onSubmit={handleSubmit(submitWithEvidenceUpload)} className="space-y-6">
       <div className="rounded-xl border bg-card/80 p-4 shadow-sm">
         <label htmlFor={`${serviceId}-evidence`} className="text-sm font-medium text-foreground">
           Fotos da atualização (até 5)
@@ -505,7 +525,7 @@ export default function ServiceUpdateForm({
           type="file"
           accept="image/*"
           className="sr-only"
-          disabled={!onUploadEvidence || uploadingEvidence || uploadedEvidences.length >= 5}
+          disabled={!onUploadEvidence || uploadingEvidence || pendingEvidences.length >= 5}
           onChange={handleEvidenceFileChange}
         />
         <button
@@ -514,7 +534,7 @@ export default function ServiceUpdateForm({
             "mt-2 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-border bg-background px-3 py-2 text-sm font-medium transition-colors",
             "hover:bg-accent hover:text-accent-foreground active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50",
           )}
-          disabled={!onUploadEvidence || uploadingEvidence || uploadedEvidences.length >= 5}
+          disabled={!onUploadEvidence || uploadingEvidence || pendingEvidences.length >= 5}
           onClick={() => evidenceInputRef.current?.click()}
         >
           <ImagePlus className="h-4 w-4" />
@@ -525,12 +545,12 @@ export default function ServiceUpdateForm({
         </p>
         {uploadingEvidence ? <p className="mt-1 text-xs text-muted-foreground">Enviando foto...</p> : null}
         {evidenceUploadError ? <p className="mt-1 text-xs text-destructive">{evidenceUploadError}</p> : null}
-        {uploadedEvidences.length > 0 ? (
+        {pendingEvidences.length > 0 ? (
           <ul className="mt-3 flex flex-wrap gap-2">
-            {uploadedEvidences.map((item, index) => (
-              <li key={`${item.url}-${index}`} className="relative">
+            {pendingEvidences.map((item, index) => (
+              <li key={`${item.previewUrl}-${index}`} className="relative">
                 <img
-                  src={item.url}
+                  src={item.previewUrl}
                   alt={item.label || `Evidência ${index + 1}`}
                   className="h-16 w-16 rounded-md border object-cover sm:h-20 sm:w-20"
                 />
@@ -539,7 +559,11 @@ export default function ServiceUpdateForm({
                   aria-label={`Remover imagem ${index + 1}`}
                   className="absolute -right-2 -top-2 inline-flex h-7 w-7 items-center justify-center rounded-full border bg-background text-destructive shadow-sm transition-colors hover:bg-destructive/10 active:scale-95"
                   onClick={() =>
-                    setUploadedEvidences((prev) => prev.filter((_, evidenceIndex) => evidenceIndex !== index))
+                    setPendingEvidences((prev) => {
+                      const target = prev[index];
+                      if (target) URL.revokeObjectURL(target.previewUrl);
+                      return prev.filter((_, evidenceIndex) => evidenceIndex !== index);
+                    })
                   }
                 >
                   <X className="h-4 w-4" />
