@@ -428,7 +428,6 @@ export default function ServiceUpdateForm({
       declarationAccepted: false,
       subactivities: safeChecklist.map((item) => ({ id: item.id, progress: undefined })),
     });
-    pendingEvidences.forEach((item) => URL.revokeObjectURL(item.previewUrl));
     setPendingEvidences([]);
   }
 
@@ -481,11 +480,20 @@ export default function ServiceUpdateForm({
       }
     }
 
+    async function fileToDataUrl(inputFile: File): Promise<string> {
+      return await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(typeof reader.result === "string" ? reader.result : "");
+        reader.onerror = () => reject(new Error("Falha ao gerar preview da imagem."));
+        reader.readAsDataURL(inputFile);
+      });
+    }
+
     try {
       setEvidenceUploadError(null);
       setUploadingEvidence(true);
       const optimizedFile = await optimizeImageForUpload(file);
-      const previewUrl = URL.createObjectURL(optimizedFile);
+      const previewUrl = await fileToDataUrl(optimizedFile);
       setPendingEvidences((prev) => [...prev, { file: optimizedFile, previewUrl, label: optimizedFile.name }].slice(0, 5));
     } catch {
       setEvidenceUploadError("Não foi possível adicionar a foto. Tente outra imagem ou aguarde e tente novamente.");
@@ -560,8 +568,6 @@ export default function ServiceUpdateForm({
                   className="absolute -right-2 -top-2 inline-flex h-7 w-7 items-center justify-center rounded-full border bg-background text-destructive shadow-sm transition-colors hover:bg-destructive/10 active:scale-95"
                   onClick={() =>
                     setPendingEvidences((prev) => {
-                      const target = prev[index];
-                      if (target) URL.revokeObjectURL(target.previewUrl);
                       return prev.filter((_, evidenceIndex) => evidenceIndex !== index);
                     })
                   }

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
-import { ArrowLeft, CheckCircle2, Loader2, Pencil } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Loader2, Pencil, Trash2 } from "lucide-react";
 import {
   collection,
   doc,
@@ -169,6 +169,7 @@ export default function ServiceDetailClient({
   const retryCountRef = useRef(0);
   const [shouldListenToSecondaryRealtime, setShouldListenToSecondaryRealtime] = useState(false);
   const [isCompleting, setIsCompleting] = useState(false);
+  const [removingEvidenceKey, setRemovingEvidenceKey] = useState<string | null>(null);
 
   useEffect(() => {
     setCurrentToken(latestToken);
@@ -616,6 +617,37 @@ export default function ServiceDetailClient({
     const latest = source[0];
     return latest ? resolveUpdateTimestamp(latest) : null;
   }, [normalizedInitialUpdates, updates]);
+
+  const handleRemoveEvidence = useCallback(async (updateId: string, evidenceUrl: string) => {
+    const confirmed = window.confirm("Tem certeza que deseja excluir esta foto da atualização?");
+    if (!confirmed) return;
+    const key = `${updateId}:${evidenceUrl}`;
+    setRemovingEvidenceKey(key);
+    try {
+      const response = await fetch(
+        `/api/pcm/servicos/${encodeURIComponent(serviceId)}/updates/${encodeURIComponent(updateId)}/evidence`,
+        {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ evidenceUrl }),
+        },
+      );
+      const json = (await response.json().catch(() => null)) as { ok?: boolean; error?: string } | null;
+      if (!response.ok || !json?.ok) throw new Error(json?.error ?? "Não foi possível excluir a foto.");
+      setUpdates((prev) =>
+        prev.map((item) => {
+          if (item.id !== updateId) return item;
+          const nextEvidences = (item.evidences ?? []).filter((evidence) => resolveEvidenceUrl(evidence) !== evidenceUrl);
+          return { ...item, evidences: nextEvidences };
+        }),
+      );
+      toast.success("Foto excluída com sucesso.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Não foi possível excluir a foto.");
+    } finally {
+      setRemovingEvidenceKey(null);
+    }
+  }, [serviceId]);
 
   const handleCompleteService = useCallback(async () => {
     if (isCompleting || isServiceConcluded) return;
@@ -1098,9 +1130,25 @@ export default function ServiceDetailClient({
                     <div className="text-xs text-muted-foreground">
                       <span className="font-semibold text-foreground">Evidências:</span>
                       <div className="mt-2 flex flex-wrap gap-2">
-                        {evidenceUrls.map((url, index) => (
-                          <EvidenceThumbnail key={`${update.id}-evidence-${index}`} url={url} index={index} />
-                        ))}
+                        {evidenceUrls.map((url, index) => {
+                          const evidenceKey = `${update.id}:${url}`;
+                          const isRemoving = removingEvidenceKey === evidenceKey;
+                          return (
+                            <div key={`${update.id}-evidence-${index}`} className="relative">
+                              <EvidenceThumbnail url={url} index={index} />
+                              <button
+                                type="button"
+                                className="absolute -right-2 -top-2 inline-flex h-7 w-7 items-center justify-center rounded-full border bg-background text-destructive shadow-sm hover:bg-destructive/10 disabled:opacity-50"
+                                onClick={() => handleRemoveEvidence(update.id, url)}
+                                disabled={isRemoving}
+                                aria-label={`Excluir evidência ${index + 1}`}
+                                title="Excluir foto"
+                              >
+                                {isRemoving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                              </button>
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
                   ) : null}
