@@ -1861,6 +1861,35 @@ export async function addManualUpdate(
   return { realPercent: resolvedPercent, update: mapped };
 }
 
+export async function removeEvidenceFromUpdate(
+  serviceId: string,
+  updateId: string,
+  evidenceUrl: string,
+): Promise<boolean> {
+  const normalizedServiceId = serviceId.trim();
+  const normalizedUpdateId = updateId.trim();
+  const normalizedUrl = evidenceUrl.trim();
+  if (!normalizedServiceId || !normalizedUpdateId || !normalizedUrl) return false;
+
+  const { db } = getAdmin();
+  const updateRef = db.collection("services").doc(normalizedServiceId).collection("updates").doc(normalizedUpdateId);
+  const snap = await updateRef.get();
+  if (!snap.exists) return false;
+
+  const data = (snap.data() ?? {}) as Record<string, unknown>;
+  const source = Array.isArray(data.evidences) ? data.evidences : [];
+  const filtered = source.filter((item) => {
+    if (typeof item === "string") return item.trim() !== normalizedUrl;
+    if (!item || typeof item !== "object") return true;
+    const maybeUrl = typeof (item as { url?: unknown }).url === "string" ? String((item as { url?: unknown }).url).trim() : "";
+    return maybeUrl !== normalizedUrl;
+  });
+
+  await updateRef.update({ evidences: filtered });
+  revalidateServiceDetailCache(normalizedServiceId);
+  return true;
+}
+
 export async function addComputedUpdate(
   serviceId: string,
   realPercent: number,
