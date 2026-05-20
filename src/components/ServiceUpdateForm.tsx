@@ -433,8 +433,8 @@ export default function ServiceUpdateForm({
 
   async function handleEvidenceFileChange(event: { target: { files?: FileList | null }; currentTarget: HTMLInputElement; }) {
     if (!onUploadEvidence) return;
-    const file = event.target.files?.[0];
-    if (!file) return;
+    const files = Array.from(event.target.files ?? []);
+    if (files.length === 0) return;
 
     async function optimizeImageForUpload(originalFile: File): Promise<File> {
       const shouldOptimize = originalFile.type.startsWith("image/") && (originalFile.size > 1_500_000);
@@ -492,9 +492,20 @@ export default function ServiceUpdateForm({
     try {
       setEvidenceUploadError(null);
       setUploadingEvidence(true);
-      const optimizedFile = await optimizeImageForUpload(file);
-      const previewUrl = await fileToDataUrl(optimizedFile);
-      setPendingEvidences((prev) => [...prev, { file: optimizedFile, previewUrl, label: optimizedFile.name }].slice(0, 5));
+      const availableSlots = Math.max(0, 5 - pendingEvidences.length);
+      if (availableSlots === 0) {
+        setEvidenceUploadError("Limite de 5 fotos atingido.");
+        return;
+      }
+      const selected = files.slice(0, availableSlots);
+      const prepared = await Promise.all(
+        selected.map(async (selectedFile) => {
+          const optimizedFile = await optimizeImageForUpload(selectedFile);
+          const previewUrl = await fileToDataUrl(optimizedFile);
+          return { file: optimizedFile, previewUrl, label: optimizedFile.name };
+        }),
+      );
+      setPendingEvidences((prev) => [...prev, ...prepared].slice(0, 5));
     } catch {
       setEvidenceUploadError("Não foi possível adicionar a foto. Tente outra imagem ou aguarde e tente novamente.");
     } finally {
@@ -510,12 +521,21 @@ export default function ServiceUpdateForm({
     try {
       const evidences: Array<{ url: string; label?: string }> = [];
       for (const evidence of pendingEvidences) {
-        const uploaded = await onUploadEvidence(evidence.file);
-        evidences.push(uploaded);
+        try {
+          const uploaded = await onUploadEvidence(evidence.file);
+          evidences.push(uploaded);
+        } catch {
+          // Não bloquear o registro da atualização por falha pontual de foto
+        }
+      }
+      if (pendingEvidences.length > 0 && evidences.length === 0) {
+        setEvidenceUploadError("Não foi possível enviar as fotos, mas a atualização será registrada sem evidências.");
+      } else if (evidences.length < pendingEvidences.length) {
+        setEvidenceUploadError("Algumas fotos falharam no envio. A atualização será registrada com as fotos enviadas.");
       }
       await submit(values, evidences);
     } catch {
-      setEvidenceUploadError("Falha ao enviar as fotos. A atualização não foi registrada.");
+      setEvidenceUploadError("Não foi possível registrar a atualização. Tente novamente.");
     } finally {
       setUploadingEvidence(false);
     }
@@ -532,6 +552,7 @@ export default function ServiceUpdateForm({
           id={`${serviceId}-evidence`}
           type="file"
           accept="image/*"
+          multiple
           className="sr-only"
           disabled={!onUploadEvidence || uploadingEvidence || pendingEvidences.length >= 5}
           onChange={handleEvidenceFileChange}
