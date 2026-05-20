@@ -433,9 +433,43 @@ export default function ServiceUpdateForm({
     if (!onUploadEvidence) return;
     const file = event.target.files?.[0];
     if (!file) return;
+
+    async function optimizeImageForUpload(originalFile: File): Promise<File> {
+      const shouldOptimize = originalFile.type.startsWith("image/") && (originalFile.size > 1_500_000);
+      if (!shouldOptimize) return originalFile;
+      try {
+        const bitmap = await createImageBitmap(originalFile);
+        const maxDimension = 1600;
+        const scale = Math.min(1, maxDimension / Math.max(bitmap.width, bitmap.height));
+        const targetWidth = Math.max(1, Math.round(bitmap.width * scale));
+        const targetHeight = Math.max(1, Math.round(bitmap.height * scale));
+
+        const canvas = document.createElement("canvas");
+        canvas.width = targetWidth;
+        canvas.height = targetHeight;
+        const context = canvas.getContext("2d");
+        if (!context) return originalFile;
+        context.drawImage(bitmap, 0, 0, targetWidth, targetHeight);
+        bitmap.close();
+
+        const blob = await new Promise<Blob | null>((resolve) => {
+          canvas.toBlob(resolve, "image/jpeg", 0.82);
+        });
+        if (!blob) return originalFile;
+
+        return new File([blob], originalFile.name.replace(/\.[^.]+$/, ".jpg"), {
+          type: "image/jpeg",
+          lastModified: Date.now(),
+        });
+      } catch {
+        return originalFile;
+      }
+    }
+
     try {
       setUploadingEvidence(true);
-      const uploaded = await onUploadEvidence(file);
+      const optimizedFile = await optimizeImageForUpload(file);
+      const uploaded = await onUploadEvidence(optimizedFile);
       setUploadedEvidences((prev) => [...prev, uploaded].slice(0, 5));
     } finally {
       setUploadingEvidence(false);
@@ -454,7 +488,6 @@ export default function ServiceUpdateForm({
           id={`${serviceId}-evidence`}
           type="file"
           accept="image/*"
-          capture="environment"
           className="sr-only"
           disabled={!onUploadEvidence || uploadingEvidence || uploadedEvidences.length >= 5}
           onChange={handleEvidenceFileChange}
@@ -472,7 +505,7 @@ export default function ServiceUpdateForm({
           {uploadingEvidence ? "Enviando foto..." : "Adicionar foto"}
         </button>
         <p className="mt-2 text-xs text-muted-foreground">
-          JPG/PNG/HEIC. Máximo de 5 imagens.
+          Escolha da câmera ou da galeria. Imagens grandes são reduzidas automaticamente para upload mais rápido.
         </p>
         {uploadingEvidence ? <p className="mt-1 text-xs text-muted-foreground">Enviando foto...</p> : null}
         {uploadedEvidences.length > 0 ? (
