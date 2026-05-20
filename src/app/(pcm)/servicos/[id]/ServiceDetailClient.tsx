@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
-import { ArrowLeft, CheckCircle2, Loader2, Pencil, Trash2 } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Download, Loader2, Pencil, Trash2 } from "lucide-react";
 import {
   collection,
   doc,
@@ -94,7 +94,7 @@ const resolveEvidenceUrl = (item: UpdateEvidenceItem): string | null => {
   return null;
 };
 
-function EvidenceThumbnail({ url, index }: { url: string; index: number }) {
+function EvidenceThumbnail({ url, index, isPdfExport }: { url: string; index: number; isPdfExport?: boolean }) {
   const [isLoaded, setIsLoaded] = useState(false);
   const [hasError, setHasError] = useState(false);
 
@@ -103,7 +103,10 @@ function EvidenceThumbnail({ url, index }: { url: string; index: number }) {
       href={url}
       target="_blank"
       rel="noreferrer"
-      className="relative block h-20 w-20 overflow-hidden rounded-md border border-border/60 bg-muted/40"
+      className={cn(
+        "relative block overflow-hidden rounded-md border border-border/60 bg-muted/40",
+        isPdfExport ? "h-32 w-32" : "h-24 w-24",
+      )}
       title="Abrir imagem em nova aba"
       aria-label={`Abrir evidência ${index + 1} em nova aba`}
     >
@@ -920,28 +923,6 @@ export default function ServiceDetailClient({
               }
             />
 
-            <div className="mt-4 hidden print:grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-              {/* Incluindo indicadores da Curva S do serviço no PDF */}
-              <div className="rounded-xl border bg-muted/30 px-3 py-2.5">
-                <p className="text-muted-foreground">Planejado (total)</p>
-                <p className="text-lg font-semibold text-foreground">{Math.round(plannedTotalPercent)}%</p>
-              </div>
-              <div className="rounded-xl border bg-muted/30 px-3 py-2.5">
-                <p className="text-muted-foreground">Planejado até hoje</p>
-                <p className="text-lg font-semibold text-foreground">{Math.round(plannedPercentToDate)}%</p>
-              </div>
-              <div className="rounded-xl border bg-muted/30 px-3 py-2.5">
-                <p className="text-muted-foreground">Realizado</p>
-                <p className="text-lg font-semibold text-emerald-600 dark:text-emerald-400">{Math.round(realizedPercent)}%</p>
-              </div>
-              <div className="rounded-xl border bg-muted/30 px-3 py-2.5">
-                <p className="text-muted-foreground">Diferença</p>
-                <p className={`text-lg font-semibold ${deltaToneClass}`}>
-                  {deltaPercent > 0 ? "+" : ""}
-                  {deltaPercent}%
-                </p>
-              </div>
-            </div>
           </section>
 
           <section className="w-full rounded-2xl border bg-card/80 px-4 py-3 shadow-sm xl:max-w-[260px] print:hidden">
@@ -1135,17 +1116,30 @@ export default function ServiceDetailClient({
                           const isRemoving = removingEvidenceKey === evidenceKey;
                           return (
                             <div key={`${update.id}-evidence-${index}`} className="relative">
-                              <EvidenceThumbnail url={url} index={index} />
-                              <button
-                                type="button"
-                                className="absolute -right-2 -top-2 inline-flex h-7 w-7 items-center justify-center rounded-full border bg-background text-destructive shadow-sm hover:bg-destructive/10 disabled:opacity-50"
-                                onClick={() => handleRemoveEvidence(update.id, url)}
-                                disabled={isRemoving}
-                                aria-label={`Excluir evidência ${index + 1}`}
-                                title="Excluir foto"
-                              >
-                                {isRemoving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-                              </button>
+                              <EvidenceThumbnail url={url} index={index} isPdfExport={isPdfExport} />
+                              {!isPdfExport ? (
+                                <>
+                                  <a
+                                    href={url}
+                                    download
+                                    className="absolute -bottom-2 -left-2 inline-flex h-7 w-7 items-center justify-center rounded-full border bg-background text-foreground shadow-sm hover:bg-muted"
+                                    aria-label={`Baixar evidência ${index + 1}`}
+                                    title="Baixar foto"
+                                  >
+                                    <Download className="h-4 w-4" />
+                                  </a>
+                                  <button
+                                    type="button"
+                                    className="absolute -right-2 -top-2 inline-flex h-7 w-7 items-center justify-center rounded-full border bg-background text-destructive shadow-sm hover:bg-destructive/10 disabled:opacity-50"
+                                    onClick={() => handleRemoveEvidence(update.id, url)}
+                                    disabled={isRemoving}
+                                    aria-label={`Excluir evidência ${index + 1}`}
+                                    title="Excluir foto"
+                                  >
+                                    {isRemoving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                                  </button>
+                                </>
+                              ) : null}
                             </div>
                           );
                         })}
