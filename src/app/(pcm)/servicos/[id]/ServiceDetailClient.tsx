@@ -20,6 +20,7 @@ import { resolveReferenceDate } from "@/lib/referenceDate";
 import { resolveServicoPercentualPlanejado } from "@/lib/serviceProgress";
 import { isFirestoreLongPollingForced, tryGetFirestore } from "@/lib/firebase";
 import { isConnectionResetError } from "@/lib/networkErrors";
+import { cn } from "@/lib/utils";
 import { useFirebaseAuthSession } from "@/lib/useFirebaseAuthSession";
 import type { ChecklistItem, Service, ServiceUpdate } from "@/lib/types";
 import { toast } from "sonner";
