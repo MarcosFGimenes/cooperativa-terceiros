@@ -58,6 +58,11 @@ function pickField(row: Record<string, unknown>, aliases: string[]): unknown {
 
 const toText = (value: unknown) => (value === null || value === undefined ? "" : String(value));
 
+function toRowNumber(value: unknown): number | null {
+  const numeric = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(numeric) && numeric > 0 ? Math.floor(numeric) : null;
+}
+
 function normaliseCompanyName(value: string): { raw: string; key: string } {
   const raw = value.trim().replace(/\s+/g, " ");
   return { raw, key: raw.toLocaleLowerCase("pt-BR") };
@@ -112,7 +117,7 @@ export async function POST(req: Request, ctx: { params: { packageId: string } })
 
     for (let index = 0; index < rows.length; index += 1) {
       const row = rows[index];
-      const rowNumber = index + 9;
+      const rowNumber = toRowNumber(row.__rowNumber) ?? index + 9;
       const os = toText(pickField(row, HEADER_ALIASES.os)).trim();
       const oc = toText(pickField(row, HEADER_ALIASES.oc)).trim() || null;
       const cnpj = normalizeCnpj(toText(pickField(row, HEADER_ALIASES.cnpj)).trim()) || null;
@@ -136,7 +141,7 @@ export async function POST(req: Request, ctx: { params: { packageId: string } })
       parsedRows.push({
         rowNumber, os, oc, cnpj, tag, equipamento, setor, empresa, descricao,
         dataInicioPrevista, dataFimPrevista, horasPrevistas,
-        importKey: await buildServiceImportKey({ os, oc, tag, setor, equipmentName: equipamento, plannedStart: dataInicioPrevista, plannedEnd: dataFimPrevista, empresa, cnpj, description: descricao, totalHours: horasPrevistas }),
+        importKey: await buildServiceImportKey({ os, oc, tag, setor, equipmentName: equipamento, plannedStart: dataInicioPrevista, plannedEnd: dataFimPrevista, empresa, cnpj, description: descricao, totalHours: horasPrevistas, sourceRow: rowNumber }),
         legacyImportKey: await buildServiceImportKey({ os, tag, setor, equipmentName: equipamento, plannedStart: dataInicioPrevista, plannedEnd: dataFimPrevista, empresa, cnpj, description: descricao, totalHours: horasPrevistas }),
       });
     }

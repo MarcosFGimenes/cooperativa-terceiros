@@ -70,6 +70,11 @@ function toText(value: unknown): string {
   return String(value ?? "");
 }
 
+function toRowNumber(value: unknown): number | null {
+  const numeric = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(numeric) && numeric > 0 ? Math.floor(numeric) : null;
+}
+
 function parseDateValue(value: unknown): number | null {
   if (value === null || value === undefined) return null;
   if (typeof value === "number" && Number.isFinite(value)) {
@@ -145,8 +150,9 @@ type ParsedRow = {
   empresa: string | null;
   cnpj?: string | null;
   horas: number;
+  sourceRowNumber: number | null;
   importKey: string;
-  legacyImportKey: string;
+  compatibilityImportKeys: string[];
 };
 
 async function sanitiseRow(
@@ -154,6 +160,7 @@ async function sanitiseRow(
   fallback?: { empresa: string | null; cnpj: string | null },
 ): Promise<ParsedRow | { error: string }> {
   const os = toText(pickField(row, HEADER_ALIASES.os)).trim();
+  const sourceRowNumber = toRowNumber(row.__rowNumber);
   const oc = toText(pickField(row, HEADER_ALIASES.oc)).trim() || null;
   const tag = toText(pickField(row, HEADER_ALIASES.tag)).trim();
   const equipamento = toText(pickField(row, HEADER_ALIASES.equipamento)).trim();
@@ -181,34 +188,58 @@ async function sanitiseRow(
     return { error: "Linha ignorada: total de horas inválido." };
   }
 
+  const detailedIdentity = {
+    os,
+    setor,
+    tag,
+    equipmentName: equipamento,
+    plannedStart: inicio,
+    plannedEnd: fim,
+    empresa,
+    cnpj,
+    description: descricao,
+    totalHours: horas,
+  };
+
   const importKey = await buildServiceImportKey({
-    os,
+    ...detailedIdentity,
     oc,
-    setor,
-    tag,
-    equipmentName: equipamento,
-    plannedStart: inicio,
-    plannedEnd: fim,
-    empresa,
-    cnpj,
-    description: descricao,
-    totalHours: horas,
+    sourceRow: sourceRowNumber,
   });
 
-  const legacyImportKey = await buildServiceImportKey({
-    os,
-    setor,
-    tag,
-    equipmentName: equipamento,
-    plannedStart: inicio,
-    plannedEnd: fim,
-    empresa,
-    cnpj,
-    description: descricao,
-    totalHours: horas,
-  });
+  const compatibilityImportKeys = Array.from(
+    new Set(
+      (
+        await Promise.all([
+          buildServiceImportKey({ ...detailedIdentity, oc }),
+          buildServiceImportKey(detailedIdentity),
+          buildServiceImportKey({
+            os,
+            oc,
+            setor,
+            tag,
+            equipmentName: equipamento,
+            plannedStart: inicio,
+            plannedEnd: fim,
+            empresa,
+            cnpj,
+          }),
+          buildServiceImportKey({
+            os,
+            setor,
+            tag,
+            equipmentName: equipamento,
+            plannedStart: inicio,
+            plannedEnd: fim,
+            empresa,
+            cnpj,
+          }),
+        ])
+      ).filter((key) => key && key !== importKey),
+    ),
+  );
 
-  if (!importKey || !legacyImportKey) {
+  if (!importKey) {
     return { error: "Linha ignorada: não foi possível gerar uma chave de importação." };
   }
 
@@ -224,8 +255,9 @@ async function sanitiseRow(
     empresa,
     cnpj,
     horas,
+    sourceRowNumber,
     importKey,
-    legacyImportKey,
+    compatibilityImportKeys,
   };
 }
 
@@ -287,16 +319,28 @@ export async function POST(request: Request) {
     );
   }
 
-  const existingByKey = await findServicesByImportKeys(parsedRows.map((item) => item.importKey));
-  const existingKeySet = new Set(
-    existingByKey.map((service) => service.importKey).filter((key): key is string => Boolean(key)),
+  const importedKeysToCheck = Array.from(
+    new Set(parsedRows.flatMap((item) => [item.importKey, ...item.compatibilityImportKeys])),
   );
+  const existingByKey = await findServicesByImportKeys(importedKeysToCheck);
+  const existingServiceAliases = new Map<string, Set<string>>();
+
+  function addExistingKey(serviceId: string, key: string | null | undefined) {
+    const trimmed = key?.trim();
+    if (!trimmed) return;
+
+    const aliases = existingServiceAliases.get(serviceId) ?? new Set<string>();
+    aliases.add(trimmed);
+    existingServiceAliases.set(serviceId, aliases);
+  }
 
   const existingByOs = await findServicesByOsList(parsedRows.map((item) => item.os));
-  for (const service of existingByOs) {
-    if (service.importKey) {
-      existingKeySet.add(service.importKey);
-    }
+  const existingServicesById = new Map(
+    [...existingByKey, ...existingByOs].map((service) => [service.id, service] as const),
+  );
+
+  for (const service of existingServicesById.values()) {
+    addExistingKey(service.id, service.importKey);
 
     const serviceIdentity = {
       os: service.os,
@@ -317,16 +361,45 @@ export async function POST(request: Request) {
         oc: service.oc ?? null,
       }),
       buildServiceImportKey(serviceIdentity),
+      buildServiceImportKey({
+        os: service.os,
+        oc: service.oc ?? null,
+        tag: service.tag,
+        setor: service.setor ?? service.sector ?? null,
+        equipmentName: service.equipmentName,
+        plannedStart: service.plannedStart,
+        plannedEnd: service.plannedEnd,
+        empresa: service.company ?? service.empresa ?? null,
+        cnpj: service.cnpj ?? null,
+      }),
+      buildServiceImportKey({
+        os: service.os,
+        tag: service.tag,
+        setor: service.setor ?? service.sector ?? null,
+        equipmentName: service.equipmentName,
+        plannedStart: service.plannedStart,
+        plannedEnd: service.plannedEnd,
+        empresa: service.company ?? service.empresa ?? null,
+        cnpj: service.cnpj ?? null,
+      }),
     ]);
 
-    computedKeys.forEach((computedKey) => {
-      if (computedKey) existingKeySet.add(computedKey);
-    });
+    computedKeys.forEach((computedKey) => addExistingKey(service.id, computedKey));
   }
 
-  const toCreate = parsedRows.filter(
-    (row) => !existingKeySet.has(row.importKey) && !existingKeySet.has(row.legacyImportKey),
-  );
+  const consumedExistingServiceIds = new Set<string>();
+  const toCreate = parsedRows.filter((row) => {
+    const rowKeys = new Set([row.importKey, ...row.compatibilityImportKeys]);
+    const matchingExistingService = Array.from(existingServiceAliases.entries()).find(
+      ([serviceId, aliases]) =>
+        !consumedExistingServiceIds.has(serviceId) && Array.from(rowKeys).some((key) => aliases.has(key)),
+    );
+
+    if (!matchingExistingService) return true;
+
+    consumedExistingServiceIds.add(matchingExistingService[0]);
+    return false;
+  });
   const duplicatesFromDatabase = parsedRows.length - toCreate.length;
 
   const createdServices: Array<{ id: string; empresa: string | null }> = [];

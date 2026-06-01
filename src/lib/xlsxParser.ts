@@ -201,8 +201,9 @@ function rowsToObjects(rows: WorksheetRow[], headerRowIndex = 8): Record<string,
         const colIdx = Number(columnIndex);
         obj[headerLabel] = row.cells[colIdx];
       });
-      // Skip completely empty rows
+      // Skip completely empty rows, but keep the original Excel row number for import keys.
       if (Object.values(obj).some((value) => value !== undefined && value !== null && String(value).trim() !== "")) {
+        obj.__rowNumber = row.index;
         objects.push(obj);
       }
     });

@@ -150,6 +150,7 @@ function computeServiceImportKey(input: {
   cnpj?: string | null;
   description?: string | null;
   totalHours?: number | string | null;
+  sourceRow?: number | string | null;
 }) {
   const parts = [
     normaliseImportValue(input.os),
@@ -163,6 +164,7 @@ function computeServiceImportKey(input: {
     normaliseImportValue(input.cnpj),
     normaliseImportValue(input.description),
     normaliseImportValue(input.totalHours),
+    normaliseImportValue(input.sourceRow),
   ].filter(Boolean);
 
   return parts.join("::");
@@ -180,6 +182,7 @@ export async function buildServiceImportKey(input: {
   cnpj?: string | null;
   description?: string | null;
   totalHours?: number | string | null;
+  sourceRow?: number | string | null;
 }) {
   return computeServiceImportKey(input);
 }
