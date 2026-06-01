@@ -7,7 +7,7 @@ import { ensureServiceAccessToken } from "@/lib/repo/accessTokens";
 import {
   buildServiceImportKey,
   createService,
-  findServicesByImportKeys,
+  findServicesByOsList,
 } from "@/lib/repo/services";
 import { normalizeCnpj } from "@/lib/cnpj";
 import { excelDateNumberToMillis, parseXlsxTable } from "@/lib/xlsxParser";
@@ -72,6 +72,10 @@ function toText(value: unknown): string {
 function toRowNumber(value: unknown): number | null {
   const numeric = typeof value === "number" ? value : Number(value);
   return Number.isFinite(numeric) && numeric > 0 ? Math.floor(numeric) : null;
+}
+
+function normaliseOsValue(value: string): string {
+  return value.trim().toLowerCase().replace(/\s+/g, " ");
 }
 
 function parseDateValue(value: unknown): number | null {
@@ -186,24 +190,7 @@ async function sanitiseRow(
     return { error: "Linha ignorada: total de horas inválido." };
   }
 
-  const detailedIdentity = {
-    os,
-    setor,
-    tag,
-    equipmentName: equipamento,
-    plannedStart: inicio,
-    plannedEnd: fim,
-    empresa,
-    cnpj,
-    description: descricao,
-    totalHours: horas,
-  };
-
-  const importKey = await buildServiceImportKey({
-    ...detailedIdentity,
-    oc,
-    sourceRow: sourceRowNumber,
-  });
+  const importKey = await buildServiceImportKey({ os });
 
   if (!importKey) {
     return { error: "Linha ignorada: não foi possível gerar uma chave de importação." };
@@ -251,26 +238,31 @@ export async function POST(request: Request) {
 
   let skipped = 0;
   let duplicateKeys = 0;
-  const seenKeys = new Set<string>();
+  const seenOs = new Set<string>();
   const parsedRows: ParsedRow[] = [];
+  const rowMessages: Array<{ row: number | null; error: string }> = [];
 
   let lastKnownCompany: string | null = null;
   let lastKnownCnpj: string | null = null;
 
   for (const row of rows) {
+    const rowNumber = toRowNumber(row.__rowNumber);
     const parsed = await sanitiseRow(row, { empresa: lastKnownCompany, cnpj: lastKnownCnpj });
     if ("error" in parsed) {
       skipped += 1;
+      rowMessages.push({ row: rowNumber, error: parsed.error });
       continue;
     }
     if (parsed.empresa) lastKnownCompany = parsed.empresa;
     if (parsed.cnpj) lastKnownCnpj = parsed.cnpj;
 
-    if (seenKeys.has(parsed.importKey)) {
+    const osKey = normaliseOsValue(parsed.os);
+    if (seenOs.has(osKey)) {
       duplicateKeys += 1;
+      rowMessages.push({ row: parsed.sourceRowNumber, error: `O.S ${parsed.os} duplicada na planilha.` });
       continue;
     }
-    seenKeys.add(parsed.importKey);
+    seenOs.add(osKey);
     parsedRows.push(parsed);
   }
 
@@ -284,16 +276,20 @@ export async function POST(request: Request) {
     );
   }
 
-  const existingByKey = await findServicesByImportKeys(parsedRows.map((item) => item.importKey));
-  const existingKeySet = new Set(
-    existingByKey.map((service) => service.importKey).filter((key): key is string => Boolean(key)),
-  );
+  const existingByOs = await findServicesByOsList(parsedRows.map((item) => item.os));
+  const existingOsSet = new Set(existingByOs.map((service) => normaliseOsValue(service.os)));
 
-  const toCreate = parsedRows.filter((row) => !existingKeySet.has(row.importKey));
+  const toCreate = parsedRows.filter((row) => {
+    const exists = existingOsSet.has(normaliseOsValue(row.os));
+    if (exists) {
+      rowMessages.push({ row: row.sourceRowNumber, error: `O.S ${row.os} já existe no sistema.` });
+    }
+    return !exists;
+  });
   const duplicatesFromDatabase = parsedRows.length - toCreate.length;
 
   const createdServices: Array<{ id: string; empresa: string | null }> = [];
-  const createErrors: Array<{ row: number | null; error: string }> = [];
+  let createErrorCount = 0;
 
   for (const row of toCreate) {
     try {
@@ -316,8 +312,9 @@ export async function POST(request: Request) {
       });
       createdServices.push({ id, empresa: row.empresa });
     } catch (error) {
+      createErrorCount += 1;
       console.error(`[services/import] Falha ao criar serviço da linha ${row.sourceRowNumber ?? "?"}`, error);
-      createErrors.push({
+      rowMessages.push({
         row: row.sourceRowNumber,
         error: error instanceof Error ? error.message : "Falha ao criar serviço.",
       });
@@ -342,7 +339,7 @@ export async function POST(request: Request) {
     ok: true,
     created: createdServices.length,
     duplicates: duplicateKeys + duplicatesFromDatabase,
-    skipped: skipped + createErrors.length,
-    errors: createErrors,
+    skipped: skipped + duplicateKeys + duplicatesFromDatabase + createErrorCount,
+    errors: rowMessages,
   });
 }

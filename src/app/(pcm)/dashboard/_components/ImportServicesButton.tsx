@@ -112,8 +112,7 @@ export default function ImportServicesButton() {
           />
           <p className="text-sm text-muted-foreground">
             Cada linha completa da planilha representa um serviço. Se uma nova planilha contiver registros já
-            importados na mesma linha da planilha, eles serão descartados para evitar duplicação ao reenviar
-            o mesmo arquivo.
+            importados com a mesma O.S, eles serão descartados para evitar duplicação.
           </p>
 
           <button
