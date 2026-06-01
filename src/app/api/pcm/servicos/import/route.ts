@@ -213,27 +213,6 @@ async function sanitiseRow(
         await Promise.all([
           buildServiceImportKey({ ...detailedIdentity, oc }),
           buildServiceImportKey(detailedIdentity),
-          buildServiceImportKey({
-            os,
-            oc,
-            setor,
-            tag,
-            equipmentName: equipamento,
-            plannedStart: inicio,
-            plannedEnd: fim,
-            empresa,
-            cnpj,
-          }),
-          buildServiceImportKey({
-            os,
-            setor,
-            tag,
-            equipmentName: equipamento,
-            plannedStart: inicio,
-            plannedEnd: fim,
-            empresa,
-            cnpj,
-          }),
         ])
       ).filter((key) => key && key !== importKey),
     ),
@@ -361,27 +340,6 @@ export async function POST(request: Request) {
         oc: service.oc ?? null,
       }),
       buildServiceImportKey(serviceIdentity),
-      buildServiceImportKey({
-        os: service.os,
-        oc: service.oc ?? null,
-        tag: service.tag,
-        setor: service.setor ?? service.sector ?? null,
-        equipmentName: service.equipmentName,
-        plannedStart: service.plannedStart,
-        plannedEnd: service.plannedEnd,
-        empresa: service.company ?? service.empresa ?? null,
-        cnpj: service.cnpj ?? null,
-      }),
-      buildServiceImportKey({
-        os: service.os,
-        tag: service.tag,
-        setor: service.setor ?? service.sector ?? null,
-        equipmentName: service.equipmentName,
-        plannedStart: service.plannedStart,
-        plannedEnd: service.plannedEnd,
-        empresa: service.company ?? service.empresa ?? null,
-        cnpj: service.cnpj ?? null,
-      }),
     ]);
 
     computedKeys.forEach((computedKey) => addExistingKey(service.id, computedKey));
