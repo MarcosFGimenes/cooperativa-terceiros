@@ -17,6 +17,7 @@ export const runtime = "nodejs";
 
 const HEADER_ALIASES: Record<string, string[]> = {
   os: ["O.S", "OS", "ORDEM DE SERVICO", "ORDEM DE SERVIÇO"],
+  oc: ["O.C", "OC", "ORDEM DE COMPRA", "ORDEM COMPRA"],
   setor: ["SETOR", "SETOR "],
   tag: ["TAG MAQUINA", "TAG MÁQUINA", "TAG", "TAG MAQ"],
   equipamento: ["EQUIP. NOVO", "EQUIPAMENTO NOVO", "EQUIPAMENTO"],
@@ -134,6 +135,7 @@ function parseHours(value: unknown): number | null {
 
 type ParsedRow = {
   os: string;
+  oc: string | null;
   setor: string | null;
   tag: string;
   equipamento: string;
@@ -144,6 +146,7 @@ type ParsedRow = {
   cnpj?: string | null;
   horas: number;
   importKey: string;
+  legacyImportKey: string;
 };
 
 async function sanitiseRow(
@@ -151,6 +154,7 @@ async function sanitiseRow(
   fallback?: { empresa: string | null; cnpj: string | null },
 ): Promise<ParsedRow | { error: string }> {
   const os = toText(pickField(row, HEADER_ALIASES.os)).trim();
+  const oc = toText(pickField(row, HEADER_ALIASES.oc)).trim() || null;
   const tag = toText(pickField(row, HEADER_ALIASES.tag)).trim();
   const equipamento = toText(pickField(row, HEADER_ALIASES.equipamento)).trim();
   const descricao = toText(pickField(row, HEADER_ALIASES.descricao)).trim();
@@ -179,6 +183,7 @@ async function sanitiseRow(
 
   const importKey = await buildServiceImportKey({
     os,
+    oc,
     setor,
     tag,
     equipmentName: equipamento,
@@ -188,12 +193,24 @@ async function sanitiseRow(
     cnpj,
   });
 
-  if (!importKey) {
+  const legacyImportKey = await buildServiceImportKey({
+    os,
+    setor,
+    tag,
+    equipmentName: equipamento,
+    plannedStart: inicio,
+    plannedEnd: fim,
+    empresa,
+    cnpj,
+  });
+
+  if (!importKey || !legacyImportKey) {
     return { error: "Linha ignorada: não foi possível gerar uma chave de importação." };
   }
 
   return {
     os,
+    oc,
     setor,
     tag,
     equipamento,
@@ -204,6 +221,7 @@ async function sanitiseRow(
     cnpj,
     horas,
     importKey,
+    legacyImportKey,
   };
 }
 
@@ -265,7 +283,10 @@ export async function POST(request: Request) {
     );
   }
 
-  const existingByKey = await findServicesByImportKeys(parsedRows.map((item) => item.importKey));
+  const importKeysToCheck = Array.from(
+    new Set(parsedRows.flatMap((item) => [item.importKey, item.legacyImportKey]).filter(Boolean)),
+  );
+  const existingByKey = await findServicesByImportKeys(importKeysToCheck);
   const existingKeySet = new Set(
     existingByKey.map((service) => service.importKey).filter((key): key is string => Boolean(key)),
   );
@@ -276,6 +297,7 @@ export async function POST(request: Request) {
       service.importKey ||
       (await buildServiceImportKey({
         os: service.os,
+        oc: service.oc ?? null,
         tag: service.tag,
         setor: service.setor ?? service.sector ?? null,
         equipmentName: service.equipmentName,
@@ -289,7 +311,9 @@ export async function POST(request: Request) {
     }
   }
 
-  const toCreate = parsedRows.filter((row) => !existingKeySet.has(row.importKey));
+  const toCreate = parsedRows.filter(
+    (row) => !existingKeySet.has(row.importKey) && !existingKeySet.has(row.legacyImportKey),
+  );
   const duplicatesFromDatabase = parsedRows.length - toCreate.length;
 
   const createdServices: Array<{ id: string; empresa: string | null }> = [];
@@ -298,7 +322,7 @@ export async function POST(request: Request) {
     for (const row of toCreate) {
       const { id } = await createService({
         os: row.os,
-        oc: null,
+        oc: row.oc,
         tag: row.tag,
         equipamento: row.equipamento,
         equipmentName: row.equipamento,

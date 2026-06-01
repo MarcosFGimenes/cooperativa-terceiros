@@ -140,6 +140,7 @@ function formatDateKey(value: number | string | null | undefined): string {
 
 function computeServiceImportKey(input: {
   os: string;
+  oc?: string | null;
   setor?: string | null;
   tag?: string | null;
   equipmentName?: string | null;
@@ -150,6 +151,7 @@ function computeServiceImportKey(input: {
 }) {
   const parts = [
     normaliseImportValue(input.os),
+    normaliseImportValue(input.oc),
     normaliseImportValue(input.setor),
     normaliseImportValue(input.tag),
     normaliseImportValue(input.equipmentName),
@@ -164,6 +166,7 @@ function computeServiceImportKey(input: {
 
 export async function buildServiceImportKey(input: {
   os: string;
+  oc?: string | null;
   setor?: string | null;
   tag?: string | null;
   equipmentName?: string | null;
