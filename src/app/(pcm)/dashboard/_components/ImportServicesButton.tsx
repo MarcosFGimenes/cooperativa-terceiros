@@ -19,9 +19,9 @@ export default function ImportServicesButton() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [open, setOpen] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
-  const [result, setResult] = useState<{ created: number; duplicates: number; skipped: number } | null>(
-    null,
-  );
+  const [result, setResult] = useState<
+    { created: number; duplicates: number; skipped: number; errors?: Array<{ row: number | null; error: string }> } | null
+  >(null);
 
   function handleChooseFile() {
     fileInputRef.current?.click();
@@ -46,7 +46,14 @@ export default function ImportServicesButton() {
         body: formData,
       });
       const payload = (await response.json().catch(() => null)) as
-        | { ok: boolean; created?: number; duplicates?: number; skipped?: number; error?: string }
+        | {
+            ok: boolean;
+            created?: number;
+            duplicates?: number;
+            skipped?: number;
+            errors?: Array<{ row: number | null; error: string }>;
+            error?: string;
+          }
         | null;
 
       if (!response.ok || !payload?.ok) {
@@ -58,9 +65,16 @@ export default function ImportServicesButton() {
         created: payload.created ?? 0,
         duplicates: payload.duplicates ?? 0,
         skipped: payload.skipped ?? 0,
+        errors: payload.errors ?? [],
       });
       toast.success(`Importação concluída: ${payload.created ?? 0} serviço(s) criado(s).`);
-      setOpen(false);
+      if ((payload.errors?.length ?? 0) > 0) {
+        const firstError = payload.errors?.[0];
+        toast.warning(
+          `Algumas linhas não foram criadas (${payload.errors?.length}). Primeira falha: linha ${firstError?.row ?? "?"} - ${firstError?.error}`,
+        );
+      }
+      setOpen((payload.errors?.length ?? 0) > 0);
       router.refresh();
     } catch (error) {
       const message = error instanceof Error ? error.message : "Não foi possível importar a planilha.";
@@ -98,8 +112,7 @@ export default function ImportServicesButton() {
           />
           <p className="text-sm text-muted-foreground">
             Cada linha completa da planilha representa um serviço. Se uma nova planilha contiver registros já
-            importados (mesma O.S, TAG, equipamento, período, empresa e CNPJ), eles serão descartados para evitar
-            duplicação.
+            importados com a mesma O.S, eles serão descartados para evitar duplicação.
           </p>
 
           <button
@@ -122,9 +135,21 @@ export default function ImportServicesButton() {
                   <span className="font-medium text-foreground">Duplicados ignorados:</span> {result.duplicates}
                 </li>
                 <li>
-                  <span className="font-medium text-foreground">Linhas inválidas:</span> {result.skipped}
+                  <span className="font-medium text-foreground">Linhas não criadas:</span> {result.skipped}
                 </li>
               </ul>
+              {result.errors?.length ? (
+                <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800">
+                  <p className="font-semibold">Falhas retornadas pela importação:</p>
+                  <ul className="mt-1 list-disc space-y-1 pl-4">
+                    {result.errors.slice(0, 5).map((item, index) => (
+                      <li key={`${item.row ?? "linha"}-${index}`}>
+                        Linha {item.row ?? "?"}: {item.error}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
             </div>
           ) : null}
         </div>

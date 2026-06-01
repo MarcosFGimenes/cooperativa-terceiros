@@ -26,6 +26,7 @@ type ParsedRow = {
   dataFimPrevista: number;
   horasPrevistas: number;
   importKey: string;
+  legacyImportKey: string;
 };
 
 const HEADER_ALIASES: Record<string, string[]> = {
@@ -56,6 +57,11 @@ function pickField(row: Record<string, unknown>, aliases: string[]): unknown {
 }
 
 const toText = (value: unknown) => (value === null || value === undefined ? "" : String(value));
+
+function toRowNumber(value: unknown): number | null {
+  const numeric = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(numeric) && numeric > 0 ? Math.floor(numeric) : null;
+}
 
 function normaliseCompanyName(value: string): { raw: string; key: string } {
   const raw = value.trim().replace(/\s+/g, " ");
@@ -111,7 +117,7 @@ export async function POST(req: Request, ctx: { params: { packageId: string } })
 
     for (let index = 0; index < rows.length; index += 1) {
       const row = rows[index];
-      const rowNumber = index + 9;
+      const rowNumber = toRowNumber(row.__rowNumber) ?? index + 9;
       const os = toText(pickField(row, HEADER_ALIASES.os)).trim();
       const oc = toText(pickField(row, HEADER_ALIASES.oc)).trim() || null;
       const cnpj = normalizeCnpj(toText(pickField(row, HEADER_ALIASES.cnpj)).trim()) || null;
@@ -135,12 +141,14 @@ export async function POST(req: Request, ctx: { params: { packageId: string } })
       parsedRows.push({
         rowNumber, os, oc, cnpj, tag, equipamento, setor, empresa, descricao,
         dataInicioPrevista, dataFimPrevista, horasPrevistas,
-        importKey: await buildServiceImportKey({ os, tag, setor, equipmentName: equipamento, plannedStart: dataInicioPrevista, plannedEnd: dataFimPrevista, empresa, cnpj }),
+        importKey: await buildServiceImportKey({ os, oc, tag, setor, equipmentName: equipamento, plannedStart: dataInicioPrevista, plannedEnd: dataFimPrevista, empresa, cnpj, description: descricao, totalHours: horasPrevistas, sourceRow: rowNumber }),
+        legacyImportKey: await buildServiceImportKey({ os, tag, setor, equipmentName: equipamento, plannedStart: dataInicioPrevista, plannedEnd: dataFimPrevista, empresa, cnpj, description: descricao, totalHours: horasPrevistas }),
       });
     }
 
     if (!parsedRows.length) return NextResponse.json({ ok: false, error: "Nenhuma linha válida para importar.", errors }, { status: 400 });
-    const existingServices = await findServicesByImportKeys(parsedRows.map((row) => row.importKey));
+    const importKeysToCheck = Array.from(new Set(parsedRows.flatMap((row) => [row.importKey, row.legacyImportKey]).filter(Boolean)));
+    const existingServices = await findServicesByImportKeys(importKeysToCheck);
     const existingImportKeys = new Set(
       existingServices.map((service) => (typeof service.importKey === "string" ? service.importKey.trim() : "")).filter(Boolean),
     );
@@ -166,7 +174,7 @@ export async function POST(req: Request, ctx: { params: { packageId: string } })
     let created = 0;
     const createdServiceIdsByFolder = new Map<string, string[]>();
     for (const row of parsedRows) {
-      if (existingImportKeys.has(row.importKey)) {
+      if (existingImportKeys.has(row.importKey) || existingImportKeys.has(row.legacyImportKey)) {
         errors.push({
           row: row.rowNumber,
           error: "Serviço já existe no sistema e não pode ser vinculado a outro pacote.",

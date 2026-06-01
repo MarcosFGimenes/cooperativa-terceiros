@@ -7,7 +7,6 @@ import { ensureServiceAccessToken } from "@/lib/repo/accessTokens";
 import {
   buildServiceImportKey,
   createService,
-  findServicesByImportKeys,
   findServicesByOsList,
 } from "@/lib/repo/services";
 import { normalizeCnpj } from "@/lib/cnpj";
@@ -17,6 +16,7 @@ export const runtime = "nodejs";
 
 const HEADER_ALIASES: Record<string, string[]> = {
   os: ["O.S", "OS", "ORDEM DE SERVICO", "ORDEM DE SERVIÇO"],
+  oc: ["O.C", "OC", "ORDEM DE COMPRA", "ORDEM COMPRA"],
   setor: ["SETOR", "SETOR "],
   tag: ["TAG MAQUINA", "TAG MÁQUINA", "TAG", "TAG MAQ"],
   equipamento: ["EQUIP. NOVO", "EQUIPAMENTO NOVO", "EQUIPAMENTO"],
@@ -67,6 +67,15 @@ function toText(value: unknown): string {
   if (typeof value === "number") return String(value);
   if (typeof value === "string") return value;
   return String(value ?? "");
+}
+
+function toRowNumber(value: unknown): number | null {
+  const numeric = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(numeric) && numeric > 0 ? Math.floor(numeric) : null;
+}
+
+function normaliseOsValue(value: string): string {
+  return value.trim().toLowerCase().replace(/\s+/g, " ");
 }
 
 function parseDateValue(value: unknown): number | null {
@@ -134,6 +143,7 @@ function parseHours(value: unknown): number | null {
 
 type ParsedRow = {
   os: string;
+  oc: string | null;
   setor: string | null;
   tag: string;
   equipamento: string;
@@ -143,6 +153,7 @@ type ParsedRow = {
   empresa: string | null;
   cnpj?: string | null;
   horas: number;
+  sourceRowNumber: number | null;
   importKey: string;
 };
 
@@ -151,6 +162,8 @@ async function sanitiseRow(
   fallback?: { empresa: string | null; cnpj: string | null },
 ): Promise<ParsedRow | { error: string }> {
   const os = toText(pickField(row, HEADER_ALIASES.os)).trim();
+  const sourceRowNumber = toRowNumber(row.__rowNumber);
+  const oc = toText(pickField(row, HEADER_ALIASES.oc)).trim() || null;
   const tag = toText(pickField(row, HEADER_ALIASES.tag)).trim();
   const equipamento = toText(pickField(row, HEADER_ALIASES.equipamento)).trim();
   const descricao = toText(pickField(row, HEADER_ALIASES.descricao)).trim();
@@ -177,16 +190,7 @@ async function sanitiseRow(
     return { error: "Linha ignorada: total de horas inválido." };
   }
 
-  const importKey = await buildServiceImportKey({
-    os,
-    setor,
-    tag,
-    equipmentName: equipamento,
-    plannedStart: inicio,
-    plannedEnd: fim,
-    empresa,
-    cnpj,
-  });
+  const importKey = await buildServiceImportKey({ os });
 
   if (!importKey) {
     return { error: "Linha ignorada: não foi possível gerar uma chave de importação." };
@@ -194,6 +198,7 @@ async function sanitiseRow(
 
   return {
     os,
+    oc,
     setor,
     tag,
     equipamento,
@@ -203,6 +208,7 @@ async function sanitiseRow(
     empresa,
     cnpj,
     horas,
+    sourceRowNumber,
     importKey,
   };
 }
@@ -232,26 +238,31 @@ export async function POST(request: Request) {
 
   let skipped = 0;
   let duplicateKeys = 0;
-  const seenKeys = new Set<string>();
+  const seenOs = new Set<string>();
   const parsedRows: ParsedRow[] = [];
+  const rowMessages: Array<{ row: number | null; error: string }> = [];
 
   let lastKnownCompany: string | null = null;
   let lastKnownCnpj: string | null = null;
 
   for (const row of rows) {
+    const rowNumber = toRowNumber(row.__rowNumber);
     const parsed = await sanitiseRow(row, { empresa: lastKnownCompany, cnpj: lastKnownCnpj });
     if ("error" in parsed) {
       skipped += 1;
+      rowMessages.push({ row: rowNumber, error: parsed.error });
       continue;
     }
     if (parsed.empresa) lastKnownCompany = parsed.empresa;
     if (parsed.cnpj) lastKnownCnpj = parsed.cnpj;
 
-    if (seenKeys.has(parsed.importKey)) {
+    const osKey = normaliseOsValue(parsed.os);
+    if (seenOs.has(osKey)) {
       duplicateKeys += 1;
+      rowMessages.push({ row: parsed.sourceRowNumber, error: `O.S ${parsed.os} duplicada na planilha.` });
       continue;
     }
-    seenKeys.add(parsed.importKey);
+    seenOs.add(osKey);
     parsedRows.push(parsed);
   }
 
@@ -265,40 +276,26 @@ export async function POST(request: Request) {
     );
   }
 
-  const existingByKey = await findServicesByImportKeys(parsedRows.map((item) => item.importKey));
-  const existingKeySet = new Set(
-    existingByKey.map((service) => service.importKey).filter((key): key is string => Boolean(key)),
-  );
-
   const existingByOs = await findServicesByOsList(parsedRows.map((item) => item.os));
-  for (const service of existingByOs) {
-    const computedKey =
-      service.importKey ||
-      (await buildServiceImportKey({
-        os: service.os,
-        tag: service.tag,
-        setor: service.setor ?? service.sector ?? null,
-        equipmentName: service.equipmentName,
-        plannedStart: service.plannedStart,
-        plannedEnd: service.plannedEnd,
-        empresa: service.company ?? service.empresa ?? null,
-        cnpj: service.cnpj ?? null,
-      }));
-    if (computedKey) {
-      existingKeySet.add(computedKey);
-    }
-  }
+  const existingOsSet = new Set(existingByOs.map((service) => normaliseOsValue(service.os)));
 
-  const toCreate = parsedRows.filter((row) => !existingKeySet.has(row.importKey));
+  const toCreate = parsedRows.filter((row) => {
+    const exists = existingOsSet.has(normaliseOsValue(row.os));
+    if (exists) {
+      rowMessages.push({ row: row.sourceRowNumber, error: `O.S ${row.os} já existe no sistema.` });
+    }
+    return !exists;
+  });
   const duplicatesFromDatabase = parsedRows.length - toCreate.length;
 
   const createdServices: Array<{ id: string; empresa: string | null }> = [];
+  let createErrorCount = 0;
 
-  try {
-    for (const row of toCreate) {
+  for (const row of toCreate) {
+    try {
       const { id } = await createService({
         os: row.os,
-        oc: null,
+        oc: row.oc,
         tag: row.tag,
         equipamento: row.equipamento,
         equipmentName: row.equipamento,
@@ -314,16 +311,14 @@ export async function POST(request: Request) {
         importKey: row.importKey,
       });
       createdServices.push({ id, empresa: row.empresa });
+    } catch (error) {
+      createErrorCount += 1;
+      console.error(`[services/import] Falha ao criar serviço da linha ${row.sourceRowNumber ?? "?"}`, error);
+      rowMessages.push({
+        row: row.sourceRowNumber,
+        error: error instanceof Error ? error.message : "Falha ao criar serviço.",
+      });
     }
-  } catch (error) {
-    console.error("[services/import] Falha ao criar serviços", error);
-    return NextResponse.json(
-      {
-        ok: false,
-        error: "Não foi possível criar todos os serviços. Nenhum dado duplicado foi inserido.",
-      },
-      { status: 500 },
-    );
   }
 
   await Promise.all(
@@ -344,6 +339,7 @@ export async function POST(request: Request) {
     ok: true,
     created: createdServices.length,
     duplicates: duplicateKeys + duplicatesFromDatabase,
-    skipped,
+    skipped: skipped + duplicateKeys + duplicatesFromDatabase + createErrorCount,
+    errors: rowMessages,
   });
 }
