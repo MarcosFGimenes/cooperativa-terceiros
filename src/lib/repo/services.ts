@@ -140,6 +140,7 @@ function formatDateKey(value: number | string | null | undefined): string {
 
 function computeServiceImportKey(input: {
   os: string;
+  oc?: string | null;
   setor?: string | null;
   tag?: string | null;
   equipmentName?: string | null;
@@ -147,9 +148,13 @@ function computeServiceImportKey(input: {
   plannedEnd?: number | string | null;
   empresa?: string | null;
   cnpj?: string | null;
+  description?: string | null;
+  totalHours?: number | string | null;
+  sourceRow?: number | string | null;
 }) {
   const parts = [
     normaliseImportValue(input.os),
+    normaliseImportValue(input.oc),
     normaliseImportValue(input.setor),
     normaliseImportValue(input.tag),
     normaliseImportValue(input.equipmentName),
@@ -157,6 +162,9 @@ function computeServiceImportKey(input: {
     formatDateKey(input.plannedEnd),
     normaliseImportValue(input.empresa),
     normaliseImportValue(input.cnpj),
+    normaliseImportValue(input.description),
+    normaliseImportValue(input.totalHours),
+    normaliseImportValue(input.sourceRow),
   ].filter(Boolean);
 
   return parts.join("::");
@@ -164,6 +172,7 @@ function computeServiceImportKey(input: {
 
 export async function buildServiceImportKey(input: {
   os: string;
+  oc?: string | null;
   setor?: string | null;
   tag?: string | null;
   equipmentName?: string | null;
@@ -171,6 +180,9 @@ export async function buildServiceImportKey(input: {
   plannedEnd?: number | string | null;
   empresa?: string | null;
   cnpj?: string | null;
+  description?: string | null;
+  totalHours?: number | string | null;
+  sourceRow?: number | string | null;
 }) {
   return computeServiceImportKey(input);
 }

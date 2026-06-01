@@ -255,6 +255,7 @@ export default function SCurve({
   const deltaTone = delta >= -2 && delta <= 2 ? "neutral" : delta > 2 ? "positive" : "warning";
 
   const hasData = chartData.some((entry) => entry.planned !== null || entry.realized !== null);
+  const hasRealizedData = chartData.some((entry) => entry.realized !== null);
   const [isClientReady, setIsClientReady] = useState(false);
 
   useEffect(() => {
@@ -345,26 +346,28 @@ export default function SCurve({
                     fill={axisColor}
                   />
                 </Line>
-                <Line
-                  type="monotone"
-                  name="Realizado"
-                  dataKey="realized"
-                  stroke={REALIZED_COLOR} // cor da série Realizado alinhada ao modelo João
-                  strokeWidth={LINE_STROKE_WIDTH}
-                  dot={{ r: DOT_RADIUS, stroke: REALIZED_COLOR, fill: REALIZED_COLOR }}
-                  activeDot={{ r: ACTIVE_DOT_RADIUS, stroke: REALIZED_COLOR, fill: REALIZED_COLOR }}
-                  strokeLinecap="round"
-                  connectNulls
-                  isAnimationActive={false}
-                >
-                  <LabelList
+                {hasRealizedData ? (
+                  <Line
+                    type="monotone"
+                    name="Realizado"
                     dataKey="realized"
-                    position="top"
-                    formatter={(value) => (typeof value === "number" ? `${Math.round(value)}%` : "")}
-                    className="text-[11px] font-semibold drop-shadow-sm"
-                    fill={axisColor}
-                  />
-                </Line>
+                    stroke={REALIZED_COLOR} // cor da série Realizado alinhada ao modelo João
+                    strokeWidth={LINE_STROKE_WIDTH}
+                    dot={{ r: DOT_RADIUS, stroke: REALIZED_COLOR, fill: REALIZED_COLOR }}
+                    activeDot={{ r: ACTIVE_DOT_RADIUS, stroke: REALIZED_COLOR, fill: REALIZED_COLOR }}
+                    strokeLinecap="round"
+                    connectNulls
+                    isAnimationActive={false}
+                  >
+                    <LabelList
+                      dataKey="realized"
+                      position="top"
+                      formatter={(value) => (typeof value === "number" ? `${Math.round(value)}%` : "")}
+                      className="text-[11px] font-semibold drop-shadow-sm"
+                      fill={axisColor}
+                    />
+                  </Line>
+                ) : null}
               </LineChart>
             </ResponsiveContainer>
           </div>
