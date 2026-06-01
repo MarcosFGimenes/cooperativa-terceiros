@@ -99,8 +99,11 @@ export async function curvaRealizadaPacote(
   const dateSet = new Set<IsoDate>();
   let lastHistoryDate: IsoDate | null = null;
   let lastExplicitHistoryDate: IsoDate | null = null;
+  let hasRealizedLaunch = false;
+
   histories.forEach(({ history }) => {
     history?.byDay.forEach((_, key) => {
+      hasRealizedLaunch = true;
       const isoKey = key as IsoDate;
       dateSet.add(isoKey);
       if (!lastHistoryDate || isoKey.localeCompare(lastHistoryDate) > 0) {
@@ -114,6 +117,8 @@ export async function curvaRealizadaPacote(
       }
     }
   });
+
+  if (!hasRealizedLaunch) return [];
 
   const start = normaliseDate(plannedStart ?? null);
   const end = normaliseDate(plannedEnd ?? null);
