@@ -136,8 +136,8 @@ export async function POST(req: Request, ctx: { params: { packageId: string } })
       parsedRows.push({
         rowNumber, os, oc, cnpj, tag, equipamento, setor, empresa, descricao,
         dataInicioPrevista, dataFimPrevista, horasPrevistas,
-        importKey: await buildServiceImportKey({ os, oc, tag, setor, equipmentName: equipamento, plannedStart: dataInicioPrevista, plannedEnd: dataFimPrevista, empresa, cnpj }),
-        legacyImportKey: await buildServiceImportKey({ os, tag, setor, equipmentName: equipamento, plannedStart: dataInicioPrevista, plannedEnd: dataFimPrevista, empresa, cnpj }),
+        importKey: await buildServiceImportKey({ os, oc, tag, setor, equipmentName: equipamento, plannedStart: dataInicioPrevista, plannedEnd: dataFimPrevista, empresa, cnpj, description: descricao, totalHours: horasPrevistas }),
+        legacyImportKey: await buildServiceImportKey({ os, tag, setor, equipmentName: equipamento, plannedStart: dataInicioPrevista, plannedEnd: dataFimPrevista, empresa, cnpj, description: descricao, totalHours: horasPrevistas }),
       });
     }
 

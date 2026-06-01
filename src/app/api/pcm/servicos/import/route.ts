@@ -191,6 +191,8 @@ async function sanitiseRow(
     plannedEnd: fim,
     empresa,
     cnpj,
+    description: descricao,
+    totalHours: horas,
   });
 
   const legacyImportKey = await buildServiceImportKey({
@@ -202,6 +204,8 @@ async function sanitiseRow(
     plannedEnd: fim,
     empresa,
     cnpj,
+    description: descricao,
+    totalHours: horas,
   });
 
   if (!importKey || !legacyImportKey) {
@@ -283,32 +287,41 @@ export async function POST(request: Request) {
     );
   }
 
-  const importKeysToCheck = Array.from(
-    new Set(parsedRows.flatMap((item) => [item.importKey, item.legacyImportKey]).filter(Boolean)),
-  );
-  const existingByKey = await findServicesByImportKeys(importKeysToCheck);
+  const existingByKey = await findServicesByImportKeys(parsedRows.map((item) => item.importKey));
   const existingKeySet = new Set(
     existingByKey.map((service) => service.importKey).filter((key): key is string => Boolean(key)),
   );
 
   const existingByOs = await findServicesByOsList(parsedRows.map((item) => item.os));
   for (const service of existingByOs) {
-    const computedKey =
-      service.importKey ||
-      (await buildServiceImportKey({
-        os: service.os,
-        oc: service.oc ?? null,
-        tag: service.tag,
-        setor: service.setor ?? service.sector ?? null,
-        equipmentName: service.equipmentName,
-        plannedStart: service.plannedStart,
-        plannedEnd: service.plannedEnd,
-        empresa: service.company ?? service.empresa ?? null,
-        cnpj: service.cnpj ?? null,
-      }));
-    if (computedKey) {
-      existingKeySet.add(computedKey);
+    if (service.importKey) {
+      existingKeySet.add(service.importKey);
     }
+
+    const serviceIdentity = {
+      os: service.os,
+      tag: service.tag,
+      setor: service.setor ?? service.sector ?? null,
+      equipmentName: service.equipmentName,
+      plannedStart: service.plannedStart,
+      plannedEnd: service.plannedEnd,
+      empresa: service.company ?? service.empresa ?? null,
+      cnpj: service.cnpj ?? null,
+      description: service.description ?? null,
+      totalHours: service.totalHours ?? null,
+    };
+
+    const computedKeys = await Promise.all([
+      buildServiceImportKey({
+        ...serviceIdentity,
+        oc: service.oc ?? null,
+      }),
+      buildServiceImportKey(serviceIdentity),
+    ]);
+
+    computedKeys.forEach((computedKey) => {
+      if (computedKey) existingKeySet.add(computedKey);
+    });
   }
 
   const toCreate = parsedRows.filter(

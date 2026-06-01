@@ -148,6 +148,8 @@ function computeServiceImportKey(input: {
   plannedEnd?: number | string | null;
   empresa?: string | null;
   cnpj?: string | null;
+  description?: string | null;
+  totalHours?: number | string | null;
 }) {
   const parts = [
     normaliseImportValue(input.os),
@@ -159,6 +161,8 @@ function computeServiceImportKey(input: {
     formatDateKey(input.plannedEnd),
     normaliseImportValue(input.empresa),
     normaliseImportValue(input.cnpj),
+    normaliseImportValue(input.description),
+    normaliseImportValue(input.totalHours),
   ].filter(Boolean);
 
   return parts.join("::");
@@ -174,6 +178,8 @@ export async function buildServiceImportKey(input: {
   plannedEnd?: number | string | null;
   empresa?: string | null;
   cnpj?: string | null;
+  description?: string | null;
+  totalHours?: number | string | null;
 }) {
   return computeServiceImportKey(input);
 }
