@@ -8,7 +8,6 @@ import {
   buildServiceImportKey,
   createService,
   findServicesByImportKeys,
-  findServicesByOsList,
 } from "@/lib/repo/services";
 import { normalizeCnpj } from "@/lib/cnpj";
 import { excelDateNumberToMillis, parseXlsxTable } from "@/lib/xlsxParser";
@@ -152,7 +151,6 @@ type ParsedRow = {
   horas: number;
   sourceRowNumber: number | null;
   importKey: string;
-  compatibilityImportKeys: string[];
 };
 
 async function sanitiseRow(
@@ -207,17 +205,6 @@ async function sanitiseRow(
     sourceRow: sourceRowNumber,
   });
 
-  const compatibilityImportKeys = Array.from(
-    new Set(
-      (
-        await Promise.all([
-          buildServiceImportKey({ ...detailedIdentity, oc }),
-          buildServiceImportKey(detailedIdentity),
-        ])
-      ).filter((key) => key && key !== importKey),
-    ),
-  );
-
   if (!importKey) {
     return { error: "Linha ignorada: não foi possível gerar uma chave de importação." };
   }
@@ -236,7 +223,6 @@ async function sanitiseRow(
     horas,
     sourceRowNumber,
     importKey,
-    compatibilityImportKeys,
   };
 }
 
@@ -298,72 +284,19 @@ export async function POST(request: Request) {
     );
   }
 
-  const importedKeysToCheck = Array.from(
-    new Set(parsedRows.flatMap((item) => [item.importKey, ...item.compatibilityImportKeys])),
-  );
-  const existingByKey = await findServicesByImportKeys(importedKeysToCheck);
-  const existingServiceAliases = new Map<string, Set<string>>();
-
-  function addExistingKey(serviceId: string, key: string | null | undefined) {
-    const trimmed = key?.trim();
-    if (!trimmed) return;
-
-    const aliases = existingServiceAliases.get(serviceId) ?? new Set<string>();
-    aliases.add(trimmed);
-    existingServiceAliases.set(serviceId, aliases);
-  }
-
-  const existingByOs = await findServicesByOsList(parsedRows.map((item) => item.os));
-  const existingServicesById = new Map(
-    [...existingByKey, ...existingByOs].map((service) => [service.id, service] as const),
+  const existingByKey = await findServicesByImportKeys(parsedRows.map((item) => item.importKey));
+  const existingKeySet = new Set(
+    existingByKey.map((service) => service.importKey).filter((key): key is string => Boolean(key)),
   );
 
-  for (const service of existingServicesById.values()) {
-    addExistingKey(service.id, service.importKey);
-
-    const serviceIdentity = {
-      os: service.os,
-      tag: service.tag,
-      setor: service.setor ?? service.sector ?? null,
-      equipmentName: service.equipmentName,
-      plannedStart: service.plannedStart,
-      plannedEnd: service.plannedEnd,
-      empresa: service.company ?? service.empresa ?? null,
-      cnpj: service.cnpj ?? null,
-      description: service.description ?? null,
-      totalHours: service.totalHours ?? null,
-    };
-
-    const computedKeys = await Promise.all([
-      buildServiceImportKey({
-        ...serviceIdentity,
-        oc: service.oc ?? null,
-      }),
-      buildServiceImportKey(serviceIdentity),
-    ]);
-
-    computedKeys.forEach((computedKey) => addExistingKey(service.id, computedKey));
-  }
-
-  const consumedExistingServiceIds = new Set<string>();
-  const toCreate = parsedRows.filter((row) => {
-    const rowKeys = new Set([row.importKey, ...row.compatibilityImportKeys]);
-    const matchingExistingService = Array.from(existingServiceAliases.entries()).find(
-      ([serviceId, aliases]) =>
-        !consumedExistingServiceIds.has(serviceId) && Array.from(rowKeys).some((key) => aliases.has(key)),
-    );
-
-    if (!matchingExistingService) return true;
-
-    consumedExistingServiceIds.add(matchingExistingService[0]);
-    return false;
-  });
+  const toCreate = parsedRows.filter((row) => !existingKeySet.has(row.importKey));
   const duplicatesFromDatabase = parsedRows.length - toCreate.length;
 
   const createdServices: Array<{ id: string; empresa: string | null }> = [];
+  const createErrors: Array<{ row: number | null; error: string }> = [];
 
-  try {
-    for (const row of toCreate) {
+  for (const row of toCreate) {
+    try {
       const { id } = await createService({
         os: row.os,
         oc: row.oc,
@@ -382,16 +315,13 @@ export async function POST(request: Request) {
         importKey: row.importKey,
       });
       createdServices.push({ id, empresa: row.empresa });
+    } catch (error) {
+      console.error(`[services/import] Falha ao criar serviço da linha ${row.sourceRowNumber ?? "?"}`, error);
+      createErrors.push({
+        row: row.sourceRowNumber,
+        error: error instanceof Error ? error.message : "Falha ao criar serviço.",
+      });
     }
-  } catch (error) {
-    console.error("[services/import] Falha ao criar serviços", error);
-    return NextResponse.json(
-      {
-        ok: false,
-        error: "Não foi possível criar todos os serviços. Nenhum dado duplicado foi inserido.",
-      },
-      { status: 500 },
-    );
   }
 
   await Promise.all(
@@ -412,6 +342,7 @@ export async function POST(request: Request) {
     ok: true,
     created: createdServices.length,
     duplicates: duplicateKeys + duplicatesFromDatabase,
-    skipped,
+    skipped: skipped + createErrors.length,
+    errors: createErrors,
   });
 }
