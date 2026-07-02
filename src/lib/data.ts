@@ -222,12 +222,31 @@ function mapDoc(id: string, rawData: Record<string, unknown> | undefined): PCMSe
   return result;
 }
 
+function normaliseSearchTerm(value: string | null | undefined): string | null {
+  const term = value?.trim();
+  return term ? term : null;
+}
+
+function uniqueServiceItems(items: PCMServiceListItem[]): PCMServiceListItem[] {
+  const seen = new Set<string>();
+  const unique: PCMServiceListItem[] = [];
+
+  for (const item of items) {
+    if (seen.has(item.id)) continue;
+    seen.add(item.id);
+    unique.push(item);
+  }
+
+  return unique;
+}
+
 /** Lista serviços com filtros e paginação para o PCM. */
 export async function listServicesPCM(options?: {
   limit?: number;
   cursor?: string | null;
   status?: string | null;
   empresa?: string | null;
+  search?: string | null;
 }): Promise<PCMListResponse<PCMServiceListItem>> {
   try {
     const admin = getAdminDbOrThrow();
@@ -236,7 +255,9 @@ export async function listServicesPCM(options?: {
       cursor = null,
       status,
       empresa,
+      search,
     } = options ?? {};
+    const searchTerm = normaliseSearchTerm(search);
 
     let query: FirebaseFirestore.Query = admin.collection("services");
 
@@ -246,6 +267,39 @@ export async function listServicesPCM(options?: {
 
     if (empresa) {
       query = query.where("empresa", "==", empresa);
+    }
+
+    if (searchTerm) {
+      const searchableFields = ["os", "tag", "code", "equipamento", "equipmentName"];
+      const snapshots = await Promise.all(
+        searchableFields.map((field) => {
+          let searchQuery: FirebaseFirestore.Query = admin.collection("services");
+
+          if (status) {
+            searchQuery = searchQuery.where("status", "==", normStatus(status));
+          }
+
+          if (empresa) {
+            searchQuery = searchQuery.where("empresa", "==", empresa);
+          }
+
+          return searchQuery
+            .orderBy(field)
+            .startAt(searchTerm)
+            .endAt(`${searchTerm}\uf8ff`)
+            .limit(limit)
+            .get();
+        }),
+      );
+      const items = uniqueServiceItems(
+        snapshots.flatMap((snap) =>
+          snap.docs.map((docSnap) => mapDoc(docSnap.id, docSnap.data() as Record<string, unknown>)),
+        ),
+      )
+        .sort((left, right) => (Number(right.updatedAt ?? 0) || 0) - (Number(left.updatedAt ?? 0) || 0))
+        .slice(0, limit);
+
+      return { items, nextCursor: null };
     }
 
     query = query.orderBy("updatedAt", "desc");

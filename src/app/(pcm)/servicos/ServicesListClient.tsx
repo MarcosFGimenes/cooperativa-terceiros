@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 
@@ -116,14 +116,59 @@ export default function ServicesListClient({ initialItems, initialCursor }: Prop
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [osFilter, setOsFilter] = useState("");
+  const [searchItems, setSearchItems] = useState<PCMServiceListItem[] | null>(null);
+  const [isSearching, setIsSearching] = useState(false);
   const searchParams = useSearchParams();
   const refDateParam = searchParams?.get("refDate") ?? null;
   const { date: referenceDate } = useMemo(() => resolveReferenceDate(refDateParam), [refDateParam]);
+  const trimmedFilter = osFilter.trim();
+  const shouldSearchDatabase = trimmedFilter.length >= 2;
   const filteredItems = useMemo(() => {
-    const query = osFilter.trim().toLowerCase();
-    if (!query) return items;
-    return items.filter((service) => String(service.os ?? "").toLowerCase().includes(query));
-  }, [items, osFilter]);
+    const query = trimmedFilter.toLowerCase();
+    const sourceItems = searchItems ?? items;
+    if (!query || searchItems) return sourceItems;
+    return sourceItems.filter((service) => String(service.os ?? "").toLowerCase().includes(query));
+  }, [items, searchItems, trimmedFilter]);
+
+  useEffect(() => {
+    if (!shouldSearchDatabase) {
+      setSearchItems(null);
+      setIsSearching(false);
+      return;
+    }
+
+    const controller = new AbortController();
+    const timeout = window.setTimeout(async () => {
+      setIsSearching(true);
+      setErrorMessage(null);
+      try {
+        const params = new URLSearchParams({ limit: "20", q: trimmedFilter });
+        const response = await fetch(`/api/pcm/servicos?${params.toString()}`, {
+          method: "GET",
+          cache: "no-store",
+          signal: controller.signal,
+        });
+        if (!response.ok) {
+          throw new Error(`Falha ao buscar serviços: ${response.status}`);
+        }
+        const payload = (await response.json()) as PCMListResponse<PCMServiceListItem>;
+        setSearchItems(payload.items);
+      } catch (error) {
+        if (controller.signal.aborted) return;
+        console.error("[ServicesListClient] Falha ao buscar serviços", error);
+        setErrorMessage("Não foi possível buscar serviços no banco. Tente novamente.");
+      } finally {
+        if (!controller.signal.aborted) {
+          setIsSearching(false);
+        }
+      }
+    }, 600);
+
+    return () => {
+      controller.abort();
+      window.clearTimeout(timeout);
+    };
+  }, [shouldSearchDatabase, trimmedFilter]);
 
   const handleLoadMore = useCallback(async () => {
     if (!cursor) return;
@@ -173,7 +218,7 @@ export default function ServicesListClient({ initialItems, initialCursor }: Prop
 
       {filteredItems.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-border/70 bg-muted/20 p-4 text-sm text-muted-foreground">
-          Nenhum serviço encontrado para o filtro informado.
+          {isSearching ? "Buscando serviços..." : "Nenhum serviço encontrado para o filtro informado."}
         </div>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
@@ -255,14 +300,15 @@ export default function ServicesListClient({ initialItems, initialCursor }: Prop
         <div>
           <p>
             Mostrando {filteredItems.length} serviço{filteredItems.length === 1 ? "" : "s"}
-            {osFilter.trim() ? ` filtrado${filteredItems.length === 1 ? "" : "s"} por O.S` : ""}.
+            {trimmedFilter ? ` filtrado${filteredItems.length === 1 ? "" : "s"} por O.S` : ""}.
+            {isSearching ? " Buscando no banco..." : ""}
           </p>
           {errorMessage ? <p className="text-destructive">{errorMessage}</p> : null}
         </div>
         <button
           type="button"
           className="btn btn-secondary"
-          disabled={!cursor || isLoadingMore}
+          disabled={!cursor || isLoadingMore || Boolean(searchItems)}
           onClick={handleLoadMore}
         >
           {isLoadingMore ? "Carregando..." : cursor ? "Carregar mais" : "Todos carregados"}
