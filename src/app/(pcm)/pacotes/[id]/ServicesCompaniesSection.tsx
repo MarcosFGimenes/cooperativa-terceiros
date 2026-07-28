@@ -29,6 +29,8 @@ export type ServiceDetail = {
   startDateMs?: number | null;
   endDateMs?: number | null;
   lastUpdateMs?: number | null;
+  latestUpdateDescription?: string | null;
+  latestUpdatePercentLabel?: string | null;
 };
 
 export type ServiceDetailsMap = Record<string, ServiceDetail | undefined>;
@@ -212,6 +214,21 @@ export default function ServicesCompaniesSection({
                                   {" "}—{" "}
                                   <span className="font-semibold text-foreground print:text-slate-900">{formatDateLabel(detail.endDateMs)}</span>
                                 </p>
+                                {(detail.latestUpdateDescription || detail.latestUpdatePercentLabel) ? (
+                                  <p>
+                                    {detail.latestUpdatePercentLabel ? (
+                                      <span className="font-semibold text-foreground print:text-slate-900">
+                                        {detail.latestUpdatePercentLabel}
+                                      </span>
+                                    ) : null}
+                                    {detail.latestUpdateDescription ? (
+                                      <>
+                                        {detail.latestUpdatePercentLabel ? " • " : ""}
+                                        {detail.latestUpdateDescription}
+                                      </>
+                                    ) : null}
+                                  </p>
+                                ) : null}
                               </div>
                             </Link>
                           ))}

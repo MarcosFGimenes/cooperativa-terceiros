@@ -7,6 +7,7 @@ import { getPackageByIdCached, listPackageServices } from "@/lib/repo/packages";
 import { listPackageFolders } from "@/lib/repo/folders";
 import { getServicesByIds, listAvailableOpenServices, listUpdates } from "@/lib/repo/services";
 import { formatDate as formatDisplayDate } from "@/lib/formatDateTime";
+import { formatUpdateSummary } from "@/lib/serviceUpdates";
 import { curvaPlanejada, curvaRealizadaPacote } from "@/lib/curvaS";
 import {
   calcularMetricasPorSetor,
@@ -262,6 +263,24 @@ function resolveServiceLastUpdateMs(service: Service): number | null {
 
   const created = extractDateMs((service as { createdAt?: unknown }).createdAt);
   return created ?? null;
+}
+
+function getLatestServiceUpdate(service: Service): ServiceUpdate | null {
+  const raw = service as Record<string, unknown>;
+  const updates = Array.isArray(service.updates)
+    ? service.updates
+    : Array.isArray(raw.atualizacoes)
+    ? raw.atualizacoes
+    : [];
+
+  const validUpdates = updates.filter(
+    (update): update is ServiceUpdate => Boolean(update && typeof (update as ServiceUpdate).createdAt === "number"),
+  );
+  if (!validUpdates.length) return null;
+
+  return validUpdates
+    .slice()
+    .sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0))[0] ?? null;
 }
 
 async function renderPackageDetailPage(
@@ -657,6 +676,9 @@ async function renderPackageDetailPage(
       realizedPercent: snapshot.realizedPercent,
     });
     const lastUpdateMs = resolveServiceLastUpdateMs(service);
+    const latestUpdate = getLatestServiceUpdate(service);
+    const latestSummary = latestUpdate ? formatUpdateSummary(latestUpdate) : null;
+
     serviceDetails[service.id] = {
       id: service.id,
       label: companyLabel ? `${baseLabel} — ${companyLabel}` : baseLabel,
@@ -670,6 +692,8 @@ async function renderPackageDetailPage(
       endDateMs: snapshot.endDateMs,
       isOpen: statusLabel === "Aberto" || statusLabel === "Pendente",
       lastUpdateMs,
+      latestUpdateDescription: latestSummary?.description ?? latestUpdate?.description ?? null,
+      latestUpdatePercentLabel: latestSummary?.percentLabel ?? null,
     };
   });
 
@@ -697,6 +721,9 @@ async function renderPackageDetailPage(
     const statusLabel = resolveDisplayedServiceStatus(service, {
       realizedPercent: snapshot.realizedPercent,
     });
+    const latestUpdate = getLatestServiceUpdate(service);
+    const latestSummary = latestUpdate ? formatUpdateSummary(latestUpdate) : null;
+
     serviceDetails[service.id] = {
       id: service.id,
       label: companyLabel ? `${baseLabel} — ${companyLabel}` : baseLabel,
@@ -710,6 +737,8 @@ async function renderPackageDetailPage(
       endDateMs: snapshot.endDateMs,
       isOpen: statusLabel === "Aberto" || statusLabel === "Pendente",
       lastUpdateMs,
+      latestUpdateDescription: latestSummary?.description ?? latestUpdate?.description ?? null,
+      latestUpdatePercentLabel: latestSummary?.percentLabel ?? null,
     };
   });
 
