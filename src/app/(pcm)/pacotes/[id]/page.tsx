@@ -32,6 +32,7 @@ import PackageFoldersManagerClient from "./PackageFoldersManager.client";
 import PackagePdfExportButton from "./PackagePdfExportButton";
 import PackageImportServicesButton from "./PackageImportServicesButton";
 import PackageSCurveSection from "./_components/package-scurve/PackageSCurveSection";
+import PackageReferenceDateSelector from "./PackageReferenceDateSelector.client";
 
 const { notFound } = Navigation;
 
@@ -305,7 +306,7 @@ async function renderPackageDetailPage(
 
   const refDateParamRaw = searchParams?.refDate;
   const refDateValue = Array.isArray(refDateParamRaw) ? refDateParamRaw[0] : refDateParamRaw ?? null;
-  const { date: referenceDate } = resolveReferenceDate(refDateValue);
+  const { date: referenceDate, inputValue: referenceDateInput } = resolveReferenceDate(refDateValue);
 
   let pkg: Package | null = null;
   let resolvedPackageId = packageIdCandidates[0];
@@ -820,6 +821,9 @@ async function renderPackageDetailPage(
                 <p className="text-sm text-muted-foreground">
                   Resumo do pacote e serviços vinculados.
                 </p>
+                <div className="mt-3 max-w-md">
+                  <PackageReferenceDateSelector initialValue={referenceDateInput} />
+                </div>
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-2 md:justify-end print:hidden">

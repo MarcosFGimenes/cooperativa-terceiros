@@ -402,8 +402,8 @@ describe("serviceProgress utilities", () => {
         },
         reference,
       );
-      // Contagem inclusiva de dias: 01/01..11/01 (11 dias), ref 10/01 => 10/11 = 90.909...
-      expect(percentual).toBeCloseTo((10 / 11) * 100, 5);
+      // Start date counts as 0% and end date counts as 100% for the planned curve.
+      expect(percentual).toBeCloseTo(90, 5);
     });
 
     it("prefers plannedDaily series when available", () => {
@@ -465,7 +465,7 @@ describe("serviceProgress utilities", () => {
         referenceDate,
       );
 
-      expect(percentual).toBeCloseTo(50, 5);
+      expect(percentual).toBeCloseTo(40, 5);
     });
   });
 

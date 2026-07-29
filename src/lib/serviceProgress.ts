@@ -540,15 +540,18 @@ function calcularPercentualPlanejadoDoServico(
   const inicioMs = servico.inicio.getTime();
   const fimMs = servico.fim.getTime();
 
-  if (referenciaMs < inicioMs) {
+  if (referenciaMs <= inicioMs) {
     return 0;
   }
   if (referenciaMs >= fimMs) {
     return 100;
   }
 
-  const diasDecorridos = daysBetween(servico.inicio, new Date(referenciaMs));
-  return clampPercentage((diasDecorridos / servico.totalDias) * 100);
+  const diasTotais = Math.max(1, servico.totalDias - 1);
+  const diasDecorridos = Math.floor((referenciaMs - inicioMs) / DAY_IN_MS);
+  if (diasDecorridos <= 0) return 0;
+
+  return clampPercentage((diasDecorridos / diasTotais) * 100);
 }
 
 function prepararServicosPlanejados(servicos: ServicoDoSubpacote[]): PreparedServicoPlanejado[] {
@@ -854,8 +857,11 @@ export function calcularPercentualPlanejadoServico(
     return 100;
   }
 
-  const diasDecorridos = daysBetween(range.inicio, referencia);
-  return clampPercentage((diasDecorridos / totalDias) * 100);
+  const diasTotais = Math.max(1, totalDias - 1);
+  const diasDecorridos = Math.floor((referenciaMs - inicioMs) / DAY_IN_MS);
+  if (diasDecorridos <= 0) return 0;
+
+  return clampPercentage((diasDecorridos / diasTotais) * 100);
 }
 
 export function resolveServicoPercentualPlanejado(

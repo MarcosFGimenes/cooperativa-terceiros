@@ -688,7 +688,7 @@ export default function PackageFoldersManager({
                       Empresa: {folder.companyId ? folder.companyId : "-"}
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      Planejado hoje: <span className="font-semibold text-foreground">{plannedLabel}</span>
+                      Planejado em: <span className="font-semibold text-foreground">{plannedLabel}</span>
                     </p>
                     <p className="text-xs text-muted-foreground">
                       Realizado: <span className="font-semibold text-foreground">{realizedLabel}</span>
@@ -720,7 +720,7 @@ export default function PackageFoldersManager({
                               Empresa vinculada: {activeFolder.companyId ? activeFolder.companyId : "-"}
                             </p>
                             <p className="text-xs text-muted-foreground">
-                              Planejado hoje: <span className="font-semibold text-foreground">{plannedLabel}</span>
+                              Planejado em: <span className="font-semibold text-foreground">{plannedLabel}</span>
                             </p>
                             <p className="text-xs text-muted-foreground">
                               Realizado: <span className="font-semibold text-foreground">{realizedLabel}</span>
