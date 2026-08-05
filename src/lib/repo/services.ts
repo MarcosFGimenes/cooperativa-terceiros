@@ -755,7 +755,19 @@ async function fetchAvailableOpenServices(limit: number, mode: ServiceMapMode): 
     return [];
   }
 
-  const pushDocs = (docs: FirebaseFirestore.QueryDocumentSnapshot[]) => {
+  const folderReferenceCache = new Map<string, boolean>();
+
+  const serviceIsAttachedToFolder = async (serviceId: string): Promise<boolean> => {
+    if (folderReferenceCache.has(serviceId)) {
+      return folderReferenceCache.get(serviceId) ?? false;
+    }
+    const refs = await collectFolderRefsByServiceId(serviceId);
+    const isAttached = refs.length > 0;
+    folderReferenceCache.set(serviceId, isAttached);
+    return isAttached;
+  };
+
+  const pushDocs = async (docs: FirebaseFirestore.QueryDocumentSnapshot[]) => {
     for (const doc of docs) {
       if (results.length >= limit) break;
       if (seen.has(doc.id)) continue;
@@ -765,6 +777,8 @@ async function fetchAvailableOpenServices(limit: number, mode: ServiceMapMode): 
         mode,
       );
       if (!allowedStatusSet.has(service.status)) continue;
+      if (service.packageId?.trim()) continue;
+      if (await serviceIsAttachedToFolder(service.id)) continue;
       seen.add(service.id);
       results.push(service);
       if (results.length >= limit) break;
@@ -781,7 +795,7 @@ async function fetchAvailableOpenServices(limit: number, mode: ServiceMapMode): 
     if (results.length >= limit) return;
     try {
       const snapshot = await promise;
-      pushDocs(snapshot.docs);
+      await pushDocs(snapshot.docs);
     } catch (error) {
       errors.push({ scope, error });
       console.warn(

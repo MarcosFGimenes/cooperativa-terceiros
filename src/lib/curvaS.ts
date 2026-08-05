@@ -128,12 +128,29 @@ export async function curvaRealizadaPacote(
 
   const allDates = Array.from(dateSet).sort((left, right) => left.localeCompare(right));
   const cutoffDate = lastExplicitHistoryDate ?? lastHistoryDate;
-  const curveDates =
-    cutoffDate === null ? allDates : allDates.filter((dateKey) => dateKey.localeCompare(cutoffDate) <= 0);
+  const graphStart = start ?? allDates[0] ?? null;
+  if (!graphStart) return [];
+
+  const curveDates = allDates.filter(
+    (dateKey) => dateKey.localeCompare(graphStart) >= 0 && (cutoffDate === null || dateKey.localeCompare(cutoffDate) <= 0),
+  );
   if (!curveDates.length) return [];
 
   const lastPercentByService = new Map<string, number>();
   const curve: CurvePoint[] = [];
+
+  if (start) {
+    const historyDatesBeforeStart = allDates.filter((dateKey) => dateKey.localeCompare(start) < 0);
+    historyDatesBeforeStart.forEach((dateKey) => {
+      histories.forEach(({ service, history }) => {
+        if (!history) return;
+        const percentForDay = history.byDay.get(dateKey);
+        if (typeof percentForDay === "number" && Number.isFinite(percentForDay)) {
+          lastPercentByService.set(service.id, percentForDay);
+        }
+      });
+    });
+  }
 
   curveDates.forEach((dateKey) => {
     let earnedHours = 0;
