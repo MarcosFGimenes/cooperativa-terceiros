@@ -48,19 +48,18 @@ function toMillis(value: unknown): number | null {
 }
 
 function normalisePercentFromUpdate(data: Record<string, unknown>): number | null {
-  // Priorizar manualPercent e realPercentSnapshot que são os campos usados para o valor digitado pelo terceiro
   const candidates = [
-    data.manualPercent, // Valor digitado diretamente pelo terceiro
-    data.realPercentSnapshot, // Snapshot do valor real
-    data.realPercent, // Valor real sem snapshot
-    data.percent, // Campo genérico de percentual
-    data.totalPct, // Percentual total (legado)
-    data.progress, // Campo de progresso
+    data.manualPercent,
+    data.realPercentSnapshot,
+    data.realPercent,
+    data.percent,
+    data.totalPct,
+    data.progress,
+    data.pct,
   ];
   for (const candidate of candidates) {
     const parsed = typeof candidate === "number" ? candidate : Number(candidate ?? NaN);
     if (Number.isFinite(parsed)) {
-      // Preservar valor exato, apenas garantir que está no range válido
       return clampPercent(parsed);
     }
   }
@@ -89,6 +88,8 @@ function normaliseEvent(
   const explicitTimestamp =
     toMillis(data.reportDate) ??
     toMillis(data.date) ??
+    toMillis(data.reportDateMillis) ??
+    toMillis(data.report_date) ??
     toMillis((data.timeWindow as Record<string, unknown> | undefined)?.start) ??
     null;
   const timestamp = explicitTimestamp ?? toMillis(data.createdAt) ?? fallbackTimestamp;

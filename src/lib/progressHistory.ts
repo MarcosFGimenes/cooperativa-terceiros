@@ -7,6 +7,15 @@ export type ProgressEvent = {
   explicitDate?: boolean;
 };
 
+function readFinitePercent(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string") {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return null;
+}
+
 function normaliseId(raw: unknown): string | null {
   if (typeof raw !== "string") return null;
   const value = raw.trim();
@@ -77,6 +86,11 @@ export function computeProgressFromEvents(
     lastTimestamp = event.timestamp;
     if (event.explicitDate) {
       lastExplicitTimestamp = event.timestamp;
+    }
+
+    const explicitPercent = readFinitePercent(event.percent);
+    if (explicitPercent !== null) {
+      currentPercent = clampPercent(explicitPercent);
     }
 
     if (Array.isArray(event.items) && event.items.length > 0) {
