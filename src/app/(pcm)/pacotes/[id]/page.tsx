@@ -776,21 +776,19 @@ async function renderPackageDetailPage(
       : `Mais de ${Math.max(serviceCountReference, services.length)} serviços`
     : `${services.length} serviço${services.length === 1 ? "" : "s"}`;
 
-  const plannedCurve = calcularCurvaSPlanejada(
-    { subpacotes: subpackagesForCurve },
-    referenceDate,
-  ).map((point) => ({
-    date: point.data.toISOString().slice(0, 10),
-    percent: Math.round(point.percentual),
-  }));
+  const plannedCurve = calcularCurvaSPlanejada({ subpacotes: subpackagesForCurve }).map(
+    (point) => ({
+      date: point.data.toISOString().slice(0, 10),
+      percent: Math.round(point.percentual),
+    }),
+  );
 
-  const realizedCurve = calcularCurvaSRealizada(
-    { subpacotes: subpackagesForCurve },
-    referenceDate,
-  ).map((point) => ({
-    date: point.data.toISOString().slice(0, 10),
-    percent: Math.round(point.percentual),
-  }));
+  const realizedCurve = calcularCurvaSRealizada({ subpacotes: subpackagesForCurve }).map(
+    (point) => ({
+      date: point.data.toISOString().slice(0, 10),
+      percent: Math.round(point.percentual),
+    }),
+  );
 
   return (
     <div className="container mx-auto max-w-7xl space-y-6 px-6 py-6 package-print-layout print:m-0 print:w-full print:max-w-none print:space-y-3 print:px-0 print:py-0">
