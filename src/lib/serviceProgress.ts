@@ -547,8 +547,8 @@ function calcularPercentualPlanejadoDoServico(
     return 100;
   }
 
-  const diasTotais = Math.max(1, servico.totalDias - 1);
-  const diasDecorridos = Math.floor((referenciaMs - inicioMs) / DAY_IN_MS);
+  const diasTotais = Math.max(1, servico.totalDias);
+  const diasDecorridos = Math.floor((referenciaMs - inicioMs) / DAY_IN_MS) + 1;
   if (diasDecorridos <= 0) return 0;
 
   return clampPercentage((diasDecorridos / diasTotais) * 100);
@@ -857,8 +857,8 @@ export function calcularPercentualPlanejadoServico(
     return 100;
   }
 
-  const diasTotais = Math.max(1, totalDias - 1);
-  const diasDecorridos = Math.floor((referenciaMs - inicioMs) / DAY_IN_MS);
+  const diasTotais = Math.max(1, totalDias);
+  const diasDecorridos = Math.floor((referenciaMs - inicioMs) / DAY_IN_MS) + 1;
   if (diasDecorridos <= 0) return 0;
 
   return clampPercentage((diasDecorridos / diasTotais) * 100);
