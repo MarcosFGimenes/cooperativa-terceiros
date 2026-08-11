@@ -8,8 +8,9 @@ import { listPackageFolders } from "@/lib/repo/folders";
 import { getServicesByIds, listAvailableOpenServices, listUpdates } from "@/lib/repo/services";
 import { formatDate as formatDisplayDate } from "@/lib/formatDateTime";
 import { formatUpdateSummary } from "@/lib/serviceUpdates";
-import { curvaPlanejada, curvaRealizadaPacote } from "@/lib/curvaS";
 import {
+  calcularCurvaSPlanejada,
+  calcularCurvaSRealizada,
   calcularMetricasPorSetor,
   calcularMetricasSubpacote,
   calcularPercentualPlanejadoPacote,
@@ -775,31 +776,20 @@ async function renderPackageDetailPage(
       : `Mais de ${Math.max(serviceCountReference, services.length)} serviços`
     : `${services.length} serviço${services.length === 1 ? "" : "s"}`;
 
-  const packageServicesForCurve = services
-    .map((service) => ({
-      id: service.id,
-      hours: resolveServiceHours(service),
-    }))
-    .filter((service) => service.hours > 0);
+  const plannedCurve = calcularCurvaSPlanejada(
+    { subpacotes: subpackagesForCurve },
+    referenceDate,
+  ).map((point) => ({
+    date: point.data.toISOString().slice(0, 10),
+    percent: Math.round(point.percentual),
+  }));
 
-  const plannedCurve = (() => {
-    const plannedStart = parseISO(pkg.plannedStart);
-    const plannedEnd = parseISO(pkg.plannedEnd);
-    const totalHours = Number.isFinite(resolvedTotalHours ?? NaN) ? Number(resolvedTotalHours) : 0;
-    if (!plannedStart || !plannedEnd || totalHours <= 0) return [];
-    return curvaPlanejada(plannedStart, plannedEnd, totalHours).map((point) => ({
-      date: point.d,
-      percent: point.pct,
-    }));
-  })();
-
-  const realizedCurve = (await curvaRealizadaPacote(
-    packageServicesForCurve,
-    parseISO(pkg.plannedStart),
-    parseISO(pkg.plannedEnd),
-  )).map((point) => ({
-    date: point.d,
-    percent: point.pct,
+  const realizedCurve = calcularCurvaSRealizada(
+    { subpacotes: subpackagesForCurve },
+    referenceDate,
+  ).map((point) => ({
+    date: point.data.toISOString().slice(0, 10),
+    percent: Math.round(point.percentual),
   }));
 
   return (

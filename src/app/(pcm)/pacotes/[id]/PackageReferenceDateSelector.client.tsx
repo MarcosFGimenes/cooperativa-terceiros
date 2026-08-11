@@ -65,9 +65,6 @@ export default function PackageReferenceDateSelector({ initialValue }: Props) {
           Limpar
         </button>
       </div>
-      <p className="mt-2 text-xs text-muted-foreground">
-        Todos os cálculos abaixo usam os dados até {formatReferenceLabel(new Date(selectedDate))}
-      </p>
     </div>
   );
 }

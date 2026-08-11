@@ -540,7 +540,7 @@ function calcularPercentualPlanejadoDoServico(
   const inicioMs = servico.inicio.getTime();
   const fimMs = servico.fim.getTime();
 
-  if (referenciaMs <= inicioMs) {
+  if (referenciaMs < inicioMs) {
     return 0;
   }
   if (referenciaMs >= fimMs) {
@@ -850,7 +850,7 @@ export function calcularPercentualPlanejadoServico(
   const inicioMs = range.inicio.getTime();
   const fimMs = range.fim.getTime();
 
-  if (referenciaMs <= inicioMs) {
+  if (referenciaMs < inicioMs) {
     return 0;
   }
   if (referenciaMs >= fimMs) {

@@ -383,6 +383,18 @@ describe("serviceProgress utilities", () => {
       expect(percentual).toBe(0);
     });
 
+    it("returns positive progress on the first planned day", () => {
+      const percentual = calcularPercentualPlanejadoServico(
+        {
+          dataInicio: new Date("2024-01-10T00:00:00Z"),
+          dataFim: new Date("2024-01-20T00:00:00Z"),
+        },
+        new Date("2024-01-10T00:00:00Z"),
+      );
+      expect(percentual).toBeGreaterThan(0);
+      expect(percentual).toBeLessThan(100);
+    });
+
     it("returns one hundred when reference is after finish", () => {
       const percentual = calcularPercentualPlanejadoServico(
         {
