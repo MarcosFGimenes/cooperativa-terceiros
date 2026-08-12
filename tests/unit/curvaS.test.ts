@@ -1,13 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const computeProgressHistoryMock = vi.fn();
+const { computeProgressHistoryMock } = vi.hoisted(() => ({
+  computeProgressHistoryMock: vi.fn(),
+}));
 
 vi.mock("@/lib/progressHistoryServer", () => ({
   computeProgressHistory: computeProgressHistoryMock,
 }));
 
 import { curvaRealizadaPacote } from "@/lib/curvaS";
-import { computeProgressFromEvents } from "@/lib/progressHistory";
 
 describe("curvaRealizadaPacote", () => {
   beforeEach(() => {
@@ -39,13 +40,4 @@ describe("curvaRealizadaPacote", () => {
     ]);
   });
 
-  it("ignora data explícita posterior quando o percentual não mudou", () => {
-    const result = computeProgressFromEvents([
-      { timestamp: new Date("2026-08-11T12:00:00.000Z").getTime(), percent: 60, explicitDate: true },
-      { timestamp: new Date("2026-08-12T12:00:00.000Z").getTime(), percent: 60, explicitDate: true },
-    ]);
-
-    expect([...result.byDay.entries()]).toEqual([["2026-08-11", 60]]);
-    expect(result.lastExplicitTimestamp).toBe(new Date("2026-08-11T12:00:00.000Z").getTime());
-  });
 });

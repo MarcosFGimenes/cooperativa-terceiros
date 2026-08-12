@@ -80,12 +80,13 @@ export function computeProgressFromEvents(
   let currentPercent = 0;
   let lastTimestamp: number | null = null;
   let lastExplicitTimestamp: number | null = null;
-  let lastRecordedPercent: number | null = null;
-  let lastRecordedDay: string | null = null;
   const hasAnyExplicitDate = sorted.some((event) => event.explicitDate === true);
 
   sorted.forEach((event) => {
     lastTimestamp = event.timestamp;
+    if (event.explicitDate) {
+      lastExplicitTimestamp = event.timestamp;
+    }
 
     const explicitPercent = readFinitePercent(event.percent);
     if (explicitPercent !== null) {
@@ -112,25 +113,11 @@ export function computeProgressFromEvents(
     // - quando houver pelo menos um lançamento com data explícita (reportDate/date),
     //   apenas esses lançamentos entram no eixo diário;
     // - sem datas explícitas (legado), usa o timestamp do evento como fallback.
-    // - se o percentual efetivo não mudou, não tratamos o evento como um novo ponto
-    //   para evitar que uma edição da data hoje gere um dia falso na curva.
     if (!hasAnyExplicitDate || event.explicitDate === true) {
       const date = new Date(event.timestamp);
       const day = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
       const iso = day.toISOString().slice(0, 10);
-      const effectivePercent = clampPercent(currentPercent);
-      const isMeaningfulDailyPoint =
-        lastRecordedDay !== iso || lastRecordedPercent === null || Math.abs(effectivePercent - lastRecordedPercent) > 0.0001;
-
-      if (isMeaningfulDailyPoint) {
-        byDay.set(iso, effectivePercent);
-        lastRecordedDay = iso;
-        lastRecordedPercent = effectivePercent;
-      }
-
-      if (event.explicitDate === true && isMeaningfulDailyPoint) {
-        lastExplicitTimestamp = event.timestamp;
-      }
+      byDay.set(iso, clampPercent(currentPercent));
     }
   });
 

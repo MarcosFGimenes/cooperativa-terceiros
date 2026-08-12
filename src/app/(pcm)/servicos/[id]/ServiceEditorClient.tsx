@@ -449,18 +449,14 @@ export default function ServiceEditorClient({ serviceId }: ServiceEditorClientPr
       const collectionName = editingUpdateSource === "updates" ? "updates" : "serviceUpdates";
       const ref = doc(baseRef, collectionName, editingUpdateId);
 
-      // Garantir que o update editado seja considerado o mais recente
-      // usando a data atual se a data editada for anterior
-      const now = new Date();
-      const effectiveDate = parsedDate > now ? parsedDate : now;
-
+      // Preservar a data real do lançamento editado. Não forçar "agora" para
+      // evitar que uma correção histórica vire um ponto novo na curva do pacote.
       const payload: Record<string, unknown> = {
         updatedAt: serverTimestamp(),
       };
 
       if (editingUpdateSource === "updates") {
-        // Usar a data efetiva (atual se a data editada for anterior) para garantir que seja o mais recente
-        payload.createdAt = Timestamp.fromDate(effectiveDate);
+        payload.createdAt = serverTimestamp();
         payload.date = Timestamp.fromDate(parsedDate);
         payload.realPercentSnapshot = clampedPercent;
         payload.manualPercent = clampedPercent;
