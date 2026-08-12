@@ -7,6 +7,7 @@ vi.mock("@/lib/progressHistoryServer", () => ({
 }));
 
 import { curvaRealizadaPacote } from "@/lib/curvaS";
+import { computeProgressFromEvents } from "@/lib/progressHistory";
 
 describe("curvaRealizadaPacote", () => {
   beforeEach(() => {
@@ -36,5 +37,15 @@ describe("curvaRealizadaPacote", () => {
       { d: "2026-08-09", pct: 60 },
       { d: "2026-08-10", pct: 60 },
     ]);
+  });
+
+  it("ignora data explícita posterior quando o percentual não mudou", () => {
+    const result = computeProgressFromEvents([
+      { timestamp: new Date("2026-08-11T12:00:00.000Z").getTime(), percent: 60, explicitDate: true },
+      { timestamp: new Date("2026-08-12T12:00:00.000Z").getTime(), percent: 60, explicitDate: true },
+    ]);
+
+    expect([...result.byDay.entries()]).toEqual([["2026-08-11", 60]]);
+    expect(result.lastExplicitTimestamp).toBe(new Date("2026-08-11T12:00:00.000Z").getTime());
   });
 });
