@@ -14,6 +14,7 @@ export const metadata = {
   description: "Acompanhamento de serviços de terceiros (PCM)",
 };
 
+
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="pt-BR" suppressHydrationWarning>
