@@ -258,8 +258,7 @@ export default function ServiceEditorClient({ serviceId }: ServiceEditorClientPr
           source: UpdateHistoryItem["source"],
         ): UpdateHistoryItem => {
           const data = docSnap.data() ?? {};
-          const dateSource =
-            data.createdAt ?? data.date ?? (docSnap.metadata.hasPendingWrites ? null : docSnap.createTime);
+          const dateSource = data.date ?? data.reportDate ?? data.createdAt ?? (docSnap.metadata.hasPendingWrites ? null : docSnap.createTime);
           const date = parseDate(dateSource);
 
           const rawPercent =
@@ -458,11 +457,13 @@ export default function ServiceEditorClient({ serviceId }: ServiceEditorClientPr
       if (editingUpdateSource === "updates") {
         payload.createdAt = serverTimestamp();
         payload.date = Timestamp.fromDate(parsedDate);
+        payload.reportDate = Timestamp.fromDate(parsedDate);
         payload.realPercentSnapshot = clampedPercent;
         payload.manualPercent = clampedPercent;
         payload.percent = clampedPercent;
       } else {
         payload.date = Timestamp.fromDate(parsedDate);
+        payload.reportDate = Timestamp.fromDate(parsedDate);
         payload.totalPct = clampedPercent;
       }
 

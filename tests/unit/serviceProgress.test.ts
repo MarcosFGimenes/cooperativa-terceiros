@@ -18,6 +18,7 @@ import {
   snapshotBeforeConclusion,
   toDate,
 } from "@/lib/serviceProgress";
+import { realizedFromUpdates } from "@/lib/curve";
 import { formatDayKey } from "@/lib/formatDateTime";
 import { DEFAULT_TIME_ZONE, resolveReferenceDate } from "@/lib/referenceDate";
 
@@ -36,6 +37,29 @@ describe("serviceProgress utilities", () => {
     expect(clampProgress(-10)).toBe(0);
     expect(clampProgress(42.6)).toBe(42.6);
     expect(clampProgress(180)).toBe(100);
+  });
+
+  it("uses reportDate before createdAt when selecting the latest realized update", () => {
+    const updates = [
+      {
+        id: "oldest-by-created",
+        createdAt: new Date("2025-08-10T12:00:00Z").getTime(),
+        submittedAt: new Date("2025-08-10T12:00:00Z").getTime(),
+        date: new Date("2025-08-12T00:00:00Z").getTime(),
+        percent: 30,
+        description: "",
+      },
+      {
+        id: "newer-by-created",
+        createdAt: new Date("2025-08-13T09:00:00Z").getTime(),
+        submittedAt: new Date("2025-08-13T09:00:00Z").getTime(),
+        date: new Date("2025-08-11T00:00:00Z").getTime(),
+        percent: 20,
+        description: "",
+      },
+    ] as any;
+
+    expect(realizedFromUpdates(updates)).toBe(30);
   });
 
   it("selects snapshot before conclusion preferring values below 100", () => {

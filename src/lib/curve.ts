@@ -30,9 +30,26 @@ export function realizedFromChecklist(checklist: ServiceChecklistItem[] = []) {
   return Math.max(0, Math.min(100, Math.round(total)));
 }
 
+function effectiveUpdateDate(update: ServiceUpdate): number | null {
+  const explicitDate = typeof update.date === "number" && Number.isFinite(update.date) ? update.date : null;
+  if (explicitDate !== null) return explicitDate;
+
+  const submittedAt = typeof update.submittedAt === "number" && Number.isFinite(update.submittedAt)
+    ? update.submittedAt
+    : null;
+  if (submittedAt !== null) return submittedAt;
+
+  const auditSubmittedAt = typeof update.audit?.submittedAt === "number" && Number.isFinite(update.audit.submittedAt)
+    ? update.audit.submittedAt
+    : null;
+  if (auditSubmittedAt !== null) return auditSubmittedAt;
+
+  return typeof update.createdAt === "number" && Number.isFinite(update.createdAt) ? update.createdAt : null;
+}
+
 export function realizedFromUpdates(updates: ServiceUpdate[] = []) {
   if (!updates.length) return 0;
-  const sorted = [...updates].sort((a, b) => (a.createdAt ?? 0) - (b.createdAt ?? 0));
+  const sorted = [...updates].sort((a, b) => (effectiveUpdateDate(a) ?? 0) - (effectiveUpdateDate(b) ?? 0));
   const last = sorted[sorted.length - 1];
   return Math.max(0, Math.min(100, Math.round(last.percent ?? 0)));
 }
