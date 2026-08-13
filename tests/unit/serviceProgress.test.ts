@@ -19,6 +19,7 @@ import {
   toDate,
 } from "@/lib/serviceProgress";
 import { realizedFromUpdates } from "@/lib/curve";
+import { buildRealizedSeries } from "@/app/(pcm)/servicos/[id]/shared";
 import { formatDayKey } from "@/lib/formatDateTime";
 import { DEFAULT_TIME_ZONE, resolveReferenceDate } from "@/lib/referenceDate";
 
@@ -60,6 +61,29 @@ describe("serviceProgress utilities", () => {
     ] as any;
 
     expect(realizedFromUpdates(updates)).toBe(30);
+  });
+
+  it("places realized curve points on the third-party selected report date", () => {
+    const series = buildRealizedSeries({
+      planned: [
+        { date: "2026-08-12", percent: 0 },
+        { date: "2026-08-13", percent: 100 },
+      ],
+      realizedPercent: 20,
+      updates: [
+        {
+          id: "late-submission",
+          createdAt: new Date("2026-08-13T10:13:23Z").getTime(),
+          submittedAt: new Date("2026-08-13T10:13:26Z").getTime(),
+          date: new Date("2026-08-12T12:00:00Z").getTime(),
+          percent: 20,
+          realPercentSnapshot: 20,
+          description: "Retirada dos rolamentos",
+        },
+      ] as any,
+    });
+
+    expect(series).toEqual([{ date: "2026-08-12", percent: 20 }]);
   });
 
   it("selects snapshot before conclusion preferring values below 100", () => {
