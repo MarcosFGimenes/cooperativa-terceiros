@@ -167,12 +167,8 @@ function mapServiceToSubpackageEntry(service: Service): ServicoDoSubpacote {
     "reportDate",
     "reportDateMillis",
     "date",
-    "dataUltimaAtualizacao",
     "dataAtualizacao",
     "dataAtualizacaoPercentual",
-    "atualizadoEm",
-    "lastUpdateDate",
-    "updatedAt",
   ] as const;
   updateDateKeys.forEach((key) => {
     if (Object.hasOwn(service as Record<string, unknown>, key)) {

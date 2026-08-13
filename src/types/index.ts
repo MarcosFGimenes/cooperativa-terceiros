@@ -74,6 +74,8 @@ export type ServiceUpdate = {
   id: string;
   createdAt: number; // unix ms
   submittedAt?: number | null;
+  // Data operacional selecionada para o lançamento (reportDate), em ms.
+  date?: number | null;
   description: string;
   percent?: number; // 0..100 (usado quando NÃO há checklist)
   by?: ServiceUpdateAuthor;

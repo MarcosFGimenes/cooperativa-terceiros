@@ -368,15 +368,10 @@ const UPDATE_DATE_KEYS = [
   "data",
   "dataAtualizacao",
   "data_atualizacao",
-  "dataUltimaAtualizacao",
   "dataAtualizacaoPercentual",
   "date",
   "timestamp",
   "createdAt",
-  "updatedAt",
-  "lastUpdateDate",
-  // Reconhecer o carimbo de data 'atualizadoEm' vindo do Firebase
-  "atualizadoEm",
 ];
 
 const UPDATE_PERCENT_KEYS = [
@@ -397,12 +392,8 @@ const DIRECT_PERCENT_DATE_KEYS = [
   "reportDateMillis",
   "date",
   "data",
-  "dataUltimaAtualizacao",
   "dataAtualizacao",
   "dataAtualizacaoPercentual",
-  "atualizadoEm",
-  "lastUpdateDate",
-  "updatedAt",
 ];
 
 const REPORT_DATE_KEYS = ["reportDate", "reportDateMillis"] as const;
@@ -462,7 +453,7 @@ function coletarAtualizacoesDoServico(
     const lista = (servico as Record<string, unknown>)[key];
     if (!Array.isArray(lista)) continue;
     for (const item of lista) {
-      const normalizado = normalizeUpdateEntry(item, fallbackDate);
+      const normalizado = normalizeUpdateEntry(item);
       if (normalizado) {
         atualizacoes.push(normalizado);
       }
@@ -481,13 +472,13 @@ function coletarAtualizacoesDoServico(
     parsePercentual((servico as Record<string, unknown>).currentProgress);
 
   if (percentualDireto !== null) {
-    const data =
-      resolveEffectiveUpdateDate(
-        servico as Record<string, unknown>,
-        DIRECT_PERCENT_DATE_KEYS,
-        fallbackDate,
-      ) ?? new Date(0);
-    atualizacoes.push({ data: startOfDay(data), percentual: percentualDireto });
+    const data = resolveEffectiveUpdateDate(
+      servico as Record<string, unknown>,
+      DIRECT_PERCENT_DATE_KEYS,
+    );
+    if (data) {
+      atualizacoes.push({ data: startOfDay(data), percentual: percentualDireto });
+    }
   }
 
   atualizacoes.sort((a, b) => a.data.getTime() - b.data.getTime());
