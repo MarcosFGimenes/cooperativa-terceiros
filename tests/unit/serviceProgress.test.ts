@@ -730,6 +730,61 @@ describe("serviceProgress utilities", () => {
       expect(obterPercentual(curva, "2025-01-03T00:00:00Z")).toBeCloseTo(44);
     });
 
+
+    it("ignora updatedAt da O.S ao posicionar a curva realizada do pacote", () => {
+      const pacote = {
+        subpacotes: [
+          {
+            servicos: [
+              {
+                horasPrevistas: 10,
+                dataInicio: "2026-08-12",
+                dataFim: "2026-08-13",
+                percentualRealAtual: 90,
+                updatedAt: "2026-08-13",
+                updates: [
+                  {
+                    percentual: 20,
+                    reportDate: "2026-08-12",
+                    createdAt: "2026-08-13",
+                    updatedAt: "2026-08-13",
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      };
+
+      const curva = calcularCurvaSRealizada(pacote);
+      expect(obterPercentual(curva, "2026-08-12T00:00:00Z")).toBe(20);
+      expect(
+        curva.some((ponto) => formatDayKey(ponto.data, { timeZone: DEFAULT_TIME_ZONE }) === "2026-08-13"),
+      ).toBe(false);
+    });
+
+    it("não transforma updatedAt isolado em lançamento realizado", () => {
+      const pacote = {
+        subpacotes: [
+          {
+            servicos: [
+              {
+                horasPrevistas: 10,
+                dataInicio: "2026-08-12",
+                dataFim: "2026-08-13",
+                percentualRealAtual: 75,
+                updatedAt: "2026-08-13",
+                updates: [{ percentual: 75, updatedAt: "2026-08-13" }],
+              },
+            ],
+          },
+        ],
+      };
+
+      const curva = calcularCurvaSRealizada(pacote);
+      expect(curva.every((ponto) => ponto.percentual === 0)).toBe(true);
+    });
+
     it("mantém fallback para atualizações legadas sem reportDate", () => {
       const pacote = {
         subpacotes: [
