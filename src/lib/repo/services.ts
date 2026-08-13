@@ -369,11 +369,14 @@ function mapChecklistItemData(data: Record<string, unknown>): ChecklistItem {
 
 function mapUpdateData(data: Record<string, unknown>): ServiceUpdate {
   const reportDate =
-    toNumber((data as Record<string, unknown>).date) ??
-    toNumber((data as Record<string, unknown>).reportDate) ??
+    toMillis(data.date) ??
+    toMillis(data.reportDate) ??
+    toNumber(data.date) ??
+    toNumber(data.reportDate) ??
     undefined;
   const createdAt =
-    toNumber((data as Record<string, unknown>).createdAt ?? data.date ?? data.created_at ?? data.timestamp) ??
+    toMillis(data.createdAt ?? data.created_at ?? data.timestamp) ??
+    toNumber(data.createdAt ?? data.created_at ?? data.timestamp) ??
     reportDate ??
     Date.now();
   const percent = toNumber(
@@ -1044,15 +1047,15 @@ function mapUpdateDoc(
   serviceId: string,
   doc: FirebaseFirestore.QueryDocumentSnapshot | FirebaseFirestore.DocumentSnapshot,
 ): ServiceUpdate {
-  const data = doc.data() ?? {};
-  const manualPercent = toNumber((data as Record<string, unknown>).manualPercent) ?? undefined;
+  const data = (doc.data() ?? {}) as Record<string, unknown>;
+  const manualPercent = toNumber(data.manualPercent) ?? undefined;
   const realPercent =
-    toNumber((data as Record<string, unknown>).realPercentSnapshot) ??
-    toNumber((data as Record<string, unknown>).realPercent) ??
+    toNumber(data.realPercentSnapshot) ??
+    toNumber(data.realPercent) ??
     manualPercent ??
     0;
   const description = (() => {
-    const raw = (data as Record<string, unknown>).description ?? (data as Record<string, unknown>).note;
+    const raw = data.description ?? data.note;
     if (typeof raw === "string") {
       const trimmed = raw.trim();
       return trimmed.length ? trimmed : "";
@@ -1061,47 +1064,51 @@ function mapUpdateDoc(
   })();
   const percent = Number.isFinite(realPercent ?? NaN) ? Number(realPercent) : 0;
 
-  const auditSubmittedAt = toMillis((data as Record<string, unknown>).audit?.submittedAt);
-  const createdAt =
-    auditSubmittedAt ??
-    toMillis((data as Record<string, unknown>).createdAt) ??
-    toMillis((data as Record<string, unknown>).date) ??
-    0;
+  const auditSubmittedAt = toMillis((data.audit as Record<string, unknown> | undefined)?.submittedAt);
+  const reportDate =
+    toMillis(data.date) ??
+    toMillis(data.reportDate) ??
+    toNumber(data.date) ??
+    toNumber(data.reportDate) ??
+    null;
+  const submittedAt = auditSubmittedAt ?? toMillis(data.submittedAt) ?? null;
+  const createdAt = toMillis(data.createdAt) ?? toNumber(data.createdAt) ?? submittedAt ?? reportDate ?? 0;
 
   return {
     id: doc.id,
     serviceId,
-    token: (data as Record<string, unknown>).token ?? undefined,
+    token: typeof data.token === "string" ? data.token : undefined,
     manualPercent,
     realPercentSnapshot: percent,
     percent,
     description,
-    timeWindow: mapTimeWindow((data as Record<string, unknown>).timeWindow),
-    subactivity: mapSubactivity((data as Record<string, unknown>).subactivity),
+    timeWindow: mapTimeWindow(data.timeWindow),
+    subactivity: mapSubactivity(data.subactivity),
     mode:
-      (typeof (data as Record<string, unknown>).mode === "string" &&
-      ((data as Record<string, unknown>).mode === "detailed" || (data as Record<string, unknown>).mode === "simple"))
-        ? ((data as Record<string, unknown>).mode as "simple" | "detailed")
+      (typeof data.mode === "string" &&
+      (data.mode === "detailed" || data.mode === "simple"))
+        ? (data.mode as "simple" | "detailed")
         : undefined,
-    impediments: mapImpediments((data as Record<string, unknown>).impediments),
-    resources: mapResources((data as Record<string, unknown>).resources),
-    workforce: mapWorkforce((data as Record<string, unknown>).workforce),
-    shiftConditions: mapShiftConditions((data as Record<string, unknown>).shiftConditions),
-    forecastDate: toMillis((data as Record<string, unknown>).forecastDate) ?? null,
-    criticality: toNumber((data as Record<string, unknown>).criticality) ?? null,
-    evidences: mapEvidences((data as Record<string, unknown>).evidences),
+    impediments: mapImpediments(data.impediments),
+    resources: mapResources(data.resources),
+    workforce: mapWorkforce(data.workforce),
+    shiftConditions: mapShiftConditions(data.shiftConditions),
+    forecastDate: toMillis(data.forecastDate) ?? null,
+    criticality: toNumber(data.criticality) ?? null,
+    evidences: mapEvidences(data.evidences),
     justification:
-      typeof (data as Record<string, unknown>).justification === "string"
-        ? (data as Record<string, unknown>).justification.trim() || null
+      typeof data.justification === "string"
+        ? data.justification.trim() || null
         : null,
-    previousPercent: toNumber((data as Record<string, unknown>).previousPercent) ?? null,
+    previousPercent: toNumber(data.previousPercent) ?? null,
     declarationAccepted:
-      typeof (data as Record<string, unknown>).declarationAccepted === "boolean"
-        ? (data as Record<string, unknown>).declarationAccepted
+      typeof data.declarationAccepted === "boolean"
+        ? data.declarationAccepted
         : undefined,
-    audit: mapAudit((data as Record<string, unknown>).audit),
-    // Use the submission moment as the canonical timestamp for ordering and display.
-    submittedAt: auditSubmittedAt ?? undefined,
+    audit: mapAudit(data.audit),
+    submittedAt: submittedAt ?? undefined,
+    // Data operacional selecionada pelo terceiro; é a referência da curva realizada.
+    date: reportDate,
     createdAt,
   };
 }
@@ -1112,15 +1119,15 @@ function mapLegacyServiceUpdateDoc(
 ): ServiceUpdate {
   const data = doc.data() ?? {};
 
-  const dateMillis = toMillis((data as Record<string, unknown>).date) ?? 0;
-  const createdAtMillis = toMillis((data as Record<string, unknown>).createdAt) ?? dateMillis;
+  const dateMillis = toMillis(data.date) ?? 0;
+  const createdAtMillis = toMillis(data.createdAt) ?? dateMillis;
   const rawPercent = toNumber((data as Record<string, unknown>).totalPct);
   const percent = Number.isFinite(rawPercent ?? NaN)
     ? Math.max(0, Math.min(100, Number(rawPercent)))
     : 0;
   const note = typeof (data as Record<string, unknown>).note === "string" ? data.note.trim() : "";
   const tokenId =
-    typeof (data as Record<string, unknown>).tokenId === "string" && data.tokenId.trim()
+    typeof data.tokenId === "string" && data.tokenId.trim()
       ? data.tokenId.trim()
       : undefined;
   const ip = typeof (data as Record<string, unknown>).ip === "string" ? data.ip.trim() : null;
@@ -1140,7 +1147,7 @@ function mapLegacyServiceUpdateDoc(
       ip,
       submittedAt: createdAtMillis || null,
       newPercent: Number.isFinite(percent) ? percent : null,
-      previousPercent: toNumber((data as Record<string, unknown>).previousPercent) ?? null,
+      previousPercent: toNumber(data.previousPercent) ?? null,
     },
   };
 }
