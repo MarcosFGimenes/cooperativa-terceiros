@@ -1065,9 +1065,10 @@ export function calcularCurvaSRealizada(
   })();
 
   if (limiteData !== null) {
+    const primeiroDiaPlanejado = linhaDoTempo[0] ? startOfDay(linhaDoTempo[0]) : null;
     linhaDoTempo = linhaDoTempo.filter((data) => data.getTime() <= limiteData);
-    if (!linhaDoTempo.length) {
-      linhaDoTempo = [new Date(limiteData)];
+    if (!linhaDoTempo.length && primeiroDiaPlanejado) {
+      linhaDoTempo = [primeiroDiaPlanejado];
     }
   }
 

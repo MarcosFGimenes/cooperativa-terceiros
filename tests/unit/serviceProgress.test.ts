@@ -804,6 +804,31 @@ describe("serviceProgress utilities", () => {
       const curva = calcularCurvaSRealizada(pacote);
       expect(obterPercentual(curva, "2025-02-02T00:00:00Z")).toBe(55);
     });
+
+    it("não antecipa o início da curva realizada para lançamentos antes do início planejado", () => {
+      const pacote = {
+        subpacotes: [
+          {
+            servicos: [
+              {
+                horasPrevistas: 10,
+                dataInicio: "2026-08-10",
+                dataFim: "2026-08-12",
+                updates: [{ percentual: 30, reportDate: "2026-08-08", createdAt: "2026-08-08" }],
+              },
+            ],
+          },
+        ],
+      };
+
+      const curva = calcularCurvaSRealizada(pacote);
+
+      expect(formatDayKey(curva[0].data, { timeZone: DEFAULT_TIME_ZONE })).toBe("2026-08-10");
+      expect(curva.map((ponto) => formatDayKey(ponto.data, { timeZone: DEFAULT_TIME_ZONE }))).not.toContain(
+        "2026-08-08",
+      );
+      expect(curva[0].percentual).toBe(30);
+    });
   });
 
   describe("obterIntervaloSubpacote", () => {
