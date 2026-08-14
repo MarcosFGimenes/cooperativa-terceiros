@@ -19,6 +19,7 @@ import {
   toDate,
 } from "@/lib/serviceProgress";
 import { realizedFromUpdates } from "@/lib/curve";
+import { buildRealizedSeries } from "@/app/(pcm)/servicos/[id]/shared";
 import { formatDayKey } from "@/lib/formatDateTime";
 import { DEFAULT_TIME_ZONE, resolveReferenceDate } from "@/lib/referenceDate";
 
@@ -60,6 +61,29 @@ describe("serviceProgress utilities", () => {
     ] as any;
 
     expect(realizedFromUpdates(updates)).toBe(30);
+  });
+
+  it("places realized curve points on the third-party selected report date", () => {
+    const series = buildRealizedSeries({
+      planned: [
+        { date: "2026-08-12", percent: 0 },
+        { date: "2026-08-13", percent: 100 },
+      ],
+      realizedPercent: 20,
+      updates: [
+        {
+          id: "late-submission",
+          createdAt: new Date("2026-08-13T10:13:23Z").getTime(),
+          submittedAt: new Date("2026-08-13T10:13:26Z").getTime(),
+          date: new Date("2026-08-12T12:00:00Z").getTime(),
+          percent: 20,
+          realPercentSnapshot: 20,
+          description: "Retirada dos rolamentos",
+        },
+      ] as any,
+    });
+
+    expect(series).toEqual([{ date: "2026-08-12", percent: 20 }]);
   });
 
   it("selects snapshot before conclusion preferring values below 100", () => {
@@ -612,6 +636,35 @@ describe("serviceProgress utilities", () => {
       );
     });
 
+
+    it("mantém a curva realizada dentro das datas do pacote e acumula lançamentos anteriores no primeiro dia", () => {
+      const pacote = {
+        plannedStart: "2026-08-10",
+        plannedEnd: "2026-08-20",
+        subpacotes: [
+          {
+            servicos: [
+              {
+                horasPrevistas: 10,
+                dataInicio: "2026-08-10",
+                dataFim: "2026-08-20",
+                updates: [
+                  { percentual: 15, reportDate: "2026-08-07", createdAt: "2026-08-07" },
+                  { percentual: 40, reportDate: "2026-08-12", createdAt: "2026-08-12" },
+                ],
+              },
+            ],
+          },
+        ],
+      };
+
+      const curva = calcularCurvaSRealizada(pacote);
+      expect(formatDayKey(curva[0].data, { timeZone: DEFAULT_TIME_ZONE })).toBe("2026-08-10");
+      expect(formatDayKey(curva[curva.length - 1].data, { timeZone: DEFAULT_TIME_ZONE })).toBe("2026-08-20");
+      expect(obterPercentual(curva, "2026-08-10T00:00:00Z")).toBe(15);
+      expect(obterPercentual(curva, "2026-08-12T00:00:00Z")).toBe(40);
+    });
+
     it("usa o histórico do Terceiro para calcular a curva realizada", () => {
       const curvaRealizada = calcularCurvaSRealizada(pacoteCurva);
       expect(obterPercentual(curvaRealizada, "2024-01-01T00:00:00Z")).toBe(0);
@@ -704,6 +757,61 @@ describe("serviceProgress utilities", () => {
       const curva = calcularCurvaSRealizada(pacote);
       expect(obterPercentual(curva, "2025-01-02T00:00:00Z")).toBeCloseTo(8);
       expect(obterPercentual(curva, "2025-01-03T00:00:00Z")).toBeCloseTo(44);
+    });
+
+
+    it("ignora updatedAt da O.S ao posicionar a curva realizada do pacote", () => {
+      const pacote = {
+        subpacotes: [
+          {
+            servicos: [
+              {
+                horasPrevistas: 10,
+                dataInicio: "2026-08-12",
+                dataFim: "2026-08-13",
+                percentualRealAtual: 90,
+                updatedAt: "2026-08-13",
+                updates: [
+                  {
+                    percentual: 20,
+                    reportDate: "2026-08-12",
+                    createdAt: "2026-08-13",
+                    updatedAt: "2026-08-13",
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      };
+
+      const curva = calcularCurvaSRealizada(pacote);
+      expect(obterPercentual(curva, "2026-08-12T00:00:00Z")).toBe(20);
+      expect(
+        curva.some((ponto) => formatDayKey(ponto.data, { timeZone: DEFAULT_TIME_ZONE }) === "2026-08-13"),
+      ).toBe(false);
+    });
+
+    it("não transforma updatedAt isolado em lançamento realizado", () => {
+      const pacote = {
+        subpacotes: [
+          {
+            servicos: [
+              {
+                horasPrevistas: 10,
+                dataInicio: "2026-08-12",
+                dataFim: "2026-08-13",
+                percentualRealAtual: 75,
+                updatedAt: "2026-08-13",
+                updates: [{ percentual: 75, updatedAt: "2026-08-13" }],
+              },
+            ],
+          },
+        ],
+      };
+
+      const curva = calcularCurvaSRealizada(pacote);
+      expect(curva.every((ponto) => ponto.percentual === 0)).toBe(true);
     });
 
     it("mantém fallback para atualizações legadas sem reportDate", () => {

@@ -167,12 +167,8 @@ function mapServiceToSubpackageEntry(service: Service): ServicoDoSubpacote {
     "reportDate",
     "reportDateMillis",
     "date",
-    "dataUltimaAtualizacao",
     "dataAtualizacao",
     "dataAtualizacaoPercentual",
-    "atualizadoEm",
-    "lastUpdateDate",
-    "updatedAt",
   ] as const;
   updateDateKeys.forEach((key) => {
     if (Object.hasOwn(service as Record<string, unknown>, key)) {
@@ -776,14 +772,20 @@ async function renderPackageDetailPage(
       : `Mais de ${Math.max(serviceCountReference, services.length)} serviços`
     : `${services.length} serviço${services.length === 1 ? "" : "s"}`;
 
-  const plannedCurve = calcularCurvaSPlanejada({ subpacotes: subpackagesForCurve }).map(
+  const packageCurveInput = {
+    plannedStart: pkg.plannedStart,
+    plannedEnd: pkg.plannedEnd,
+    subpacotes: subpackagesForCurve,
+  };
+
+  const plannedCurve = calcularCurvaSPlanejada(packageCurveInput).map(
     (point) => ({
       date: point.data.toISOString().slice(0, 10),
       percent: Math.round(point.percentual),
     }),
   );
 
-  const realizedCurve = calcularCurvaSRealizada({ subpacotes: subpackagesForCurve }).map(
+  const realizedCurve = calcularCurvaSRealizada(packageCurveInput).map(
     (point) => ({
       date: point.data.toISOString().slice(0, 10),
       percent: Math.round(point.percentual),

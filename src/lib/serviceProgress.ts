@@ -88,6 +88,14 @@ export type SubpacotePlanejado = {
 export type PacotePlanejado = {
   subpacotes?: SubpacotePlanejado[] | null;
   subPackages?: SubpacotePlanejado[] | null;
+  plannedStart?: DateInput;
+  plannedEnd?: DateInput;
+  dataInicio?: DateInput;
+  dataFim?: DateInput;
+  inicioPlanejado?: DateInput;
+  fimPlanejado?: DateInput;
+  startDate?: DateInput;
+  endDate?: DateInput;
   [key: string]: unknown;
 };
 
@@ -368,15 +376,10 @@ const UPDATE_DATE_KEYS = [
   "data",
   "dataAtualizacao",
   "data_atualizacao",
-  "dataUltimaAtualizacao",
   "dataAtualizacaoPercentual",
   "date",
   "timestamp",
   "createdAt",
-  "updatedAt",
-  "lastUpdateDate",
-  // Reconhecer o carimbo de data 'atualizadoEm' vindo do Firebase
-  "atualizadoEm",
 ];
 
 const UPDATE_PERCENT_KEYS = [
@@ -397,12 +400,8 @@ const DIRECT_PERCENT_DATE_KEYS = [
   "reportDateMillis",
   "date",
   "data",
-  "dataUltimaAtualizacao",
   "dataAtualizacao",
   "dataAtualizacaoPercentual",
-  "atualizadoEm",
-  "lastUpdateDate",
-  "updatedAt",
 ];
 
 const REPORT_DATE_KEYS = ["reportDate", "reportDateMillis"] as const;
@@ -462,7 +461,7 @@ function coletarAtualizacoesDoServico(
     const lista = (servico as Record<string, unknown>)[key];
     if (!Array.isArray(lista)) continue;
     for (const item of lista) {
-      const normalizado = normalizeUpdateEntry(item, fallbackDate);
+      const normalizado = normalizeUpdateEntry(item);
       if (normalizado) {
         atualizacoes.push(normalizado);
       }
@@ -481,13 +480,13 @@ function coletarAtualizacoesDoServico(
     parsePercentual((servico as Record<string, unknown>).currentProgress);
 
   if (percentualDireto !== null) {
-    const data =
-      resolveEffectiveUpdateDate(
-        servico as Record<string, unknown>,
-        DIRECT_PERCENT_DATE_KEYS,
-        fallbackDate,
-      ) ?? new Date(0);
-    atualizacoes.push({ data: startOfDay(data), percentual: percentualDireto });
+    const data = resolveEffectiveUpdateDate(
+      servico as Record<string, unknown>,
+      DIRECT_PERCENT_DATE_KEYS,
+    );
+    if (data) {
+      atualizacoes.push({ data: startOfDay(data), percentual: percentualDireto });
+    }
   }
 
   atualizacoes.sort((a, b) => a.data.getTime() - b.data.getTime());
@@ -622,7 +621,42 @@ function coletarServicosDoPacote(pacote: PacotePlanejado | null | undefined): Se
   return subpacotes.flatMap((subpacote) => coletarServicosDoSubpacote(subpacote));
 }
 
-function gerarLinhaDoTempo(servicos: PreparedServicoPlanejado[]): Date[] {
+function gerarLinhaDoTempoPorRange(inicio: Date | null, fim: Date | null): Date[] {
+  if (!inicio || !fim) return [];
+  const menor = startOfDay(inicio);
+  const maior = startOfDay(fim);
+  if (maior.getTime() < menor.getTime()) return [];
+  const datas: Date[] = [];
+  for (let time = menor.getTime(); time <= maior.getTime(); time += DAY_IN_MS) {
+    datas.push(new Date(time));
+  }
+  return datas;
+}
+
+function resolvePackageDateRange(pacote: PacotePlanejado | null | undefined): DateRange | null {
+  if (!pacote) return null;
+  const inicio = getDateFromKeys(pacote as ServicoDoSubpacote, [
+    "plannedStart",
+    "dataInicio",
+    "inicioPlanejado",
+    "startDate",
+  ]);
+  const fim = getDateFromKeys(pacote as ServicoDoSubpacote, [
+    "plannedEnd",
+    "dataFim",
+    "fimPlanejado",
+    "endDate",
+  ]);
+  if (!inicio || !fim) return null;
+  return { inicio: startOfDay(inicio), fim: startOfDay(fim) };
+}
+
+function gerarLinhaDoTempo(servicos: PreparedServicoPlanejado[], pacote?: PacotePlanejado | null): Date[] {
+  const packageRange = resolvePackageDateRange(pacote);
+  if (packageRange) {
+    return gerarLinhaDoTempoPorRange(packageRange.inicio, packageRange.fim);
+  }
+
   if (!servicos.length) return [];
   let menor: Date | null = null;
   let maior: Date | null = null;
@@ -636,12 +670,7 @@ function gerarLinhaDoTempo(servicos: PreparedServicoPlanejado[]): Date[] {
       maior = fim;
     }
   }
-  if (!menor || !maior) return [];
-  const datas: Date[] = [];
-  for (let time = menor.getTime(); time <= maior.getTime(); time += DAY_IN_MS) {
-    datas.push(new Date(time));
-  }
-  return datas;
+  return gerarLinhaDoTempoPorRange(menor, maior);
 }
 
 function calcularPercentualPlanejadoNoDia(
@@ -1021,9 +1050,10 @@ export function calcularCurvaSPlanejada(
   const referencia = dataReferencia ? toDate(dataReferencia) ?? new Date() : null;
   const servicos = coletarServicosDoPacote(pacote);
   const preparados = prepararServicosPlanejados(servicos);
-  let linhaDoTempo = gerarLinhaDoTempo(preparados);
+  const packageRange = resolvePackageDateRange(pacote);
+  let linhaDoTempo = gerarLinhaDoTempo(preparados, pacote);
   if (!linhaDoTempo.length) return [];
-  if (referencia) {
+  if (referencia && !packageRange) {
     const limite = startOfDay(referencia).getTime();
     linhaDoTempo = linhaDoTempo.filter((data) => data.getTime() <= limite);
     if (!linhaDoTempo.length) {
@@ -1045,7 +1075,8 @@ export function calcularCurvaSRealizada(
   const referencia = dataReferencia ? toDate(dataReferencia) ?? new Date() : null;
   const servicos = coletarServicosDoPacote(pacote);
   const preparados = prepararServicosPlanejados(servicos);
-  let linhaDoTempo = gerarLinhaDoTempo(preparados);
+  const packageRange = resolvePackageDateRange(pacote);
+  let linhaDoTempo = gerarLinhaDoTempo(preparados, pacote);
   if (!linhaDoTempo.length) return [];
   const somaHoras = preparados.reduce((total, servico) => total + servico.horasPrevistas, 0);
   if (somaHoras <= 0) {
@@ -1064,14 +1095,16 @@ export function calcularCurvaSRealizada(
 
   const limiteReferencia = referencia ? startOfDay(referencia).getTime() : null;
 
-  const limiteData = (() => {
-    if (limiteReferencia !== null && dataUltimaAtualizacao) {
-      return Math.min(limiteReferencia, startOfDay(dataUltimaAtualizacao).getTime());
-    }
-    if (limiteReferencia !== null) return limiteReferencia;
-    if (dataUltimaAtualizacao) return startOfDay(dataUltimaAtualizacao).getTime();
-    return null;
-  })();
+  const limiteData = packageRange
+    ? null
+    : (() => {
+        if (limiteReferencia !== null && dataUltimaAtualizacao) {
+          return Math.min(limiteReferencia, startOfDay(dataUltimaAtualizacao).getTime());
+        }
+        if (limiteReferencia !== null) return limiteReferencia;
+        if (dataUltimaAtualizacao) return startOfDay(dataUltimaAtualizacao).getTime();
+        return null;
+      })();
 
   if (limiteData !== null) {
     linhaDoTempo = linhaDoTempo.filter((data) => data.getTime() <= limiteData);
