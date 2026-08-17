@@ -504,9 +504,12 @@ export async function requireServiceAccess(
   }
 
   const data = snap.data() ?? {};
-  // Se o serviço está na lista do subpacote (verificado em ensureServiceAllowedByFolder),
-  // ele deve ser acessível independentemente do status ou progresso
-  ensureCompanyMatch(token, data);
+  // Para tokens de subpacote, a autorização já foi feita pela associação explícita
+  // do serviço com a pasta. Revalidar empresa no serviço bloqueia casos legados em
+  // que a empresa foi gravada de forma diferente, apesar do serviço aparecer no subpacote.
+  if (!folderContext) {
+    ensureCompanyMatch(token, data);
+  }
 
   // Se o serviço está na lista do subpacote (verificado em ensureServiceAllowedByFolder),
   // ele deve ser acessível independentemente do packageId
