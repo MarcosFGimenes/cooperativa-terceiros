@@ -42,12 +42,76 @@ export const revalidate = 0;
 
 const MAX_SERVICES_TO_LOAD = 400;
 
+type CurvePoint = { date: string; percent: number };
+
 type PackageFolderWithProgress = PackageFolder & {
   progressPercent?: number | null;
   realizedPercent?: number | null;
   startDateMs?: number | null;
   endDateMs?: number | null;
 };
+
+function parsePackageDateOnly(value?: string | null) {
+  if (!value) return null;
+  const [year, month, day] = value.slice(0, 10).split("-").map(Number);
+  if (!year || !month || !day) return null;
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function dateOnlyToIso(date: Date) {
+  return date.toISOString().slice(0, 10);
+}
+
+function getCurveValueAtDate(curve: CurvePoint[], target: Date) {
+  const targetMs = target.getTime();
+  let previous: CurvePoint | null = null;
+
+  for (const point of curve) {
+    const pointDate = parsePackageDateOnly(point.date);
+    if (!pointDate) continue;
+    const pointMs = pointDate.getTime();
+    if (pointMs === targetMs) return point.percent;
+    if (pointMs > targetMs) return previous?.percent ?? point.percent;
+    previous = point;
+  }
+
+  return previous?.percent ?? null;
+}
+
+function limitCurveDatesToPackageRange(curve: CurvePoint[], plannedStart?: string | null, plannedEnd?: string | null) {
+  const packageStart = parsePackageDateOnly(plannedStart);
+  const packageEnd = parsePackageDateOnly(plannedEnd);
+  if (!packageStart || !packageEnd || packageEnd < packageStart || !curve.length) return curve;
+
+  const startIso = dateOnlyToIso(packageStart);
+  const endIso = dateOnlyToIso(packageEnd);
+  const packageStartMs = packageStart.getTime();
+  const packageEndMs = packageEnd.getTime();
+  const pointsByDate = new Map<string, CurvePoint>();
+  const startPercent = getCurveValueAtDate(curve, packageStart);
+  const endPercent = getCurveValueAtDate(curve, packageEnd);
+
+  if (startPercent !== null) {
+    pointsByDate.set(startIso, { date: startIso, percent: startPercent });
+  }
+
+  curve.forEach((point) => {
+    const pointDate = parsePackageDateOnly(point.date);
+    if (!pointDate) return;
+    const pointMs = pointDate.getTime();
+    if (pointMs < packageStartMs || pointMs > packageEndMs) return;
+    pointsByDate.set(dateOnlyToIso(pointDate), { ...point, date: dateOnlyToIso(pointDate) });
+  });
+
+  if (endPercent !== null) {
+    pointsByDate.set(endIso, { date: endIso, percent: endPercent });
+  }
+
+  return Array.from(pointsByDate.values()).sort((a, b) => {
+    return new Date(a.date).getTime() - new Date(b.date).getTime();
+  });
+}
 
 const PACKAGE_STATUS_TONE: Record<string, string> = {
   Concluído: "bg-emerald-100 text-emerald-700 border-emerald-200",
@@ -772,19 +836,22 @@ async function renderPackageDetailPage(
       : `Mais de ${Math.max(serviceCountReference, services.length)} serviços`
     : `${services.length} serviço${services.length === 1 ? "" : "s"}`;
 
-  const plannedCurve = calcularCurvaSPlanejada({ subpacotes: subpackagesForCurve }).map(
+  const rawPlannedCurve = calcularCurvaSPlanejada({ subpacotes: subpackagesForCurve }).map(
     (point) => ({
       date: point.data.toISOString().slice(0, 10),
       percent: Math.round(point.percentual),
     }),
   );
 
-  const realizedCurve = calcularCurvaSRealizada({ subpacotes: subpackagesForCurve }).map(
+  const rawRealizedCurve = calcularCurvaSRealizada({ subpacotes: subpackagesForCurve }).map(
     (point) => ({
       date: point.data.toISOString().slice(0, 10),
       percent: Math.round(point.percentual),
     }),
   );
+
+  const plannedCurve = limitCurveDatesToPackageRange(rawPlannedCurve, pkg.plannedStart, pkg.plannedEnd);
+  const realizedCurve = limitCurveDatesToPackageRange(rawRealizedCurve, pkg.plannedStart, pkg.plannedEnd);
 
   return (
     <div className="container mx-auto max-w-7xl space-y-6 px-6 py-6 package-print-layout print:m-0 print:w-full print:max-w-none print:space-y-3 print:px-0 print:py-0">
@@ -854,7 +921,7 @@ async function renderPackageDetailPage(
           </dl>
         </section>
 
-        <PackageSCurveSection planned={plannedCurve} realized={realizedCurve} />
+        <PackageSCurveSection packageId={pkg.id} planned={plannedCurve} realized={realizedCurve} />
 
         {warningMessages.length ? (
           <div className="rounded-2xl border border-amber-200 bg-amber-50/90 p-4 text-sm text-amber-900 shadow-sm print:hidden">
