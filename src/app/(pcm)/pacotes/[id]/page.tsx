@@ -79,7 +79,12 @@ function getCurveValueAtDate(curve: CurvePoint[], target: Date) {
   return previous?.percent ?? null;
 }
 
-function limitCurveDatesToPackageRange(curve: CurvePoint[], plannedStart?: string | null, plannedEnd?: string | null) {
+function limitCurveDatesToPackageRange(
+  curve: CurvePoint[],
+  plannedStart?: string | null,
+  plannedEnd?: string | null,
+  options: { includeEndPoint?: boolean } = {},
+) {
   const packageStart = parsePackageDateOnly(plannedStart);
   const packageEnd = parsePackageDateOnly(plannedEnd);
   if (!packageStart || !packageEnd || packageEnd < packageStart || !curve.length) return curve;
@@ -104,7 +109,7 @@ function limitCurveDatesToPackageRange(curve: CurvePoint[], plannedStart?: strin
     pointsByDate.set(dateOnlyToIso(pointDate), { ...point, date: dateOnlyToIso(pointDate) });
   });
 
-  if (endPercent !== null) {
+  if (options.includeEndPoint !== false && endPercent !== null) {
     pointsByDate.set(endIso, { date: endIso, percent: endPercent });
   }
 
@@ -851,7 +856,9 @@ async function renderPackageDetailPage(
   );
 
   const plannedCurve = limitCurveDatesToPackageRange(rawPlannedCurve, pkg.plannedStart, pkg.plannedEnd);
-  const realizedCurve = limitCurveDatesToPackageRange(rawRealizedCurve, pkg.plannedStart, pkg.plannedEnd);
+  const realizedCurve = limitCurveDatesToPackageRange(rawRealizedCurve, pkg.plannedStart, pkg.plannedEnd, {
+    includeEndPoint: false,
+  });
 
   return (
     <div className="container mx-auto max-w-7xl space-y-6 px-6 py-6 package-print-layout print:m-0 print:w-full print:max-w-none print:space-y-3 print:px-0 print:py-0">
