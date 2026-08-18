@@ -18,12 +18,14 @@ export async function GET(request: NextRequest) {
   const cursor = searchParams.get("cursor");
   const status = searchParams.get("status");
   const empresa = searchParams.get("empresa");
+  const search = searchParams.get("q") ?? searchParams.get("search");
 
   const result = await listServicesPCM({
     limit,
     cursor: cursor ? cursor : null,
     status: status ? status : undefined,
     empresa: empresa ? empresa : undefined,
+    search: search ? search : undefined,
   });
 
   return NextResponse.json(result as PCMListResponse<PCMServiceListItem>);

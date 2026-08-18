@@ -17,6 +17,39 @@ function toOptionalString(value: unknown): string | null {
   return trimmed ? trimmed : null;
 }
 
+function normaliseSearchText(value: unknown): string {
+  return String(value ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
+function serviceMatchesSearch(service: PCMServiceListItem, search: string): boolean {
+  const query = normaliseSearchText(search);
+  if (!query) return true;
+
+  const haystack = [
+    service.id,
+    service.os,
+    service.oc,
+    service.code,
+    service.tag,
+    service.equipmentName,
+    service.equipamento,
+    service.sector,
+    service.setor,
+    service.company,
+    service.empresa,
+    service.cnpj,
+    service.packageId,
+    service.assignedTo?.companyName,
+    service.assignedTo?.companyId,
+  ];
+
+  return haystack.some((value) => normaliseSearchText(value).includes(query));
+}
+
 function toNumber(value: unknown): number {
   if (typeof value === "number" && Number.isFinite(value)) {
     return value;
@@ -228,6 +261,7 @@ export async function listServicesPCM(options?: {
   cursor?: string | null;
   status?: string | null;
   empresa?: string | null;
+  search?: string | null;
 }): Promise<PCMListResponse<PCMServiceListItem>> {
   try {
     const admin = getAdminDbOrThrow();
@@ -236,7 +270,9 @@ export async function listServicesPCM(options?: {
       cursor = null,
       status,
       empresa,
+      search,
     } = options ?? {};
+    const searchTerm = search?.trim() ?? "";
 
     let query: FirebaseFirestore.Query = admin.collection("services");
 
@@ -246,6 +282,22 @@ export async function listServicesPCM(options?: {
 
     if (empresa) {
       query = query.where("empresa", "==", empresa);
+    }
+
+    if (searchTerm) {
+      const snap = await query.limit(500).get();
+      const items = snap.docs
+        .map((docSnap: FirebaseFirestore.QueryDocumentSnapshot) =>
+          mapDoc(docSnap.id, docSnap.data() as Record<string, unknown>),
+        )
+        .filter((service: PCMServiceListItem) => serviceMatchesSearch(service, searchTerm))
+        .sort(
+          (a: PCMServiceListItem, b: PCMServiceListItem) =>
+            (b.updatedAt ?? b.createdAt ?? 0) - (a.updatedAt ?? a.createdAt ?? 0),
+        )
+        .slice(0, limit);
+
+      return { items, nextCursor: null };
     }
 
     query = query.orderBy("updatedAt", "desc");
