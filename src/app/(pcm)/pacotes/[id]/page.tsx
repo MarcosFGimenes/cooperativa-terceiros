@@ -42,12 +42,58 @@ export const revalidate = 0;
 
 const MAX_SERVICES_TO_LOAD = 400;
 
+type CurvePoint = { date: string; percent: number };
+
 type PackageFolderWithProgress = PackageFolder & {
   progressPercent?: number | null;
   realizedPercent?: number | null;
   startDateMs?: number | null;
   endDateMs?: number | null;
 };
+
+function parsePackageDateOnly(value?: string | null) {
+  if (!value) return null;
+  const [year, month, day] = value.slice(0, 10).split("-").map(Number);
+  if (!year || !month || !day) return null;
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function dateOnlyToIso(date: Date) {
+  return date.toISOString().slice(0, 10);
+}
+
+function remapCurveDatesToPackageRange(curve: CurvePoint[], plannedStart?: string | null, plannedEnd?: string | null) {
+  const packageStart = parsePackageDateOnly(plannedStart);
+  const packageEnd = parsePackageDateOnly(plannedEnd);
+  if (!packageStart || !packageEnd || packageEnd < packageStart || curve.length <= 1) return curve;
+
+  const firstCurveDate = parsePackageDateOnly(curve[0]?.date);
+  const lastCurveDate = parsePackageDateOnly(curve[curve.length - 1]?.date);
+  if (!firstCurveDate || !lastCurveDate || lastCurveDate <= firstCurveDate) {
+    return curve.map((point, index) => ({
+      ...point,
+      date: dateOnlyToIso(index === curve.length - 1 ? packageEnd : packageStart),
+    }));
+  }
+
+  const sourceSpan = lastCurveDate.getTime() - firstCurveDate.getTime();
+  const targetSpan = packageEnd.getTime() - packageStart.getTime();
+  const usedDates = new Set<string>();
+
+  return curve.map((point, index) => {
+    const pointDate = parsePackageDateOnly(point.date);
+    const ratio = pointDate ? (pointDate.getTime() - firstCurveDate.getTime()) / sourceSpan : index / (curve.length - 1);
+    let nextDate = new Date(packageStart.getTime() + targetSpan * Math.max(0, Math.min(1, ratio)));
+    nextDate = parsePackageDateOnly(dateOnlyToIso(nextDate)) ?? nextDate;
+    let iso = dateOnlyToIso(nextDate);
+    if (index === 0) iso = dateOnlyToIso(packageStart);
+    if (index === curve.length - 1) iso = dateOnlyToIso(packageEnd);
+    if (usedDates.has(iso) && index !== curve.length - 1) return null;
+    usedDates.add(iso);
+    return { ...point, date: iso };
+  }).filter((point): point is CurvePoint => Boolean(point));
+}
 
 const PACKAGE_STATUS_TONE: Record<string, string> = {
   Concluído: "bg-emerald-100 text-emerald-700 border-emerald-200",
@@ -772,19 +818,22 @@ async function renderPackageDetailPage(
       : `Mais de ${Math.max(serviceCountReference, services.length)} serviços`
     : `${services.length} serviço${services.length === 1 ? "" : "s"}`;
 
-  const plannedCurve = calcularCurvaSPlanejada({ subpacotes: subpackagesForCurve }).map(
+  const rawPlannedCurve = calcularCurvaSPlanejada({ subpacotes: subpackagesForCurve }).map(
     (point) => ({
       date: point.data.toISOString().slice(0, 10),
       percent: Math.round(point.percentual),
     }),
   );
 
-  const realizedCurve = calcularCurvaSRealizada({ subpacotes: subpackagesForCurve }).map(
+  const rawRealizedCurve = calcularCurvaSRealizada({ subpacotes: subpackagesForCurve }).map(
     (point) => ({
       date: point.data.toISOString().slice(0, 10),
       percent: Math.round(point.percentual),
     }),
   );
+
+  const plannedCurve = remapCurveDatesToPackageRange(rawPlannedCurve, pkg.plannedStart, pkg.plannedEnd);
+  const realizedCurve = remapCurveDatesToPackageRange(rawRealizedCurve, pkg.plannedStart, pkg.plannedEnd);
 
   return (
     <div className="container mx-auto max-w-7xl space-y-6 px-6 py-6 package-print-layout print:m-0 print:w-full print:max-w-none print:space-y-3 print:px-0 print:py-0">
@@ -854,7 +903,7 @@ async function renderPackageDetailPage(
           </dl>
         </section>
 
-        <PackageSCurveSection planned={plannedCurve} realized={realizedCurve} />
+        <PackageSCurveSection packageId={pkg.id} planned={plannedCurve} realized={realizedCurve} />
 
         {warningMessages.length ? (
           <div className="rounded-2xl border border-amber-200 bg-amber-50/90 p-4 text-sm text-amber-900 shadow-sm print:hidden">
