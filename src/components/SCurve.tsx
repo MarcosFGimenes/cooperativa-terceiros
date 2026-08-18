@@ -383,7 +383,10 @@ export default function SCurve({
     (series: "planned" | "realized", color: string) =>
     (props: { cx?: number; cy?: number; payload?: ChartEntry; value?: number | null }) => {
       const { cx, cy, payload, value } = props;
-      if (!visualEditingEnabled || typeof cx !== "number" || typeof cy !== "number" || typeof value !== "number" || !payload) {
+      if (typeof cx !== "number" || typeof cy !== "number" || typeof value !== "number" || !payload) {
+        return <g />;
+      }
+      if (!visualEditingEnabled) {
         return <circle cx={cx} cy={cy} r={DOT_RADIUS} stroke={color} fill={color} />;
       }
       const isSelected = selectedPoint?.date === payload.date && selectedPoint.series === series;
@@ -541,7 +544,6 @@ export default function SCurve({
                     dot={renderEditableDot("realized", REALIZED_COLOR)}
                     activeDot={{ r: ACTIVE_DOT_RADIUS, stroke: REALIZED_COLOR, fill: REALIZED_COLOR }}
                     strokeLinecap="round"
-                    connectNulls
                     isAnimationActive={false}
                   >
                     <LabelList
