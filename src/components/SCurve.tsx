@@ -354,6 +354,31 @@ export default function SCurve({
     setDraggedPoint(null);
   };
 
+  const selectPoint = useCallback(
+    (point: { date: string; series: "planned" | "realized" }) => {
+      setSelectedPoint(point);
+      setDraggedPoint(point);
+    },
+    [],
+  );
+
+  const selectPointFromChartEvent = useCallback(
+    (event: unknown) => {
+      if (!visualEditingEnabled) return;
+      const chartEvent = event as { activePayload?: Array<{ dataKey?: string; value?: unknown; payload?: ChartEntry }> };
+      const payloadItems = chartEvent.activePayload ?? [];
+      const currentSeriesItem = selectedPoint
+        ? payloadItems.find((item) => item.dataKey === selectedPoint.series && typeof item.value === "number")
+        : null;
+      const fallbackItem = payloadItems.find((item) => item.dataKey === "planned" && typeof item.value === "number")
+        ?? payloadItems.find((item) => item.dataKey === "realized" && typeof item.value === "number");
+      const item = currentSeriesItem ?? fallbackItem;
+      if (!item?.payload || (item.dataKey !== "planned" && item.dataKey !== "realized")) return;
+      selectPoint({ date: item.payload.date, series: item.dataKey });
+    },
+    [selectPoint, selectedPoint, visualEditingEnabled],
+  );
+
   const renderEditableDot =
     (series: "planned" | "realized", color: string) =>
     (props: { cx?: number; cy?: number; payload?: ChartEntry; value?: number | null }) => {
@@ -362,14 +387,9 @@ export default function SCurve({
         return <circle cx={cx} cy={cy} r={DOT_RADIUS} stroke={color} fill={color} />;
       }
       const isSelected = selectedPoint?.date === payload.date && selectedPoint.series === series;
+      const point = { date: payload.date, series };
       return (
-        <circle
-          cx={cx}
-          cy={cy}
-          r={isSelected ? ACTIVE_DOT_RADIUS : DOT_RADIUS + 1}
-          stroke={color}
-          strokeWidth={isSelected ? 3 : 1}
-          fill={color}
+        <g
           className="cursor-ns-resize outline-none"
           role="button"
           tabIndex={0}
@@ -377,15 +397,24 @@ export default function SCurve({
           onMouseDown={(event) => {
             event.preventDefault();
             event.stopPropagation();
-            const point = { date: payload.date, series };
-            setSelectedPoint(point);
-            setDraggedPoint(point);
+            selectPoint(point);
           }}
           onClick={(event) => {
             event.stopPropagation();
-            setSelectedPoint({ date: payload.date, series });
+            setSelectedPoint(point);
           }}
-        />
+        >
+          <circle cx={cx} cy={cy} r={14} fill="transparent" />
+          <circle
+            cx={cx}
+            cy={cy}
+            r={isSelected ? ACTIVE_DOT_RADIUS : DOT_RADIUS + 1}
+            stroke={color}
+            strokeWidth={isSelected ? 3 : 1}
+            fill={color}
+            pointerEvents="none"
+          />
+        </g>
       );
     };
 
@@ -456,8 +485,9 @@ export default function SCurve({
             <ResponsiveContainer width="100%" height="100%">
               <LineChart
                 data={chartData}
-                margin={{ left: 44, right: 16, top: 16, bottom: 12 }}
+                margin={{ left: 44, right: 16, top: 28, bottom: 12 }}
                 style={{ background: "transparent" }}
+                onMouseDown={selectPointFromChartEvent}
               >
                 {/* Removendo gridlines do gráfico */}
                 <CartesianGrid vertical={false} horizontal={false} />

@@ -63,36 +63,54 @@ function dateOnlyToIso(date: Date) {
   return date.toISOString().slice(0, 10);
 }
 
-function remapCurveDatesToPackageRange(curve: CurvePoint[], plannedStart?: string | null, plannedEnd?: string | null) {
-  const packageStart = parsePackageDateOnly(plannedStart);
-  const packageEnd = parsePackageDateOnly(plannedEnd);
-  if (!packageStart || !packageEnd || packageEnd < packageStart || curve.length <= 1) return curve;
+function getCurveValueAtDate(curve: CurvePoint[], target: Date) {
+  const targetMs = target.getTime();
+  let previous: CurvePoint | null = null;
 
-  const firstCurveDate = parsePackageDateOnly(curve[0]?.date);
-  const lastCurveDate = parsePackageDateOnly(curve[curve.length - 1]?.date);
-  if (!firstCurveDate || !lastCurveDate || lastCurveDate <= firstCurveDate) {
-    return curve.map((point, index) => ({
-      ...point,
-      date: dateOnlyToIso(index === curve.length - 1 ? packageEnd : packageStart),
-    }));
+  for (const point of curve) {
+    const pointDate = parsePackageDateOnly(point.date);
+    if (!pointDate) continue;
+    const pointMs = pointDate.getTime();
+    if (pointMs === targetMs) return point.percent;
+    if (pointMs > targetMs) return previous?.percent ?? point.percent;
+    previous = point;
   }
 
-  const sourceSpan = lastCurveDate.getTime() - firstCurveDate.getTime();
-  const targetSpan = packageEnd.getTime() - packageStart.getTime();
-  const usedDates = new Set<string>();
+  return previous?.percent ?? null;
+}
 
-  return curve.map((point, index) => {
+function limitCurveDatesToPackageRange(curve: CurvePoint[], plannedStart?: string | null, plannedEnd?: string | null) {
+  const packageStart = parsePackageDateOnly(plannedStart);
+  const packageEnd = parsePackageDateOnly(plannedEnd);
+  if (!packageStart || !packageEnd || packageEnd < packageStart || !curve.length) return curve;
+
+  const startIso = dateOnlyToIso(packageStart);
+  const endIso = dateOnlyToIso(packageEnd);
+  const packageStartMs = packageStart.getTime();
+  const packageEndMs = packageEnd.getTime();
+  const pointsByDate = new Map<string, CurvePoint>();
+  const startPercent = getCurveValueAtDate(curve, packageStart);
+  const endPercent = getCurveValueAtDate(curve, packageEnd);
+
+  if (startPercent !== null) {
+    pointsByDate.set(startIso, { date: startIso, percent: startPercent });
+  }
+
+  curve.forEach((point) => {
     const pointDate = parsePackageDateOnly(point.date);
-    const ratio = pointDate ? (pointDate.getTime() - firstCurveDate.getTime()) / sourceSpan : index / (curve.length - 1);
-    let nextDate = new Date(packageStart.getTime() + targetSpan * Math.max(0, Math.min(1, ratio)));
-    nextDate = parsePackageDateOnly(dateOnlyToIso(nextDate)) ?? nextDate;
-    let iso = dateOnlyToIso(nextDate);
-    if (index === 0) iso = dateOnlyToIso(packageStart);
-    if (index === curve.length - 1) iso = dateOnlyToIso(packageEnd);
-    if (usedDates.has(iso) && index !== curve.length - 1) return null;
-    usedDates.add(iso);
-    return { ...point, date: iso };
-  }).filter((point): point is CurvePoint => Boolean(point));
+    if (!pointDate) return;
+    const pointMs = pointDate.getTime();
+    if (pointMs < packageStartMs || pointMs > packageEndMs) return;
+    pointsByDate.set(dateOnlyToIso(pointDate), { ...point, date: dateOnlyToIso(pointDate) });
+  });
+
+  if (endPercent !== null) {
+    pointsByDate.set(endIso, { date: endIso, percent: endPercent });
+  }
+
+  return Array.from(pointsByDate.values()).sort((a, b) => {
+    return new Date(a.date).getTime() - new Date(b.date).getTime();
+  });
 }
 
 const PACKAGE_STATUS_TONE: Record<string, string> = {
@@ -832,8 +850,8 @@ async function renderPackageDetailPage(
     }),
   );
 
-  const plannedCurve = remapCurveDatesToPackageRange(rawPlannedCurve, pkg.plannedStart, pkg.plannedEnd);
-  const realizedCurve = remapCurveDatesToPackageRange(rawRealizedCurve, pkg.plannedStart, pkg.plannedEnd);
+  const plannedCurve = limitCurveDatesToPackageRange(rawPlannedCurve, pkg.plannedStart, pkg.plannedEnd);
+  const realizedCurve = limitCurveDatesToPackageRange(rawRealizedCurve, pkg.plannedStart, pkg.plannedEnd);
 
   return (
     <div className="container mx-auto max-w-7xl space-y-6 px-6 py-6 package-print-layout print:m-0 print:w-full print:max-w-none print:space-y-3 print:px-0 print:py-0">
