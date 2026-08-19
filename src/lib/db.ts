@@ -2,13 +2,17 @@ import {
   collection,
   doc,
   getDoc,
+  getDocFromCache,
   getDocs,
+  getDocsFromCache,
   limit,
   orderBy,
   query,
   where,
   type DocumentData,
+  type DocumentReference,
   type DocumentSnapshot,
+  type Query,
   type QueryDocumentSnapshot,
 } from "firebase/firestore";
 
@@ -118,6 +122,42 @@ function mapPackageSnapshot(snapshot: QueryDocumentSnapshot<DocumentData>): Pack
   };
 }
 
+function isUnavailableFirestoreError(error: unknown) {
+  return typeof error === "object" && error !== null && "code" in error && error.code === "unavailable";
+}
+
+async function getDocWithOfflineFallback(ref: DocumentReference<DocumentData>): Promise<DocumentSnapshot<DocumentData> | null> {
+  try {
+    return await getDoc(ref);
+  } catch (error) {
+    if (!isUnavailableFirestoreError(error)) {
+      throw error;
+    }
+
+    try {
+      return await getDocFromCache(ref);
+    } catch {
+      return null;
+    }
+  }
+}
+
+async function getDocsWithOfflineFallback(q: Query<DocumentData>) {
+  try {
+    return await getDocs(q);
+  } catch (error) {
+    if (!isUnavailableFirestoreError(error)) {
+      throw error;
+    }
+
+    try {
+      return await getDocsFromCache(q);
+    } catch {
+      return null;
+    }
+  }
+}
+
 function mapPackageDocument(snapshot: DocumentSnapshot<DocumentData>): Package | null {
   if (!snapshot.exists()) return null;
   const data = snapshot.data() as Record<string, unknown>;
@@ -130,31 +170,31 @@ function mapPackageDocument(snapshot: DocumentSnapshot<DocumentData>): Package |
 }
 
 export async function listServices(opts?: { status?: string; limitTo?: number }) {
-  const base = collection(db, "services");
+  const base = collection(db!, "services");
   let q = query(base, orderBy("criadoEm", "desc"));
   if (opts?.status) q = query(base, where("status", "==", opts.status), orderBy("criadoEm", "desc"));
   if (opts?.limitTo) q = query(q, limit(opts.limitTo));
-  const snap = await getDocs(q);
-  return snap.docs.map((docSnap) => mapServiceSnapshot(docSnap));
+  const snap = await getDocsWithOfflineFallback(q);
+  return snap ? snap.docs.map((docSnap) => mapServiceSnapshot(docSnap)) : [];
 }
 
 export async function getService(id: string) {
-  const ref = doc(db, "services", id);
-  const snap = await getDoc(ref);
-  return mapServiceDocument(snap);
+  const ref = doc(db!, "services", id);
+  const snap = await getDocWithOfflineFallback(ref);
+  return snap ? mapServiceDocument(snap) : null;
 }
 
 export async function listPackages(opts?: { limitTo?: number }) {
-  const base = collection(db, "packages");
+  const base = collection(db!, "packages");
   const q = opts?.limitTo
     ? query(base, orderBy("criadoEm", "desc"), limit(opts.limitTo))
     : query(base, orderBy("criadoEm", "desc"));
-  const snap = await getDocs(q);
-  return snap.docs.map((docSnap) => mapPackageSnapshot(docSnap));
+  const snap = await getDocsWithOfflineFallback(q);
+  return snap ? snap.docs.map((docSnap) => mapPackageSnapshot(docSnap)) : [];
 }
 
 export async function getPackage(id: string) {
-  const ref = doc(db, "packages", id);
-  const snap = await getDoc(ref);
-  return mapPackageDocument(snap);
+  const ref = doc(db!, "packages", id);
+  const snap = await getDocWithOfflineFallback(ref);
+  return snap ? mapPackageDocument(snap) : null;
 }

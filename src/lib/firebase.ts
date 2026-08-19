@@ -2,7 +2,13 @@
 
 import { getApp, getApps, initializeApp, type FirebaseApp } from "firebase/app";
 import { getAuth, type Auth } from "firebase/auth";
-import { initializeFirestore, setLogLevel, type Firestore } from "firebase/firestore";
+import {
+  initializeFirestore,
+  persistentLocalCache,
+  persistentMultipleTabManager,
+  setLogLevel,
+  type Firestore,
+} from "firebase/firestore";
 
 import { getFirebasePublicConfig } from "@/lib/firebaseConfig";
 
@@ -72,11 +78,15 @@ if (!globalForFirebase.__FIREBASE_CLIENT_APP__ && !globalForFirebase.__FIREBASE_
     const config = getFirebasePublicConfig();
     const app = getApps().length ? getApp() : initializeApp(config);
 
-    const firestoreSettings: Parameters<typeof initializeFirestore>[1] = {};
+    const firestoreSettings: Parameters<typeof initializeFirestore>[1] = {
+      localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
+    };
     if (shouldForceLongPolling) {
       firestoreSettings.experimentalForceLongPolling = true;
     } else if (shouldEnableFetchStreams) {
-      firestoreSettings.useFetchStreams = true;
+      (
+        firestoreSettings as Parameters<typeof initializeFirestore>[1] & { useFetchStreams?: boolean }
+      ).useFetchStreams = true;
     } else if (shouldAutoDetectLongPolling) {
       firestoreSettings.experimentalAutoDetectLongPolling = true;
     }

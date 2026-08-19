@@ -163,6 +163,7 @@ export default function ServiceDetailClient({
   const [checklist, setChecklist] = useState<ChecklistItem[]>(toNewChecklist(initialChecklist));
   const [updates, setUpdates] = useState<ServiceUpdate[]>(toNewUpdates(initialUpdates));
   const [connectionIssue, setConnectionIssue] = useState<string | null>(null);
+  const [isRealtimeFromCache, setIsRealtimeFromCache] = useState(false);
   const [currentToken, setCurrentToken] = useState<ServiceDetailClientProps["latestToken"]>(latestToken);
   const [currentTokenLink, setCurrentTokenLink] = useState<string | null>(tokenLink);
   const normalizedInitialUpdates = useMemo(() => toNewUpdates(initialUpdates), [initialUpdates]);
@@ -416,8 +417,10 @@ export default function ServiceDetailClient({
       unsubscribers.push(
         onSnapshot(
           serviceRef,
+          { includeMetadataChanges: true },
           (snapshot) => {
             if (cancelled) return;
+            setIsRealtimeFromCache(snapshot.metadata.fromCache);
             const mapped = mapServiceSnapshot(snapshot);
             setService((current) => mergeServiceRealtime(current, mapped));
             setConnectionIssue(null);
@@ -435,8 +438,10 @@ export default function ServiceDetailClient({
         unsubscribers.push(
           onSnapshot(
             query(collection(serviceRef, "updates"), orderBy("audit.submittedAt", "desc"), limit(100)),
+            { includeMetadataChanges: true },
             (snapshot) => {
               if (cancelled) return;
+              setIsRealtimeFromCache(snapshot.metadata.fromCache);
               const mapped = snapshot.docs.map((docSnap) => mapUpdateSnapshot(docSnap));
               setUpdates(toNewUpdates(mapped));
               setConnectionIssue(null);
@@ -453,8 +458,10 @@ export default function ServiceDetailClient({
         unsubscribers.push(
           onSnapshot(
             query(collection(serviceRef, "checklist"), orderBy("description", "asc")),
+            { includeMetadataChanges: true },
             (snapshot) => {
               if (cancelled) return;
+              setIsRealtimeFromCache(snapshot.metadata.fromCache);
               const mapped = snapshot.docs.map((docSnap) => mapChecklistSnapshot(docSnap));
               setChecklist(toNewChecklist(mapped));
               setConnectionIssue(null);
@@ -778,6 +785,12 @@ export default function ServiceDetailClient({
       {authIssue || connectionIssue ? (
         <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-700">
           {authIssue ?? connectionIssue}
+        </div>
+      ) : null}
+
+      {isRealtimeFromCache ? (
+        <div className="rounded-md border border-sky-200 bg-sky-50 p-3 text-xs text-sky-700">
+          Exibindo dados salvos localmente. A tela será atualizada automaticamente quando a conexão com o servidor for confirmada.
         </div>
       ) : null}
 
