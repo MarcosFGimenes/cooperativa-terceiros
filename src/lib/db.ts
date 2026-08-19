@@ -2,13 +2,17 @@ import {
   collection,
   doc,
   getDoc,
+  getDocFromCache,
   getDocs,
+  getDocsFromCache,
   limit,
   orderBy,
   query,
   where,
   type DocumentData,
+  type DocumentReference,
   type DocumentSnapshot,
+  type Query,
   type QueryDocumentSnapshot,
 } from "firebase/firestore";
 
@@ -118,6 +122,22 @@ function mapPackageSnapshot(snapshot: QueryDocumentSnapshot<DocumentData>): Pack
   };
 }
 
+async function getDocPreferCache(ref: DocumentReference<DocumentData>): Promise<DocumentSnapshot<DocumentData>> {
+  try {
+    return await getDocFromCache(ref);
+  } catch {
+    return getDoc(ref);
+  }
+}
+
+async function getDocsPreferCache(q: Query<DocumentData>) {
+  try {
+    return await getDocsFromCache(q);
+  } catch {
+    return getDocs(q);
+  }
+}
+
 function mapPackageDocument(snapshot: DocumentSnapshot<DocumentData>): Package | null {
   if (!snapshot.exists()) return null;
   const data = snapshot.data() as Record<string, unknown>;
@@ -130,31 +150,31 @@ function mapPackageDocument(snapshot: DocumentSnapshot<DocumentData>): Package |
 }
 
 export async function listServices(opts?: { status?: string; limitTo?: number }) {
-  const base = collection(db, "services");
+  const base = collection(db!, "services");
   let q = query(base, orderBy("criadoEm", "desc"));
   if (opts?.status) q = query(base, where("status", "==", opts.status), orderBy("criadoEm", "desc"));
   if (opts?.limitTo) q = query(q, limit(opts.limitTo));
-  const snap = await getDocs(q);
+  const snap = await getDocsPreferCache(q);
   return snap.docs.map((docSnap) => mapServiceSnapshot(docSnap));
 }
 
 export async function getService(id: string) {
-  const ref = doc(db, "services", id);
-  const snap = await getDoc(ref);
+  const ref = doc(db!, "services", id);
+  const snap = await getDocPreferCache(ref);
   return mapServiceDocument(snap);
 }
 
 export async function listPackages(opts?: { limitTo?: number }) {
-  const base = collection(db, "packages");
+  const base = collection(db!, "packages");
   const q = opts?.limitTo
     ? query(base, orderBy("criadoEm", "desc"), limit(opts.limitTo))
     : query(base, orderBy("criadoEm", "desc"));
-  const snap = await getDocs(q);
+  const snap = await getDocsPreferCache(q);
   return snap.docs.map((docSnap) => mapPackageSnapshot(docSnap));
 }
 
 export async function getPackage(id: string) {
-  const ref = doc(db, "packages", id);
-  const snap = await getDoc(ref);
+  const ref = doc(db!, "packages", id);
+  const snap = await getDocPreferCache(ref);
   return mapPackageDocument(snap);
 }
