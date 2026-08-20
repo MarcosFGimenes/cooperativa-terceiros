@@ -8,10 +8,11 @@ import type {
   ServiceStatus,
   ServiceUpdate,
 } from "@/lib/types";
-import { resolveDisplayedServiceStatus } from "@/lib/serviceStatus";
+import { resolveCanonicalServiceStatus } from "@/lib/serviceStatus";
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
 import { revalidateTag, unstable_cache } from "next/cache";
 import { recomputeServiceProgress } from "@/lib/progressHistoryServer";
+import { chooseProgressUpdateStrategy } from "@/lib/progressUpdateStrategy";
 
 const getDb = () => getAdmin().db;
 const servicesCollection = () => getDb().collection("services");
@@ -21,6 +22,7 @@ const foldersCollection = () => getDb().collection("packageFolders");
 
 const SERVICE_CACHE_TTL_SECONDS = 180;
 const SERVICE_LIST_CACHE_TTL_SECONDS = 300;
+const SERVICE_DASHBOARD_CACHE_TTL_SECONDS = 300;
 const DEFAULT_AVAILABLE_SERVICES_LIMIT = 200;
 
 type ChecklistSeed = { id: string; descricao: string; peso: number };
@@ -115,6 +117,29 @@ const listAvailableOpenServicesCache = unstable_cache(
     tags: ["services:available"],
   },
 );
+
+const recentServicesCache = unstable_cache(
+  async () => fetchRecentServices(),
+  ["services", "recent"],
+  {
+    revalidate: SERVICE_DASHBOARD_CACHE_TTL_SECONDS,
+    tags: ["services:recent"],
+  },
+);
+
+const serviceStatusSummaryCache = unstable_cache(
+  async () => fetchServiceStatusSummary(),
+  ["services", "status-summary"],
+  {
+    revalidate: SERVICE_DASHBOARD_CACHE_TTL_SECONDS,
+    tags: ["services:summary"],
+  },
+);
+
+function revalidateServiceDashboardCaches() {
+  revalidateTag("services:recent");
+  revalidateTag("services:summary");
+}
 
 function revalidateServiceDetailCache(serviceId: string) {
   if (!serviceId) return;
@@ -212,6 +237,17 @@ export async function createService(payload: CreateServicePayload) {
     company: payload.empresaId,
     cnpj: payload.cnpj || null,
     status: payload.status,
+    displayStatus: resolveCanonicalServiceStatus({
+      id: docRef.id,
+      os: payload.os,
+      equipmentName: equipmentName || payload.equipamento,
+      plannedStart: new Date(payload.inicioPrevistoMillis).toISOString(),
+      plannedEnd: new Date(payload.fimPrevistoMillis).toISOString(),
+      totalHours: payload.horasPrevistas,
+      status: payload.status,
+      progress: 0,
+      createdAt: Date.now(),
+    }),
     andamento: 0,
     checklist,
     hasChecklist: checklist.length > 0,
@@ -243,6 +279,7 @@ export async function createService(payload: CreateServicePayload) {
     await batch.commit();
   }
 
+  revalidateServiceDashboardCaches();
   return { id: docRef.id };
 }
 
@@ -504,6 +541,14 @@ function mapServiceData(
   };
 }
 
+function canonicalStatusFromData(
+  id: string,
+  current: Record<string, unknown>,
+  patch: Record<string, unknown> = {},
+) {
+  return resolveCanonicalServiceStatus(mapServiceData(id, { ...current, ...patch }, "summary"));
+}
+
 export async function getServiceById(id: string): Promise<Service | null> {
   const trimmedId = typeof id === "string" ? id.trim() : "";
   if (!trimmedId) return null;
@@ -649,10 +694,14 @@ export async function findServicesByOsList(
   return queryServicesByField("os", osList, options);
 }
 
-export async function listRecentServices(): Promise<Service[]> {
+async function fetchRecentServices(): Promise<Service[]> {
   const snap = await servicesCollection().orderBy("updatedAt", "desc").limit(20).get();
   const services = snap.docs.map((doc) => mapServiceData(doc.id, (doc.data() ?? {}) as Record<string, unknown>));
   return services.sort((a, b) => (b.updatedAt ?? b.createdAt ?? 0) - (a.updatedAt ?? a.createdAt ?? 0));
+}
+
+export async function listRecentServices(): Promise<Service[]> {
+  return recentServicesCache();
 }
 
 export type ServiceStatusSummary = {
@@ -662,59 +711,66 @@ export type ServiceStatusSummary = {
   concluded: number;
 };
 
-export async function getServiceStatusSummary(): Promise<ServiceStatusSummary | null> {
+async function backfillAndSummariseServiceStatuses(
+  snapshot: FirebaseFirestore.QuerySnapshot,
+): Promise<ServiceStatusSummary> {
+  const summary: ServiceStatusSummary = { total: 0, open: 0, pending: 0, concluded: 0 };
+  const writes: Array<{ ref: FirebaseFirestore.DocumentReference; displayStatus: string }> = [];
+
+  snapshot.docs.forEach((doc) => {
+    const data = (doc.data() ?? {}) as Record<string, unknown>;
+    const service = mapServiceData(doc.id, data, "summary");
+    const displayStatus = resolveCanonicalServiceStatus(service);
+    summary.total += 1;
+    if (displayStatus === "Concluído") summary.concluded += 1;
+    else if (displayStatus === "Pendente") summary.pending += 1;
+    else summary.open += 1;
+
+    if (data.displayStatus !== displayStatus) writes.push({ ref: doc.ref, displayStatus });
+  });
+
+  for (let offset = 0; offset < writes.length; offset += 500) {
+    const batch = getDb().batch();
+    writes.slice(offset, offset + 500).forEach(({ ref, displayStatus }) => {
+      batch.update(ref, { displayStatus });
+    });
+    await batch.commit();
+  }
+
+  return summary;
+}
+
+async function fetchServiceStatusSummary(): Promise<ServiceStatusSummary | null> {
   try {
     const collection = servicesCollection();
-    const snapshot = await collection
-      .select(
-        "status",
-        "realPercent",
-        "andamento",
-        "manualPercent",
-        "progress",
-        "percentual",
-        "percent",
-        "previousProgress",
-        "progressBeforeConclusion",
-        "previousPercent",
-        "plannedStart",
-        "inicioPrevisto",
-        "plannedEnd",
-        "fimPrevisto",
-        "inicioPlanejado",
-        "fimPlanejado",
-        "dataInicio",
-        "dataFim",
-        "totalHours",
-        "totalHoras",
-        "horasPrevistas",
-        "hours",
-        "createdAt",
-        "updatedAt",
-      )
-      .get();
+    const [totalResult, openResult, pendingResult, concludedResult] = await Promise.all([
+      collection.count().get(),
+      collection.where("displayStatus", "==", "Aberto").count().get(),
+      collection.where("displayStatus", "==", "Pendente").count().get(),
+      collection.where("displayStatus", "==", "Concluído").count().get(),
+    ]);
+    const summary = {
+      total: totalResult.data().count,
+      open: openResult.data().count,
+      pending: pendingResult.data().count,
+      concluded: concludedResult.data().count,
+    };
 
-    const summary: ServiceStatusSummary = { total: 0, open: 0, pending: 0, concluded: 0 };
+    if (summary.open + summary.pending + summary.concluded === summary.total) return summary;
 
-    snapshot.docs.forEach((doc) => {
-      const service = mapServiceData(doc.id, (doc.data() ?? {}) as Record<string, unknown>, "summary");
-      const displayedStatus = resolveDisplayedServiceStatus(service);
-
-      summary.total += 1;
-      if (displayedStatus === "Concluído") {
-        summary.concluded += 1;
-      } else if (displayedStatus === "Pendente") {
-        summary.pending += 1;
-      } else {
-        summary.open += 1;
-      }
-    });
-
-    return summary;
+    const legacySnapshot = await collection.select(
+      "status", "progress", "realPercent", "andamento", "percentual", "percent",
+      "previousProgress", "progressBeforeConclusion", "previousPercent", "displayStatus",
+    ).get();
+    return backfillAndSummariseServiceStatuses(legacySnapshot);
   } catch (error) {
     console.warn("[services:getServiceStatusSummary] Failed to count service statuses", error);
     return null;
   }
+}
+
+export async function getServiceStatusSummary(): Promise<ServiceStatusSummary | null> {
+  return serviceStatusSummaryCache();
 }
 
 function isMissingAdminError(error: unknown) {
@@ -1207,12 +1263,15 @@ export async function setChecklistItems(
     tx.update(serviceRef, {
       hasChecklist: items.length > 0,
       realPercent: 0,
+      displayStatus: canonicalStatusFromData(serviceId, serviceSnap.data() ?? {}, {
+        realPercent: 0,
+      }),
       manualPercent: FieldValue.delete(),
       updatedAt: FieldValue.serverTimestamp(),
     });
   });
 
-  revalidateTag("services:recent");
+  revalidateServiceDashboardCaches();
   revalidateTag("services:checklist");
   revalidateServiceDetailCache(serviceId);
 }
@@ -1399,6 +1458,8 @@ export async function updateServiceMetadata(serviceId: string, input: ServiceMet
       checklistUpdates = snapshot;
     }
 
+    payload.displayStatus = canonicalStatusFromData(serviceId, serviceData, payload);
+
     tx.update(ref, payload);
 
     checklistUpdates.forEach((update) => {
@@ -1410,7 +1471,7 @@ export async function updateServiceMetadata(serviceId: string, input: ServiceMet
     });
   });
 
-  revalidateTag("services:recent");
+  revalidateServiceDashboardCaches();
   revalidateTag("services:checklist");
   revalidateServiceDetailCache(serviceId);
 }
@@ -1573,6 +1634,11 @@ export async function updateChecklistProgress(
     if (shouldMarkHasChecklist) {
       servicePatch.hasChecklist = true;
     }
+    servicePatch.displayStatus = canonicalStatusFromData(
+      serviceId,
+      serviceSnap.data() ?? {},
+      servicePatch,
+    );
 
     checklistWrites.forEach((write) => {
       const ref = checklistCol.doc(write.id);
@@ -1588,7 +1654,7 @@ export async function updateChecklistProgress(
     return realPercent;
   });
 
-  revalidateTag("services:recent");
+  revalidateServiceDashboardCaches();
   revalidateTag("services:checklist");
   revalidateServiceDetailCache(serviceId);
 
@@ -1835,7 +1901,7 @@ export async function addManualUpdate(
   const mode = input.mode === "detailed" ? "detailed" : "simple";
 
   const { db } = getAdmin();
-  const updateId = await db.runTransaction(async (tx) => {
+  const result = await db.runTransaction(async (tx) => {
     const serviceRef = servicesCollection().doc(serviceId);
     const updatesCol = serviceRef.collection("updates");
 
@@ -1844,6 +1910,11 @@ export async function addManualUpdate(
       throw new Error("Serviço não encontrado");
     }
 
+    const serviceData = (serviceSnap.data() ?? {}) as Record<string, unknown>;
+    const previousWatermark =
+      toMillis(serviceData.lastProgressUpdateAt) ?? toMillis(serviceData.lastUpdateDate) ?? null;
+    const strategy = chooseProgressUpdateStrategy(input.reportDate, previousWatermark);
+    const eventMillis = Math.max(input.reportDate ?? Date.now(), previousWatermark ?? 0);
     const updateRef = updatesCol.doc();
     tx.set(
       updateRef,
@@ -1856,38 +1927,39 @@ export async function addManualUpdate(
       }),
     );
 
-    tx.update(serviceRef, buildServiceProgressPatch(percent, { manualPercent: percent }));
+    const servicePatch = buildServiceProgressPatch(percent, { manualPercent: percent });
+    servicePatch.lastProgressUpdateAt = Timestamp.fromMillis(eventMillis);
+    servicePatch.displayStatus = canonicalStatusFromData(
+      serviceId,
+      serviceData,
+      servicePatch,
+    );
+    tx.update(serviceRef, servicePatch);
 
-    return updateRef.id;
+    return { updateId: updateRef.id, strategy };
   });
 
   const updateSnap = await servicesCollection()
     .doc(serviceId)
     .collection("updates")
-    .doc(updateId)
+    .doc(result.updateId)
     .get();
 
   const mapped = mapUpdateDoc(serviceId, updateSnap);
 
-  // Recalcular progresso para sincronizar em todo o sistema, mas preservar o valor exato digitado
-  const shouldSkipRecompute = opts?.skipRecompute === true;
-  const recomputePromise = recomputeServiceProgress(serviceId).catch((error) => {
-    console.error(`[services] Falha ao recalcular progresso do serviço ${serviceId}`, error);
-    return null;
-  });
-
-  // Usar o valor recalculado (que já preserva o valor manual quando não há checklist)
-  // ou o valor do update mapeado como fallback
-  const resolvedPercent = shouldSkipRecompute
-    ? mapped.realPercentSnapshot ?? percent
-    : (await recomputePromise)?.percent ?? mapped.realPercentSnapshot ?? percent;
-
-  if (shouldSkipRecompute) {
-    void recomputePromise;
-  }
+  // O lançamento cronologicamente novo já atualizou update + serviço na mesma
+  // transação. Apenas entradas retroativas precisam do rebuild linear completo.
+  const shouldRebuild = result.strategy === "rebuild" && opts?.skipRecompute !== true;
+  const rebuilt = shouldRebuild
+    ? await recomputeServiceProgress(serviceId).catch((error) => {
+        console.error(`[services] Falha ao recalcular progresso do serviço ${serviceId}`, error);
+        return null;
+      })
+    : null;
+  const resolvedPercent = rebuilt?.percent ?? mapped.realPercentSnapshot ?? percent;
 
   // Invalidar apenas os caches diretamente relacionados às atualizações do serviço
-  revalidateTag("services:recent");
+  revalidateServiceDashboardCaches();
   revalidateTag("services:updates");
   revalidateTag("services:detail");
 
@@ -1955,13 +2027,18 @@ export async function addComputedUpdate(
     if (percent >= 100) {
       serviceUpdate.status = "concluido";
     }
+    serviceUpdate.displayStatus = canonicalStatusFromData(
+      serviceId,
+      serviceSnap.data() ?? {},
+      serviceUpdate,
+    );
 
     tx.update(serviceRef, serviceUpdate);
 
     return updateRef.id;
   });
 
-  revalidateTag("services:recent");
+  revalidateServiceDashboardCaches();
   revalidateTag("services:updates");
   revalidateServiceDetailCache(serviceId);
 
@@ -2152,7 +2229,7 @@ export async function deleteService(serviceId: string): Promise<boolean> {
   });
 
   await ref.delete();
-  revalidateTag("services:recent");
+  revalidateServiceDashboardCaches();
   revalidateTag("services:checklist");
   revalidateTag("services:updates");
   revalidateServiceDetailCache(serviceId);

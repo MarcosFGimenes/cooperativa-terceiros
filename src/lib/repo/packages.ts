@@ -4,6 +4,10 @@ import { getAdmin } from "@/lib/firebaseAdmin";
 import type { Package, Service } from "@/lib/types";
 import { FieldValue } from "firebase-admin/firestore";
 import { revalidateTag, unstable_cache } from "next/cache";
+import {
+  MAX_ATOMIC_PACKAGE_SERVICES,
+  chunkForSafeWrites,
+} from "@/lib/firestoreWriteLimits";
 
 const FIREBASE_ADMIN_NOT_CONFIGURED = "FIREBASE_ADMIN_NOT_CONFIGURED";
 
@@ -175,6 +179,15 @@ const listPackageServicesCache = unstable_cache(
   {
     revalidate: PACKAGE_CACHE_TTL_SECONDS,
     tags: ["packages:services"],
+  },
+);
+
+const recentPackagesCache = unstable_cache(
+  async () => fetchRecentPackages(),
+  ["packages", "recent"],
+  {
+    revalidate: PACKAGE_CACHE_TTL_SECONDS,
+    tags: ["packages:recent"],
   },
 );
 
@@ -470,7 +483,7 @@ export async function getPackageById(id: string): Promise<Package | null> {
   return null;
 }
 
-export async function listRecentPackages(): Promise<PackageSummary[]> {
+async function fetchRecentPackages(): Promise<PackageSummary[]> {
   const collection = packagesCollectionOptional();
   if (!collection) {
     logMissingAdmin("recent:collection");
@@ -487,6 +500,10 @@ export async function listRecentPackages(): Promise<PackageSummary[]> {
     console.warn("[packages:listRecent] Falha ao carregar pacotes recentes. Retornando lista vazia.", error);
     return [];
   }
+}
+
+export async function listRecentPackages(): Promise<PackageSummary[]> {
+  return recentPackagesCache();
 }
 
 async function fetchPackageServices(packageId: string, limit: number): Promise<Service[]> {
@@ -557,25 +574,80 @@ export async function createPackage(
   const uniqueServiceIds = Array.from(new Set(serviceIds));
 
   const { db } = getAdmin();
-  const packageId = await db.runTransaction(async (tx) => {
-    const packageRef = packagesCollection().doc();
-    tx.set(packageRef, {
-      name,
-      status: "aberto",
-      serviceIds: uniqueServiceIds,
-      createdAt: FieldValue.serverTimestamp(),
-    });
-
-    uniqueServiceIds.forEach((serviceId) => {
-      const serviceRef = servicesCollection().doc(serviceId);
-      tx.update(serviceRef, {
-        packageId: packageRef.id,
-        updatedAt: FieldValue.serverTimestamp(),
+  if (uniqueServiceIds.length <= MAX_ATOMIC_PACKAGE_SERVICES) {
+    const packageId = await db.runTransaction(async (tx) => {
+      const packageRef = packagesCollection().doc();
+      tx.set(packageRef, {
+        name,
+        status: "aberto",
+        serviceIds: uniqueServiceIds,
+        createdAt: FieldValue.serverTimestamp(),
       });
-    });
 
-    return packageRef.id;
+      uniqueServiceIds.forEach((serviceId) => {
+        tx.update(servicesCollection().doc(serviceId), {
+          packageId: packageRef.id,
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+      });
+      return packageRef.id;
+    });
+    revalidateTag("packages:recent");
+    revalidateTag("services:recent");
+    revalidateTag("packages:services");
+    revalidatePackageDetailCache(packageId);
+    return packageId;
+  }
+
+  const packageRef = packagesCollection().doc();
+  const serviceRefs = uniqueServiceIds.map((serviceId) => servicesCollection().doc(serviceId));
+  const snapshots = await db.getAll(...serviceRefs);
+  const missing = snapshots.filter((snapshot) => !snapshot.exists).map((snapshot) => snapshot.id);
+  if (missing.length) {
+    throw new Error(`Serviço(s) não encontrado(s): ${missing.slice(0, 5).join(", ")}`);
+  }
+
+  await packageRef.create({
+    name,
+    status: "aberto",
+    serviceIds: uniqueServiceIds,
+    createdAt: FieldValue.serverTimestamp(),
+    assignmentSyncPending: true,
   });
+
+  const updatedSnapshots: FirebaseFirestore.DocumentSnapshot[] = [];
+  try {
+    for (const chunk of chunkForSafeWrites(snapshots)) {
+      const batch = db.batch();
+      chunk.forEach((snapshot) => {
+        batch.update(snapshot.ref, {
+          packageId: packageRef.id,
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+      });
+      await batch.commit();
+      updatedSnapshots.push(...chunk);
+    }
+    await packageRef.update({ assignmentSyncPending: FieldValue.delete() });
+  } catch (error) {
+    for (const chunk of chunkForSafeWrites(updatedSnapshots)) {
+      const rollback = db.batch();
+      chunk.forEach((snapshot) => {
+        const data = snapshot.data() ?? {};
+        rollback.update(snapshot.ref, {
+          packageId: Object.prototype.hasOwnProperty.call(data, "packageId")
+            ? data.packageId
+            : FieldValue.delete(),
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+      });
+      await rollback.commit();
+    }
+    await packageRef.delete();
+    throw error;
+  }
+
+  const packageId = packageRef.id;
 
   revalidateTag("packages:recent");
   revalidateTag("services:recent");
@@ -713,9 +785,7 @@ export async function deletePackage(packageId: string): Promise<boolean> {
     return false;
   }
 
-  const operations: Array<(batch: FirebaseFirestore.WriteBatch) => void> = [
-    (batch) => batch.delete(ref),
-  ];
+  const operations: Array<(batch: FirebaseFirestore.WriteBatch) => void> = [];
 
   const servicesSnap = await servicesCollection().where("packageId", "==", trimmedId).get();
   servicesSnap.docs.forEach((doc) => {
@@ -764,6 +834,7 @@ export async function deletePackage(packageId: string): Promise<boolean> {
       batch.delete(doc.ref);
     });
   });
+  operations.push((batch) => batch.delete(ref));
 
   if (tokenUpdates.length) {
     await Promise.all(tokenUpdates);

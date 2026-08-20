@@ -1,6 +1,36 @@
 {
   "indexes": [
     {
+      "collectionGroup": "accessTokens",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "targetType", "mode": "ASCENDING" },
+        { "fieldPath": "targetId", "mode": "ASCENDING" },
+        { "fieldPath": "status", "mode": "ASCENDING" },
+        { "fieldPath": "createdAt", "mode": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "accessTokens",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "targetType", "mode": "ASCENDING" },
+        { "fieldPath": "targetId", "mode": "ASCENDING" },
+        { "fieldPath": "status", "mode": "ASCENDING" },
+        { "fieldPath": "company", "mode": "ASCENDING" },
+        { "fieldPath": "createdAt", "mode": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "accessTokens",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "targetType", "mode": "ASCENDING" },
+        { "fieldPath": "targetId", "mode": "ASCENDING" },
+        { "fieldPath": "createdAt", "mode": "DESCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "services",
       "queryScope": "COLLECTION",
       "fields": [
