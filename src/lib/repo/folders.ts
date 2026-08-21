@@ -7,6 +7,7 @@ import { getAdmin } from "@/lib/firebaseAdmin";
 import { randomToken } from "@/lib/accessTokens";
 import type { PackageFolder } from "@/types";
 import { collectFolderServiceIds } from "@/lib/folderServices";
+import { buildServiceAssignmentFields } from "@/lib/serviceAssignment";
 
 const getDb = () => getAdmin().db;
 const foldersCollection = () => getDb().collection("packageFolders");
@@ -346,18 +347,19 @@ export async function setFolderServices(folderId: string, serviceIds: string[]):
       { merge: true },
     );
 
-    const added = aggregatedServices.filter((id) => !previousServices.has(id));
     const removed = Array.from(previousServices).filter((id) => !aggregatedSet.has(id));
 
     const serviceUpdates: Promise<unknown>[] = [];
 
-    added.forEach((serviceId) => {
+    // A pasta é canônica mesmo quando o serviço já constava no array legado do
+    // pacote; portanto sincronize todos os IDs da pasta alvo, não apenas os que
+    // são novos no agregado do pacote.
+    unique.forEach((serviceId) => {
       const ref = servicesCollection().doc(serviceId);
       serviceUpdates.push(
         ref.set(
           {
-            packageId,
-            pacoteId: packageId,
+            ...buildServiceAssignmentFields({ packageId, folderId }),
             updatedAt: FieldValue.serverTimestamp(),
           },
           { merge: true },
@@ -370,8 +372,7 @@ export async function setFolderServices(folderId: string, serviceIds: string[]):
       serviceUpdates.push(
         ref.set(
           {
-            packageId: FieldValue.delete(),
-            pacoteId: FieldValue.delete(),
+            ...buildServiceAssignmentFields({ packageId: null, folderId: null }),
             updatedAt: FieldValue.serverTimestamp(),
           },
           { merge: true },
@@ -452,7 +453,7 @@ export async function deletePackageFolder(folderId: string): Promise<{ deletedId
           .doc(serviceId)
           .set(
             {
-              folderId: FieldValue.delete(),
+              ...buildServiceAssignmentFields({ packageId: folder.packageId || null, folderId: null }),
               subpackageId: FieldValue.delete(),
               updatedAt: FieldValue.serverTimestamp(),
             },

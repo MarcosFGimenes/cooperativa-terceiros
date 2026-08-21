@@ -3,6 +3,7 @@ import { revalidatePath, revalidateTag } from "next/cache";
 
 import { getAdminDbOrThrow } from "@/lib/serverDb";
 import { parseDayFirstDateStringToUtcDate, parsePortugueseDateStringToUtcDate } from "@/lib/dateParsing";
+import { resolveCanonicalServiceStatus } from "@/lib/serviceStatus";
 import {
   buildChecklistWeightMap,
   clampPercent,
@@ -180,6 +181,31 @@ export async function recomputeServiceProgress(serviceId: string) {
   const shouldUseManual = manualPercentValue !== null && (lastTimestamp === null || (manualTimestamp ?? -1) >= lastTimestamp);
 
   const currentPercent = shouldUseManual ? manualPercentValue : computed.currentPercent;
+  const previousProgress = [
+    serviceData.previousProgress,
+    serviceData.progressBeforeConclusion,
+    serviceData.previousPercent,
+  ]
+    .map((value) => {
+      if (typeof value === "number") return value;
+      if (typeof value !== "string") return null;
+      const parsed = Number(value.trim().replace(/%$/, "").replace(",", "."));
+      return Number.isFinite(parsed) ? parsed : null;
+    })
+    .find((value): value is number => value !== null);
+
+  const displayStatus = resolveCanonicalServiceStatus({
+    id: serviceId,
+    os: String(serviceData.os ?? serviceId),
+    equipmentName: String(serviceData.equipmentName ?? serviceData.equipamento ?? ""),
+    plannedStart: "",
+    plannedEnd: "",
+    totalHours: 0,
+    status: String(serviceData.status ?? "Aberto") as "Aberto" | "Pendente" | "Concluído",
+    progress: currentPercent,
+    previousProgress: previousProgress ?? null,
+    createdAt: 0,
+  });
 
   const payload: Record<string, unknown> = {
     andamento: currentPercent,
@@ -188,8 +214,10 @@ export async function recomputeServiceProgress(serviceId: string) {
     percent: currentPercent,
     progress: currentPercent,
     percentualRealAtual: currentPercent,
+    displayStatus,
     updatedAt: lastTimestamp ? Timestamp.fromMillis(lastTimestamp) : FieldValue.serverTimestamp(),
     lastUpdateDate: lastTimestamp ? Timestamp.fromMillis(lastTimestamp) : FieldValue.serverTimestamp(),
+    lastProgressUpdateAt: lastTimestamp ? Timestamp.fromMillis(lastTimestamp) : FieldValue.serverTimestamp(),
   };
 
   if (shouldUseManual) {
@@ -215,6 +243,7 @@ export async function recomputeServiceProgress(serviceId: string) {
   revalidateTag("services:legacy-updates");
   revalidateTag("services:available");
   revalidateTag("services:recent");
+  revalidateTag("services:summary");
   revalidateTag("packages:detail");
   revalidateTag("packages:summary");
   revalidateTag("packages:services");

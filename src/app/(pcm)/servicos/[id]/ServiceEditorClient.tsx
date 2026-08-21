@@ -24,6 +24,7 @@ import { useFirebaseAuthSession } from "@/lib/useFirebaseAuthSession";
 import { recordTelemetry } from "@/lib/telemetry";
 import { resolveReopenedProgress, snapshotBeforeConclusion } from "@/lib/serviceProgress";
 import { buildChecklistWeightMap, computeProgressFromEvents, type ProgressEvent } from "@/lib/progressHistory";
+import { managementFetch } from "@/lib/managementFetch";
 
 type ChecklistDraft = Array<{ id: string; descricao: string; peso: number | "" }>;
 
@@ -37,6 +38,25 @@ type UpdateHistoryItem = {
   items?: Array<{ itemId: string; pct: number }>;
   source: "updates" | "serviceUpdates";
 };
+
+function resolveDisplayStatus(status: string, progress: number, previousProgress?: number | null) {
+  const raw = status.trim().toLowerCase();
+  if (raw === "pendente" && Number.isFinite(previousProgress) && Number(previousProgress) < 100) {
+    return "Pendente";
+  }
+  if (progress >= 100 || raw === "concluido" || raw === "concluído" || raw === "encerrado") {
+    return "Concluído";
+  }
+  return raw === "pendente" ? "Pendente" : "Aberto";
+}
+
+async function invalidateServiceDashboardCache() {
+  try {
+    await managementFetch("/api/management/services/cache", { method: "POST" });
+  } catch (error) {
+    console.warn("[services] Não foi possível invalidar o cache do dashboard.", error);
+  }
+}
 
 function toDateTimeLocalInput(value: Date | null): string {
   if (!value) return "";
@@ -480,9 +500,11 @@ export default function ServiceEditorClient({ serviceId }: ServiceEditorClientPr
         realPercent: clampedPercent,
         andamento: clampedPercent,
         progress: clampedPercent,
+        displayStatus: resolveDisplayStatus(form.status, clampedPercent, previousProgress),
         updatedAt: serverTimestamp(),
       };
       await updateDoc(baseRef, servicePayload);
+      await invalidateServiceDashboardCache();
       
       // Atualizar o estado local para refletir a mudança imediatamente
       setAndamento(clampedPercent);
@@ -581,6 +603,7 @@ export default function ServiceEditorClient({ serviceId }: ServiceEditorClientPr
         company: form.empresaId.trim() || null,
         cnpj: form.cnpj.trim() || null,
         status: form.status,
+        displayStatus: resolveDisplayStatus(form.status, andamento, previousProgress),
         pacoteId: form.pacoteId || null,
         packageId: form.pacoteId || null,
         checklist: withChecklist
@@ -593,6 +616,7 @@ export default function ServiceEditorClient({ serviceId }: ServiceEditorClientPr
         updatedAt: serverTimestamp(),
       };
       await updateDoc(ref, payload);
+      await invalidateServiceDashboardCache();
       await recomputeProgressAfterEdit();
       toast.success("Serviço atualizado com sucesso.");
       router.push(`/servicos/${encodeURIComponent(serviceId)}`);
@@ -651,7 +675,14 @@ export default function ServiceEditorClient({ serviceId }: ServiceEditorClientPr
         nextProgress = clamp(progresso);
       }
 
+      payload.displayStatus = resolveDisplayStatus(
+        status,
+        nextProgress ?? currentProgress,
+        typeof payload.previousProgress === "number" ? payload.previousProgress : previousProgress,
+      );
+
       await updateDoc(ref, payload);
+      await invalidateServiceDashboardCache();
       setForm((prev) => ({ ...prev, status }));
       if (nextProgress !== null) {
         setAndamento(nextProgress);

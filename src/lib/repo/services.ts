@@ -8,10 +8,13 @@ import type {
   ServiceStatus,
   ServiceUpdate,
 } from "@/lib/types";
-import { resolveDisplayedServiceStatus } from "@/lib/serviceStatus";
+import { resolveCanonicalServiceStatus } from "@/lib/serviceStatus";
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
 import { revalidateTag, unstable_cache } from "next/cache";
 import { recomputeServiceProgress } from "@/lib/progressHistoryServer";
+import { chooseProgressUpdateStrategy, resolveStoredProgressWatermark } from "@/lib/progressUpdateStrategy";
+import { buildServiceSearchFields } from "@/lib/serviceSearch";
+import { buildServiceAssignmentFields } from "@/lib/serviceAssignment";
 
 const getDb = () => getAdmin().db;
 const servicesCollection = () => getDb().collection("services");
@@ -21,6 +24,7 @@ const foldersCollection = () => getDb().collection("packageFolders");
 
 const SERVICE_CACHE_TTL_SECONDS = 180;
 const SERVICE_LIST_CACHE_TTL_SECONDS = 300;
+const SERVICE_DASHBOARD_CACHE_TTL_SECONDS = 300;
 const DEFAULT_AVAILABLE_SERVICES_LIMIT = 200;
 
 type ChecklistSeed = { id: string; descricao: string; peso: number };
@@ -116,6 +120,29 @@ const listAvailableOpenServicesCache = unstable_cache(
   },
 );
 
+const recentServicesCache = unstable_cache(
+  async () => fetchRecentServices(),
+  ["services", "recent"],
+  {
+    revalidate: SERVICE_DASHBOARD_CACHE_TTL_SECONDS,
+    tags: ["services:recent"],
+  },
+);
+
+const serviceStatusSummaryCache = unstable_cache(
+  async () => fetchServiceStatusSummary(),
+  ["services", "status-summary"],
+  {
+    revalidate: SERVICE_DASHBOARD_CACHE_TTL_SECONDS,
+    tags: ["services:summary"],
+  },
+);
+
+function revalidateServiceDashboardCaches() {
+  revalidateTag("services:recent");
+  revalidateTag("services:summary");
+}
+
 function revalidateServiceDetailCache(serviceId: string) {
   if (!serviceId) return;
   revalidateTag("services:detail");
@@ -196,7 +223,7 @@ export async function createService(payload: CreateServicePayload) {
   const description = (payload.description ?? "").trim();
   const importKey = (payload.importKey ?? "").trim();
 
-  const serviceDoc = {
+  const serviceDoc: Record<string, unknown> = {
     os: payload.os,
     oc: payload.oc || null,
     tag: payload.tag,
@@ -212,6 +239,17 @@ export async function createService(payload: CreateServicePayload) {
     company: payload.empresaId,
     cnpj: payload.cnpj || null,
     status: payload.status,
+    displayStatus: resolveCanonicalServiceStatus({
+      id: docRef.id,
+      os: payload.os,
+      equipmentName: equipmentName || payload.equipamento,
+      plannedStart: new Date(payload.inicioPrevistoMillis).toISOString(),
+      plannedEnd: new Date(payload.fimPrevistoMillis).toISOString(),
+      totalHours: payload.horasPrevistas,
+      status: payload.status,
+      progress: 0,
+      createdAt: Date.now(),
+    }),
     andamento: 0,
     checklist,
     hasChecklist: checklist.length > 0,
@@ -220,7 +258,9 @@ export async function createService(payload: CreateServicePayload) {
     createdAt: now,
     updatedAt: now,
     createdBy: "pcm",
+    ...buildServiceAssignmentFields({ packageId: null, folderId: null }),
   };
+  Object.assign(serviceDoc, buildServiceSearchFields(docRef.id, serviceDoc));
 
   await docRef.set(serviceDoc);
 
@@ -243,6 +283,7 @@ export async function createService(payload: CreateServicePayload) {
     await batch.commit();
   }
 
+  revalidateServiceDashboardCaches();
   return { id: docRef.id };
 }
 
@@ -504,6 +545,14 @@ function mapServiceData(
   };
 }
 
+function canonicalStatusFromData(
+  id: string,
+  current: Record<string, unknown>,
+  patch: Record<string, unknown> = {},
+) {
+  return resolveCanonicalServiceStatus(mapServiceData(id, { ...current, ...patch }, "summary"));
+}
+
 export async function getServiceById(id: string): Promise<Service | null> {
   const trimmedId = typeof id === "string" ? id.trim() : "";
   if (!trimmedId) return null;
@@ -649,10 +698,14 @@ export async function findServicesByOsList(
   return queryServicesByField("os", osList, options);
 }
 
-export async function listRecentServices(): Promise<Service[]> {
+async function fetchRecentServices(): Promise<Service[]> {
   const snap = await servicesCollection().orderBy("updatedAt", "desc").limit(20).get();
   const services = snap.docs.map((doc) => mapServiceData(doc.id, (doc.data() ?? {}) as Record<string, unknown>));
   return services.sort((a, b) => (b.updatedAt ?? b.createdAt ?? 0) - (a.updatedAt ?? a.createdAt ?? 0));
+}
+
+export async function listRecentServices(): Promise<Service[]> {
+  return recentServicesCache();
 }
 
 export type ServiceStatusSummary = {
@@ -662,59 +715,37 @@ export type ServiceStatusSummary = {
   concluded: number;
 };
 
-export async function getServiceStatusSummary(): Promise<ServiceStatusSummary | null> {
+async function fetchServiceStatusSummary(): Promise<ServiceStatusSummary | null> {
   try {
     const collection = servicesCollection();
-    const snapshot = await collection
-      .select(
-        "status",
-        "realPercent",
-        "andamento",
-        "manualPercent",
-        "progress",
-        "percentual",
-        "percent",
-        "previousProgress",
-        "progressBeforeConclusion",
-        "previousPercent",
-        "plannedStart",
-        "inicioPrevisto",
-        "plannedEnd",
-        "fimPrevisto",
-        "inicioPlanejado",
-        "fimPlanejado",
-        "dataInicio",
-        "dataFim",
-        "totalHours",
-        "totalHoras",
-        "horasPrevistas",
-        "hours",
-        "createdAt",
-        "updatedAt",
-      )
-      .get();
+    const [totalResult, openResult, pendingResult, concludedResult] = await Promise.all([
+      collection.count().get(),
+      collection.where("displayStatus", "==", "Aberto").count().get(),
+      collection.where("displayStatus", "==", "Pendente").count().get(),
+      collection.where("displayStatus", "==", "Concluído").count().get(),
+    ]);
+    const summary = {
+      total: totalResult.data().count,
+      open: openResult.data().count,
+      pending: pendingResult.data().count,
+      concluded: concludedResult.data().count,
+    };
 
-    const summary: ServiceStatusSummary = { total: 0, open: 0, pending: 0, concluded: 0 };
-
-    snapshot.docs.forEach((doc) => {
-      const service = mapServiceData(doc.id, (doc.data() ?? {}) as Record<string, unknown>, "summary");
-      const displayedStatus = resolveDisplayedServiceStatus(service);
-
-      summary.total += 1;
-      if (displayedStatus === "Concluído") {
-        summary.concluded += 1;
-      } else if (displayedStatus === "Pendente") {
-        summary.pending += 1;
-      } else {
-        summary.open += 1;
-      }
-    });
-
+    if (summary.open + summary.pending + summary.concluded !== summary.total) {
+      console.error(
+        `[services:getServiceStatusSummary] ${summary.total - summary.open - summary.pending - summary.concluded} serviço(s) sem displayStatus canônico; execute o backfill manual.`,
+      );
+      return null;
+    }
     return summary;
   } catch (error) {
     console.warn("[services:getServiceStatusSummary] Failed to count service statuses", error);
     return null;
   }
+}
+
+export async function getServiceStatusSummary(): Promise<ServiceStatusSummary | null> {
+  return serviceStatusSummaryCache();
 }
 
 function isMissingAdminError(error: unknown) {
@@ -730,15 +761,17 @@ function isMissingAdminError(error: unknown) {
 }
 
 async function fetchAvailableOpenServices(limit: number, mode: ServiceMapMode): Promise<Service[]> {
-  const allowedStatuses: ServiceStatus[] = ["Aberto", "Pendente"];
-  const allowedStatusSet = new Set<ServiceStatus>(allowedStatuses);
-  const seen = new Set<string>();
-  const results: Service[] = [];
-
-  let collection: FirebaseFirestore.CollectionReference | null = null;
-
   try {
-    collection = servicesCollection();
+    const snapshot = await servicesCollection()
+      .where("displayStatus", "in", ["Aberto", "Pendente"])
+      .where("packageId", "==", null)
+      .where("folderId", "==", null)
+      .orderBy("createdAt", "desc")
+      .limit(limit)
+      .get();
+    return snapshot.docs.map((doc) =>
+      mapServiceData(doc.id, (doc.data() ?? {}) as Record<string, unknown>, mode),
+    );
   } catch (error) {
     if (isMissingAdminError(error)) {
       console.warn(
@@ -748,82 +781,11 @@ async function fetchAvailableOpenServices(limit: number, mode: ServiceMapMode): 
       return [];
     }
     console.warn(
-      "[services:listAvailableOpenServices] Falha ao acessar o Firestore. Retornando lista vazia.",
+      "[services:listAvailableOpenServices] Falha ao executar a consulta canônica. Retornando lista vazia.",
       error,
     );
     return [];
   }
-
-  if (!collection) {
-    return [];
-  }
-
-  const folderReferenceCache = new Map<string, boolean>();
-
-  const serviceIsAttachedToFolder = async (serviceId: string): Promise<boolean> => {
-    if (folderReferenceCache.has(serviceId)) {
-      return folderReferenceCache.get(serviceId) ?? false;
-    }
-    const refs = await collectFolderRefsByServiceId(serviceId);
-    const isAttached = refs.length > 0;
-    folderReferenceCache.set(serviceId, isAttached);
-    return isAttached;
-  };
-
-  const pushDocs = async (docs: FirebaseFirestore.QueryDocumentSnapshot[]) => {
-    for (const doc of docs) {
-      if (results.length >= limit) break;
-      if (seen.has(doc.id)) continue;
-      const service = mapServiceData(
-        doc.id,
-        (doc.data() ?? {}) as Record<string, unknown>,
-        mode,
-      );
-      if (!allowedStatusSet.has(service.status)) continue;
-      if (service.packageId?.trim()) continue;
-      if (await serviceIsAttachedToFolder(service.id)) continue;
-      seen.add(service.id);
-      results.push(service);
-      if (results.length >= limit) break;
-    }
-  };
-
-  const baseLimit = Math.max(1, limit) * 2;
-  const errors: Array<{ scope: string; error: unknown }> = [];
-
-  const runQuery = async (
-    scope: string,
-    promise: Promise<FirebaseFirestore.QuerySnapshot>,
-  ): Promise<void> => {
-    if (results.length >= limit) return;
-    try {
-      const snapshot = await promise;
-      await pushDocs(snapshot.docs);
-    } catch (error) {
-      errors.push({ scope, error });
-      console.warn(
-        `[services:listAvailableOpenServices] Falha ao listar serviços (${scope}). Continuando com resultado parcial.`,
-        error,
-      );
-    }
-  };
-
-  // Use a single createdAt-sorted query to avoid Firestore composite index requirements when filtering by status.
-  const fetchCount = baseLimit * allowedStatuses.length;
-  await runQuery("createdAt:recent", collection.orderBy("createdAt", "desc").limit(fetchCount).get());
-
-  if (results.length === 0 && errors.length > 0) {
-    const firstError = errors[0];
-    console.warn(
-      "[services:listAvailableOpenServices] Não foi possível carregar serviços disponíveis. Retornando lista vazia.",
-      firstError.error,
-    );
-    return [];
-  }
-
-  results.sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0));
-
-  return results.slice(0, limit);
 }
 
 export async function listAvailableOpenServices(
@@ -1207,12 +1169,15 @@ export async function setChecklistItems(
     tx.update(serviceRef, {
       hasChecklist: items.length > 0,
       realPercent: 0,
+      displayStatus: canonicalStatusFromData(serviceId, serviceSnap.data() ?? {}, {
+        realPercent: 0,
+      }),
       manualPercent: FieldValue.delete(),
       updatedAt: FieldValue.serverTimestamp(),
     });
   });
 
-  revalidateTag("services:recent");
+  revalidateServiceDashboardCaches();
   revalidateTag("services:checklist");
   revalidateServiceDetailCache(serviceId);
 }
@@ -1357,6 +1322,7 @@ export async function updateServiceMetadata(serviceId: string, input: ServiceMet
     payload.empresaId = input.company ?? null;
     payload.company = input.company ?? null;
     payload.cnpj = input.cnpj ?? null;
+    Object.assign(payload, buildServiceSearchFields(serviceId, { ...serviceData, ...payload }));
 
     const checklistRef = ref.collection("checklist");
     let checklistUpdates: ChecklistProgressSnapshot[] = [];
@@ -1399,6 +1365,8 @@ export async function updateServiceMetadata(serviceId: string, input: ServiceMet
       checklistUpdates = snapshot;
     }
 
+    payload.displayStatus = canonicalStatusFromData(serviceId, serviceData, payload);
+
     tx.update(ref, payload);
 
     checklistUpdates.forEach((update) => {
@@ -1410,7 +1378,7 @@ export async function updateServiceMetadata(serviceId: string, input: ServiceMet
     });
   });
 
-  revalidateTag("services:recent");
+  revalidateServiceDashboardCaches();
   revalidateTag("services:checklist");
   revalidateServiceDetailCache(serviceId);
 }
@@ -1573,6 +1541,11 @@ export async function updateChecklistProgress(
     if (shouldMarkHasChecklist) {
       servicePatch.hasChecklist = true;
     }
+    servicePatch.displayStatus = canonicalStatusFromData(
+      serviceId,
+      serviceSnap.data() ?? {},
+      servicePatch,
+    );
 
     checklistWrites.forEach((write) => {
       const ref = checklistCol.doc(write.id);
@@ -1588,7 +1561,7 @@ export async function updateChecklistProgress(
     return realPercent;
   });
 
-  revalidateTag("services:recent");
+  revalidateServiceDashboardCaches();
   revalidateTag("services:checklist");
   revalidateServiceDetailCache(serviceId);
 
@@ -1835,7 +1808,7 @@ export async function addManualUpdate(
   const mode = input.mode === "detailed" ? "detailed" : "simple";
 
   const { db } = getAdmin();
-  const updateId = await db.runTransaction(async (tx) => {
+  const result = await db.runTransaction(async (tx) => {
     const serviceRef = servicesCollection().doc(serviceId);
     const updatesCol = serviceRef.collection("updates");
 
@@ -1844,6 +1817,10 @@ export async function addManualUpdate(
       throw new Error("Serviço não encontrado");
     }
 
+    const serviceData = (serviceSnap.data() ?? {}) as Record<string, unknown>;
+    const previousWatermark = resolveStoredProgressWatermark(toMillis(serviceData.lastProgressUpdateAt));
+    const strategy = chooseProgressUpdateStrategy(input.reportDate, previousWatermark);
+    const eventMillis = Math.max(input.reportDate ?? Date.now(), previousWatermark ?? 0);
     const updateRef = updatesCol.doc();
     tx.set(
       updateRef,
@@ -1856,38 +1833,43 @@ export async function addManualUpdate(
       }),
     );
 
-    tx.update(serviceRef, buildServiceProgressPatch(percent, { manualPercent: percent }));
+    const servicePatch = buildServiceProgressPatch(percent, { manualPercent: percent });
+    // Um rebuild que falhar não pode promover uma data ainda não reconstruída a
+    // watermark. No fast path, update e watermark são persistidos atomicamente.
+    if (strategy === "fast-path") {
+      servicePatch.lastProgressUpdateAt = Timestamp.fromMillis(eventMillis);
+    }
+    servicePatch.displayStatus = canonicalStatusFromData(
+      serviceId,
+      serviceData,
+      servicePatch,
+    );
+    tx.update(serviceRef, servicePatch);
 
-    return updateRef.id;
+    return { updateId: updateRef.id, strategy };
   });
 
   const updateSnap = await servicesCollection()
     .doc(serviceId)
     .collection("updates")
-    .doc(updateId)
+    .doc(result.updateId)
     .get();
 
   const mapped = mapUpdateDoc(serviceId, updateSnap);
 
-  // Recalcular progresso para sincronizar em todo o sistema, mas preservar o valor exato digitado
-  const shouldSkipRecompute = opts?.skipRecompute === true;
-  const recomputePromise = recomputeServiceProgress(serviceId).catch((error) => {
-    console.error(`[services] Falha ao recalcular progresso do serviço ${serviceId}`, error);
-    return null;
-  });
-
-  // Usar o valor recalculado (que já preserva o valor manual quando não há checklist)
-  // ou o valor do update mapeado como fallback
-  const resolvedPercent = shouldSkipRecompute
-    ? mapped.realPercentSnapshot ?? percent
-    : (await recomputePromise)?.percent ?? mapped.realPercentSnapshot ?? percent;
-
-  if (shouldSkipRecompute) {
-    void recomputePromise;
-  }
+  // O lançamento cronologicamente novo já atualizou update + serviço na mesma
+  // transação. Apenas entradas retroativas precisam do rebuild linear completo.
+  const shouldRebuild = result.strategy === "rebuild" && opts?.skipRecompute !== true;
+  const rebuilt = shouldRebuild
+    ? await recomputeServiceProgress(serviceId).catch((error) => {
+        console.error(`[services] Falha ao recalcular progresso do serviço ${serviceId}`, error);
+        return null;
+      })
+    : null;
+  const resolvedPercent = rebuilt?.percent ?? mapped.realPercentSnapshot ?? percent;
 
   // Invalidar apenas os caches diretamente relacionados às atualizações do serviço
-  revalidateTag("services:recent");
+  revalidateServiceDashboardCaches();
   revalidateTag("services:updates");
   revalidateTag("services:detail");
 
@@ -1955,13 +1937,18 @@ export async function addComputedUpdate(
     if (percent >= 100) {
       serviceUpdate.status = "concluido";
     }
+    serviceUpdate.displayStatus = canonicalStatusFromData(
+      serviceId,
+      serviceSnap.data() ?? {},
+      serviceUpdate,
+    );
 
     tx.update(serviceRef, serviceUpdate);
 
     return updateRef.id;
   });
 
-  revalidateTag("services:recent");
+  revalidateServiceDashboardCaches();
   revalidateTag("services:updates");
   revalidateServiceDetailCache(serviceId);
 
@@ -2152,7 +2139,7 @@ export async function deleteService(serviceId: string): Promise<boolean> {
   });
 
   await ref.delete();
-  revalidateTag("services:recent");
+  revalidateServiceDashboardCaches();
   revalidateTag("services:checklist");
   revalidateTag("services:updates");
   revalidateServiceDetailCache(serviceId);
