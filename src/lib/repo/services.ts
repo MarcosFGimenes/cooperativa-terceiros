@@ -12,7 +12,7 @@ import { resolveCanonicalServiceStatus } from "@/lib/serviceStatus";
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
 import { revalidateTag, unstable_cache } from "next/cache";
 import { recomputeServiceProgress } from "@/lib/progressHistoryServer";
-import { chooseProgressUpdateStrategy } from "@/lib/progressUpdateStrategy";
+import { chooseProgressUpdateStrategy, resolveStoredProgressWatermark } from "@/lib/progressUpdateStrategy";
 
 const getDb = () => getAdmin().db;
 const servicesCollection = () => getDb().collection("services");
@@ -1911,8 +1911,7 @@ export async function addManualUpdate(
     }
 
     const serviceData = (serviceSnap.data() ?? {}) as Record<string, unknown>;
-    const previousWatermark =
-      toMillis(serviceData.lastProgressUpdateAt) ?? toMillis(serviceData.lastUpdateDate) ?? null;
+    const previousWatermark = resolveStoredProgressWatermark(toMillis(serviceData.lastProgressUpdateAt));
     const strategy = chooseProgressUpdateStrategy(input.reportDate, previousWatermark);
     const eventMillis = Math.max(input.reportDate ?? Date.now(), previousWatermark ?? 0);
     const updateRef = updatesCol.doc();
@@ -1928,7 +1927,11 @@ export async function addManualUpdate(
     );
 
     const servicePatch = buildServiceProgressPatch(percent, { manualPercent: percent });
-    servicePatch.lastProgressUpdateAt = Timestamp.fromMillis(eventMillis);
+    // Um rebuild que falhar não pode promover uma data ainda não reconstruída a
+    // watermark. No fast path, update e watermark são persistidos atomicamente.
+    if (strategy === "fast-path") {
+      servicePatch.lastProgressUpdateAt = Timestamp.fromMillis(eventMillis);
+    }
     servicePatch.displayStatus = canonicalStatusFromData(
       serviceId,
       serviceData,

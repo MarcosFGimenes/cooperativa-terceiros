@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { chooseProgressUpdateStrategy } from "../../src/lib/progressUpdateStrategy";
+import {
+  chooseProgressUpdateStrategy,
+  resolveStoredProgressWatermark,
+} from "../../src/lib/progressUpdateStrategy";
 
 describe("chooseProgressUpdateStrategy", () => {
   it("uses the fast path for a normal submission without an explicit historical date", () => {
@@ -18,5 +21,17 @@ describe("chooseProgressUpdateStrategy", () => {
 
   it("rebuilds explicitly dated legacy services without a watermark", () => {
     expect(chooseProgressUpdateStrategy(100, null)).toBe("rebuild");
+  });
+
+  it("uses a persisted lastProgressUpdateAt watermark", () => {
+    const watermark = resolveStoredProgressWatermark(100);
+    expect(chooseProgressUpdateStrategy(101, watermark)).toBe("fast-path");
+  });
+
+  it("does not treat an unrelated lastUpdateDate as a progress watermark", () => {
+    const unrelatedLastUpdateDate = 500;
+    const watermark = resolveStoredProgressWatermark(undefined);
+    expect(unrelatedLastUpdateDate).toBe(500);
+    expect(chooseProgressUpdateStrategy(100, watermark)).toBe("rebuild");
   });
 });
