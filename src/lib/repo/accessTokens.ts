@@ -77,6 +77,29 @@ function isTokenActive(data: RawTokenData, now: number): boolean {
   return isCanonicalTokenActive({ ...data, expiresAtMillis: toMillis(data.expiresAt) }, now);
 }
 
+async function getPointedServiceToken(serviceId: string): Promise<FirebaseFirestore.DocumentSnapshot | null> {
+  const { db } = getAdmin();
+  const serviceSnap = await db.collection("services").doc(serviceId).get();
+  if (!serviceSnap.exists) return null;
+  const data = serviceSnap.data() ?? {};
+  const code =
+    (typeof data.accessTokenCode === "string" && data.accessTokenCode.trim()) ||
+    (typeof data.activeTokenCode === "string" && data.activeTokenCode.trim()) ||
+    "";
+  if (!code) return null;
+  const tokenSnap = await db.collection("accessTokens").doc(code).get();
+  if (!tokenSnap.exists || !isTokenActive((tokenSnap.data() ?? {}) as RawTokenData, Date.now())) return null;
+  return tokenSnap;
+}
+
+async function pointServiceToToken(serviceId: string, code: string): Promise<void> {
+  const { db } = getAdmin();
+  await db.collection("services").doc(serviceId).set(
+    { accessTokenCode: code, activeTokenCode: code, updatedAt: FieldValue.serverTimestamp() },
+    { merge: true },
+  );
+}
+
 async function getIndexedActiveServiceTokenSnapshot(serviceId: string) {
   const { db } = getAdmin();
   try {
@@ -106,9 +129,11 @@ export async function getLatestServiceToken(serviceId: string): Promise<ServiceA
   if (!serviceId) return null;
   const { db } = getAdmin();
 
-  let snap = await getIndexedActiveServiceTokenSnapshot(serviceId);
+  let doc = await getPointedServiceToken(serviceId);
+  let snap: FirebaseFirestore.QuerySnapshot | null = null;
+  if (!doc) snap = await getIndexedActiveServiceTokenSnapshot(serviceId);
 
-  if (snap.empty) {
+  if (!doc && snap?.empty) {
     // Compatibilidade de leitura: documentos anteriores ao estado canônico
     // podem não ter `status`. A consulta continua limitada a um documento e
     // nunca varre o histórico inteiro.
@@ -123,7 +148,8 @@ export async function getLatestServiceToken(serviceId: string): Promise<ServiceA
   }
 
   const now = Date.now();
-  const doc = snap.docs[0];
+  doc = doc ?? snap?.docs[0] ?? null;
+  if (!doc) return null;
   const data = (doc.data() ?? {}) as RawTokenData;
   if (!isTokenActive(data, now)) return null;
 
@@ -162,7 +188,21 @@ export async function ensureServiceAccessToken({ serviceId, company }: EnsureSer
   const { db } = getAdmin();
   const now = Date.now();
 
-  let snapshot: FirebaseFirestore.QuerySnapshot;
+  const pointed = await getPointedServiceToken(serviceId);
+  if (pointed) {
+    const pointedData = (pointed.data() ?? {}) as RawTokenData;
+    const pointedCompany = normaliseCompany(pointedData);
+    if (!company || pointedCompany === company) {
+      return {
+        code: (typeof pointedData.code === "string" && pointedData.code.trim()) || pointed.id,
+        company: pointedCompany,
+        createdAt: toMillis(pointedData.createdAt),
+        expiresAt: toMillis(pointedData.expiresAt),
+      } satisfies ServiceAccessToken;
+    }
+  }
+
+  let snapshot: FirebaseFirestore.QuerySnapshot | null = null;
   try {
     let activeQuery: FirebaseFirestore.Query = db
       .collection("accessTokens")
@@ -173,37 +213,38 @@ export async function ensureServiceAccessToken({ serviceId, company }: EnsureSer
     snapshot = await activeQuery.orderBy("createdAt", "desc").limit(1).get();
   } catch (error) {
     console.warn(`[accessTokens] Índice de reutilização indisponível para o serviço ${serviceId}; usando fallback limitado.`, error);
-    snapshot = await db
-      .collection("accessTokens")
-      .where("serviceId", "==", serviceId)
-      .where("active", "==", true)
-      .limit(1)
-      .get();
+    try {
+      snapshot = await db
+        .collection("accessTokens")
+        .where("serviceId", "==", serviceId)
+        .where("active", "==", true)
+        .limit(1)
+        .get();
+    } catch (fallbackError) {
+      // Não deixe indisponibilidade de índice impedir a geração. O token novo
+      // será gravado junto com um ponteiro direto no serviço.
+      console.warn(`[accessTokens] Fallback de consulta indisponível para ${serviceId}; criando token canônico.`, fallbackError);
+    }
   }
 
-  if (snapshot.empty) {
-    snapshot = await db
-      .collection("accessTokens")
-      .where("targetType", "==", "service")
-      .where("targetId", "==", serviceId)
-      .orderBy("createdAt", "desc")
-      .limit(1)
-      .get();
-  }
-
-  if (snapshot.empty) {
-    snapshot = await db
-      .collection("accessTokens")
-      .where("targetType", "==", "service")
-      .where("targetId", "==", serviceId)
-      .orderBy("createdAt", "desc")
-      .limit(1)
-      .get();
+  if (snapshot?.empty) {
+    try {
+      snapshot = await db
+        .collection("accessTokens")
+        .where("targetType", "==", "service")
+        .where("targetId", "==", serviceId)
+        .orderBy("createdAt", "desc")
+        .limit(1)
+        .get();
+    } catch (legacyError) {
+      console.warn(`[accessTokens] Consulta legada indisponível para ${serviceId}; criando token canônico.`, legacyError);
+      snapshot = null;
+    }
   }
 
   let latestMatch: ServiceAccessToken | null = null;
 
-  snapshot.forEach((docSnap) => {
+  snapshot?.forEach((docSnap) => {
     const data = (docSnap.data() ?? {}) as RawTokenData;
     if (!isTokenActive(data, now)) return;
 
@@ -222,6 +263,7 @@ export async function ensureServiceAccessToken({ serviceId, company }: EnsureSer
   });
 
   if (latestMatch) {
+    await pointServiceToToken(serviceId, latestMatch.code);
     return latestMatch;
   }
 
@@ -249,7 +291,14 @@ export async function ensureServiceAccessToken({ serviceId, company }: EnsureSer
       payload.empresaId = company;
     }
 
-    await ref.set(payload);
+    const batch = db.batch();
+    batch.create(ref, payload);
+    batch.set(
+      db.collection("services").doc(serviceId),
+      { accessTokenCode: code, activeTokenCode: code, updatedAt: FieldValue.serverTimestamp() },
+      { merge: true },
+    );
+    await batch.commit();
     return { code, company: company ?? undefined, createdAt: Date.now() } satisfies ServiceAccessToken;
   }
 
