@@ -41,3 +41,13 @@ export function resolveCanonicalServiceStatus(
   if (displayed === "Pendente") return "Pendente";
   return "Aberto";
 }
+
+export function completeLegacyServiceStatusSummary(summary: {
+  total: number;
+  open: number;
+  pending: number;
+  concluded: number;
+}) {
+  const classified = summary.open + summary.pending + summary.concluded;
+  return { ...summary, open: summary.open + Math.max(0, summary.total - classified) };
+}

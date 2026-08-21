@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { resolveCanonicalServiceStatus, resolveDisplayedServiceStatus } from "@/lib/serviceStatus";
+import {
+  completeLegacyServiceStatusSummary,
+  resolveCanonicalServiceStatus,
+  resolveDisplayedServiceStatus,
+} from "@/lib/serviceStatus";
 import type { Service } from "@/types";
 
 function service(overrides: Partial<Service> = {}): Service {
@@ -18,6 +22,10 @@ function service(overrides: Partial<Service> = {}): Service {
 }
 
 describe("displayed service status", () => {
+  it("keeps the total useful while legacy documents await displayStatus backfill", () => {
+    expect(completeLegacyServiceStatusSummary({ total: 620, open: 20, pending: 0, concluded: 0 }))
+      .toEqual({ total: 620, open: 620, pending: 0, concluded: 0 });
+  });
   it("marks any service at 100% as concluded", () => {
     expect(resolveDisplayedServiceStatus(service({ status: "Aberto", progress: 100 }))).toBe(
       "Concluído",

@@ -8,7 +8,7 @@ import type {
   ServiceStatus,
   ServiceUpdate,
 } from "@/lib/types";
-import { resolveCanonicalServiceStatus } from "@/lib/serviceStatus";
+import { completeLegacyServiceStatusSummary, resolveCanonicalServiceStatus } from "@/lib/serviceStatus";
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
 import { revalidateTag, unstable_cache } from "next/cache";
 import { recomputeServiceProgress } from "@/lib/progressHistoryServer";
@@ -732,10 +732,11 @@ async function fetchServiceStatusSummary(): Promise<ServiceStatusSummary | null>
     };
 
     if (summary.open + summary.pending + summary.concluded !== summary.total) {
+      const completed = completeLegacyServiceStatusSummary(summary);
       console.error(
-        `[services:getServiceStatusSummary] ${summary.total - summary.open - summary.pending - summary.concluded} serviço(s) sem displayStatus canônico; execute o backfill manual.`,
+        `[services:getServiceStatusSummary] ${completed.open - summary.open} serviço(s) sem displayStatus canônico; contabilizados provisoriamente como abertos. Execute o backfill manual.`,
       );
-      return null;
+      return completed;
     }
     return summary;
   } catch (error) {
@@ -769,9 +770,10 @@ async function fetchAvailableOpenServices(limit: number, mode: ServiceMapMode): 
       .orderBy("createdAt", "desc")
       .limit(limit)
       .get();
-    return snapshot.docs.map((doc) =>
+    const canonical = snapshot.docs.map((doc) =>
       mapServiceData(doc.id, (doc.data() ?? {}) as Record<string, unknown>, mode),
     );
+    if (canonical.length > 0) return canonical;
   } catch (error) {
     if (isMissingAdminError(error)) {
       console.warn(
@@ -781,9 +783,44 @@ async function fetchAvailableOpenServices(limit: number, mode: ServiceMapMode): 
       return [];
     }
     console.warn(
-      "[services:listAvailableOpenServices] Falha ao executar a consulta canônica. Retornando lista vazia.",
+      "[services:listAvailableOpenServices] Consulta canônica indisponível; tentando compatibilidade legada.",
       error,
     );
+  }
+
+  try {
+    const fetchLimit = Math.min(Math.max(limit * 2, 50), 500);
+    let legacySnap: FirebaseFirestore.QuerySnapshot;
+    try {
+      legacySnap = await servicesCollection()
+        .where("status", "in", ["Aberto", "Pendente", "aberto", "pendente"])
+        .orderBy("createdAt", "desc")
+        .limit(fetchLimit)
+        .get();
+    } catch {
+      legacySnap = await servicesCollection().orderBy("createdAt", "desc").limit(fetchLimit).get();
+    }
+    const foldersSnap = await foldersCollection().get();
+    const attachedToFolder = new Set<string>();
+    foldersSnap.docs.forEach((folder) => {
+      const data = folder.data() ?? {};
+      [data.services, data.serviceIds, data.servicos].forEach((values) => {
+        if (!Array.isArray(values)) return;
+        values.forEach((value) => {
+          if (typeof value === "string" && value.trim()) attachedToFolder.add(value.trim());
+        });
+      });
+    });
+    return legacySnap.docs
+      .map((doc) => mapServiceData(doc.id, (doc.data() ?? {}) as Record<string, unknown>, mode))
+      .filter((service) =>
+        (service.status === "Aberto" || service.status === "Pendente") &&
+        !service.packageId?.trim() &&
+        !attachedToFolder.has(service.id),
+      )
+      .slice(0, limit);
+  } catch (legacyError) {
+    console.warn("[services:listAvailableOpenServices] Falha também na compatibilidade legada.", legacyError);
     return [];
   }
 }
