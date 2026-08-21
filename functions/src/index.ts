@@ -6,6 +6,34 @@ import type { Request, Response } from "express";
 if (!admin.apps.length) admin.initializeApp();
 const REGION = "southamerica-east1";
 
+function resolveCanonicalStatus(
+  data: FirebaseFirestore.DocumentData,
+  progress: number,
+  statusOverride?: unknown,
+): "Aberto" | "Pendente" | "Concluído" {
+  const rawStatus = String(statusOverride ?? data.status ?? "").trim().toLowerCase();
+  const previous = [data.previousProgress, data.progressBeforeConclusion, data.previousPercent]
+    .map((value) => {
+      if (value === null || value === undefined || value === "") return null;
+      const parsed = Number(String(value).replace(/%$/, "").replace(",", "."));
+      return Number.isFinite(parsed) ? parsed : null;
+    })
+    .find((value): value is number => value !== null);
+
+  if (rawStatus === "pendente" && previous !== undefined && Math.max(0, Math.min(100, previous)) < 100) {
+    return "Pendente";
+  }
+  if (
+    progress >= 100 ||
+    rawStatus === "concluido" ||
+    rawStatus === "concluído" ||
+    rawStatus === "encerrado"
+  ) {
+    return "Concluído";
+  }
+  return rawStatus === "pendente" ? "Pendente" : "Aberto";
+}
+
 type TimestampLike = Timestamp | Date | { toMillis?: () => number } | number | string | null | undefined;
 
 const PORTUGUESE_MONTHS: Record<string, number> = {
@@ -226,6 +254,7 @@ async function recomputeServiceRealPercent(serviceId: string): Promise<number> {
     realPercent,
     andamento: realPercent,
     progress: realPercent,
+    displayStatus: resolveCanonicalStatus(serviceData, realPercent),
     manualPercent: realPercent,
     updatedAt: now,
     lastUpdateDate: now,
@@ -393,6 +422,7 @@ async function addManualUpdate(
       percent: sanitized,
       percentualRealAtual: sanitized,
       realPercentSnapshot: sanitized,
+      displayStatus: resolveCanonicalStatus(serviceSnap.data() || {}, sanitized),
       updatedAt: now,
       lastUpdateDate: now,
     });
@@ -454,9 +484,12 @@ async function updateChecklistProgress(
       ? items.reduce((acc, item) => acc + (item.progress ?? 0) * (item.weight ?? 0), 0) / totalWeight
       : 0;
     const result = Math.round(percent * 100) / 100;
+    const existingProgress = Number(serviceSnap.data()?.progress);
+    const displayedProgress = Number.isFinite(existingProgress) ? existingProgress : result;
 
     tx.update(serviceRef, {
       realPercent: result,
+      displayStatus: resolveCanonicalStatus(serviceSnap.data() || {}, displayedProgress),
       manualPercent: admin.firestore.FieldValue.delete(),
       updatedAt: now,
     });

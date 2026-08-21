@@ -157,7 +157,7 @@ export default function ServicesListClient({ initialItems, initialCursor }: Prop
           setIsSearching(false);
         }
       }
-    }, 250);
+    }, 400);
 
     return () => {
       controller.abort();

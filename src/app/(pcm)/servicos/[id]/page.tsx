@@ -12,7 +12,7 @@ import {
 } from "./shared";
 import { plannedCurve } from "@/lib/curve";
 import { decodeRouteParam } from "@/lib/decodeRouteParam";
-import { getLatestServiceToken } from "@/lib/repo/accessTokens";
+import { ensureServiceAccessToken } from "@/lib/repo/accessTokens";
 import {
   getChecklist,
   getService,
@@ -55,8 +55,8 @@ export default async function ServiceDetailPage({ params }: { params: { id: stri
   const [rawChecklist, rawUpdates, latestToken] = await Promise.all([
     getChecklist(resolvedServiceId).catch(() => []),
     listUpdates(resolvedServiceId, 100).catch(() => []),
-    getLatestServiceToken(baseService.id).catch((error) => {
-      console.error(`[servicos/${baseService.id}] Falha ao carregar token mais recente`, error);
+    ensureServiceAccessToken({ serviceId: baseService.id, company: baseService.company ?? undefined }).catch((error) => {
+      console.error(`[servicos/${baseService.id}] Falha ao carregar ou reparar token de acesso`, error);
       return null;
     }),
   ]);
