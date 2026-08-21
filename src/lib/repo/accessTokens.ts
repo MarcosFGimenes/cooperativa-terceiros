@@ -5,6 +5,7 @@ import crypto from "crypto";
 import { FieldValue } from "firebase-admin/firestore";
 
 import { getAdmin } from "@/lib/firebaseAdmin";
+import { isCanonicalTokenActive } from "@/lib/accessTokenState";
 
 type FirestoreLikeTimestamp = {
   toMillis?: () => number;
@@ -73,70 +74,56 @@ function normaliseCompany(data: RawTokenData): string | undefined {
 }
 
 function isTokenActive(data: RawTokenData, now: number): boolean {
-  if (data.active === false) return false;
-  if (data.revoked === true) return false;
-  const status = typeof data.status === "string" ? data.status.trim().toLowerCase() : undefined;
-  if (status === "revoked" || status === "inactive") return false;
-
-  const expiresAt = toMillis(data.expiresAt);
-  if (expiresAt && expiresAt < now) return false;
-
-  return true;
+  return isCanonicalTokenActive({ ...data, expiresAtMillis: toMillis(data.expiresAt) }, now);
 }
 
 export async function getLatestServiceToken(serviceId: string): Promise<ServiceAccessToken | null> {
   if (!serviceId) return null;
   const { db } = getAdmin();
 
-  const snap = await db
+  let snap = await db
     .collection("accessTokens")
     .where("targetType", "==", "service")
     .where("targetId", "==", serviceId)
+    .where("status", "==", "active")
+    .orderBy("createdAt", "desc")
+    .limit(1)
     .get();
 
   if (snap.empty) {
-    return null;
+    // Compatibilidade de leitura: documentos anteriores ao estado canônico
+    // podem não ter `status`. A consulta continua limitada a um documento e
+    // nunca varre o histórico inteiro.
+    snap = await db
+      .collection("accessTokens")
+      .where("targetType", "==", "service")
+      .where("targetId", "==", serviceId)
+      .orderBy("createdAt", "desc")
+      .limit(1)
+      .get();
+    if (snap.empty) return null;
   }
 
   const now = Date.now();
-  const tokens: ServiceAccessToken[] = [];
+  const doc = snap.docs[0];
+  const data = (doc.data() ?? {}) as RawTokenData;
+  if (!isTokenActive(data, now)) return null;
 
-  snap.docs.forEach((doc) => {
-    const data = (doc.data() ?? {}) as RawTokenData;
-    if (!isTokenActive(data, now)) return;
+  const tokenTargetId =
+    (typeof data.targetId === "string" && data.targetId.trim()) ||
+    (typeof data.serviceId === "string" && data.serviceId.trim()) ||
+    null;
 
-    const tokenTargetId =
-      (typeof data.targetId === "string" && data.targetId.trim()) ||
-      (typeof data.serviceId === "string" && data.serviceId.trim()) ||
-      null;
+  if (tokenTargetId && tokenTargetId !== serviceId) return null;
 
-    if (tokenTargetId && tokenTargetId !== serviceId) {
-      return;
-    }
+  const code = (typeof data.code === "string" && data.code.trim()) || doc.id;
 
-    const code =
-      (typeof data.code === "string" && data.code.trim()) ||
-      doc.id;
+  if (!code) return null;
 
-    if (!code) return;
+  const createdAt = toMillis(data.createdAt);
+  const expiresAt = toMillis(data.expiresAt);
 
-    const createdAt = toMillis(data.createdAt);
-    const expiresAt = toMillis(data.expiresAt);
-
-    tokens.push({
-      code,
-      company: normaliseCompany(data),
-      createdAt,
-      expiresAt,
-    });
-  });
-
-  if (!tokens.length) {
-    return null;
-  }
-
-  tokens.sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0));
-  return tokens[0] ?? null;
+  return { code, company: normaliseCompany(data), createdAt, expiresAt };
 }
 
 type EnsureServiceTokenInput = { serviceId: string; company?: string | null };
@@ -157,12 +144,26 @@ export async function ensureServiceAccessToken({ serviceId, company }: EnsureSer
   const { db } = getAdmin();
   const now = Date.now();
 
-  const snapshot = await db
+  let activeQuery: FirebaseFirestore.Query = db
     .collection("accessTokens")
     .where("targetType", "==", "service")
     .where("targetId", "==", serviceId)
-    .limit(20)
+    .where("status", "==", "active");
+  if (company) activeQuery = activeQuery.where("company", "==", company);
+  let snapshot = await activeQuery
+    .orderBy("createdAt", "desc")
+    .limit(1)
     .get();
+
+  if (snapshot.empty) {
+    snapshot = await db
+      .collection("accessTokens")
+      .where("targetType", "==", "service")
+      .where("targetId", "==", serviceId)
+      .orderBy("createdAt", "desc")
+      .limit(1)
+      .get();
+  }
 
   let latestMatch: ServiceAccessToken | null = null;
 
