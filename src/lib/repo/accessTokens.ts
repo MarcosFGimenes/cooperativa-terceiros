@@ -191,6 +191,16 @@ export async function ensureServiceAccessToken({ serviceId, company }: EnsureSer
       .get();
   }
 
+  if (snapshot.empty) {
+    snapshot = await db
+      .collection("accessTokens")
+      .where("targetType", "==", "service")
+      .where("targetId", "==", serviceId)
+      .orderBy("createdAt", "desc")
+      .limit(1)
+      .get();
+  }
+
   let latestMatch: ServiceAccessToken | null = null;
 
   snapshot.forEach((docSnap) => {
