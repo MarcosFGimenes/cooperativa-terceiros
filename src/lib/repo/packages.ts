@@ -8,6 +8,8 @@ import {
   MAX_ATOMIC_PACKAGE_SERVICES,
   chunkForSafeWrites,
 } from "@/lib/firestoreWriteLimits";
+import { buildServiceAssignmentFields } from "@/lib/serviceAssignment";
+import { resolveServiceAssignment } from "@/lib/serviceAssignment";
 
 const FIREBASE_ADMIN_NOT_CONFIGURED = "FIREBASE_ADMIN_NOT_CONFIGURED";
 
@@ -586,7 +588,7 @@ export async function createPackage(
 
       uniqueServiceIds.forEach((serviceId) => {
         tx.update(servicesCollection().doc(serviceId), {
-          packageId: packageRef.id,
+          ...buildServiceAssignmentFields({ packageId: packageRef.id, folderId: null }),
           updatedAt: FieldValue.serverTimestamp(),
         });
       });
@@ -621,7 +623,7 @@ export async function createPackage(
       const batch = db.batch();
       chunk.forEach((snapshot) => {
         batch.update(snapshot.ref, {
-          packageId: packageRef.id,
+          ...buildServiceAssignmentFields({ packageId: packageRef.id, folderId: null }),
           updatedAt: FieldValue.serverTimestamp(),
         });
       });
@@ -634,10 +636,9 @@ export async function createPackage(
       const rollback = db.batch();
       chunk.forEach((snapshot) => {
         const data = snapshot.data() ?? {};
+        const originalAssignment = resolveServiceAssignment(data);
         rollback.update(snapshot.ref, {
-          packageId: Object.prototype.hasOwnProperty.call(data, "packageId")
-            ? data.packageId
-            : FieldValue.delete(),
+          ...buildServiceAssignmentFields(originalAssignment),
           updatedAt: FieldValue.serverTimestamp(),
         });
       });
@@ -793,8 +794,7 @@ export async function deletePackage(packageId: string): Promise<boolean> {
       batch.set(
         doc.ref,
         {
-          packageId: FieldValue.delete(),
-          pacoteId: FieldValue.delete(),
+          ...buildServiceAssignmentFields({ packageId: null, folderId: null }),
           updatedAt: FieldValue.serverTimestamp(),
         },
         { merge: true },

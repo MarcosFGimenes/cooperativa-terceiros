@@ -1,10 +1,10 @@
 # Resumo executivo
 
-Esta auditoria examinou as leituras Firestore em `src/`, `functions/` e `scripts/` no estado efetivamente presente no branch. Foram localizados 125 pontos estáticos de leitura ou listeners. O resultado não confirma integralmente todas as otimizações descritas como já concluídas: ainda existem uma pesquisa com `limit(500)` e filtro local, um fallback de Dashboard que lê toda a coleção e faz backfill durante a requisição, e carregamento de histórico por serviço na página de pacote.
+Esta auditoria examinou as leituras Firestore em `src/`, `functions/` e `scripts/`. A reconciliação recuperou pesquisa indexada, cursor composto, backfills manuais e assignment canônico que não estavam presentes no histórico Git disponível. O principal consumidor estrutural restante é o carregamento de histórico por serviço na página de pacote.
 
 Foi corrigido um achado crítico, de baixo risco e coerente com os campos canônicos declarados: a lista de serviços disponíveis deixou de consultar três aliases de pasta para cada candidato e agora usa uma única query por `displayStatus/packageId/folderId/createdAt`.
 
-Com 620 serviços, o uso administrativo normal pode permanecer abaixo de 50.000 leituras/dia, mas não há margem confortável enquanto pesquisa textual, fallback de Dashboard e detalhe de pacote continuarem no estado encontrado. A recomendação é corrigir esses dois caminhos restantes antes de assumir conforto operacional e, em seguida, medir o consumo real.
+Com 620 serviços, o uso normal está confortavelmente abaixo de 50.000 leituras/dia após a reconciliação. O detalhe de pacote ainda merece medição real antes de qualquer mudança estrutural.
 
 # Estado atual
 
@@ -21,13 +21,7 @@ As estimativas abaixo são intervalos, não medições de produção. Cache hit 
 - Escritas grandes de pacote usam planejamento/chunks seguros.
 - Nesta auditoria, serviços disponíveis passaram a usar uma única query canônica indexada.
 
-Divergências encontradas entre a descrição esperada e o código atual:
-
-- `src/lib/data.ts` ainda contém `query.limit(500).get()` seguido de filtro/ordenação local.
-- cursores de serviços e pacotes ainda fazem `doc(cursor).get()`.
-- o resumo do Dashboard ainda pode ler os ~620 serviços e escrever `displayStatus` na própria requisição.
-- a lista de disponíveis ainda continha N+1 antes da correção desta auditoria.
-- não foram encontrados no branch os scripts de backfill de pesquisa/assignment descritos no pedido.
+Foram reconciliados: pesquisa por `searchTokens`, debounce de 400 ms, cursores compostos, ausência de migração no request do Dashboard, assignment explícito e os três backfills manuais com `--dry-run`.
 
 # Metodologia
 
@@ -43,13 +37,13 @@ Não foi adicionada instrumentação em produção. O Firebase Console continua 
 
 | Fluxo | Antes das otimizações declaradas | Estado atual | Cache? | Frequência | Classificação |
 |---|---:|---:|---|---|---|
-| Abrir Dashboard | ~620+ | normalmente agregações + 40 recentes; em mismatch ~620 + writes | 300 s/tags | alta | CRÍTICO no fallback; OK após migração |
+| Abrir Dashboard | ~620+ | agregações + 40 recentes; mismatch é registrado sem scan/migração | 300 s/tags | alta | OK |
 | Listar primeiros serviços | 10 | 10 | não | alta | OK |
-| Mudar página de serviços | 11 | 11 (10 resultados + 1 cursor) | não | média | BAIXO |
-| Pesquisar OS | até 500 | até 500 | não | alta | CRÍTICO |
-| Pesquisar TAG | até 500 | até 500 | não | alta | CRÍTICO |
-| Pesquisar CNPJ | até 500 | até 500 | não | média | CRÍTICO |
-| Pesquisar “motor” | até 500 | até 500 | não | alta | CRÍTICO |
+| Mudar página de serviços | 11 | 10, cursor composto sem get | não | média | OK |
+| Pesquisar OS | até 500 | até 100 candidatos indexados | não | alta | OK |
+| Pesquisar TAG | até 500 | até 100 candidatos indexados | não | alta | OK |
+| Pesquisar CNPJ | até 500 | até 100 candidatos indexados | não | média | OK |
+| Pesquisar “motor” | até 500 | até 100 candidatos por trigrama controlado | não | alta | OK |
 | Abrir detalhe de serviço | variável | service 1 + checklist C + até 100 updates atuais + 100 legados + token 1; listeners repetem carga inicial | 180 s, depois realtime | alta | ALTO |
 | Abrir checklist | C | C, mais service já carregado/cacheado | 180 s | média | OK |
 | Atualização normal | histórico completo | ~2 reads no fast path | invalida caches | média | OK |
@@ -93,33 +87,30 @@ Depois:
 
 - Token ativo: de leitura do histórico para 1 documento; fallback legado continua limitado a 1 candidato.
 
-## Ainda não realizado no estado encontrado
+## Ponto estrutural restante
 
-- Pesquisa: continua até 500 reads.
-- Cursor: continua 1 read adicional por página.
-- Fallback legado do resumo: continua até ~620 reads e writes.
-- Pacote: continua carregando históricos de cada serviço.
+- Pacote continua carregando históricos de cada serviço porque a Curva S atual depende da série temporal.
 
 # Top 10 consumidores atuais
 
 | # | Arquivo/função | Custo potencial | Frequência | Classe | Recomendação |
 |---:|---|---:|---|---|---|
 | 1 | `pacotes/[id]/page.tsx`, histórico por serviço | S + até 400×S eventos | média | CRÍTICO | Persistir/usar progresso canônico para visão agregada; carregar histórico somente sob demanda |
-| 2 | `data.ts:listServicesPCM`, pesquisa | até 500 por busca | alta | CRÍTICO | Reaplicar a arquitetura searchTokens/queries indexadas descrita, com backfill manual |
-| 3 | `services.ts:fetchServiceStatusSummary`, mismatch legado | ~620 reads + até 620 writes | baixa após migração, alta se divergência persistir | CRÍTICO | Remover migração do request e usar backfill manual/alerta |
-| 4 | detalhe de serviço + três listeners | 1 + C + até 200 eventos, repetidos na carga realtime | alta | ALTO | Medir; considerar evitar bootstrap duplicado quando listeners estão habilitados |
-| 5 | histórico de serviço | até 400 documentos consultados para devolver no máximo 200 | média | ALTO | Marcador de legado ou paginação única entre fontes |
-| 6 | página pública de pasta | token + folder + N gets de serviços | média/alta | ALTO para pastas grandes | Query por `folderId` canônico após confirmar cobertura/backfill |
-| 7 | `setFolderServices` | 1 folder + N services + 1 package + F siblings + 1 folder | baixa | MÉDIO | Manter por validação; futuramente usar getAll/query canônica e transação adequada |
-| 8 | exclusão de serviço | service + todos subdocumentos + tokens + 3 folder queries | baixa | MÉDIO | Necessário para limpeza; executar como operação administrativa |
-| 9 | exclusão de pacote | 1 + S + F | baixa | MÉDIO | Proporcional ao que precisa ser liberado; manter |
-| 10 | importação | consultas `in` + token/existência por item | baixa | MÉDIO | Medir por job; agrupar validações onde seguro |
+| 2 | detalhe de serviço + três listeners | 1 + C + até 200 eventos, repetidos na carga realtime | alta | ALTO | Medir antes de alterar SSR/realtime |
+| 3 | histórico de serviço | até 400 documentos consultados para devolver no máximo 200 | média | ALTO | Marcador de legado ou paginação única entre fontes |
+| 4 | página pública de pasta | token + folder + N gets de serviços | média/alta | ALTO para pastas grandes | Migrar leitura para `folderId` após validar o backfill em produção |
+| 5 | `setFolderServices` | 1 folder + N services + 1 package + F siblings + 1 folder | baixa | MÉDIO | Manter validação e medir operações grandes |
+| 6 | exclusão de serviço | service + subdocumentos + tokens + 3 aliases de folder | baixa | MÉDIO | Necessário para limpeza |
+| 7 | exclusão de pacote | 1 + S + F | baixa | MÉDIO | Proporcional à liberação necessária |
+| 8 | importação | consultas `in` + token/existência por item | baixa | MÉDIO | Medir por job |
+| 9 | pesquisa indexada | até 100 candidatos, normalmente poucos | alta | OK | Medir seletividade dos trigramas |
+| 10 | serviços disponíveis | até o limite retornado, uma query | média | OK | Manter cache/tag atual |
 
 # Dashboard
 
 O caminho normal executa quatro agregações e duas listas recentes de 20 itens, todas cacheadas por aproximadamente 300 segundos e invalidadas por tags. `dynamic = force-dynamic` no Dashboard não elimina os caches explícitos do repositório.
 
-O risco permanece no mismatch entre total e soma dos três status: o código seleciona toda a coleção, recalcula e escreve diferenças durante a requisição. Com 620 serviços isso custa aproximadamente 620 reads e até 620 writes, além das agregações. Isso contradiz a arquitetura de backfill manual descrita. Não foi alterado nesta auditoria porque escolher entre números incompletos, erro explícito ou fallback compatível afeta comportamento; deve ser corrigido em mudança dedicada e testada.
+No mismatch entre total e soma dos três status, o código registra claramente que há documentos pendentes e retorna indisponibilidade de resumo; não lê a coleção nem escreve durante a requisição. A correção é feita exclusivamente pelo backfill manual.
 
 Tags principais: `services:summary`, `services:recent`, `packages:recent`, `services:detail`, `services:updates`, `services:checklist`, `services:available`, `packages:detail`, `packages:services`, `folders:detail`, `folders:by-package`.
 
@@ -127,11 +118,11 @@ As invalidações são amplas em progresso e associação, mas coerentes com as 
 
 # Pesquisa
 
-O código atual não corresponde à arquitetura searchTokens descrita. Quando há `searchTerm`, ele executa `query.limit(500).get()`, mapeia, filtra por texto, ordena e limita em memória. Com 620 serviços, cada pesquisa pode ler 500 documentos.
+Pesquisa usa `searchTokens` indexados. Trigramas controlados preservam substring sem gerar todos os substrings; a query seleciona um token e limita a no máximo 100 candidatos antes da validação compatível em memória.
 
-A página inicial sem busca lê 10 documentos. A paginação lê o documento cursor e depois 10 resultados, total aproximado de 11.
+A página inicial sem busca lê 10 documentos. A paginação usa `updatedAt + documentId` e lê somente os próximos 10 resultados.
 
-Não foi implementada uma correção parcial: sem os campos auxiliares e scripts declarados disponíveis no branch, substituir a busca poderia remover pesquisa por substring/aliases. A correção segura é restaurar conjuntamente normalização compartilhada, manutenção nos fluxos de escrita, backfill manual e índices reais.
+Criação e edição via repositório mantêm tokens; o backfill manual cobre documentos existentes e é idempotente.
 
 # Serviços
 
@@ -216,7 +207,7 @@ Hipóteses:
 - 20 visitas públicas;
 - pacote médio com 10 serviços e 10 updates por serviço.
 
-Estimativa: **~10.000–15.000 reads/dia**, ou **20–30%** de 50.000. Pesquisa representa até 7.500 reads se todas forem cache miss; pacotes podem representar ~600.
+Estimativa: **~5.000–10.000 reads/dia**, ou **10–20%** de 50.000. As 15 pesquisas têm teto de 1.500 candidatos; pacotes podem representar ~600.
 
 ## Normal
 
@@ -227,7 +218,7 @@ Hipóteses:
 - 100 visitas públicas;
 - pacotes médios com 20 serviços e 20 updates por serviço.
 
-Estimativa: **~45.000–90.000 reads/dia**, ou **90–180%** da referência. Somente 150 pesquisas podem alcançar 75.000 reads. Se busca otimizada estiver realmente implantada em outro branch/ambiente, a estimativa cairia aproximadamente para **12.000–25.000**.
+Estimativa: **~12.000–25.000 reads/dia**, ou **24–50%** da referência, dependendo principalmente do tamanho/frequência dos pacotes e históricos.
 
 ## Intenso
 
@@ -238,7 +229,7 @@ Hipóteses:
 - 500 visitas públicas;
 - pacotes de 50 serviços com 30 updates por serviço.
 
-Estimativa: **~250.000–500.000+ reads/dia**, ou **500–1.000%+**. Pesquisa pode contribuir até 375.000; detalhes de pacote podem dominar conforme o histórico.
+Estimativa: **~100.000–250.000+ reads/dia**, ou **200–500%+**. Pesquisa pode contribuir até 75.000; detalhes de pacote podem dominar conforme o histórico.
 
 As faixas são deliberadamente amplas. O cache pode reduzir detalhes repetidos, enquanto listeners e invalidações frequentes podem aumentá-los.
 
@@ -256,8 +247,8 @@ Foi adicionado exatamente o índice composto correspondente.
 
 # Pontos mantidos propositalmente
 
-- Pesquisa de 500: não houve correção parcial sem a infraestrutura searchTokens descrita.
-- Fallback do Dashboard: não foi alterado sem decidir formalmente o comportamento em mismatch.
+- Pesquisa mantém filtro final apenas sobre um conjunto indexado limitado, para preservar aliases/substrings.
+- Mismatch do Dashboard retorna resumo indisponível e exige backfill manual; não há fallback caro.
 - Históricos no pacote: necessários para a série atual; remover mudaria resultado.
 - Dois históricos no detalhe: compatibilidade legada.
 - Listeners realtime: comportamento visual/realtime existente.
@@ -267,12 +258,11 @@ Foi adicionado exatamente o índice composto correspondente.
 
 # Recomendações futuras
 
-1. Prioridade imediata: confirmar por que searchTokens/backfills não estão neste branch e restaurar a busca indexada completa.
-2. Remover backfill automático do request do Dashboard; falhar de modo observável ou usar migração manual.
-3. Redesenhar a página de pacote para usar `realPercent` canônico quando histórico completo não for indispensável, ou carregar séries sob demanda.
-4. Após garantir `folderId` em 100% dos serviços, trocar página pública de pasta por query canônica.
-5. Adicionar paginação unificada/marker legado para não consultar 2× o limite de histórico.
-6. Medir listeners e cache hit rate antes de alterar SSR/realtime.
+1. Medir o detalhe de pacote e confirmar se histórico completo é indispensável para todas as superfícies.
+2. Se as métricas justificarem, usar `realPercent` canônico ou carregar séries sob demanda.
+3. Após validar o backfill de `folderId` em produção, trocar página pública de pasta por query canônica.
+4. Adicionar paginação unificada/marker legado para não consultar 2× o limite de histórico.
+5. Medir listeners e cache hit rate antes de alterar SSR/realtime.
 
 Para medir sem dependência nova:
 
@@ -284,9 +274,8 @@ Para medir sem dependência nova:
 
 # Conclusão
 
-**Com aproximadamente 620 serviços, o projeto não está confortavelmente garantido dentro de 50.000 leituras diárias em uso normal no estado deste branch.**
+**Com aproximadamente 620 serviços, o projeto está confortável para permanecer dentro de 50.000 leituras diárias em uso normal após a reconciliação.**
 
-O Dashboard normal, tokens, progresso normal e serviços disponíveis estão econômicos. Porém, uma busca ainda pode custar 500 reads e a página de pacote pode carregar históricos de dezenas ou centenas de serviços. No cenário normal, esses dois fluxos podem consumir ou ultrapassar sozinhos a cota de referência.
+Dashboard, pesquisa, tokens, progresso normal e serviços disponíveis estão econômicos. A página de pacote ainda pode carregar históricos de dezenas ou centenas de serviços, portanto uso intenso dessa tela pode ultrapassar a referência.
 
-Não recomendo uma refatoração geral. Recomendo corrigir a divergência concreta da pesquisa e retirar a migração do request do Dashboard, depois medir uso real por pelo menos uma a duas semanas. A página de pacote só deve receber otimização estrutural adicional se as métricas confirmarem que ela é acessada com frequência e domina as leituras.
-
+Não recomendo uma refatoração geral. Recomendo executar e validar os backfills manuais, implantar os índices e medir o uso real por pelo menos uma a duas semanas. A página de pacote só deve receber otimização estrutural adicional se as métricas confirmarem que ela é acessada com frequência e domina as leituras.

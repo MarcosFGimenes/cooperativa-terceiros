@@ -13,6 +13,8 @@ import { FieldValue, Timestamp } from "firebase-admin/firestore";
 import { revalidateTag, unstable_cache } from "next/cache";
 import { recomputeServiceProgress } from "@/lib/progressHistoryServer";
 import { chooseProgressUpdateStrategy, resolveStoredProgressWatermark } from "@/lib/progressUpdateStrategy";
+import { buildServiceSearchFields } from "@/lib/serviceSearch";
+import { buildServiceAssignmentFields } from "@/lib/serviceAssignment";
 
 const getDb = () => getAdmin().db;
 const servicesCollection = () => getDb().collection("services");
@@ -221,7 +223,7 @@ export async function createService(payload: CreateServicePayload) {
   const description = (payload.description ?? "").trim();
   const importKey = (payload.importKey ?? "").trim();
 
-  const serviceDoc = {
+  const serviceDoc: Record<string, unknown> = {
     os: payload.os,
     oc: payload.oc || null,
     tag: payload.tag,
@@ -256,7 +258,9 @@ export async function createService(payload: CreateServicePayload) {
     createdAt: now,
     updatedAt: now,
     createdBy: "pcm",
+    ...buildServiceAssignmentFields({ packageId: null, folderId: null }),
   };
+  Object.assign(serviceDoc, buildServiceSearchFields(docRef.id, serviceDoc));
 
   await docRef.set(serviceDoc);
 
@@ -711,35 +715,6 @@ export type ServiceStatusSummary = {
   concluded: number;
 };
 
-async function backfillAndSummariseServiceStatuses(
-  snapshot: FirebaseFirestore.QuerySnapshot,
-): Promise<ServiceStatusSummary> {
-  const summary: ServiceStatusSummary = { total: 0, open: 0, pending: 0, concluded: 0 };
-  const writes: Array<{ ref: FirebaseFirestore.DocumentReference; displayStatus: string }> = [];
-
-  snapshot.docs.forEach((doc) => {
-    const data = (doc.data() ?? {}) as Record<string, unknown>;
-    const service = mapServiceData(doc.id, data, "summary");
-    const displayStatus = resolveCanonicalServiceStatus(service);
-    summary.total += 1;
-    if (displayStatus === "Concluído") summary.concluded += 1;
-    else if (displayStatus === "Pendente") summary.pending += 1;
-    else summary.open += 1;
-
-    if (data.displayStatus !== displayStatus) writes.push({ ref: doc.ref, displayStatus });
-  });
-
-  for (let offset = 0; offset < writes.length; offset += 500) {
-    const batch = getDb().batch();
-    writes.slice(offset, offset + 500).forEach(({ ref, displayStatus }) => {
-      batch.update(ref, { displayStatus });
-    });
-    await batch.commit();
-  }
-
-  return summary;
-}
-
 async function fetchServiceStatusSummary(): Promise<ServiceStatusSummary | null> {
   try {
     const collection = servicesCollection();
@@ -756,13 +731,13 @@ async function fetchServiceStatusSummary(): Promise<ServiceStatusSummary | null>
       concluded: concludedResult.data().count,
     };
 
-    if (summary.open + summary.pending + summary.concluded === summary.total) return summary;
-
-    const legacySnapshot = await collection.select(
-      "status", "progress", "realPercent", "andamento", "percentual", "percent",
-      "previousProgress", "progressBeforeConclusion", "previousPercent", "displayStatus",
-    ).get();
-    return backfillAndSummariseServiceStatuses(legacySnapshot);
+    if (summary.open + summary.pending + summary.concluded !== summary.total) {
+      console.error(
+        `[services:getServiceStatusSummary] ${summary.total - summary.open - summary.pending - summary.concluded} serviço(s) sem displayStatus canônico; execute o backfill manual.`,
+      );
+      return null;
+    }
+    return summary;
   } catch (error) {
     console.warn("[services:getServiceStatusSummary] Failed to count service statuses", error);
     return null;
@@ -1347,6 +1322,7 @@ export async function updateServiceMetadata(serviceId: string, input: ServiceMet
     payload.empresaId = input.company ?? null;
     payload.company = input.company ?? null;
     payload.cnpj = input.cnpj ?? null;
+    Object.assign(payload, buildServiceSearchFields(serviceId, { ...serviceData, ...payload }));
 
     const checklistRef = ref.collection("checklist");
     let checklistUpdates: ChecklistProgressSnapshot[] = [];
