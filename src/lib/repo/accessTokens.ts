@@ -77,18 +77,36 @@ function isTokenActive(data: RawTokenData, now: number): boolean {
   return isCanonicalTokenActive({ ...data, expiresAtMillis: toMillis(data.expiresAt) }, now);
 }
 
+async function getIndexedActiveServiceTokenSnapshot(serviceId: string) {
+  const { db } = getAdmin();
+  try {
+    return await db
+      .collection("accessTokens")
+      .where("targetType", "==", "service")
+      .where("targetId", "==", serviceId)
+      .where("status", "==", "active")
+      .orderBy("createdAt", "desc")
+      .limit(1)
+      .get();
+  } catch (error) {
+    // Durante o intervalo entre deploy da aplicação e criação do índice
+    // composto, ainda conseguimos localizar o token canônico por campos com
+    // índices simples. Mantemos limit(1), sem varrer tokens históricos.
+    console.warn(`[accessTokens] Índice canônico indisponível para o serviço ${serviceId}; usando fallback limitado.`, error);
+    return db
+      .collection("accessTokens")
+      .where("serviceId", "==", serviceId)
+      .where("active", "==", true)
+      .limit(1)
+      .get();
+  }
+}
+
 export async function getLatestServiceToken(serviceId: string): Promise<ServiceAccessToken | null> {
   if (!serviceId) return null;
   const { db } = getAdmin();
 
-  let snap = await db
-    .collection("accessTokens")
-    .where("targetType", "==", "service")
-    .where("targetId", "==", serviceId)
-    .where("status", "==", "active")
-    .orderBy("createdAt", "desc")
-    .limit(1)
-    .get();
+  let snap = await getIndexedActiveServiceTokenSnapshot(serviceId);
 
   if (snap.empty) {
     // Compatibilidade de leitura: documentos anteriores ao estado canônico
@@ -144,16 +162,34 @@ export async function ensureServiceAccessToken({ serviceId, company }: EnsureSer
   const { db } = getAdmin();
   const now = Date.now();
 
-  let activeQuery: FirebaseFirestore.Query = db
-    .collection("accessTokens")
-    .where("targetType", "==", "service")
-    .where("targetId", "==", serviceId)
-    .where("status", "==", "active");
-  if (company) activeQuery = activeQuery.where("company", "==", company);
-  let snapshot = await activeQuery
-    .orderBy("createdAt", "desc")
-    .limit(1)
-    .get();
+  let snapshot: FirebaseFirestore.QuerySnapshot;
+  try {
+    let activeQuery: FirebaseFirestore.Query = db
+      .collection("accessTokens")
+      .where("targetType", "==", "service")
+      .where("targetId", "==", serviceId)
+      .where("status", "==", "active");
+    if (company) activeQuery = activeQuery.where("company", "==", company);
+    snapshot = await activeQuery.orderBy("createdAt", "desc").limit(1).get();
+  } catch (error) {
+    console.warn(`[accessTokens] Índice de reutilização indisponível para o serviço ${serviceId}; usando fallback limitado.`, error);
+    snapshot = await db
+      .collection("accessTokens")
+      .where("serviceId", "==", serviceId)
+      .where("active", "==", true)
+      .limit(1)
+      .get();
+  }
+
+  if (snapshot.empty) {
+    snapshot = await db
+      .collection("accessTokens")
+      .where("targetType", "==", "service")
+      .where("targetId", "==", serviceId)
+      .orderBy("createdAt", "desc")
+      .limit(1)
+      .get();
+  }
 
   if (snapshot.empty) {
     snapshot = await db

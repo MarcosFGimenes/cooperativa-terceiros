@@ -4,7 +4,7 @@ import { getAuth } from "firebase-admin/auth";
 import { HttpError, requirePcmUser } from "@/app/api/management/tokens/_lib/auth";
 import { getAdminApp } from "@/lib/firebaseAdmin";
 import { decodeRouteParam } from "@/lib/decodeRouteParam";
-import { getLatestServiceToken } from "@/lib/repo/accessTokens";
+import { ensureServiceAccessToken } from "@/lib/repo/accessTokens";
 import { getChecklist, getService, getServiceById, listUpdates } from "@/lib/repo/services";
 import type { ChecklistItem, Service, ServiceUpdate } from "@/lib/types";
 
@@ -141,7 +141,7 @@ export async function GET(
     const [checklist, updates, latestToken] = await Promise.all([
       getChecklist(resolvedServiceId).catch(() => [] as ChecklistItem[]),
       listUpdates(resolvedServiceId, 100).catch(() => [] as ServiceUpdate[]),
-      getLatestServiceToken(baseService.id).catch((tokenError) => {
+      ensureServiceAccessToken({ serviceId: baseService.id, company: baseService.company ?? undefined }).catch((tokenError) => {
         console.error(`[servicos/${resolvedServiceId}] Falha ao carregar token mais recente (fallback)`, tokenError);
         return null;
       }),
