@@ -2,6 +2,7 @@ import { resolveServicoRealPercent } from "./serviceProgress";
 import type { Service } from "@/types";
 
 type ServiceStatusLabel = "Aberto" | "Pendente" | "Concluído" | "Encerrado" | string;
+export type CanonicalServiceStatus = "Aberto" | "Pendente" | "Concluído";
 
 export function normaliseServiceStatus(status: Service["status"] | string | null | undefined): ServiceStatusLabel {
   const raw = String(status ?? "").toLowerCase();
@@ -29,4 +30,14 @@ export function resolveDisplayedServiceStatus(
   }
 
   return normalised;
+}
+
+export function resolveCanonicalServiceStatus(
+  service: Service,
+  options?: Parameters<typeof resolveDisplayedServiceStatus>[1],
+): CanonicalServiceStatus {
+  const displayed = resolveDisplayedServiceStatus(service, options);
+  if (displayed === "Concluído") return "Concluído";
+  if (displayed === "Pendente") return "Pendente";
+  return "Aberto";
 }

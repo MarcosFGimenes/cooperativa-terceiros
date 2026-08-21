@@ -1,6 +1,7 @@
 import "server-only";
-import type { FirebaseFirestore } from "firebase-admin";
+import { FieldPath, Timestamp, type Query, type QueryDocumentSnapshot } from "firebase-admin/firestore";
 import { getAdminDbOrThrow } from "@/lib/serverDb";
+import { chooseServiceSearchToken, serviceSearchMatches } from "@/lib/serviceSearch";
 import type { PCMPackageListItem, PCMListResponse, PCMServiceListItem } from "@/types/pcm";
 
 // Normaliza status (aceita "ABERTO", "aberto", etc.)
@@ -17,37 +18,19 @@ function toOptionalString(value: unknown): string | null {
   return trimmed ? trimmed : null;
 }
 
-function normaliseSearchText(value: unknown): string {
-  return String(value ?? "")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .trim();
+type ListCursor = { updatedAt: number; id: string };
+
+function encodeCursor(cursor: ListCursor): string {
+  return Buffer.from(JSON.stringify(cursor), "utf8").toString("base64url");
 }
 
-function serviceMatchesSearch(service: PCMServiceListItem, search: string): boolean {
-  const query = normaliseSearchText(search);
-  if (!query) return true;
-
-  const haystack = [
-    service.id,
-    service.os,
-    service.oc,
-    service.code,
-    service.tag,
-    service.equipmentName,
-    service.equipamento,
-    service.sector,
-    service.setor,
-    service.company,
-    service.empresa,
-    service.cnpj,
-    service.packageId,
-    service.assignedTo?.companyName,
-    service.assignedTo?.companyId,
-  ];
-
-  return haystack.some((value) => normaliseSearchText(value).includes(query));
+function decodeCursor(value: string): ListCursor | null {
+  try {
+    const parsed = JSON.parse(Buffer.from(value, "base64url").toString("utf8")) as Partial<ListCursor>;
+    return typeof parsed.updatedAt === "number" && Number.isFinite(parsed.updatedAt) && typeof parsed.id === "string"
+      ? { updatedAt: parsed.updatedAt, id: parsed.id }
+      : null;
+  } catch { return null; }
 }
 
 function toNumber(value: unknown): number {
@@ -274,7 +257,7 @@ export async function listServicesPCM(options?: {
     } = options ?? {};
     const searchTerm = search?.trim() ?? "";
 
-    let query: FirebaseFirestore.Query = admin.collection("services");
+    let query: Query = admin.collection("services");
 
     if (status) {
       query = query.where("status", "==", normStatus(status));
@@ -285,12 +268,13 @@ export async function listServicesPCM(options?: {
     }
 
     if (searchTerm) {
-      const snap = await query.limit(500).get();
+      const token = chooseServiceSearchToken(searchTerm);
+      if (!token) return { items: [], nextCursor: null };
+      query = query.where("searchTokens", "array-contains", token).limit(Math.min(Math.max(limit * 4, 50), 100));
+      const snap = await query.get();
       const items = snap.docs
-        .map((docSnap: FirebaseFirestore.QueryDocumentSnapshot) =>
-          mapDoc(docSnap.id, docSnap.data() as Record<string, unknown>),
-        )
-        .filter((service: PCMServiceListItem) => serviceMatchesSearch(service, searchTerm))
+        .filter((docSnap) => serviceSearchMatches(docSnap.id, docSnap.data() as Record<string, unknown>, searchTerm))
+        .map((docSnap: QueryDocumentSnapshot) => mapDoc(docSnap.id, docSnap.data() as Record<string, unknown>))
         .sort(
           (a: PCMServiceListItem, b: PCMServiceListItem) =>
             (b.updatedAt ?? b.createdAt ?? 0) - (a.updatedAt ?? a.createdAt ?? 0),
@@ -300,13 +284,11 @@ export async function listServicesPCM(options?: {
       return { items, nextCursor: null };
     }
 
-    query = query.orderBy("updatedAt", "desc");
+    query = query.orderBy("updatedAt", "desc").orderBy(FieldPath.documentId(), "desc");
 
     if (cursor) {
-      const lastDoc = await admin.collection("services").doc(cursor).get();
-      if (lastDoc.exists) {
-        query = query.startAfter(lastDoc);
-      }
+      const decoded = decodeCursor(cursor);
+      if (decoded) query = query.startAfter(Timestamp.fromMillis(decoded.updatedAt), decoded.id);
     }
 
     query = query.limit(limit);
@@ -315,7 +297,10 @@ export async function listServicesPCM(options?: {
     const items = snap.docs.map((docSnap) =>
       mapDoc(docSnap.id, docSnap.data() as Record<string, unknown>),
     );
-    const nextCursor = snap.docs.length > 0 ? snap.docs[snap.docs.length - 1].id : null;
+    const last = snap.docs[snap.docs.length - 1];
+    const nextCursor = last
+      ? encodeCursor({ updatedAt: toTimestamp(last.get("updatedAt")) ?? 0, id: last.id })
+      : null;
 
     return { items, nextCursor };
   } catch (error) {
@@ -354,14 +339,12 @@ export async function listPackagesPCM(options?: {
     const admin = getAdminDbOrThrow();
     const { limit = 10, cursor = null } = options ?? {};
 
-    let query: FirebaseFirestore.Query = admin.collection("packages");
-    query = query.orderBy("createdAt", "desc");
+    let query: Query = admin.collection("packages");
+    query = query.orderBy("createdAt", "desc").orderBy(FieldPath.documentId(), "desc");
 
     if (cursor) {
-      const lastDoc = await admin.collection("packages").doc(cursor).get();
-      if (lastDoc.exists) {
-        query = query.startAfter(lastDoc);
-      }
+      const decoded = decodeCursor(cursor);
+      if (decoded) query = query.startAfter(Timestamp.fromMillis(decoded.updatedAt), decoded.id);
     }
 
     query = query.limit(limit);
@@ -370,7 +353,10 @@ export async function listPackagesPCM(options?: {
     const items = snap.docs.map((docSnap) =>
       mapPackageDoc(docSnap.id, (docSnap.data() ?? {}) as Record<string, unknown>),
     );
-    const nextCursor = snap.docs.length > 0 ? snap.docs[snap.docs.length - 1].id : null;
+    const last = snap.docs[snap.docs.length - 1];
+    const nextCursor = last
+      ? encodeCursor({ updatedAt: toTimestamp(last.get("createdAt")) ?? 0, id: last.id })
+      : null;
 
     return { items, nextCursor };
   } catch (error) {

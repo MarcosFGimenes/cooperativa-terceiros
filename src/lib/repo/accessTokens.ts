@@ -5,6 +5,7 @@ import crypto from "crypto";
 import { FieldValue } from "firebase-admin/firestore";
 
 import { getAdmin } from "@/lib/firebaseAdmin";
+import { isCanonicalTokenActive } from "@/lib/accessTokenState";
 
 type FirestoreLikeTimestamp = {
   toMillis?: () => number;
@@ -73,70 +74,100 @@ function normaliseCompany(data: RawTokenData): string | undefined {
 }
 
 function isTokenActive(data: RawTokenData, now: number): boolean {
-  if (data.active === false) return false;
-  if (data.revoked === true) return false;
-  const status = typeof data.status === "string" ? data.status.trim().toLowerCase() : undefined;
-  if (status === "revoked" || status === "inactive") return false;
+  return isCanonicalTokenActive({ ...data, expiresAtMillis: toMillis(data.expiresAt) }, now);
+}
 
-  const expiresAt = toMillis(data.expiresAt);
-  if (expiresAt && expiresAt < now) return false;
+async function getPointedServiceToken(serviceId: string): Promise<FirebaseFirestore.DocumentSnapshot | null> {
+  const { db } = getAdmin();
+  const serviceSnap = await db.collection("services").doc(serviceId).get();
+  if (!serviceSnap.exists) return null;
+  const data = serviceSnap.data() ?? {};
+  const code =
+    (typeof data.accessTokenCode === "string" && data.accessTokenCode.trim()) ||
+    (typeof data.activeTokenCode === "string" && data.activeTokenCode.trim()) ||
+    "";
+  if (!code) return null;
+  const tokenSnap = await db.collection("accessTokens").doc(code).get();
+  if (!tokenSnap.exists || !isTokenActive((tokenSnap.data() ?? {}) as RawTokenData, Date.now())) return null;
+  return tokenSnap;
+}
 
-  return true;
+async function pointServiceToToken(serviceId: string, code: string): Promise<void> {
+  const { db } = getAdmin();
+  await db.collection("services").doc(serviceId).set(
+    { accessTokenCode: code, activeTokenCode: code, updatedAt: FieldValue.serverTimestamp() },
+    { merge: true },
+  );
+}
+
+async function getIndexedActiveServiceTokenSnapshot(serviceId: string) {
+  const { db } = getAdmin();
+  try {
+    return await db
+      .collection("accessTokens")
+      .where("targetType", "==", "service")
+      .where("targetId", "==", serviceId)
+      .where("status", "==", "active")
+      .orderBy("createdAt", "desc")
+      .limit(1)
+      .get();
+  } catch (error) {
+    // Durante o intervalo entre deploy da aplicação e criação do índice
+    // composto, ainda conseguimos localizar o token canônico por campos com
+    // índices simples. Mantemos limit(1), sem varrer tokens históricos.
+    console.warn(`[accessTokens] Índice canônico indisponível para o serviço ${serviceId}; usando fallback limitado.`, error);
+    return db
+      .collection("accessTokens")
+      .where("serviceId", "==", serviceId)
+      .where("active", "==", true)
+      .limit(1)
+      .get();
+  }
 }
 
 export async function getLatestServiceToken(serviceId: string): Promise<ServiceAccessToken | null> {
   if (!serviceId) return null;
   const { db } = getAdmin();
 
-  const snap = await db
-    .collection("accessTokens")
-    .where("targetType", "==", "service")
-    .where("targetId", "==", serviceId)
-    .get();
+  let doc = await getPointedServiceToken(serviceId);
+  let snap: FirebaseFirestore.QuerySnapshot | null = null;
+  if (!doc) snap = await getIndexedActiveServiceTokenSnapshot(serviceId);
 
-  if (snap.empty) {
-    return null;
+  if (!doc && snap?.empty) {
+    // Compatibilidade de leitura: documentos anteriores ao estado canônico
+    // podem não ter `status`. A consulta continua limitada a um documento e
+    // nunca varre o histórico inteiro.
+    snap = await db
+      .collection("accessTokens")
+      .where("targetType", "==", "service")
+      .where("targetId", "==", serviceId)
+      .orderBy("createdAt", "desc")
+      .limit(1)
+      .get();
+    if (snap.empty) return null;
   }
 
   const now = Date.now();
-  const tokens: ServiceAccessToken[] = [];
+  doc = doc ?? snap?.docs[0] ?? null;
+  if (!doc) return null;
+  const data = (doc.data() ?? {}) as RawTokenData;
+  if (!isTokenActive(data, now)) return null;
 
-  snap.docs.forEach((doc) => {
-    const data = (doc.data() ?? {}) as RawTokenData;
-    if (!isTokenActive(data, now)) return;
+  const tokenTargetId =
+    (typeof data.targetId === "string" && data.targetId.trim()) ||
+    (typeof data.serviceId === "string" && data.serviceId.trim()) ||
+    null;
 
-    const tokenTargetId =
-      (typeof data.targetId === "string" && data.targetId.trim()) ||
-      (typeof data.serviceId === "string" && data.serviceId.trim()) ||
-      null;
+  if (tokenTargetId && tokenTargetId !== serviceId) return null;
 
-    if (tokenTargetId && tokenTargetId !== serviceId) {
-      return;
-    }
+  const code = (typeof data.code === "string" && data.code.trim()) || doc.id;
 
-    const code =
-      (typeof data.code === "string" && data.code.trim()) ||
-      doc.id;
+  if (!code) return null;
 
-    if (!code) return;
+  const createdAt = toMillis(data.createdAt);
+  const expiresAt = toMillis(data.expiresAt);
 
-    const createdAt = toMillis(data.createdAt);
-    const expiresAt = toMillis(data.expiresAt);
-
-    tokens.push({
-      code,
-      company: normaliseCompany(data),
-      createdAt,
-      expiresAt,
-    });
-  });
-
-  if (!tokens.length) {
-    return null;
-  }
-
-  tokens.sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0));
-  return tokens[0] ?? null;
+  return { code, company: normaliseCompany(data), createdAt, expiresAt };
 }
 
 type EnsureServiceTokenInput = { serviceId: string; company?: string | null };
@@ -157,16 +188,63 @@ export async function ensureServiceAccessToken({ serviceId, company }: EnsureSer
   const { db } = getAdmin();
   const now = Date.now();
 
-  const snapshot = await db
-    .collection("accessTokens")
-    .where("targetType", "==", "service")
-    .where("targetId", "==", serviceId)
-    .limit(20)
-    .get();
+  const pointed = await getPointedServiceToken(serviceId);
+  if (pointed) {
+    const pointedData = (pointed.data() ?? {}) as RawTokenData;
+    const pointedCompany = normaliseCompany(pointedData);
+    if (!company || pointedCompany === company) {
+      return {
+        code: (typeof pointedData.code === "string" && pointedData.code.trim()) || pointed.id,
+        company: pointedCompany,
+        createdAt: toMillis(pointedData.createdAt),
+        expiresAt: toMillis(pointedData.expiresAt),
+      } satisfies ServiceAccessToken;
+    }
+  }
+
+  let snapshot: FirebaseFirestore.QuerySnapshot | null = null;
+  try {
+    let activeQuery: FirebaseFirestore.Query = db
+      .collection("accessTokens")
+      .where("targetType", "==", "service")
+      .where("targetId", "==", serviceId)
+      .where("status", "==", "active");
+    if (company) activeQuery = activeQuery.where("company", "==", company);
+    snapshot = await activeQuery.orderBy("createdAt", "desc").limit(1).get();
+  } catch (error) {
+    console.warn(`[accessTokens] Índice de reutilização indisponível para o serviço ${serviceId}; usando fallback limitado.`, error);
+    try {
+      snapshot = await db
+        .collection("accessTokens")
+        .where("serviceId", "==", serviceId)
+        .where("active", "==", true)
+        .limit(1)
+        .get();
+    } catch (fallbackError) {
+      // Não deixe indisponibilidade de índice impedir a geração. O token novo
+      // será gravado junto com um ponteiro direto no serviço.
+      console.warn(`[accessTokens] Fallback de consulta indisponível para ${serviceId}; criando token canônico.`, fallbackError);
+    }
+  }
+
+  if (snapshot?.empty) {
+    try {
+      snapshot = await db
+        .collection("accessTokens")
+        .where("targetType", "==", "service")
+        .where("targetId", "==", serviceId)
+        .orderBy("createdAt", "desc")
+        .limit(1)
+        .get();
+    } catch (legacyError) {
+      console.warn(`[accessTokens] Consulta legada indisponível para ${serviceId}; criando token canônico.`, legacyError);
+      snapshot = null;
+    }
+  }
 
   let latestMatch: ServiceAccessToken | null = null;
 
-  snapshot.forEach((docSnap) => {
+  snapshot?.forEach((docSnap) => {
     const data = (docSnap.data() ?? {}) as RawTokenData;
     if (!isTokenActive(data, now)) return;
 
@@ -185,6 +263,7 @@ export async function ensureServiceAccessToken({ serviceId, company }: EnsureSer
   });
 
   if (latestMatch) {
+    await pointServiceToToken(serviceId, latestMatch.code);
     return latestMatch;
   }
 
@@ -212,7 +291,14 @@ export async function ensureServiceAccessToken({ serviceId, company }: EnsureSer
       payload.empresaId = company;
     }
 
-    await ref.set(payload);
+    const batch = db.batch();
+    batch.create(ref, payload);
+    batch.set(
+      db.collection("services").doc(serviceId),
+      { accessTokenCode: code, activeTokenCode: code, updatedAt: FieldValue.serverTimestamp() },
+      { merge: true },
+    );
+    await batch.commit();
     return { code, company: company ?? undefined, createdAt: Date.now() } satisfies ServiceAccessToken;
   }
 
