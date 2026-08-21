@@ -786,15 +786,17 @@ function isMissingAdminError(error: unknown) {
 }
 
 async function fetchAvailableOpenServices(limit: number, mode: ServiceMapMode): Promise<Service[]> {
-  const allowedStatuses: ServiceStatus[] = ["Aberto", "Pendente"];
-  const allowedStatusSet = new Set<ServiceStatus>(allowedStatuses);
-  const seen = new Set<string>();
-  const results: Service[] = [];
-
-  let collection: FirebaseFirestore.CollectionReference | null = null;
-
   try {
-    collection = servicesCollection();
+    const snapshot = await servicesCollection()
+      .where("displayStatus", "in", ["Aberto", "Pendente"])
+      .where("packageId", "==", null)
+      .where("folderId", "==", null)
+      .orderBy("createdAt", "desc")
+      .limit(limit)
+      .get();
+    return snapshot.docs.map((doc) =>
+      mapServiceData(doc.id, (doc.data() ?? {}) as Record<string, unknown>, mode),
+    );
   } catch (error) {
     if (isMissingAdminError(error)) {
       console.warn(
@@ -804,82 +806,11 @@ async function fetchAvailableOpenServices(limit: number, mode: ServiceMapMode): 
       return [];
     }
     console.warn(
-      "[services:listAvailableOpenServices] Falha ao acessar o Firestore. Retornando lista vazia.",
+      "[services:listAvailableOpenServices] Falha ao executar a consulta canônica. Retornando lista vazia.",
       error,
     );
     return [];
   }
-
-  if (!collection) {
-    return [];
-  }
-
-  const folderReferenceCache = new Map<string, boolean>();
-
-  const serviceIsAttachedToFolder = async (serviceId: string): Promise<boolean> => {
-    if (folderReferenceCache.has(serviceId)) {
-      return folderReferenceCache.get(serviceId) ?? false;
-    }
-    const refs = await collectFolderRefsByServiceId(serviceId);
-    const isAttached = refs.length > 0;
-    folderReferenceCache.set(serviceId, isAttached);
-    return isAttached;
-  };
-
-  const pushDocs = async (docs: FirebaseFirestore.QueryDocumentSnapshot[]) => {
-    for (const doc of docs) {
-      if (results.length >= limit) break;
-      if (seen.has(doc.id)) continue;
-      const service = mapServiceData(
-        doc.id,
-        (doc.data() ?? {}) as Record<string, unknown>,
-        mode,
-      );
-      if (!allowedStatusSet.has(service.status)) continue;
-      if (service.packageId?.trim()) continue;
-      if (await serviceIsAttachedToFolder(service.id)) continue;
-      seen.add(service.id);
-      results.push(service);
-      if (results.length >= limit) break;
-    }
-  };
-
-  const baseLimit = Math.max(1, limit) * 2;
-  const errors: Array<{ scope: string; error: unknown }> = [];
-
-  const runQuery = async (
-    scope: string,
-    promise: Promise<FirebaseFirestore.QuerySnapshot>,
-  ): Promise<void> => {
-    if (results.length >= limit) return;
-    try {
-      const snapshot = await promise;
-      await pushDocs(snapshot.docs);
-    } catch (error) {
-      errors.push({ scope, error });
-      console.warn(
-        `[services:listAvailableOpenServices] Falha ao listar serviços (${scope}). Continuando com resultado parcial.`,
-        error,
-      );
-    }
-  };
-
-  // Use a single createdAt-sorted query to avoid Firestore composite index requirements when filtering by status.
-  const fetchCount = baseLimit * allowedStatuses.length;
-  await runQuery("createdAt:recent", collection.orderBy("createdAt", "desc").limit(fetchCount).get());
-
-  if (results.length === 0 && errors.length > 0) {
-    const firstError = errors[0];
-    console.warn(
-      "[services:listAvailableOpenServices] Não foi possível carregar serviços disponíveis. Retornando lista vazia.",
-      firstError.error,
-    );
-    return [];
-  }
-
-  results.sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0));
-
-  return results.slice(0, limit);
 }
 
 export async function listAvailableOpenServices(
