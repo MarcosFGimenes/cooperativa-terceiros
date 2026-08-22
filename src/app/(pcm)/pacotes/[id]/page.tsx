@@ -40,7 +40,7 @@ const { notFound } = Navigation;
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-const MAX_SERVICES_TO_LOAD = 400;
+const MAX_SERVICES_TO_LOAD = 550;
 
 type CurvePoint = { date: string; percent: number };
 
