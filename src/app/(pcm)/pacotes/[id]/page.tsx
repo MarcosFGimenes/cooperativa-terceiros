@@ -5,7 +5,7 @@ import DeletePackageButton from "@/components/DeletePackageButton.dynamic";
 import { decodeRouteParam } from "@/lib/decodeRouteParam";
 import { getPackageByIdCached, listPackageServices } from "@/lib/repo/packages";
 import { listPackageFolders } from "@/lib/repo/folders";
-import { getServicesByIds, listAvailableOpenServices } from "@/lib/repo/services";
+import { getServicesByIds, listAvailableOpenServices, listUpdates } from "@/lib/repo/services";
 import { formatDate as formatDisplayDate } from "@/lib/formatDateTime";
 import { formatUpdateSummary } from "@/lib/serviceUpdates";
 import {
@@ -523,11 +523,44 @@ async function renderPackageDetailPage(
     );
   }
 
-  // Do not hydrate every service history while opening a package. Besides generating two
-  // Firestore queries per service (current and legacy collections), a single stalled query
-  // held the whole server render open and left the route loading indefinitely. The service
-  // document already carries the canonical current progress used by the package overview;
-  // detailed histories remain available on each service's own page.
+  const servicesMissingUpdates = services.filter(
+    (service) => !Array.isArray(service.updates) || service.updates.length === 0,
+  );
+
+  if (servicesMissingUpdates.length) {
+    const updatesById = new Map<string, Service["updates"]>();
+    const chunkSize = 15;
+
+    for (let i = 0; i < servicesMissingUpdates.length; i += chunkSize) {
+      const slice = servicesMissingUpdates.slice(i, i + chunkSize);
+      const results = await Promise.allSettled(
+        slice.map(async (service) => ({
+          id: service.id,
+          updates: await listUpdates(service.id, 200),
+        })),
+      );
+
+      results.forEach((result) => {
+        if (result.status === "fulfilled") {
+          updatesById.set(result.value.id, result.value.updates);
+        } else {
+          registerWarning(
+            "Alguns históricos de progresso não puderam ser carregados.",
+            result.reason,
+            "Falha ao carregar histórico de atualizações do serviço",
+          );
+        }
+      });
+    }
+
+    if (updatesById.size > 0) {
+      services = services.map((service) => {
+        const resolvedUpdates = updatesById.get(service.id);
+        if (!resolvedUpdates) return service;
+        return { ...service, updates: resolvedUpdates };
+      });
+    }
+  }
 
   const hoursFromServices = Math.round(
     services.reduce((acc, service) => {
