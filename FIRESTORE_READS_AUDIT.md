@@ -50,7 +50,7 @@ Não foi adicionada instrumentação em produção. O Firebase Console continua 
 | Atualização retroativa | histórico completo | ~3 + H | não | baixa | MÉDIO |
 | Abrir histórico | todo histórico | até 200 atuais + 200 legados, combinado e cortado | 180 s | média | ALTO |
 | Listar serviços disponíveis | candidatos + 3 queries/pasta por candidato | até o limit solicitado, uma query | 300 s salvo disableCache | média | OK após correção |
-| Abrir pacote | até 400 serviços + históricos | 1 package + S serviços + até 400 eventos por serviço sem histórico embutido + folders + disponíveis | caches parciais; página force-dynamic | média | CRÍTICO |
+| Abrir pacote | até 550 serviços + históricos | 1 package + S serviços + até 400 eventos por serviço sem histórico embutido + folders + disponíveis | caches parciais; página force-dynamic | média | CRÍTICO |
 | Abrir pasta | 1 folder + serviços exibidos | folder cacheado; rotas públicas podem fazer N gets | 180 s parcial | média | MÉDIO |
 | Criar pacote | N leituras no caminho >499 | 0 até 499; N para preflight acima de 499 | não | baixa | BAIXO |
 | Excluir pacote | 1 + S + F | 1 package + S serviços + F folders | não | baixa | MÉDIO |
