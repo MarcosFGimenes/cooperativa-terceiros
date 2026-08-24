@@ -26,6 +26,7 @@ const SERVICE_CACHE_TTL_SECONDS = 180;
 const SERVICE_LIST_CACHE_TTL_SECONDS = 300;
 const SERVICE_DASHBOARD_CACHE_TTL_SECONDS = 300;
 const DEFAULT_AVAILABLE_SERVICES_LIMIT = 200;
+const MAX_AVAILABLE_SERVICES_LIMIT = 2_000;
 
 type ChecklistSeed = { id: string; descricao: string; peso: number };
 
@@ -52,7 +53,7 @@ function normaliseAvailableServicesLimit(limit: number | undefined): number {
     return DEFAULT_AVAILABLE_SERVICES_LIMIT;
   }
   const safeLimit = Math.floor(limit);
-  return Math.max(1, Math.min(safeLimit, 500));
+  return Math.max(1, Math.min(safeLimit, MAX_AVAILABLE_SERVICES_LIMIT));
 }
 
 function normaliseServiceMode(mode: ServiceMapMode | undefined): ServiceMapMode {
@@ -790,7 +791,7 @@ async function fetchAvailableOpenServices(limit: number, mode: ServiceMapMode): 
   }
 
   try {
-    const fetchLimit = Math.min(Math.max(limit * 2, 50), 500);
+    const fetchLimit = Math.min(Math.max(limit * 2, 50), MAX_AVAILABLE_SERVICES_LIMIT);
     let legacySnap: FirebaseFirestore.QuerySnapshot;
     try {
       legacySnap = await servicesCollection()

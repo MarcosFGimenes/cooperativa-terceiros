@@ -230,7 +230,10 @@ export default function PackageFoldersManager({
   const refreshAvailableServices = useCallback(async () => {
     setLoadingAvailableServices(true);
     try {
-      const search = new URLSearchParams({ limit: "400", mode: "summary" });
+      // Fetch enough records to include older unassigned services. This list is
+      // not filtered by company: "Empresa vinculada" identifies the contractor
+      // and must not prevent a service without a package from being selected.
+      const search = new URLSearchParams({ limit: "2000", mode: "summary" });
       const response = await fetch(`/api/pcm/services/available?${search.toString()}`, {
         cache: "no-store",
       });
