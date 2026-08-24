@@ -708,8 +708,18 @@ async function renderPackageDetailPage(
     return (Object.is(rounded, -0) ? 0 : rounded).toFixed(2);
   };
 
-  const availableServiceOptions: FolderServiceOption[] = availableOpenServices
-    .filter((service) => !folderServiceIds.has(service.id))
+  // Services already assigned to this package remain eligible until they are
+  // placed in a folder. The global "available" query intentionally only returns
+  // unassigned services, so merge both sources before building the picker.
+  const assignableServices = new Map<string, Service>();
+  [...services, ...availableOpenServices].forEach((service) => {
+    const status = resolveDisplayedServiceStatus(service, { referenceDate });
+    if ((status === "Aberto" || status === "Pendente") && !folderServiceIds.has(service.id)) {
+      assignableServices.set(service.id, service);
+    }
+  });
+
+  const availableServiceOptions: FolderServiceOption[] = [...assignableServices.values()]
     .map((service) => {
       const baseLabel = service.os || service.oc || service.tag || service.id;
       const descriptionParts: string[] = [];

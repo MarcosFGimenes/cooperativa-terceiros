@@ -26,6 +26,7 @@ const SERVICE_CACHE_TTL_SECONDS = 180;
 const SERVICE_LIST_CACHE_TTL_SECONDS = 300;
 const SERVICE_DASHBOARD_CACHE_TTL_SECONDS = 300;
 const DEFAULT_AVAILABLE_SERVICES_LIMIT = 200;
+const MAX_AVAILABLE_SERVICES_LIMIT = 2_000;
 
 type ChecklistSeed = { id: string; descricao: string; peso: number };
 
@@ -52,7 +53,7 @@ function normaliseAvailableServicesLimit(limit: number | undefined): number {
     return DEFAULT_AVAILABLE_SERVICES_LIMIT;
   }
   const safeLimit = Math.floor(limit);
-  return Math.max(1, Math.min(safeLimit, 500));
+  return Math.max(1, Math.min(safeLimit, MAX_AVAILABLE_SERVICES_LIMIT));
 }
 
 function normaliseServiceMode(mode: ServiceMapMode | undefined): ServiceMapMode {
@@ -762,6 +763,7 @@ function isMissingAdminError(error: unknown) {
 }
 
 async function fetchAvailableOpenServices(limit: number, mode: ServiceMapMode): Promise<Service[]> {
+  const availableById = new Map<string, Service>();
   try {
     const snapshot = await servicesCollection()
       .where("displayStatus", "in", ["Aberto", "Pendente"])
@@ -770,10 +772,10 @@ async function fetchAvailableOpenServices(limit: number, mode: ServiceMapMode): 
       .orderBy("createdAt", "desc")
       .limit(limit)
       .get();
-    const canonical = snapshot.docs.map((doc) =>
-      mapServiceData(doc.id, (doc.data() ?? {}) as Record<string, unknown>, mode),
-    );
-    if (canonical.length > 0) return canonical;
+    snapshot.docs.forEach((doc) => {
+      const service = mapServiceData(doc.id, (doc.data() ?? {}) as Record<string, unknown>, mode);
+      availableById.set(service.id, service);
+    });
   } catch (error) {
     if (isMissingAdminError(error)) {
       console.warn(
@@ -789,7 +791,7 @@ async function fetchAvailableOpenServices(limit: number, mode: ServiceMapMode): 
   }
 
   try {
-    const fetchLimit = Math.min(Math.max(limit * 2, 50), 500);
+    const fetchLimit = Math.min(Math.max(limit * 2, 50), MAX_AVAILABLE_SERVICES_LIMIT);
     let legacySnap: FirebaseFirestore.QuerySnapshot;
     try {
       legacySnap = await servicesCollection()
@@ -811,17 +813,21 @@ async function fetchAvailableOpenServices(limit: number, mode: ServiceMapMode): 
         });
       });
     });
-    return legacySnap.docs
+    legacySnap.docs
       .map((doc) => mapServiceData(doc.id, (doc.data() ?? {}) as Record<string, unknown>, mode))
       .filter((service) =>
         (service.status === "Aberto" || service.status === "Pendente") &&
         !service.packageId?.trim() &&
         !attachedToFolder.has(service.id),
       )
+      .forEach((service) => availableById.set(service.id, service));
+
+    return [...availableById.values()]
+      .sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0))
       .slice(0, limit);
   } catch (legacyError) {
     console.warn("[services:listAvailableOpenServices] Falha também na compatibilidade legada.", legacyError);
-    return [];
+    return [...availableById.values()].slice(0, limit);
   }
 }
 

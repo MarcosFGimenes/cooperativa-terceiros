@@ -230,7 +230,10 @@ export default function PackageFoldersManager({
   const refreshAvailableServices = useCallback(async () => {
     setLoadingAvailableServices(true);
     try {
-      const search = new URLSearchParams({ limit: "400", mode: "summary" });
+      // Fetch enough records to include older unassigned services. This list is
+      // not filtered by company: "Empresa vinculada" identifies the contractor
+      // and must not prevent a service without a package from being selected.
+      const search = new URLSearchParams({ limit: "2000", mode: "summary" });
       const response = await fetch(`/api/pcm/services/available?${search.toString()}`, {
         cache: "no-store",
       });
@@ -250,8 +253,19 @@ export default function PackageFoldersManager({
       });
       const mappedOptions = data.services
         .map((service: Record<string, unknown>) => buildServiceOptionFromApi(service))
-        .filter((option: ServiceOption) => option.id && !assignedServiceIds.has(option.id));
-      setAvailableServices(sortServiceOptions(mappedOptions));
+        .filter((option: ServiceOption) => option.id);
+
+      // `services` also contains open services that already belong to this
+      // package but have not been assigned to a subpackage. The endpoint only
+      // returns globally unassigned services, so replacing the state with its
+      // response made package services disappear as soon as this panel opened.
+      const refreshedById = new Map<string, ServiceOption>();
+      [...services, ...mappedOptions].forEach((option) => {
+        if (option.id && !assignedServiceIds.has(option.id)) {
+          refreshedById.set(option.id, option);
+        }
+      });
+      setAvailableServices(sortServiceOptions([...refreshedById.values()]));
     } catch (error) {
       console.error("[PackageFoldersManager] Falha ao buscar serviços disponíveis", error);
       const message = error instanceof Error ? error.message : "Não foi possível atualizar os serviços.";
@@ -259,7 +273,7 @@ export default function PackageFoldersManager({
     } finally {
       setLoadingAvailableServices(false);
     }
-  }, [folders]);
+  }, [folders, services]);
 
   useEffect(() => {
     if (!addingServicesFor) return;
