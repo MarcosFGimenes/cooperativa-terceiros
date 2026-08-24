@@ -762,6 +762,7 @@ function isMissingAdminError(error: unknown) {
 }
 
 async function fetchAvailableOpenServices(limit: number, mode: ServiceMapMode): Promise<Service[]> {
+  const availableById = new Map<string, Service>();
   try {
     const snapshot = await servicesCollection()
       .where("displayStatus", "in", ["Aberto", "Pendente"])
@@ -770,10 +771,10 @@ async function fetchAvailableOpenServices(limit: number, mode: ServiceMapMode): 
       .orderBy("createdAt", "desc")
       .limit(limit)
       .get();
-    const canonical = snapshot.docs.map((doc) =>
-      mapServiceData(doc.id, (doc.data() ?? {}) as Record<string, unknown>, mode),
-    );
-    if (canonical.length > 0) return canonical;
+    snapshot.docs.forEach((doc) => {
+      const service = mapServiceData(doc.id, (doc.data() ?? {}) as Record<string, unknown>, mode);
+      availableById.set(service.id, service);
+    });
   } catch (error) {
     if (isMissingAdminError(error)) {
       console.warn(
@@ -811,17 +812,21 @@ async function fetchAvailableOpenServices(limit: number, mode: ServiceMapMode): 
         });
       });
     });
-    return legacySnap.docs
+    legacySnap.docs
       .map((doc) => mapServiceData(doc.id, (doc.data() ?? {}) as Record<string, unknown>, mode))
       .filter((service) =>
         (service.status === "Aberto" || service.status === "Pendente") &&
         !service.packageId?.trim() &&
         !attachedToFolder.has(service.id),
       )
+      .forEach((service) => availableById.set(service.id, service));
+
+    return [...availableById.values()]
+      .sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0))
       .slice(0, limit);
   } catch (legacyError) {
     console.warn("[services:listAvailableOpenServices] Falha também na compatibilidade legada.", legacyError);
-    return [];
+    return [...availableById.values()].slice(0, limit);
   }
 }
 

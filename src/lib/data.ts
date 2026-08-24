@@ -1,7 +1,7 @@
 import "server-only";
 import { FieldPath, Timestamp, type Query, type QueryDocumentSnapshot } from "firebase-admin/firestore";
 import { getAdminDbOrThrow } from "@/lib/serverDb";
-import { chooseServiceSearchToken, serviceSearchMatches } from "@/lib/serviceSearch";
+import { serviceSearchMatches } from "@/lib/serviceSearch";
 import type { PCMPackageListItem, PCMListResponse, PCMServiceListItem } from "@/types/pcm";
 
 // Normaliza status (aceita "ABERTO", "aberto", etc.)
@@ -268,9 +268,10 @@ export async function listServicesPCM(options?: {
     }
 
     if (searchTerm) {
-      const token = chooseServiceSearchToken(searchTerm);
-      if (!token) return { items: [], nextCursor: null };
-      query = query.where("searchTokens", "array-contains", token).limit(Math.min(Math.max(limit * 4, 50), 100));
+      // Do not rely on `searchTokens` here. Older/imported documents may not have
+      // that denormalized field and an array-contains query silently hides them.
+      // Searching is an explicit user action, so scan the already-filtered query
+      // and apply the same alias-aware matcher to every service.
       const snap = await query.get();
       const items = snap.docs
         .filter((docSnap) => serviceSearchMatches(docSnap.id, docSnap.data() as Record<string, unknown>, searchTerm))
