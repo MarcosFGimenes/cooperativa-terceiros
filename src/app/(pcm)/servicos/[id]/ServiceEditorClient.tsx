@@ -483,6 +483,7 @@ export default function ServiceEditorClient({ serviceId }: ServiceEditorClientPr
       
       toast.success("Lançamento atualizado com sucesso.");
       await refreshUpdates();
+      router.refresh();
       cancelEditingUpdate();
     } catch (error) {
       console.error("[servicos/:id] Falha ao alterar lançamento do terceiro", error);
@@ -498,6 +499,7 @@ export default function ServiceEditorClient({ serviceId }: ServiceEditorClientPr
     firestore,
     isAuthReady,
     refreshUpdates,
+    router,
     serviceId,
   ]);
 

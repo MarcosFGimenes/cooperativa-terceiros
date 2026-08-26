@@ -56,11 +56,23 @@ export async function POST(request: NextRequest) {
 
     const timestamp = Timestamp.fromDate(date);
     const common = { date: timestamp, reportDate: timestamp, updatedAt: Timestamp.now() };
-    await updateRef.update(
-      source === "updates"
-        ? { ...common, realPercentSnapshot: percent, manualPercent: percent, percent }
-        : { ...common, totalPct: percent },
-    );
+    if (source === "updates") {
+      const existing = (snapshot.data() ?? {}) as Record<string, unknown>;
+      const patch: Record<string, unknown> = {
+        ...common,
+        realPercentSnapshot: percent,
+        manualPercent: percent,
+        percent,
+      };
+      // Alguns consumidores legados leem o percentual da auditoria. Mantenha-o
+      // coerente sem apagar autor, token, IP ou a data original de envio.
+      if (existing.audit && typeof existing.audit === "object") {
+        patch["audit.newPercent"] = percent;
+      }
+      await updateRef.update(patch);
+    } else {
+      await updateRef.update({ ...common, totalPct: percent, percent, realPercentSnapshot: percent });
+    }
 
     // Recalcula a partir de todo o histórico: editar um lançamento antigo não pode
     // substituir o lançamento mais recente. A rotina também invalida serviço,

@@ -1144,6 +1144,9 @@ function mapLegacyServiceUpdateDoc(
     realPercentSnapshot: percent,
     description: note,
     createdAt: createdAtMillis,
+    // A data operacional é editável e deve alimentar as curvas do serviço,
+    // pacote e subpacote, mesmo em documentos do formato legado.
+    date: dateMillis || null,
     token: tokenId,
     audit: {
       submittedBy: tokenId ?? null,
@@ -2013,7 +2016,9 @@ export async function listUpdates(
   ]);
 
   return [...(updates ?? []), ...(legacyUpdates ?? [])]
-    .sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0))
+    // A ordem visível e a ordem usada pelos agregados devem acompanhar a data
+    // operacional editável; `createdAt` representa apenas quando foi enviado.
+    .sort((a, b) => (b.date ?? b.createdAt ?? 0) - (a.date ?? a.createdAt ?? 0))
     .slice(0, safeLimit);
 }
 
