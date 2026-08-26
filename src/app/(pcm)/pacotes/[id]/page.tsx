@@ -347,7 +347,7 @@ function getLatestServiceUpdate(service: Service): ServiceUpdate | null {
 
   return validUpdates
     .slice()
-    .sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0))[0] ?? null;
+    .sort((a, b) => (b.date ?? b.createdAt ?? 0) - (a.date ?? a.createdAt ?? 0))[0] ?? null;
 }
 
 async function renderPackageDetailPage(

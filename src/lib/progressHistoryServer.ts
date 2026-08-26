@@ -4,6 +4,7 @@ import { revalidatePath, revalidateTag } from "next/cache";
 import { getAdminDbOrThrow } from "@/lib/serverDb";
 import { parseDayFirstDateStringToUtcDate, parsePortugueseDateStringToUtcDate } from "@/lib/dateParsing";
 import { resolveCanonicalServiceStatus } from "@/lib/serviceStatus";
+import { resolveServiceAssignment } from "@/lib/serviceAssignment";
 import {
   buildChecklistWeightMap,
   clampPercent,
@@ -140,7 +141,12 @@ export async function loadProgressHistory(
     if (event) events.push(event);
 
     const manualCandidate = typeof data.manualPercent === "number" ? data.manualPercent : Number(data.manualPercent ?? NaN);
-    if (event && typeof manualCandidate === "number" && Number.isFinite(manualCandidate)) {
+    if (
+      event &&
+      typeof manualCandidate === "number" &&
+      Number.isFinite(manualCandidate) &&
+      (!lastManualUpdate || event.timestamp >= lastManualUpdate.timestamp)
+    ) {
       lastManualUpdate = { percent: clampPercent(manualCandidate), timestamp: event.timestamp };
     }
   });
@@ -228,14 +234,7 @@ export async function recomputeServiceProgress(serviceId: string) {
 
   await adminDb.collection("services").doc(serviceId).update(payload);
 
-  const packageId = typeof serviceData.packageId === "string" && serviceData.packageId.trim().length
-    ? serviceData.packageId
-    : null;
-  const folderId = typeof serviceData.packageFolderId === "string" && serviceData.packageFolderId.trim().length
-    ? serviceData.packageFolderId
-    : typeof serviceData.folderId === "string" && serviceData.folderId.trim().length
-      ? serviceData.folderId
-      : null;
+  const { packageId, folderId } = resolveServiceAssignment(serviceData);
 
   // Revalidate caches and pages that consume the service percentage so every surface refreshes immediately after an edit.
   revalidateTag("services:detail");
@@ -252,6 +251,7 @@ export async function recomputeServiceProgress(serviceId: string) {
 
   revalidatePath("/dashboard");
   revalidatePath("/servicos");
+  revalidatePath("/pacotes");
   revalidatePath(`/servicos/${serviceId}`);
   revalidatePath(`/servicos/${serviceId}/editar`);
   revalidatePath(`/servicos/${serviceId}/atualizacoes`);
@@ -264,6 +264,7 @@ export async function recomputeServiceProgress(serviceId: string) {
 
   if (folderId) {
     revalidatePath(`/pacotes/pastas/${folderId}`);
+    revalidatePath(`/subpacotes/${folderId}`);
   }
 
   return { percent: currentPercent, lastUpdate: lastTimestamp };

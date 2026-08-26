@@ -464,53 +464,26 @@ export default function ServiceEditorClient({ serviceId }: ServiceEditorClientPr
 
     setSavingUpdateEdit(true);
     try {
-      const baseRef = doc(firestore, "services", serviceId);
-      const collectionName = editingUpdateSource === "updates" ? "updates" : "serviceUpdates";
-      const ref = doc(baseRef, collectionName, editingUpdateId);
+      const response = await managementFetch("/api/pcm/servicos/update-progress-entry", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          serviceId,
+          updateId: editingUpdateId,
+          source: editingUpdateSource,
+          date: parsedDate.toISOString(),
+          percent: clampedPercent,
+        }),
+      });
+      const result = (await response.json()) as { ok?: boolean; percent?: number };
+      if (!response.ok || !result.ok) throw new Error(`failed_to_update_progress_entry:${response.status}`);
 
-      // Preservar a data real do lançamento editado. Não forçar "agora" para
-      // evitar que uma correção histórica vire um ponto novo na curva do pacote.
-      const payload: Record<string, unknown> = {
-        updatedAt: serverTimestamp(),
-      };
-
-      if (editingUpdateSource === "updates") {
-        payload.createdAt = serverTimestamp();
-        payload.date = Timestamp.fromDate(parsedDate);
-        payload.reportDate = Timestamp.fromDate(parsedDate);
-        payload.realPercentSnapshot = clampedPercent;
-        payload.manualPercent = clampedPercent;
-        payload.percent = clampedPercent;
-      } else {
-        payload.date = Timestamp.fromDate(parsedDate);
-        payload.reportDate = Timestamp.fromDate(parsedDate);
-        payload.totalPct = clampedPercent;
-      }
-
-      await updateDoc(ref, payload);
-      
-      // Atualizar o realPercentSnapshot no documento do serviço principal diretamente
-      // para garantir que o valor editado seja usado como porcentagem global
-      // IMPORTANTE: Não chamamos recomputeProgressAfterEdit aqui porque ele recalcula
-      // baseado nos updates e pode sobrescrever o realPercentSnapshot que acabamos de definir.
-      // Como estamos atualizando o realPercentSnapshot diretamente, não precisamos recalcular.
-      const servicePayload: Record<string, unknown> = {
-        realPercentSnapshot: clampedPercent,
-        manualPercent: clampedPercent,
-        realPercent: clampedPercent,
-        andamento: clampedPercent,
-        progress: clampedPercent,
-        displayStatus: resolveDisplayStatus(form.status, clampedPercent, previousProgress),
-        updatedAt: serverTimestamp(),
-      };
-      await updateDoc(baseRef, servicePayload);
       await invalidateServiceDashboardCache();
-      
-      // Atualizar o estado local para refletir a mudança imediatamente
-      setAndamento(clampedPercent);
+      if (typeof result.percent === "number") setAndamento(result.percent);
       
       toast.success("Lançamento atualizado com sucesso.");
       await refreshUpdates();
+      router.refresh();
       cancelEditingUpdate();
     } catch (error) {
       console.error("[servicos/:id] Falha ao alterar lançamento do terceiro", error);
@@ -525,8 +498,8 @@ export default function ServiceEditorClient({ serviceId }: ServiceEditorClientPr
     editingUpdateId,
     firestore,
     isAuthReady,
-    recomputeProgressAfterEdit,
     refreshUpdates,
+    router,
     serviceId,
   ]);
 
