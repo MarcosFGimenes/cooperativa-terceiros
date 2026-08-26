@@ -140,7 +140,12 @@ export async function loadProgressHistory(
     if (event) events.push(event);
 
     const manualCandidate = typeof data.manualPercent === "number" ? data.manualPercent : Number(data.manualPercent ?? NaN);
-    if (event && typeof manualCandidate === "number" && Number.isFinite(manualCandidate)) {
+    if (
+      event &&
+      typeof manualCandidate === "number" &&
+      Number.isFinite(manualCandidate) &&
+      (!lastManualUpdate || event.timestamp >= lastManualUpdate.timestamp)
+    ) {
       lastManualUpdate = { percent: clampPercent(manualCandidate), timestamp: event.timestamp };
     }
   });
@@ -230,7 +235,9 @@ export async function recomputeServiceProgress(serviceId: string) {
 
   const packageId = typeof serviceData.packageId === "string" && serviceData.packageId.trim().length
     ? serviceData.packageId
-    : null;
+    : typeof serviceData.pacoteId === "string" && serviceData.pacoteId.trim().length
+      ? serviceData.pacoteId
+      : null;
   const folderId = typeof serviceData.packageFolderId === "string" && serviceData.packageFolderId.trim().length
     ? serviceData.packageFolderId
     : typeof serviceData.folderId === "string" && serviceData.folderId.trim().length
