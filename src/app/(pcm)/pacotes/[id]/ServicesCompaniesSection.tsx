@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { formatDate, formatDateTime } from "@/lib/formatDateTime";
 import { cn } from "@/lib/utils";
@@ -36,6 +36,7 @@ export type ServiceDetail = {
 export type ServiceDetailsMap = Record<string, ServiceDetail | undefined>;
 
 type Props = {
+  packageId: string;
   folders: FolderDisplay[];
   serviceDetails: ServiceDetailsMap;
   forceExpandAll?: boolean;
@@ -43,6 +44,7 @@ type Props = {
 };
 
 export default function ServicesCompaniesSection({
+  packageId,
   folders,
   serviceDetails,
   forceExpandAll = false,
@@ -51,6 +53,50 @@ export default function ServicesCompaniesSection({
   const [openFolderId, setOpenFolderId] = useState<string | null>(null);
   const [expandedFolderServices, setExpandedFolderServices] = useState<Record<string, boolean>>({});
   const MAX_VISIBLE_SERVICES = 5;
+
+  useEffect(() => {
+    if (printLayout) return;
+    const storageKey = `package-scroll:${packageId}`;
+    const viewKey = `package-view:${packageId}`;
+    const savedPosition = window.sessionStorage.getItem(storageKey);
+    if (savedPosition === null) return;
+
+    window.sessionStorage.removeItem(storageKey);
+    const savedView = window.sessionStorage.getItem(viewKey);
+    window.sessionStorage.removeItem(viewKey);
+    if (savedView) {
+      try {
+        const parsed = JSON.parse(savedView) as {
+          openFolderId?: unknown;
+          expandedFolderServices?: unknown;
+        };
+        if (typeof parsed.openFolderId === "string") setOpenFolderId(parsed.openFolderId);
+        if (parsed.expandedFolderServices && typeof parsed.expandedFolderServices === "object") {
+          setExpandedFolderServices(parsed.expandedFolderServices as Record<string, boolean>);
+        }
+      } catch {
+        // A posição ainda pode ser restaurada mesmo se o estado visual salvo estiver inválido.
+      }
+    }
+    const scrollTop = Number(savedPosition);
+    if (!Number.isFinite(scrollTop) || scrollTop < 0) return;
+
+    // Reaplica a posição enquanto cards e seções dinâmicas recuperam suas alturas.
+    // Sem isso, o navegador limita o scroll à altura da lista ainda recolhida.
+    const delays = [0, 100, 250, 500, 900, 1500];
+    const timers = delays.map((delay) => window.setTimeout(() => {
+      window.scrollTo({ top: scrollTop, behavior: "auto" });
+    }, delay));
+    return () => timers.forEach((timer) => window.clearTimeout(timer));
+  }, [packageId, printLayout]);
+
+  const rememberPackagePosition = () => {
+    window.sessionStorage.setItem(`package-scroll:${packageId}`, String(window.scrollY));
+    window.sessionStorage.setItem(
+      `package-view:${packageId}`,
+      JSON.stringify({ openFolderId, expandedFolderServices }),
+    );
+  };
 
   const formatPercentLabel = (value: number | null | undefined, hasServices: boolean) => {
     if (!hasServices) return "Sem serviços";
@@ -176,8 +222,9 @@ export default function ServicesCompaniesSection({
                           {visibleServices.map((detail) => (
                             <Link
                               key={detail.id}
-                              href={`/servicos/${detail.id}`}
+                              href={`/servicos/${encodeURIComponent(detail.id)}?packageId=${encodeURIComponent(packageId)}`}
                               prefetch={false}
+                              onClick={rememberPackagePosition}
                               className="service-card service-entry block rounded-lg border border-border/70 bg-card text-foreground shadow-sm transition hover:border-primary/70 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background print:border-slate-200 print:bg-white print:text-slate-900 print:shadow-none"
                             >
                               <div className="service-title flex flex-wrap items-center justify-between gap-2 rounded-t bg-muted/70 px-3 py-2 text-foreground print:bg-slate-100 print:text-slate-900">
