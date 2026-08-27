@@ -40,7 +40,7 @@ const { notFound } = Navigation;
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-const MAX_SERVICES_TO_LOAD = 550;
+const MAX_SERVICES_TO_LOAD = 650;
 
 type CurvePoint = { date: string; percent: number };
 
@@ -1064,11 +1064,12 @@ async function renderPackageDetailPage(
             initialFolders={folders}
           />
 
-          <ServicesCompaniesSection folders={folders} serviceDetails={serviceDetails} />
+          <ServicesCompaniesSection packageId={pkg.id} folders={folders} serviceDetails={serviceDetails} />
         </div>
 
         <div className="hidden print:block print-page-break-before print:px-2 print:pt-2" aria-hidden>
           <ServicesCompaniesSection
+            packageId={pkg.id}
             folders={folders}
             serviceDetails={serviceDetails}
             forceExpandAll

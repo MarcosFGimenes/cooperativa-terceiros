@@ -155,6 +155,7 @@ export default function ServiceDetailClient({
   const encodedServiceId = encodeURIComponent(serviceId);
   const searchParams = useSearchParams();
   const isPdfExport = searchParams?.get("export") === "pdf";
+  const sourcePackageId = searchParams?.get("packageId")?.trim() || null;
   const refDateParam = searchParams?.get("refDate") ?? null;
   const { date: referenceDate } = useMemo(() => resolveReferenceDate(refDateParam), [refDateParam]);
   const resolvedChartHeight = isPdfExport ? 540 : 560;
@@ -768,6 +769,15 @@ export default function ServiceDetailClient({
             <ArrowLeft aria-hidden="true" className="h-4 w-4" />
             Voltar
           </Link>
+          {sourcePackageId ? (
+            <Link
+              className="btn btn-secondary"
+              href={`/pacotes/${encodeURIComponent(sourcePackageId)}`}
+            >
+              <ArrowLeft aria-hidden="true" className="h-4 w-4" />
+              Voltar para Pacote
+            </Link>
+          ) : null}
           <Link
             className="btn btn-primary"
             href={`/servicos/${encodeURIComponent(service.id)}/editar`}

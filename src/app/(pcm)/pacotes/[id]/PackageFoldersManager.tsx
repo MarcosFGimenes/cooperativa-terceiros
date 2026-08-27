@@ -671,7 +671,7 @@ export default function PackageFoldersManager({
         <div className="grid gap-4 lg:grid-cols-[minmax(220px,0.85fr)_minmax(0,1fr)]">
           <div className="space-y-2">
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Lista de subpacotes</p>
-            <div className="space-y-2">
+            <div className="max-h-[45rem] space-y-2 overflow-y-auto pr-2 [scrollbar-gutter:stable]">
               {folders.map((folder) => {
                 const isActive = activeFolder?.id === folder.id;
                 const selection = serviceSelections[folder.id] ?? new Set<string>();
