@@ -173,7 +173,6 @@ export default function ServiceDetailClient({
   const latestIdTokenRef = useRef<string | null>(null);
   const retryTimeoutRef = useRef<number | null>(null);
   const retryCountRef = useRef(0);
-  const [shouldListenToSecondaryRealtime, setShouldListenToSecondaryRealtime] = useState(false);
   const [isCompleting, setIsCompleting] = useState(false);
   const [removingEvidenceKey, setRemovingEvidenceKey] = useState<string | null>(null);
 
@@ -181,40 +180,6 @@ export default function ServiceDetailClient({
     setCurrentToken(latestToken);
     setCurrentTokenLink(tokenLink);
   }, [latestToken, tokenLink]);
-
-  useEffect(() => {
-    if (shouldListenToSecondaryRealtime) {
-      return;
-    }
-    if (typeof window === "undefined") {
-      return;
-    }
-
-    let activated = false;
-    const activate = () => {
-      if (activated) {
-        return;
-      }
-      activated = true;
-      setShouldListenToSecondaryRealtime(true);
-    };
-
-    const timeoutId = window.setTimeout(activate, 1500);
-    const handlePointerDown = () => activate();
-    const handleKeyDown = () => activate();
-    const handleScroll = () => activate();
-
-    window.addEventListener("pointerdown", handlePointerDown, { once: true });
-    window.addEventListener("keydown", handleKeyDown, { once: true });
-    window.addEventListener("scroll", handleScroll, { once: true, passive: true });
-
-    return () => {
-      window.clearTimeout(timeoutId);
-      window.removeEventListener("pointerdown", handlePointerDown);
-      window.removeEventListener("keydown", handleKeyDown);
-      window.removeEventListener("scroll", handleScroll);
-    };
-  }, [shouldListenToSecondaryRealtime]);
 
   useEffect(() => {
     let cancelled = false;
@@ -435,47 +400,57 @@ export default function ServiceDetailClient({
         ),
       );
 
-      if (shouldListenToSecondaryRealtime) {
-        unsubscribers.push(
-          onSnapshot(
-            query(collection(serviceRef, "updates"), orderBy("audit.submittedAt", "desc"), limit(100)),
-            { includeMetadataChanges: true },
-            (snapshot) => {
-              if (cancelled) return;
-              setIsRealtimeFromCache(snapshot.metadata.fromCache);
-              const mapped = snapshot.docs.map((docSnap) => mapUpdateSnapshot(docSnap));
-              setUpdates(toNewUpdates(mapped));
-              setConnectionIssue(null);
-              retryCountRef.current = 0;
-              if (retryTimeoutRef.current !== null) {
-                clearTimeout(retryTimeoutRef.current);
-                retryTimeoutRef.current = null;
-              }
-            },
-            handleError,
-          ),
-        );
+      unsubscribers.push(
+        onSnapshot(
+          query(collection(serviceRef, "updates"), orderBy("audit.submittedAt", "desc"), limit(100)),
+          { includeMetadataChanges: true },
+          (snapshot) => {
+            if (cancelled) return;
+            setIsRealtimeFromCache(snapshot.metadata.fromCache);
+            const mapped = snapshot.docs.map((docSnap) => mapUpdateSnapshot(docSnap));
+            setUpdates(toNewUpdates(mapped));
+            setConnectionIssue(null);
+            retryCountRef.current = 0;
+            if (retryTimeoutRef.current !== null) {
+              clearTimeout(retryTimeoutRef.current);
+              retryTimeoutRef.current = null;
+            }
+          },
+          handleError,
+        ),
+      );
 
-        unsubscribers.push(
-          onSnapshot(
-            query(collection(serviceRef, "checklist"), orderBy("description", "asc")),
-            { includeMetadataChanges: true },
-            (snapshot) => {
-              if (cancelled) return;
-              setIsRealtimeFromCache(snapshot.metadata.fromCache);
-              const mapped = snapshot.docs.map((docSnap) => mapChecklistSnapshot(docSnap));
-              setChecklist(toNewChecklist(mapped));
-              setConnectionIssue(null);
-              retryCountRef.current = 0;
-              if (retryTimeoutRef.current !== null) {
-                clearTimeout(retryTimeoutRef.current);
-                retryTimeoutRef.current = null;
-              }
-            },
-            handleError,
-          ),
-        );
-      }
+      unsubscribers.push(
+        onSnapshot(
+          query(collection(serviceRef, "checklist"), orderBy("description", "asc")),
+          { includeMetadataChanges: true },
+          (snapshot) => {
+            if (cancelled) return;
+            setIsRealtimeFromCache(snapshot.metadata.fromCache);
+            const mapped = snapshot.docs.map((docSnap) => mapChecklistSnapshot(docSnap));
+            setChecklist(toNewChecklist(mapped));
+            setConnectionIssue(null);
+            retryCountRef.current = 0;
+            if (retryTimeoutRef.current !== null) {
+              clearTimeout(retryTimeoutRef.current);
+              retryTimeoutRef.current = null;
+            }
+          },
+          handleError,
+        ),
+      );
+
+      // Lançamentos antigos ainda podem estar na coleção legada. Uma edição nela
+      // também precisa atualizar imediatamente gráfico, indicadores e andamento.
+      unsubscribers.push(
+        onSnapshot(
+          query(collection(serviceRef, "serviceUpdates"), orderBy("date", "desc"), limit(100)),
+          () => {
+            if (!cancelled) void fetchFallbackFromServer();
+          },
+          handleError,
+        ),
+      );
     }
 
     void bootstrapRealtime();
@@ -493,7 +468,6 @@ export default function ServiceDetailClient({
     longPollingForced,
     isAuthReady,
     user,
-    shouldListenToSecondaryRealtime,
   ]);
 
   const planned = useMemo(() => {

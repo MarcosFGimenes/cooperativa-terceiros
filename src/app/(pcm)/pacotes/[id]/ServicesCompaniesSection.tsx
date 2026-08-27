@@ -57,21 +57,45 @@ export default function ServicesCompaniesSection({
   useEffect(() => {
     if (printLayout) return;
     const storageKey = `package-scroll:${packageId}`;
+    const viewKey = `package-view:${packageId}`;
     const savedPosition = window.sessionStorage.getItem(storageKey);
     if (savedPosition === null) return;
 
     window.sessionStorage.removeItem(storageKey);
+    const savedView = window.sessionStorage.getItem(viewKey);
+    window.sessionStorage.removeItem(viewKey);
+    if (savedView) {
+      try {
+        const parsed = JSON.parse(savedView) as {
+          openFolderId?: unknown;
+          expandedFolderServices?: unknown;
+        };
+        if (typeof parsed.openFolderId === "string") setOpenFolderId(parsed.openFolderId);
+        if (parsed.expandedFolderServices && typeof parsed.expandedFolderServices === "object") {
+          setExpandedFolderServices(parsed.expandedFolderServices as Record<string, boolean>);
+        }
+      } catch {
+        // A posição ainda pode ser restaurada mesmo se o estado visual salvo estiver inválido.
+      }
+    }
     const scrollTop = Number(savedPosition);
     if (!Number.isFinite(scrollTop) || scrollTop < 0) return;
 
-    // Wait for the hydrated package sections to settle before restoring the exact position.
-    window.requestAnimationFrame(() => {
-      window.requestAnimationFrame(() => window.scrollTo({ top: scrollTop, behavior: "auto" }));
-    });
+    // Reaplica a posição enquanto cards e seções dinâmicas recuperam suas alturas.
+    // Sem isso, o navegador limita o scroll à altura da lista ainda recolhida.
+    const delays = [0, 100, 250, 500, 900, 1500];
+    const timers = delays.map((delay) => window.setTimeout(() => {
+      window.scrollTo({ top: scrollTop, behavior: "auto" });
+    }, delay));
+    return () => timers.forEach((timer) => window.clearTimeout(timer));
   }, [packageId, printLayout]);
 
   const rememberPackagePosition = () => {
     window.sessionStorage.setItem(`package-scroll:${packageId}`, String(window.scrollY));
+    window.sessionStorage.setItem(
+      `package-view:${packageId}`,
+      JSON.stringify({ openFolderId, expandedFolderServices }),
+    );
   };
 
   const formatPercentLabel = (value: number | null | undefined, hasServices: boolean) => {
