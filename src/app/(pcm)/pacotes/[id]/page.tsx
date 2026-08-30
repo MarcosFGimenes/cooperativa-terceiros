@@ -738,11 +738,8 @@ async function renderPackageDetailPage(
 
   const formatPercentValue = (value: number): string => {
     if (!Number.isFinite(value)) return "0";
-    const rounded = Math.round(value * 100) / 100;
-    return (Object.is(rounded, -0) ? 0 : rounded).toLocaleString("pt-BR", {
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 2,
-    });
+    const rounded = Math.round(value);
+    return String(Object.is(rounded, -0) ? 0 : rounded);
   };
 
   const formatHoursValue = (value: number): string => {
