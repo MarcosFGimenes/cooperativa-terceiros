@@ -26,6 +26,7 @@ import {
 import { normaliseServiceStatus, resolveDisplayedServiceStatus } from "@/lib/serviceStatus";
 import type { Package, PackageFolder, Service, ServiceUpdate } from "@/types";
 import { resolveReferenceDate } from "@/lib/referenceDate";
+import { selectMissingFolderServices } from "@/lib/packageServiceSelection";
 
 import type { ServiceInfo as FolderServiceInfo, ServiceOption as FolderServiceOption } from "./PackageFoldersManager";
 import ServicesCompaniesSection from "./ServicesCompaniesSection";
@@ -505,6 +506,74 @@ async function renderPackageDetailPage(
     }
   }
 
+  const assignedCompanies = pkg.assignedCompanies?.filter((item) => item.companyId);
+  let folders: PackageFolderWithProgress[] = [];
+  let availableOpenServices: Service[] = [];
+
+  const [foldersResult, availableServicesResult] = await Promise.allSettled([
+    listPackageFolders(pkg.id),
+    listAvailableOpenServices(200, { mode: "summary", disableCache: true }),
+  ]);
+
+  if (foldersResult.status === "fulfilled") {
+    folders = foldersResult.value;
+  } else {
+    registerWarning(
+      "Não foi possível carregar os subpacotes vinculados a este pacote.",
+      foldersResult.reason,
+      "Falha ao listar subpacotes do pacote",
+    );
+  }
+
+  if (availableServicesResult.status === "fulfilled") {
+    availableOpenServices = availableServicesResult.value;
+  } else {
+    registerWarning(
+      "Não foi possível carregar os serviços abertos disponíveis para novos subpacotes.",
+      availableServicesResult.reason,
+      "Falha ao listar serviços disponíveis",
+    );
+  }
+
+  // A lista do subpacote e a lista legada do pacote podem ficar temporariamente
+  // dessincronizadas (principalmente em importações grandes). Os subpacotes são a
+  // fonte necessária para esta seção, portanto carregue também qualquer ID que só
+  // esteja neles. Sem isso, serviços acima do antigo corte de 100 apareciam apenas
+  // com o ID e ficavam fora dos cálculos de progresso, horas e curva S.
+  const folderServiceSelection = selectMissingFolderServices(
+    folders.map((folder) => folder.services),
+    services.map((service) => service.id),
+    MAX_SERVICES_TO_LOAD,
+  );
+  const folderOnlyServiceIds = folderServiceSelection.folderServiceIds.filter(
+    (serviceId) => !services.some((service) => service.id === serviceId),
+  );
+  const folderServiceIdsToFetch = folderServiceSelection.missingServiceIds;
+  hasServiceOverflow ||= folderServiceSelection.hasOverflow;
+
+  if (folderServiceIdsToFetch.length) {
+    try {
+      const folderServices = await getServicesByIds(folderServiceIdsToFetch, { mode: "full" });
+      services = [...services, ...folderServices];
+      const fetchedFolderIds = new Set(folderServices.map((service) => service.id));
+      if (folderServiceIdsToFetch.some((serviceId) => !fetchedFolderIds.has(serviceId))) {
+        registerWarning("Alguns serviços dos subpacotes não puderam ser carregados completamente.");
+      }
+    } catch (error) {
+      registerWarning(
+        "Não foi possível carregar todos os serviços vinculados aos subpacotes.",
+        error,
+        "Falha ao buscar serviços exclusivos dos subpacotes",
+      );
+    }
+  }
+
+  const allKnownServiceIds = new Set([...uniqueServiceIds, ...folderOnlyServiceIds]);
+  if (allKnownServiceIds.size > serviceCountReference) {
+    serviceCountReference = allKnownServiceIds.size;
+    serviceCountIsExact = true;
+  }
+
   if (hasServiceOverflow && services.length) {
     const displayedCount = services.length;
     const totalLabel = serviceCountIsExact
@@ -568,35 +637,6 @@ async function renderPackageDetailPage(
       return acc + (Number.isFinite(hours) ? hours : 0);
     }, 0) * 100,
   ) / 100;
-
-  const assignedCompanies = pkg.assignedCompanies?.filter((item) => item.companyId);
-  let folders: PackageFolderWithProgress[] = [];
-  let availableOpenServices: Service[] = [];
-
-  const [foldersResult, availableServicesResult] = await Promise.allSettled([
-    listPackageFolders(pkg.id),
-    listAvailableOpenServices(200, { mode: "summary", disableCache: true }),
-  ]);
-
-  if (foldersResult.status === "fulfilled") {
-    folders = foldersResult.value;
-  } else {
-    registerWarning(
-      "Não foi possível carregar os subpacotes vinculados a este pacote.",
-      foldersResult.reason,
-      "Falha ao listar subpacotes do pacote",
-    );
-  }
-
-  if (availableServicesResult.status === "fulfilled") {
-    availableOpenServices = availableServicesResult.value;
-  } else {
-    registerWarning(
-      "Não foi possível carregar os serviços abertos disponíveis para novos subpacotes.",
-      availableServicesResult.reason,
-      "Falha ao listar serviços disponíveis",
-    );
-  }
 
   const servicesById = new Map(services.map((service) => [service.id, service]));
   const folderServiceIds = new Set<string>();
@@ -697,9 +737,9 @@ async function renderPackageDetailPage(
   const sectorMetrics = calcularMetricasPorSetor(servicesWithFolderContext, referenceDate);
 
   const formatPercentValue = (value: number): string => {
+    if (!Number.isFinite(value)) return "0";
     const rounded = Math.round(value);
-    if (!Number.isFinite(rounded)) return "0";
-    return Object.is(rounded, -0) ? "0" : String(rounded);
+    return String(Object.is(rounded, -0) ? 0 : rounded);
   };
 
   const formatHoursValue = (value: number): string => {

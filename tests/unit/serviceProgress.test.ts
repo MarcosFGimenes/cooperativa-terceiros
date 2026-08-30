@@ -9,6 +9,7 @@ import {
   calcularCurvaSPlanejada,
   calcularCurvaSRealizada,
   calcularIndicadoresCurvaS,
+  calcularMetricasSubpacote,
   clampProgress,
   mapearServicosPlanejados,
   obterIntervaloSubpacote,
@@ -24,6 +25,53 @@ import { formatDayKey } from "@/lib/formatDateTime";
 import { DEFAULT_TIME_ZONE, resolveReferenceDate } from "@/lib/referenceDate";
 
 describe("serviceProgress utilities", () => {
+  describe("calcularMetricasSubpacote", () => {
+    it("recalcula o planejado quando as datas do serviço são alteradas", () => {
+      const baseService = {
+        id: "service-1",
+        os: "OS-1",
+        folderId: "folder-1",
+        folderName: "Subpacote 1",
+        totalHours: 10,
+        status: "Aberto" as const,
+        createdAt: Date.parse("2025-01-01"),
+      };
+      const reference = "2025-01-06";
+
+      const original = calcularMetricasSubpacote(
+        [{ ...baseService, plannedStart: "2025-01-01", plannedEnd: "2025-01-11" }],
+        reference,
+      );
+      const changed = calcularMetricasSubpacote(
+        [{ ...baseService, plannedStart: "2025-01-05", plannedEnd: "2025-01-15" }],
+        reference,
+      );
+
+      expect(original[0].plannedPercent).toBe(54.55);
+      expect(changed[0].plannedPercent).toBe(18.18);
+      expect(changed[0].horasQueDeveriamEstar).toBe(1.82);
+    });
+
+    it("preserva variações menores que 1% em subpacotes grandes", () => {
+      const services = Array.from({ length: 120 }, (_, index) => ({
+        id: `service-${index}`,
+        os: `OS-${index}`,
+        folderId: "folder-1",
+        folderName: "Subpacote grande",
+        totalHours: 1,
+        status: "Aberto" as const,
+        createdAt: Date.parse("2025-01-01"),
+        plannedStart: index === 0 ? "2025-01-05" : "2025-01-01",
+        plannedEnd: index === 0 ? "2025-01-15" : "2025-01-11",
+      }));
+
+      const [metric] = calcularMetricasSubpacote(services, "2025-01-06");
+
+      expect(metric.plannedPercent).toBe(54.24);
+      expect(metric.plannedPercent).not.toBe(Math.round(metric.plannedPercent));
+    });
+  });
+
   it("parses dd/MM/yyyy date-only strings for updates and ranges", () => {
     const date = toDate("17/11/2025");
     expect(date?.toISOString()).toBe("2025-11-17T00:00:00.000Z");
@@ -431,7 +479,7 @@ describe("serviceProgress utilities", () => {
       expect(percentual).toBe(0);
     });
 
-    it("returns positive progress on the first planned day", () => {
+    it("returns zero progress at the start milestone", () => {
       const percentual = calcularPercentualPlanejadoServico(
         {
           dataInicio: new Date("2024-01-10T00:00:00Z"),
@@ -439,8 +487,7 @@ describe("serviceProgress utilities", () => {
         },
         new Date("2024-01-10T00:00:00Z"),
       );
-      expect(percentual).toBeGreaterThan(0);
-      expect(percentual).toBeLessThan(100);
+      expect(percentual).toBe(0);
     });
 
     it("returns one hundred when reference is after finish", () => {
@@ -525,7 +572,7 @@ describe("serviceProgress utilities", () => {
         referenceDate,
       );
 
-      expect(percentual).toBeCloseTo(40, 5);
+      expect(percentual).toBeCloseTo((4 / 9) * 100, 5);
     });
   });
 
@@ -554,9 +601,9 @@ describe("serviceProgress utilities", () => {
 
       expect(result).toHaveLength(2);
       expect(result[0]).toMatchObject({ id: "abc", descricao: "Serviço 1", percentualReal: 55 });
-      expect(result[0].percentualPlanejado).toBeCloseTo((6 / 11) * 100, 5);
+      expect(result[0].percentualPlanejado).toBeCloseTo(50, 5);
       expect(result[1]).toMatchObject({ id: "2", descricao: "Serviço 2", percentualReal: 100 });
-      expect(result[1].percentualPlanejado).toBeCloseTo((2 / 11) * 100, 5);
+      expect(result[1].percentualPlanejado).toBeCloseTo(10, 5);
     });
 
     it("returns zero when real percentage is missing", () => {
