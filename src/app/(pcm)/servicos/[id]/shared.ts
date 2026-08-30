@@ -157,8 +157,10 @@ export function composeServiceRealtimeData(
     equipmentName: primary?.equipmentName ?? fallback?.equipmentName ?? null,
     sector: primary?.sector ?? fallback?.sector ?? null,
     setor: primary?.setor ?? fallback?.setor ?? null,
-    plannedStart: primary?.plannedStart ?? fallback?.plannedStart ?? null,
-    plannedEnd: primary?.plannedEnd ?? fallback?.plannedEnd ?? null,
+    // Alguns documentos canônicos antigos possuem a chave, mas com string
+    // vazia. Nesse caso não devemos ocultar as datas válidas do fallback.
+    plannedStart: primary?.plannedStart?.trim() || fallback?.plannedStart?.trim() || null,
+    plannedEnd: primary?.plannedEnd?.trim() || fallback?.plannedEnd?.trim() || null,
     totalHours:
       typeof primary?.totalHours === "number"
         ? primary?.totalHours

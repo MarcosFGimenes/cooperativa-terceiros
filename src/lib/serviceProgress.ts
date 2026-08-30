@@ -836,7 +836,6 @@ export function calcularPercentualPlanejadoServico(
     return percentualPlanejadoDaSerie;
   }
 
-  const totalDias = Math.max(1, daysBetween(range.inicio, range.fim));
   const referenciaMs = referencia.getTime();
   const inicioMs = range.inicio.getTime();
   const fimMs = range.fim.getTime();
@@ -848,8 +847,11 @@ export function calcularPercentualPlanejadoServico(
     return 100;
   }
 
-  const diasTotais = Math.max(1, totalDias);
-  const diasDecorridos = Math.floor((referenciaMs - inicioMs) / DAY_IN_MS) + 1;
+  // O percentual do serviço representa a interpolação entre os marcos: 0% no
+  // início e 100% no fim. Usar dias inclusivos fazia o serviço já começar com
+  // avanço e deslocava o "planejado até hoje" para uma data incorreta.
+  const diasTotais = Math.max(1, Math.floor((fimMs - inicioMs) / DAY_IN_MS));
+  const diasDecorridos = Math.floor((referenciaMs - inicioMs) / DAY_IN_MS);
   if (diasDecorridos <= 0) return 0;
 
   return clampPercentage((diasDecorridos / diasTotais) * 100);

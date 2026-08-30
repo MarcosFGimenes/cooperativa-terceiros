@@ -479,7 +479,7 @@ describe("serviceProgress utilities", () => {
       expect(percentual).toBe(0);
     });
 
-    it("returns positive progress on the first planned day", () => {
+    it("returns zero progress at the start milestone", () => {
       const percentual = calcularPercentualPlanejadoServico(
         {
           dataInicio: new Date("2024-01-10T00:00:00Z"),
@@ -487,8 +487,7 @@ describe("serviceProgress utilities", () => {
         },
         new Date("2024-01-10T00:00:00Z"),
       );
-      expect(percentual).toBeGreaterThan(0);
-      expect(percentual).toBeLessThan(100);
+      expect(percentual).toBe(0);
     });
 
     it("returns one hundred when reference is after finish", () => {
@@ -573,7 +572,7 @@ describe("serviceProgress utilities", () => {
         referenceDate,
       );
 
-      expect(percentual).toBeCloseTo(40, 5);
+      expect(percentual).toBeCloseTo((4 / 9) * 100, 5);
     });
   });
 
@@ -602,9 +601,9 @@ describe("serviceProgress utilities", () => {
 
       expect(result).toHaveLength(2);
       expect(result[0]).toMatchObject({ id: "abc", descricao: "Serviço 1", percentualReal: 55 });
-      expect(result[0].percentualPlanejado).toBeCloseTo((6 / 11) * 100, 5);
+      expect(result[0].percentualPlanejado).toBeCloseTo(50, 5);
       expect(result[1]).toMatchObject({ id: "2", descricao: "Serviço 2", percentualReal: 100 });
-      expect(result[1].percentualPlanejado).toBeCloseTo((2 / 11) * 100, 5);
+      expect(result[1].percentualPlanejado).toBeCloseTo(10, 5);
     });
 
     it("returns zero when real percentage is missing", () => {
