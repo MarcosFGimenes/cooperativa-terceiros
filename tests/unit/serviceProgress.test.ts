@@ -9,6 +9,7 @@ import {
   calcularCurvaSPlanejada,
   calcularCurvaSRealizada,
   calcularIndicadoresCurvaS,
+  calcularMetricasSubpacote,
   clampProgress,
   mapearServicosPlanejados,
   obterIntervaloSubpacote,
@@ -24,6 +25,53 @@ import { formatDayKey } from "@/lib/formatDateTime";
 import { DEFAULT_TIME_ZONE, resolveReferenceDate } from "@/lib/referenceDate";
 
 describe("serviceProgress utilities", () => {
+  describe("calcularMetricasSubpacote", () => {
+    it("recalcula o planejado quando as datas do serviço são alteradas", () => {
+      const baseService = {
+        id: "service-1",
+        os: "OS-1",
+        folderId: "folder-1",
+        folderName: "Subpacote 1",
+        totalHours: 10,
+        status: "Aberto" as const,
+        createdAt: Date.parse("2025-01-01"),
+      };
+      const reference = "2025-01-06";
+
+      const original = calcularMetricasSubpacote(
+        [{ ...baseService, plannedStart: "2025-01-01", plannedEnd: "2025-01-11" }],
+        reference,
+      );
+      const changed = calcularMetricasSubpacote(
+        [{ ...baseService, plannedStart: "2025-01-05", plannedEnd: "2025-01-15" }],
+        reference,
+      );
+
+      expect(original[0].plannedPercent).toBe(54.55);
+      expect(changed[0].plannedPercent).toBe(18.18);
+      expect(changed[0].horasQueDeveriamEstar).toBe(1.82);
+    });
+
+    it("preserva variações menores que 1% em subpacotes grandes", () => {
+      const services = Array.from({ length: 120 }, (_, index) => ({
+        id: `service-${index}`,
+        os: `OS-${index}`,
+        folderId: "folder-1",
+        folderName: "Subpacote grande",
+        totalHours: 1,
+        status: "Aberto" as const,
+        createdAt: Date.parse("2025-01-01"),
+        plannedStart: index === 0 ? "2025-01-05" : "2025-01-01",
+        plannedEnd: index === 0 ? "2025-01-15" : "2025-01-11",
+      }));
+
+      const [metric] = calcularMetricasSubpacote(services, "2025-01-06");
+
+      expect(metric.plannedPercent).toBe(54.24);
+      expect(metric.plannedPercent).not.toBe(Math.round(metric.plannedPercent));
+    });
+  });
+
   it("parses dd/MM/yyyy date-only strings for updates and ranges", () => {
     const date = toDate("17/11/2025");
     expect(date?.toISOString()).toBe("2025-11-17T00:00:00.000Z");

@@ -737,9 +737,12 @@ async function renderPackageDetailPage(
   const sectorMetrics = calcularMetricasPorSetor(servicesWithFolderContext, referenceDate);
 
   const formatPercentValue = (value: number): string => {
-    const rounded = Math.round(value);
-    if (!Number.isFinite(rounded)) return "0";
-    return Object.is(rounded, -0) ? "0" : String(rounded);
+    if (!Number.isFinite(value)) return "0";
+    const rounded = Math.round(value * 100) / 100;
+    return (Object.is(rounded, -0) ? 0 : rounded).toLocaleString("pt-BR", {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 2,
+    });
   };
 
   const formatHoursValue = (value: number): string => {

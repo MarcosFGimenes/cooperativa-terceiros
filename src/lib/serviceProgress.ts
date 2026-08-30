@@ -1192,8 +1192,11 @@ export function calcularMetricasSubpacote(
       const realizedPercentRaw = clampPercentageValue(
         calcularPercentualRealizadoSubpacote(subpacotePlanejado, currentDate) ?? 0,
       );
-      const plannedPercent = Math.round(plannedPercentRaw);
-      const realizedPercent = Math.round(realizedPercentRaw);
+      // Preserve casas decimais: em subpacotes grandes, alterar a data de um
+      // unico servico geralmente muda menos de 1 ponto percentual. Arredondar
+      // para inteiro fazia o Resumo por Subpacote aparentar nao ter recalculado.
+      const plannedPercent = roundToTwoDecimals(plannedPercentRaw);
+      const realizedPercent = roundToTwoDecimals(realizedPercentRaw);
       const horasQueDeveriamEstar = roundToTwoDecimals(
         grupo.totalHours * plannedPercentRaw * 0.01,
       );
