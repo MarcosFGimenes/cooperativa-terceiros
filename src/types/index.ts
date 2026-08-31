@@ -138,6 +138,7 @@ export type Service = {
   realPercent?: number;
   updatedAt?: number;
   previousProgress?: number | null;
+  hasLegacyServiceUpdates?: boolean;
   importKey?: string | null;
 };
 

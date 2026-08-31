@@ -279,3 +279,67 @@ Para medir sem dependência nova:
 Dashboard, pesquisa, tokens, progresso normal e serviços disponíveis estão econômicos. A página de pacote ainda pode carregar históricos de dezenas ou centenas de serviços, portanto uso intenso dessa tela pode ultrapassar a referência.
 
 Não recomendo uma refatoração geral. Recomendo executar e validar os backfills manuais, implantar os índices e medir o uso real por pelo menos uma a duas semanas. A página de pacote só deve receber otimização estrutural adicional se as métricas confirmarem que ela é acessada com frequência e domina as leituras.
+
+# Métricas reais observadas (otimização de agosto de 2026)
+
+As métricas fornecidas foram: `services ORDER BY createdAt DESC LIMIT 400` com 20 execuções/8.000 documentos; `packageFolders` com 20 execuções/840 documentos; `/services` com 5 execuções/3.220 documentos; e aproximadamente 9.600 execuções em cada uma de `updates` e `serviceUpdates`. Document reads e query executions são métricas diferentes: mesmo uma query vazia pode ter cobrança mínima; eliminar uma query legada vazia reduz execuções e a cobrança mínima associada, não apenas documentos retornados.
+
+# Causa confirmada do LIMIT 400
+
+`fetchAvailableOpenServices(200)` executava a query canônica e, mesmo no sucesso, prosseguia para o fallback, cujo `fetchLimit = limit * 2` produzia 400. As 20 execuções vezes 400 documentos explicam exatamente as 8.000 reads. Agora o sucesso canônico retorna imediatamente. O fallback só é alcançado no `catch`; falha que aparenta índice ausente gera aviso explícito, sem expor detalhes ao usuário.
+
+# Causa confirmada do scan de packageFolders
+
+O mesmo fallback fazia `foldersCollection().get()`: 20 scans de aproximadamente 42 pastas explicam 840 reads. A construção do mapa de pastas continua apenas como compatibilidade legada. **Consulta canônica de disponíveis bem-sucedida => nenhuma leitura de `packageFolders`.**
+
+# Legacy serviceUpdates
+
+O marcador canônico escolhido é `hasLegacyServiceUpdates`. Novos serviços recebem `false`. `listUpdates` recebe o marcador já carregado junto com o serviço: `false` consulta somente `updates`; `true` consulta as duas fontes; ausência/`undefined` é estado desconhecido e mantém consulta compatível às duas fontes até backfill. Não foi acrescentada uma leitura do documento do serviço só para descobrir o marcador.
+
+O writer legado encontrado é `src/app/api/progresso/update/route.ts`. Ele agora cria o evento legado e marca o serviço como `true` no mesmo batch. Os demais writers encontrados escrevem na coleção moderna `updates`; exclusão de subcoleção não é writer de evento.
+
+O backfill manual `backfill:legacy-service-updates` pagina serviços por ID, executa exatamente `serviceUpdates.limit(1)` uma vez por serviço, compara o valor detectado com o marcador existente e grava somente divergências. Tem `--dry-run`, progresso, contadores de serviços, consultas, valores true/false e writes, e divide commits por `FIRESTORE_SAFE_BATCH_WRITES` (400). É idempotente e nunca roda em página/request.
+
+# Cache por service
+
+Os caches de histórico agora são factories de `unstable_cache`, porque as tags precisam ser formadas com o `serviceId` conhecido. Chaves incluem serviço e limite; tags são `service:{id}:updates` e `service:{id}:legacy-updates`. Uma atualização de A invalida A, não B/C. O detail/checklist global foi mantido para evitar refatoração desproporcional; updates, o caminho caro, foi priorizado.
+
+`services:available` mantém TTL de 300 segundos. A página de pacote deixou de usar `disableCache: true`. Criação/importação, mutações de pacote e de folder, associação/desassociação e exclusões continuam invalidando a tag nos repositórios/rotas existentes. Assim, aberturas repetidas dentro do TTL sem mutation usam cache; uma mutation de disponibilidade força refresh correto.
+
+# Pacote / Curva S
+
+A página carrega até 650 serviços porque todos alimentam horas, empresas, subpacotes, setores e agregados. Os 3.220 reads observados em 5 execuções (644 por execução) coincidem com `getServicesByIds`/carregamento integral do pacote. Projeção não reduziria document reads, por isso esse conjunto não foi limitado nem trocado por `select`.
+
+A auditoria matemática confirmou que a Curva S realizada precisa da série temporal de updates. Percentuais atuais bastam para alguns cartões/agregados, mas não reproduzem valores em datas passadas. Foi aplicada a opção A, de menor risco: manter o histórico e tornar seu cache/marcador específico. `calcularCurvaSRealizada`, percentuais de pacote/subpacote e métricas de setor/subpacote continuam recebendo os mesmos arrays mesclados, ordenados e limitados; não houve mudança na matemática.
+
+# Antes x depois
+
+## Disponíveis ao abrir pacote
+
+- Antes, pior exemplo: até 200 canônicos + 400 fallback + ~42 folders = ~642 document reads e três caminhos de query.
+- Depois, cache miss: até 200 documentos; cache hit: 0 reads; sucesso canônico: 0 consultas/read de folders.
+- Se o índice estiver ausente, o fallback temporário ainda pode custar até 400 + folders e agora deixa log explícito.
+
+## Históricos de 600 serviços modernos
+
+- Antes: 600 execuções de `updates` + 600 de `serviceUpdates`, com documentos retornados conforme cada histórico e cobrança mínima para queries vazias.
+- Depois do marcador/backfill: 600 execuções de `updates` + 0 legadas, antes do cache.
+- Primeira abertura (cache frio): até 600 queries atuais.
+- Segunda abertura dentro de 180 s: 0 queries Firestore para históricos cacheados.
+- Após update de 1 serviço: cache específico refaz até 1 query atual; antes, tag global podia forçar até 600.
+- Após updates de 10 serviços: até 10 queries atuais; antes, até 600 no próximo carregamento.
+
+Os limites de 200 eventos foram preservados porque reduzi-los sem uma prova de janela temporal alteraria a Curva S. A primeira abertura de um pacote grande ainda executa uma query moderna por serviço que não tenha updates embutidos.
+
+# Índices e implantação
+
+O índice necessário permanece exatamente `services(displayStatus ASC, packageId ASC, folderId ASC, createdAt DESC)`, já presente em `firestore.indexes.json`. Nenhum índice novo foi criado. Os índices declarados precisam estar implantados no projeto Firebase com `firebase deploy --only firestore:indexes`; deploy não foi executado.
+
+# Riscos restantes
+
+1. Cache frio de pacote grande ainda lê aproximadamente um documento por serviço e executa uma query moderna de histórico por serviço; isso preserva a série temporal.
+2. Documentos sem marcador continuam consultando legado por segurança até o backfill ser concluído.
+3. Índice canônico não implantado aciona deliberadamente o fallback caro; o novo log permite detectar isso.
+4. Listeners realtime do detalhe continuam com sua carga inicial, por preservação de realtime/UX.
+5. Tags globais de detail/checklist permanecem; o ganho marginal não justificou ampliar a mudança.
+6. O backfill tem custo único de aproximadamente 620 reads de serviços + aproximadamente 620 consultas `limit(1)` (além da cobrança mínima aplicável) e writes apenas para divergências.

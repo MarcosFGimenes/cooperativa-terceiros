@@ -5,6 +5,7 @@ import { parseDayFirstDateStringToUtcDate, parsePortugueseDateStringToUtcDate } 
 import { AdminDbUnavailableError, getAdminDbOrThrow } from "@/lib/serverDb";
 import { mapFirestoreError } from "@/lib/utils/firestoreErrors";
 import { recomputeServiceProgress } from "@/lib/progressHistoryServer";
+import { revalidateTag } from "next/cache";
 
 type TokenScope =
   | { type: "service"; serviceId: string }
@@ -224,7 +225,12 @@ async function handleWithAdmin(
     ip: ip || undefined,
   };
 
-  await serviceRef.collection("serviceUpdates").add(update);
+  const legacyUpdateRef = serviceRef.collection("serviceUpdates").doc();
+  const batch = adminDb.batch();
+  batch.set(legacyUpdateRef, update);
+  batch.set(serviceRef, { hasLegacyServiceUpdates: true }, { merge: true });
+  await batch.commit();
+  revalidateTag(`service:${payload.serviceId}:legacy-updates`);
 
   const { percent } = await recomputeServiceProgress(payload.serviceId);
 
