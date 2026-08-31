@@ -88,6 +88,28 @@ describe("serviceProgress utilities", () => {
     expect(clampProgress(180)).toBe(100);
   });
 
+  it("limita a curva quando uma data editada cria um intervalo excessivo", () => {
+    const pacote = {
+      subpacotes: [
+        {
+          servicos: [
+            {
+              horasPrevistas: 10,
+              dataInicio: "1900-01-01",
+              dataFim: "2500-12-31",
+            },
+          ],
+        },
+      ],
+    };
+
+    const curva = calcularCurvaSPlanejada(pacote);
+
+    expect(curva.length).toBeLessThanOrEqual(1000);
+    expect(curva[0].data.toISOString().slice(0, 10)).toBe("1900-01-01");
+    expect(curva.at(-1)?.data.toISOString().slice(0, 10)).toBe("2500-12-31");
+  });
+
   it("uses reportDate before createdAt when selecting the latest realized update", () => {
     const updates = [
       {

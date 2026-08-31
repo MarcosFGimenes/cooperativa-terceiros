@@ -125,6 +125,9 @@ export type IndicadoresCurvaS = {
 };
 
 const DAY_IN_MS = 24 * 60 * 60 * 1000;
+// A date typo (for example, 2206 instead of 2026) must not make package pages
+// allocate hundreds of thousands of daily points during server rendering.
+const MAX_CURVE_TIMELINE_POINTS = 1000;
 
 function startOfDay(date: Date): Date {
   return startOfDayInTimeZone(date, DEFAULT_TIME_ZONE);
@@ -315,6 +318,10 @@ function gerarDatasPlanejadas(range: DateRange): string[] {
   const datas: string[] = [];
   const inicio = startOfDay(range.inicio).getTime();
   const fim = startOfDay(range.fim).getTime();
+  const totalDias = Math.floor((fim - inicio) / DAY_IN_MS) + 1;
+  if (!Number.isFinite(totalDias) || totalDias <= 0 || totalDias > MAX_CURVE_TIMELINE_POINTS) {
+    return datas;
+  }
   for (let time = inicio; time <= fim; time += DAY_IN_MS) {
     datas.push(
       formatDayKey(new Date(time), {
@@ -628,9 +635,24 @@ function gerarLinhaDoTempo(servicos: PreparedServicoPlanejado[]): Date[] {
     }
   }
   if (!menor || !maior) return [];
+  const inicio = menor.getTime();
+  const fim = maior.getTime();
+  const totalDias = Math.floor((fim - inicio) / DAY_IN_MS) + 1;
+  if (!Number.isFinite(totalDias) || totalDias <= 0) return [];
+
+  // Keep daily precision for normal packages. For an unusually wide interval,
+  // sample it uniformly and always retain both endpoints. This bounds both the
+  // generated array and the subsequent O(points × services) curve calculation.
+  const passoDias = totalDias <= MAX_CURVE_TIMELINE_POINTS
+    ? 1
+    : Math.ceil((totalDias - 1) / (MAX_CURVE_TIMELINE_POINTS - 2));
+  const passoMs = passoDias * DAY_IN_MS;
   const datas: Date[] = [];
-  for (let time = menor.getTime(); time <= maior.getTime(); time += DAY_IN_MS) {
+  for (let time = inicio; time <= fim; time += passoMs) {
     datas.push(new Date(time));
+  }
+  if (datas[datas.length - 1]?.getTime() !== fim) {
+    datas.push(new Date(fim));
   }
   return datas;
 }
