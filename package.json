@@ -14,7 +14,8 @@
     "test": "vitest run",
     "backfill:display-status": "node scripts/run-ts.cjs scripts/backfill-display-status.ts",
     "backfill:service-search": "node scripts/run-ts.cjs scripts/backfill-service-search.ts",
-    "backfill:service-assignment": "node scripts/run-ts.cjs scripts/backfill-service-assignment.ts"
+    "backfill:service-assignment": "node scripts/run-ts.cjs scripts/backfill-service-assignment.ts",
+    "backfill:legacy-service-updates": "node scripts/run-ts.cjs scripts/backfill-legacy-service-updates.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",

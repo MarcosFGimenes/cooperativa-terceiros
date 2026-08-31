@@ -512,7 +512,7 @@ async function renderPackageDetailPage(
 
   const [foldersResult, availableServicesResult] = await Promise.allSettled([
     listPackageFolders(pkg.id),
-    listAvailableOpenServices(200, { mode: "summary", disableCache: true }),
+    listAvailableOpenServices(200, { mode: "summary" }),
   ]);
 
   if (foldersResult.status === "fulfilled") {
@@ -605,7 +605,7 @@ async function renderPackageDetailPage(
       const results = await Promise.allSettled(
         slice.map(async (service) => ({
           id: service.id,
-          updates: await listUpdates(service.id, 200),
+          updates: await listUpdates(service.id, 200, service.hasLegacyServiceUpdates),
         })),
       );
 

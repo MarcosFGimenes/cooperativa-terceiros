@@ -86,31 +86,35 @@ const serviceChecklistCache = unstable_cache(
   },
 );
 
-const serviceUpdatesCache = unstable_cache(
-  async (serviceId: string, limit: number) => {
-    const updatesCol = servicesCollection().doc(serviceId).collection("updates");
-    const snap = await updatesCol.orderBy("audit.submittedAt", "desc").limit(limit).get();
-    return snap.docs.map((doc) => mapUpdateDoc(serviceId, doc));
-  },
-  ["services", "updates"],
-  {
-    revalidate: SERVICE_CACHE_TTL_SECONDS,
-    tags: ["services:updates"],
-  },
-);
+function serviceUpdatesCache(serviceId: string, limit: number) {
+  return unstable_cache(
+    async () => {
+      const updatesCol = servicesCollection().doc(serviceId).collection("updates");
+      const snap = await updatesCol.orderBy("audit.submittedAt", "desc").limit(limit).get();
+      return snap.docs.map((doc) => mapUpdateDoc(serviceId, doc));
+    },
+    ["services", "updates", serviceId, String(limit)],
+    {
+      revalidate: SERVICE_CACHE_TTL_SECONDS,
+      tags: [`service:${serviceId}:updates`],
+    },
+  )();
+}
 
-const legacyServiceUpdatesCache = unstable_cache(
-  async (serviceId: string, limit: number) => {
-    const updatesCol = servicesCollection().doc(serviceId).collection("serviceUpdates");
-    const snap = await updatesCol.orderBy("date", "desc").limit(limit).get();
-    return snap.docs.map((doc) => mapLegacyServiceUpdateDoc(serviceId, doc));
-  },
-  ["services", "legacy-updates"],
-  {
-    revalidate: SERVICE_CACHE_TTL_SECONDS,
-    tags: ["services:legacy-updates"],
-  },
-);
+function legacyServiceUpdatesCache(serviceId: string, limit: number) {
+  return unstable_cache(
+    async () => {
+      const updatesCol = servicesCollection().doc(serviceId).collection("serviceUpdates");
+      const snap = await updatesCol.orderBy("date", "desc").limit(limit).get();
+      return snap.docs.map((doc) => mapLegacyServiceUpdateDoc(serviceId, doc));
+    },
+    ["services", "legacy-updates", serviceId, String(limit)],
+    {
+      revalidate: SERVICE_CACHE_TTL_SECONDS,
+      tags: [`service:${serviceId}:legacy-updates`],
+    },
+  )();
+}
 
 const listAvailableOpenServicesCache = unstable_cache(
   async (limit: number, mode: ServiceMapMode) => fetchAvailableOpenServices(limit, mode),
@@ -148,6 +152,12 @@ function revalidateServiceDetailCache(serviceId: string) {
   if (!serviceId) return;
   revalidateTag("services:detail");
   revalidateTag("services:available");
+}
+
+function revalidateServiceUpdateCaches(serviceId: string) {
+  if (!serviceId) return;
+  revalidateTag(`service:${serviceId}:updates`);
+  revalidateTag(`service:${serviceId}:legacy-updates`);
 }
 
 function normaliseImportValue(value: unknown): string {
@@ -254,6 +264,7 @@ export async function createService(payload: CreateServicePayload) {
     andamento: 0,
     checklist,
     hasChecklist: checklist.length > 0,
+    hasLegacyServiceUpdates: false,
     description: description || null,
     importKey: importKey || null,
     createdAt: now,
@@ -534,6 +545,8 @@ function mapServiceData(
     checklist,
     createdAt,
     updatedAt,
+    hasLegacyServiceUpdates:
+      typeof data.hasLegacyServiceUpdates === "boolean" ? data.hasLegacyServiceUpdates : undefined,
     packageId: data.packageId ? String(data.packageId) : data.pacoteId ? String(data.pacoteId) : undefined,
     company: data.company ? String(data.company) : data.companyId ? String(data.companyId) : undefined,
     empresa: data.empresa ? String(data.empresa) : undefined,
@@ -763,7 +776,6 @@ function isMissingAdminError(error: unknown) {
 }
 
 async function fetchAvailableOpenServices(limit: number, mode: ServiceMapMode): Promise<Service[]> {
-  const availableById = new Map<string, Service>();
   try {
     const snapshot = await servicesCollection()
       .where("displayStatus", "in", ["Aberto", "Pendente"])
@@ -772,10 +784,9 @@ async function fetchAvailableOpenServices(limit: number, mode: ServiceMapMode): 
       .orderBy("createdAt", "desc")
       .limit(limit)
       .get();
-    snapshot.docs.forEach((doc) => {
-      const service = mapServiceData(doc.id, (doc.data() ?? {}) as Record<string, unknown>, mode);
-      availableById.set(service.id, service);
-    });
+    return snapshot.docs.map((doc) =>
+      mapServiceData(doc.id, (doc.data() ?? {}) as Record<string, unknown>, mode),
+    );
   } catch (error) {
     if (isMissingAdminError(error)) {
       console.warn(
@@ -784,13 +795,15 @@ async function fetchAvailableOpenServices(limit: number, mode: ServiceMapMode): 
       );
       return [];
     }
-    console.warn(
-      "[services:listAvailableOpenServices] Consulta canônica indisponível; tentando compatibilidade legada.",
-      error,
-    );
+    const message = error instanceof Error ? error.message.toLowerCase() : "";
+    const indexUnavailable = message.includes("index") || message.includes("failed-precondition");
+    console.warn(indexUnavailable
+      ? "[services:listAvailableOpenServices] Índice canônico indisponível; fallback legado temporário acionado."
+      : "[services:listAvailableOpenServices] Consulta canônica falhou; fallback legado temporário acionado.");
   }
 
   try {
+    const availableById = new Map<string, Service>();
     const fetchLimit = Math.min(Math.max(limit * 2, 50), MAX_AVAILABLE_SERVICES_LIMIT);
     let legacySnap: FirebaseFirestore.QuerySnapshot;
     try {
@@ -827,7 +840,7 @@ async function fetchAvailableOpenServices(limit: number, mode: ServiceMapMode): 
       .slice(0, limit);
   } catch (legacyError) {
     console.warn("[services:listAvailableOpenServices] Falha também na compatibilidade legada.", legacyError);
-    return [...availableById.values()].slice(0, limit);
+    return [];
   }
 }
 
@@ -1916,8 +1929,8 @@ export async function addManualUpdate(
 
   // Invalidar apenas os caches diretamente relacionados às atualizações do serviço
   revalidateServiceDashboardCaches();
-  revalidateTag("services:updates");
-  revalidateTag("services:detail");
+  revalidateServiceUpdateCaches(serviceId);
+  revalidateServiceDetailCache(serviceId);
 
   return { realPercent: resolvedPercent, update: mapped };
 }
@@ -1995,7 +2008,7 @@ export async function addComputedUpdate(
   });
 
   revalidateServiceDashboardCaches();
-  revalidateTag("services:updates");
+  revalidateServiceUpdateCaches(serviceId);
   revalidateServiceDetailCache(serviceId);
 
   return updateId;
@@ -2004,16 +2017,20 @@ export async function addComputedUpdate(
 export async function listUpdates(
   serviceId: string,
   limit = 50,
+  hasLegacyServiceUpdates?: boolean,
 ): Promise<ServiceUpdate[]> {
   const trimmedId = typeof serviceId === "string" ? serviceId.trim() : "";
   if (!trimmedId) return [];
 
   const safeLimit = Number.isFinite(limit) && limit > 0 ? Math.min(Math.floor(limit), 200) : 50;
 
-  const [updates, legacyUpdates] = await Promise.all([
-    serviceUpdatesCache(trimmedId, safeLimit),
-    legacyServiceUpdatesCache(trimmedId, safeLimit),
-  ]);
+  const updatesPromise = serviceUpdatesCache(trimmedId, safeLimit);
+  // Ausência do marcador é deliberadamente tratada como desconhecida e mantém
+  // a consulta legada até a execução do backfill.
+  const legacyPromise = hasLegacyServiceUpdates === false
+    ? Promise.resolve([] as ServiceUpdate[])
+    : legacyServiceUpdatesCache(trimmedId, safeLimit);
+  const [updates, legacyUpdates] = await Promise.all([updatesPromise, legacyPromise]);
 
   return [...(updates ?? []), ...(legacyUpdates ?? [])]
     // A ordem visível e a ordem usada pelos agregados devem acompanhar a data
@@ -2189,7 +2206,7 @@ export async function deleteService(serviceId: string): Promise<boolean> {
   await ref.delete();
   revalidateServiceDashboardCaches();
   revalidateTag("services:checklist");
-  revalidateTag("services:updates");
+  revalidateServiceUpdateCaches(serviceId);
   revalidateServiceDetailCache(serviceId);
   revalidateTag("packages:detail");
   revalidateTag("packages:summary");

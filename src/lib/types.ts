@@ -48,6 +48,7 @@ export type Service = BaseService & {
   packageId?: string;
   updatedAt?: number;
   previousProgress?: number | null;
+  hasLegacyServiceUpdates?: boolean;
 };
 
 export type Package = BasePackage & {

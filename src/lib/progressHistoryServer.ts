@@ -238,8 +238,8 @@ export async function recomputeServiceProgress(serviceId: string) {
 
   // Revalidate caches and pages that consume the service percentage so every surface refreshes immediately after an edit.
   revalidateTag("services:detail");
-  revalidateTag("services:updates");
-  revalidateTag("services:legacy-updates");
+  revalidateTag(`service:${serviceId}:updates`);
+  revalidateTag(`service:${serviceId}:legacy-updates`);
   revalidateTag("services:available");
   revalidateTag("services:recent");
   revalidateTag("services:summary");
