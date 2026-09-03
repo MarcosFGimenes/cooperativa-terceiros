@@ -89,3 +89,47 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: false, error: "server_error" }, { status: 500 });
   }
 }
+
+export async function DELETE(request: NextRequest) {
+  try {
+    await requirePcmUser(request);
+  } catch (error) {
+    const status = error instanceof HttpError ? error.status : 401;
+    return NextResponse.json({ ok: false, error: "unauthorized" }, { status });
+  }
+
+  let body: RequestBody;
+  try {
+    body = (await request.json()) as RequestBody;
+  } catch {
+    return NextResponse.json({ ok: false, error: "invalid_payload" }, { status: 400 });
+  }
+
+  const serviceId = requiredString(body.serviceId);
+  const updateId = requiredString(body.updateId);
+  const source = body.source === "updates" || body.source === "serviceUpdates" ? body.source : null;
+  if (!serviceId || !updateId || !source) {
+    return NextResponse.json({ ok: false, error: "invalid_payload" }, { status: 400 });
+  }
+
+  try {
+    const adminDb = getAdminDbOrThrow();
+    const updateRef = adminDb.collection("services").doc(serviceId).collection(source).doc(updateId);
+    const snapshot = await updateRef.get();
+    if (!snapshot.exists) {
+      return NextResponse.json({ ok: false, error: "update_not_found" }, { status: 404 });
+    }
+
+    await updateRef.delete();
+    const result = await recomputeServiceProgress(serviceId);
+    return NextResponse.json({ ok: true, ...result });
+  } catch (error) {
+    if (error instanceof AdminDbUnavailableError) {
+      return NextResponse.json({ ok: false, error: "admin_unavailable" }, { status: 500 });
+    }
+    const mapped = mapFirestoreError(error);
+    if (mapped) return NextResponse.json({ ok: false, error: mapped.message }, { status: mapped.status });
+    console.error("[pcm/servicos/update-progress-entry] Falha ao excluir lançamento", error);
+    return NextResponse.json({ ok: false, error: "server_error" }, { status: 500 });
+  }
+}

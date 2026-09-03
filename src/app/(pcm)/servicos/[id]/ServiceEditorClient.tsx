@@ -503,6 +503,52 @@ export default function ServiceEditorClient({ serviceId }: ServiceEditorClientPr
     serviceId,
   ]);
 
+  const deleteEditingUpdate = useCallback(async () => {
+    if (!firestore || !isAuthReady || !editingUpdateId || !editingUpdateSource) return;
+    if (!window.confirm("Tem certeza que deseja excluir este lançamento? Essa ação não pode ser desfeita.")) return;
+
+    setSavingUpdateEdit(true);
+    try {
+      const response = await managementFetch("/api/pcm/servicos/update-progress-entry", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          serviceId,
+          updateId: editingUpdateId,
+          source: editingUpdateSource,
+        }),
+      });
+      const result = (await response.json()) as { ok?: boolean; percent?: number; error?: string };
+      if (!response.ok || !result.ok) {
+        throw new Error(result.error ?? `failed_to_delete_progress_entry:${response.status}`);
+      }
+
+      await invalidateServiceDashboardCache();
+      if (typeof result.percent === "number") setAndamento(result.percent);
+
+      toast.success("Lançamento excluído com sucesso.");
+      cancelEditingUpdate();
+      await refreshUpdates();
+      if (updateIdParam) router.replace(`/servicos/${encodeURIComponent(serviceId)}/editar`);
+      router.refresh();
+    } catch (error) {
+      console.error("[servicos/:id] Falha ao excluir lançamento", error);
+      toast.error("Não foi possível excluir o lançamento.");
+    } finally {
+      setSavingUpdateEdit(false);
+    }
+  }, [
+    cancelEditingUpdate,
+    editingUpdateId,
+    editingUpdateSource,
+    firestore,
+    isAuthReady,
+    refreshUpdates,
+    router,
+    serviceId,
+    updateIdParam,
+  ]);
+
   function updateForm<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
   }
@@ -1034,6 +1080,14 @@ export default function ServiceEditorClient({ serviceId }: ServiceEditorClientPr
                         disabled={savingUpdateEdit}
                       >
                         Cancelar
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-ghost btn-sm text-destructive hover:bg-destructive/10 hover:text-destructive"
+                        onClick={deleteEditingUpdate}
+                        disabled={savingUpdateEdit}
+                      >
+                        {savingUpdateEdit ? "Aguarde..." : "Excluir lançamento"}
                       </button>
                     </div>
                   </div>
