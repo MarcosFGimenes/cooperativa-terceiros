@@ -6,7 +6,6 @@ import Link from "next/link";
 
 import { requireFolderAccess } from "@/lib/public-access";
 import type { Service } from "@/lib/types";
-import { formatDate } from "@/lib/formatDateTime";
 import { AdminDbUnavailableError } from "@/lib/serverDb";
 import { mapFirestoreError } from "@/lib/utils/firestoreErrors";
 
@@ -49,19 +48,7 @@ function serviceTitle(service: Service): string {
 
 function serviceSubtitle(service: Service): string | null {
   if (service.equipmentName) return service.equipmentName;
-  if (service.company) return `Empresa: ${service.company}`;
   return null;
-}
-
-function formatDateLabel(value?: string | number | null): string {
-  if (value === null || value === undefined || value === "") return "—";
-  return formatDate(value, { timeZone: "America/Sao_Paulo", fallback: "—" }) || "—";
-}
-
-function formatHours(value?: number | null): string {
-  if (typeof value !== "number" || !Number.isFinite(value)) return "—";
-  const formatter = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 2 });
-  return `${formatter.format(value)}h`;
 }
 
 function InfoItem({ label, value }: { label: string; value: ReactNode }) {
@@ -141,7 +128,7 @@ export default async function FolderPublicPage({
                   <div className="flex flex-wrap items-start justify-between gap-4 border-b px-6 py-4">
                     <div className="min-w-0 space-y-1">
                       <h2 className="text-lg font-semibold text-foreground">{serviceTitle(service)}</h2>
-                      <p className="text-sm text-muted-foreground">{subtitle ?? `ID: ${service.id}`}</p>
+                      {subtitle ? <p className="text-sm text-muted-foreground">{subtitle}</p> : null}
                     </div>
                     <div className="flex flex-col items-end gap-2 text-sm font-semibold">
                       <span
@@ -158,18 +145,9 @@ export default async function FolderPublicPage({
                   </div>
 
                   <div className="px-6 py-4">
-                    <dl className="grid gap-4 sm:grid-cols-2">
-                      <InfoItem label="OS" value={service.os?.trim() || "—"} />
+                    <dl className="grid gap-4">
                       <InfoItem label="Tag" value={service.tag?.trim() || "—"} />
-                      <InfoItem label="Código" value={service.code?.trim() || "—"} />
-                      <InfoItem label="Equipamento" value={service.equipmentName?.trim() || "—"} />
                       <InfoItem label="Descrição" value={service.description?.trim() || "—"} />
-                      <InfoItem label="Setor" value={service.sector?.trim() || service.setor?.trim() || "—"} />
-                      <InfoItem label="Empresa" value={service.company?.trim() || service.empresa?.trim() || "—"} />
-                      <InfoItem label="CNPJ" value={service.cnpj?.trim() || "—"} />
-                      <InfoItem label="Início previsto" value={formatDateLabel(service.plannedStart)} />
-                      <InfoItem label="Término previsto" value={formatDateLabel(service.plannedEnd)} />
-                      <InfoItem label="Horas totais" value={formatHours(service.totalHours)} />
                     </dl>
                   </div>
 
