@@ -32,6 +32,7 @@ import type { ServiceInfo as FolderServiceInfo, ServiceOption as FolderServiceOp
 import ServicesCompaniesSection from "./ServicesCompaniesSection";
 import PackageFoldersManagerClient from "./PackageFoldersManager.client";
 import PackagePdfExportButton from "./PackagePdfExportButton";
+import PackageExcelExportButton from "./PackageExcelExportButton";
 import PackageImportServicesButton from "./PackageImportServicesButton";
 import PackageSCurveSection from "./_components/package-scurve/PackageSCurveSection";
 import PackageReferenceDateSelector from "./PackageReferenceDateSelector.client";
@@ -875,6 +876,25 @@ async function renderPackageDetailPage(
   const warningMessages = Array.from(warningSet);
   const encodedPackageId = encodeURIComponent(pkg.id);
   const packageLabel = pkg.name || pkg.code || pkg.id;
+  const excelRows = services.map((service) => {
+    const snapshot = buildServiceProgressSnapshot(service, referenceDate);
+    return {
+      os: service.os || service.code || "",
+      tag: service.tag || "",
+      equipment:
+        service.equipmentName ||
+        (typeof (service as Record<string, unknown>).equipamento === "string"
+          ? String((service as Record<string, unknown>).equipamento)
+          : ""),
+      progress: snapshot.realizedPercent,
+      company:
+        service.empresa ||
+        service.company ||
+        service.assignedTo?.companyName ||
+        service.assignedTo?.companyId ||
+        "",
+    };
+  });
   const statusLabel = normaliseServiceStatus(pkg.status);
   const statusTone = PACKAGE_STATUS_TONE[statusLabel] ?? "border-border bg-muted text-foreground/80";
   const plannedStartLabel = formatDate(pkg.plannedStart);
@@ -942,6 +962,7 @@ async function renderPackageDetailPage(
                 Editar
               </Link>
               <PackageImportServicesButton packageId={pkg.id} />
+              <PackageExcelExportButton packageLabel={packageLabel} rows={excelRows} />
               <PackagePdfExportButton />
               <DeletePackageButton packageId={pkg.id} packageLabel={packageLabel} />
             </div>
