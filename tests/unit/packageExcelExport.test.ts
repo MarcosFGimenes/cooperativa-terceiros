@@ -11,6 +11,10 @@ describe("package Excel export", () => {
         description: "Troca do selo mecânico",
         progress: 42.5,
         company: "Empresa A",
+        dailyUpdates: [
+          { date: "01/09/2026", description: "Desmontagem" },
+          { date: "02/09/2026", description: "Montagem" },
+        ],
       },
       {
         os: "OS-11",
@@ -19,6 +23,7 @@ describe("package Excel export", () => {
         description: "Revisão elétrica",
         progress: 100,
         company: "Empresa B",
+        dailyUpdates: [{ date: "03/09/2026", description: "Teste final" }],
       },
     ]);
 
@@ -28,6 +33,10 @@ describe("package Excel export", () => {
     expect(workbook).toContain("Descrição do Serviço");
     expect(workbook).toContain("Porcentagem Atual");
     expect(workbook).toContain("Empresa");
+    expect(workbook).toContain("Dia 1");
+    expect(workbook).toContain("Dia 2");
+    expect(workbook).toContain("Data: 01/09/2026\nDescrição: Desmontagem");
+    expect(workbook).toContain("Data: 02/09/2026\nDescrição: Montagem");
     expect(workbook).toContain('<Data ss:Type="Number">0.425</Data>');
     expect(workbook.match(/<Row>/g)).toHaveLength(3);
     expect(workbook.indexOf("OS-10")).toBeLessThan(workbook.indexOf("TAG-2"));
@@ -45,6 +54,7 @@ describe("package Excel export", () => {
         description: "Inspeção & reparo",
         progress: 0,
         company: "A > B",
+        dailyUpdates: [{ date: "04/09/2026", description: "Inspeção <inicial>" }],
       },
     ]);
 
@@ -52,6 +62,7 @@ describe("package Excel export", () => {
     expect(workbook).toContain("&lt;tag&gt;");
     expect(workbook).toContain("Equipamento &quot;1&quot;");
     expect(workbook).toContain("Inspeção &amp; reparo");
+    expect(workbook).toContain("Descrição: Inspeção &lt;inicial&gt;");
     expect(buildPackageExcelFilename("Pacote Ácido / 2026")).toBe("andamento-pacote-acido-2026.xls");
   });
 });

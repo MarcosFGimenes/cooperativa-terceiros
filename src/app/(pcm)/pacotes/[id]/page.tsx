@@ -898,6 +898,20 @@ async function renderPackageDetailPage(
         service.assignedTo?.companyName ||
         service.assignedTo?.companyId ||
         "",
+      dailyUpdates: (service.updates ?? [])
+        .slice()
+        .sort((left, right) => {
+          const leftDate = left.date ?? left.submittedAt ?? left.createdAt ?? 0;
+          const rightDate = right.date ?? right.submittedAt ?? right.createdAt ?? 0;
+          return leftDate - rightDate;
+        })
+        .map((update) => ({
+          date: formatDisplayDate(update.date ?? update.submittedAt ?? update.createdAt, {
+            timeZone: "America/Sao_Paulo",
+            fallback: "-",
+          }),
+          description: update.description || "-",
+        })),
     };
   });
   const statusLabel = normaliseServiceStatus(pkg.status);

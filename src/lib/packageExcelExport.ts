@@ -5,6 +5,10 @@ export type PackageServiceExportRow = {
   description: string;
   progress: number;
   company: string;
+  dailyUpdates: Array<{
+    date: string;
+    description: string;
+  }>;
 };
 
 const XML_HEADER = `<?xml version="1.0" encoding="UTF-8"?>
@@ -30,15 +34,30 @@ function progressCell(progress: number): string {
 }
 
 export function buildPackageServicesExcel(rows: PackageServiceExportRow[]): string {
-  const header = ["O.S", "TAG", "Equipamento", "Descrição do Serviço", "Porcentagem Atual", "Empresa"]
+  const maximumDailyUpdates = rows.reduce((maximum, row) => Math.max(maximum, row.dailyUpdates.length), 0);
+  const dailyHeaders = Array.from({ length: maximumDailyUpdates }, (_, index) => `Dia ${index + 1}`);
+  const header = [
+    "O.S",
+    "TAG",
+    "Equipamento",
+    "Descrição do Serviço",
+    "Porcentagem Atual",
+    "Empresa",
+    ...dailyHeaders,
+  ]
     .map((label) => textCell(label, "Header"))
     .join("");
   const body = rows
-    .map(
-      (row) =>
-        `<Row>${textCell(row.os)}${textCell(row.tag)}${textCell(row.equipment)}${textCell(row.description)}${progressCell(row.progress)}${textCell(row.company)}</Row>`,
-    )
+    .map((row) => {
+      const dailyCells = Array.from({ length: maximumDailyUpdates }, (_, index) => {
+        const update = row.dailyUpdates[index];
+        if (!update) return textCell("", "DailyUpdate");
+        return textCell(`Data: ${update.date}\nDescrição: ${update.description}`, "DailyUpdate");
+      }).join("");
+      return `<Row>${textCell(row.os)}${textCell(row.tag)}${textCell(row.equipment)}${textCell(row.description)}${progressCell(row.progress)}${textCell(row.company)}${dailyCells}</Row>`;
+    })
     .join("");
+  const dailyColumns = dailyHeaders.map(() => '<Column ss:Width="240"/>').join("");
 
   return `${XML_HEADER}
 <Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
@@ -48,10 +67,11 @@ export function buildPackageServicesExcel(rows: PackageServiceExportRow[]): stri
  <Styles>
   <Style ss:ID="Header"><Font ss:Bold="1"/><Interior ss:Color="#D9EAF7" ss:Pattern="Solid"/></Style>
   <Style ss:ID="Percent"><NumberFormat ss:Format="0.00%"/></Style>
+  <Style ss:ID="DailyUpdate"><Alignment ss:Vertical="Top" ss:WrapText="1"/></Style>
  </Styles>
  <Worksheet ss:Name="Andamento dos serviços">
   <Table>
-   <Column ss:Width="110"/><Column ss:Width="110"/><Column ss:Width="190"/><Column ss:Width="260"/><Column ss:Width="120"/><Column ss:Width="190"/>
+   <Column ss:Width="110"/><Column ss:Width="110"/><Column ss:Width="190"/><Column ss:Width="260"/><Column ss:Width="120"/><Column ss:Width="190"/>${dailyColumns}
    <Row>${header}</Row>${body}
   </Table>
  </Worksheet>
