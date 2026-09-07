@@ -886,6 +886,11 @@ async function renderPackageDetailPage(
         (typeof (service as Record<string, unknown>).equipamento === "string"
           ? String((service as Record<string, unknown>).equipamento)
           : ""),
+      description:
+        service.description ||
+        (typeof (service as Record<string, unknown>).descricao === "string"
+          ? String((service as Record<string, unknown>).descricao)
+          : ""),
       progress: snapshot.realizedPercent,
       company:
         service.empresa ||

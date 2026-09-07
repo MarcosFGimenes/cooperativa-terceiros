@@ -2,6 +2,7 @@ export type PackageServiceExportRow = {
   os: string;
   tag: string;
   equipment: string;
+  description: string;
   progress: number;
   company: string;
 };
@@ -29,13 +30,13 @@ function progressCell(progress: number): string {
 }
 
 export function buildPackageServicesExcel(rows: PackageServiceExportRow[]): string {
-  const header = ["O.S", "TAG", "Equipamento", "Porcentagem Atual", "Empresa"]
+  const header = ["O.S", "TAG", "Equipamento", "Descrição do Serviço", "Porcentagem Atual", "Empresa"]
     .map((label) => textCell(label, "Header"))
     .join("");
   const body = rows
     .map(
       (row) =>
-        `<Row>${textCell(row.os)}${textCell(row.tag)}${textCell(row.equipment)}${progressCell(row.progress)}${textCell(row.company)}</Row>`,
+        `<Row>${textCell(row.os)}${textCell(row.tag)}${textCell(row.equipment)}${textCell(row.description)}${progressCell(row.progress)}${textCell(row.company)}</Row>`,
     )
     .join("");
 
@@ -50,7 +51,7 @@ export function buildPackageServicesExcel(rows: PackageServiceExportRow[]): stri
  </Styles>
  <Worksheet ss:Name="Andamento dos serviços">
   <Table>
-   <Column ss:Width="110"/><Column ss:Width="110"/><Column ss:Width="190"/><Column ss:Width="120"/><Column ss:Width="190"/>
+   <Column ss:Width="110"/><Column ss:Width="110"/><Column ss:Width="190"/><Column ss:Width="260"/><Column ss:Width="120"/><Column ss:Width="190"/>
    <Row>${header}</Row>${body}
   </Table>
  </Worksheet>
