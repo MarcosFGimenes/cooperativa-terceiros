@@ -11,6 +11,7 @@ describe("package Excel export", () => {
         description: "Troca do selo mecânico",
         progress: 42.5,
         company: "Empresa A",
+        oc: "OC-100",
         dailyUpdates: [
           { date: "01/09/2026", description: "Desmontagem" },
           { date: "02/09/2026", description: "Montagem" },
@@ -23,6 +24,7 @@ describe("package Excel export", () => {
         description: "Revisão elétrica",
         progress: 100,
         company: "Empresa B",
+        oc: "OC-200",
         dailyUpdates: [{ date: "03/09/2026", description: "Teste final" }],
       },
     ]);
@@ -33,6 +35,7 @@ describe("package Excel export", () => {
     expect(workbook).toContain("Descrição do Serviço");
     expect(workbook).toContain("Porcentagem Atual");
     expect(workbook).toContain("Empresa");
+    expect(workbook).toContain("O.C");
     expect(workbook).toContain("Dia 1");
     expect(workbook).toContain("Dia 2");
     expect(workbook).toContain("Data: 01/09/2026\nDescrição: Desmontagem");
@@ -43,6 +46,9 @@ describe("package Excel export", () => {
     expect(workbook.indexOf("TAG-2")).toBeLessThan(workbook.indexOf("Bomba"));
     expect(workbook.indexOf("Bomba")).toBeLessThan(workbook.indexOf("Troca do selo mecânico"));
     expect(workbook.indexOf("Troca do selo mecânico")).toBeLessThan(workbook.indexOf("0.425"));
+    expect(workbook.indexOf("O.C")).toBeLessThan(workbook.indexOf("Dia 1"));
+    expect(workbook.indexOf("Empresa A")).toBeLessThan(workbook.indexOf("OC-100"));
+    expect(workbook.indexOf("OC-100")).toBeLessThan(workbook.indexOf("Data: 01/09/2026"));
   });
 
   it("escapes spreadsheet content and creates a safe filename", () => {
@@ -54,6 +60,7 @@ describe("package Excel export", () => {
         description: "Inspeção & reparo",
         progress: 0,
         company: "A > B",
+        oc: "OC & 1",
         dailyUpdates: [{ date: "04/09/2026", description: "Inspeção <inicial>" }],
       },
     ]);
@@ -62,6 +69,7 @@ describe("package Excel export", () => {
     expect(workbook).toContain("&lt;tag&gt;");
     expect(workbook).toContain("Equipamento &quot;1&quot;");
     expect(workbook).toContain("Inspeção &amp; reparo");
+    expect(workbook).toContain("OC &amp; 1");
     expect(workbook).toContain("Descrição: Inspeção &lt;inicial&gt;");
     expect(buildPackageExcelFilename("Pacote Ácido / 2026")).toBe("andamento-pacote-acido-2026.xls");
   });
