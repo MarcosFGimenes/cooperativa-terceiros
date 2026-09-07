@@ -42,8 +42,6 @@ const { notFound } = Navigation;
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-const MAX_SERVICES_TO_LOAD = 650;
-
 type CurvePoint = { date: string; percent: number };
 
 type PackageFolderWithProgress = PackageFolder & {
@@ -409,7 +407,6 @@ async function renderPackageDetailPage(
   }
 
   let services: Service[] = [];
-  let hasServiceOverflow = false;
 
   const declaredServiceRefs = (() => {
     if (Array.isArray(pkg.serviceIds) && pkg.serviceIds.length) {
@@ -433,10 +430,7 @@ async function renderPackageDetailPage(
     ),
   );
 
-  const serviceIdsToFetch = uniqueServiceIds.slice(0, MAX_SERVICES_TO_LOAD);
-  if (uniqueServiceIds.length > serviceIdsToFetch.length) {
-    hasServiceOverflow = true;
-  }
+  const serviceIdsToFetch = uniqueServiceIds;
 
   if (serviceIdsToFetch.length) {
     try {
@@ -465,25 +459,16 @@ async function renderPackageDetailPage(
 
   if (!services.length) {
     try {
-      const fallbackLimit = MAX_SERVICES_TO_LOAD + 1;
-      const fallback = await listPackageServices(resolvedPackageId, { limit: fallbackLimit });
+      const fallback = await listPackageServices(resolvedPackageId, { loadAll: true });
       if (fallback.length) {
-        if (fallback.length > MAX_SERVICES_TO_LOAD) {
-          hasServiceOverflow = true;
-          if (serviceCountReference === 0) {
-            serviceCountIsExact = false;
-            serviceCountReference = MAX_SERVICES_TO_LOAD + 1;
-          }
-        } else if (serviceCountReference === 0) {
+        if (serviceCountReference === 0) {
           serviceCountReference = fallback.length;
-          serviceCountIsExact = fallback.length < fallbackLimit;
+          serviceCountIsExact = true;
         }
-
-        const fallbackSlice = fallback.slice(0, MAX_SERVICES_TO_LOAD);
 
         let enriched: Service[] = [];
         try {
-          enriched = await getServicesByIds(fallbackSlice.map((service) => service.id), { mode: "full" });
+          enriched = await getServicesByIds(fallback.map((service) => service.id), { mode: "full" });
         } catch (error) {
           registerWarning(
             "Alguns serviços foram carregados parcialmente.",
@@ -493,9 +478,9 @@ async function renderPackageDetailPage(
         }
         if (enriched.length) {
           const byId = new Map(enriched.map((service) => [service.id, service]));
-          services = fallbackSlice.map((service) => byId.get(service.id) ?? service);
+          services = fallback.map((service) => byId.get(service.id) ?? service);
         } else {
-          services = fallbackSlice;
+          services = fallback;
         }
       }
     } catch (error) {
@@ -544,13 +529,11 @@ async function renderPackageDetailPage(
   const folderServiceSelection = selectMissingFolderServices(
     folders.map((folder) => folder.services),
     services.map((service) => service.id),
-    MAX_SERVICES_TO_LOAD,
   );
   const folderOnlyServiceIds = folderServiceSelection.folderServiceIds.filter(
     (serviceId) => !services.some((service) => service.id === serviceId),
   );
   const folderServiceIdsToFetch = folderServiceSelection.missingServiceIds;
-  hasServiceOverflow ||= folderServiceSelection.hasOverflow;
 
   if (folderServiceIdsToFetch.length) {
     try {
@@ -573,24 +556,6 @@ async function renderPackageDetailPage(
   if (allKnownServiceIds.size > serviceCountReference) {
     serviceCountReference = allKnownServiceIds.size;
     serviceCountIsExact = true;
-  }
-
-  if (hasServiceOverflow && services.length) {
-    const displayedCount = services.length;
-    const totalLabel = serviceCountIsExact
-      ? `${serviceCountReference} serviço${serviceCountReference === 1 ? "" : "s"}`
-      : `mais de ${Math.max(displayedCount, MAX_SERVICES_TO_LOAD)} serviço${
-          Math.max(displayedCount, MAX_SERVICES_TO_LOAD) === 1 ? "" : "s"
-        }`;
-    registerWarning(
-      `Este pacote possui ${totalLabel} vinculados. Exibimos apenas ${displayedCount} serviço${
-        displayedCount === 1 ? "" : "s"
-      } para evitar travamentos. Os dados agregados podem ficar incompletos.`,
-    );
-  } else if (hasServiceOverflow && services.length === 0) {
-    registerWarning(
-      "Este pacote possui muitos serviços vinculados. Os detalhes completos não puderam ser exibidos.",
-    );
   }
 
   const servicesMissingUpdates = services.filter(
@@ -676,9 +641,7 @@ async function renderPackageDetailPage(
   );
 
   const realizedValueLabel = `${realizedPercentAtReference}%`;
-  const realizedHeaderLabel = hasServiceOverflow
-    ? `Realizado (parcial): ${realizedValueLabel}`
-    : `Realizado: ${realizedValueLabel}`;
+  const realizedHeaderLabel = `Realizado: ${realizedValueLabel}`;
 
   const folderAnalyticsMap = new Map<
     string,
@@ -918,9 +881,7 @@ async function renderPackageDetailPage(
   const statusTone = PACKAGE_STATUS_TONE[statusLabel] ?? "border-border bg-muted text-foreground/80";
   const plannedStartLabel = formatDate(pkg.plannedStart);
   const plannedEndLabel = formatDate(pkg.plannedEnd);
-  const resolvedTotalHours = hasServiceOverflow
-    ? pkg.totalHours ?? hoursFromServices
-    : hoursFromServices || pkg.totalHours;
+  const resolvedTotalHours = hoursFromServices || pkg.totalHours;
   const totalHoursLabel = Number.isFinite(resolvedTotalHours ?? NaN)
     ? formatHoursValue(Number(resolvedTotalHours))
     : "-";

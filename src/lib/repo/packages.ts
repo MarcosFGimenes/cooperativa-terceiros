@@ -516,7 +516,7 @@ async function fetchPackageServices(packageId: string, limit: number): Promise<S
     return [];
   }
 
-  const safeLimit = normalisePackageServiceLimit(limit);
+  const safeLimit = limit === 0 ? 0 : normalisePackageServiceLimit(limit);
   let query: FirebaseFirestore.Query = collection.where("packageId", "==", packageId);
 
   if (safeLimit > 0) {
@@ -561,11 +561,11 @@ async function fetchPackageServices(packageId: string, limit: number): Promise<S
 
 export async function listPackageServices(
   packageId: string,
-  options?: { limit?: number },
+  options?: { limit?: number; loadAll?: boolean },
 ): Promise<Service[]> {
   const trimmedId = typeof packageId === "string" ? packageId.trim() : "";
   if (!trimmedId) return [];
-  const safeLimit = normalisePackageServiceLimit(options?.limit);
+  const safeLimit = options?.loadAll ? 0 : normalisePackageServiceLimit(options?.limit);
   return listPackageServicesCache(trimmedId, safeLimit);
 }
 
