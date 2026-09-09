@@ -5,6 +5,9 @@ export type PackageServiceExportRow = {
   description: string;
   progress: number;
   company: string;
+  startDate: string;
+  endDate: string;
+  totalHours: string;
   oc: string;
   dailyUpdates: Array<{
     date: string;
@@ -51,12 +54,18 @@ export function buildPackageServicesExcel(rows: PackageServiceExportRow[]): stri
     .join("");
   const body = rows
     .map((row) => {
+      const companyDetails = [
+        `Empresa: ${row.company || "-"}`,
+        `Data de início: ${row.startDate || "-"}`,
+        `Data de fim: ${row.endDate || "-"}`,
+        `Quantidade de horas: ${row.totalHours || "-"}`,
+      ].join("\n");
       const dailyCells = Array.from({ length: maximumDailyUpdates }, (_, index) => {
         const update = row.dailyUpdates[index];
         if (!update) return textCell("", "DailyUpdate");
         return textCell(`Data: ${update.date}\nDescrição: ${update.description}`, "DailyUpdate");
       }).join("");
-      return `<Row>${textCell(row.os)}${textCell(row.tag)}${textCell(row.equipment)}${textCell(row.description)}${progressCell(row.progress)}${textCell(row.company)}${textCell(row.oc)}${dailyCells}</Row>`;
+      return `<Row>${textCell(row.os)}${textCell(row.tag)}${textCell(row.equipment)}${textCell(row.description)}${progressCell(row.progress)}${textCell(companyDetails, "ServiceDetails")}${textCell(row.oc)}${dailyCells}</Row>`;
     })
     .join("");
   const dailyColumns = dailyHeaders.map(() => '<Column ss:Width="240"/>').join("");
@@ -69,11 +78,12 @@ export function buildPackageServicesExcel(rows: PackageServiceExportRow[]): stri
  <Styles>
   <Style ss:ID="Header"><Font ss:Bold="1"/><Interior ss:Color="#D9EAF7" ss:Pattern="Solid"/></Style>
   <Style ss:ID="Percent"><NumberFormat ss:Format="0.00%"/></Style>
+  <Style ss:ID="ServiceDetails"><Alignment ss:Vertical="Top" ss:WrapText="1"/></Style>
   <Style ss:ID="DailyUpdate"><Alignment ss:Vertical="Top" ss:WrapText="1"/></Style>
  </Styles>
  <Worksheet ss:Name="Andamento dos serviços">
   <Table>
-   <Column ss:Width="110"/><Column ss:Width="110"/><Column ss:Width="190"/><Column ss:Width="260"/><Column ss:Width="120"/><Column ss:Width="190"/><Column ss:Width="110"/>${dailyColumns}
+   <Column ss:Width="110"/><Column ss:Width="110"/><Column ss:Width="190"/><Column ss:Width="260"/><Column ss:Width="120"/><Column ss:Width="220"/><Column ss:Width="110"/>${dailyColumns}
    <Row>${header}</Row>${body}
   </Table>
  </Worksheet>
