@@ -92,6 +92,12 @@ describe("otimizações de leituras Firestore", () => {
     expect(backfill).toContain("FIRESTORE_SAFE_BATCH_WRITES");
   });
 
+  it("recarrega o histórico canônico mesmo quando existe um snapshot embutido", () => {
+    const page = readFileSync("src/app/(pcm)/pacotes/[id]/page.tsx", "utf8");
+    expect(page).toContain("for (let i = 0; i < services.length; i += chunkSize)");
+    expect(page).not.toContain("servicesMissingUpdates");
+  });
+
   it("usa tags de update específicas e não mantém invalidação global", () => {
     const source = readFileSync("src/lib/repo/services.ts", "utf8");
     expect(source).toContain("`service:${serviceId}:updates`");

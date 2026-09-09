@@ -593,16 +593,16 @@ async function renderPackageDetailPage(
     );
   }
 
-  const servicesMissingUpdates = services.filter(
-    (service) => !Array.isArray(service.updates) || service.updates.length === 0,
-  );
-
-  if (servicesMissingUpdates.length) {
+  // `service.updates` pode ser apenas um snapshot legado embutido no documento
+  // do serviço. Edições (inclusive da data operacional) são gravadas nas
+  // subcoleções, portanto sempre buscamos o histórico canônico antes de montar
+  // as curvas e o relatório Excel do pacote.
+  if (services.length) {
     const updatesById = new Map<string, Service["updates"]>();
     const chunkSize = 15;
 
-    for (let i = 0; i < servicesMissingUpdates.length; i += chunkSize) {
-      const slice = servicesMissingUpdates.slice(i, i + chunkSize);
+    for (let i = 0; i < services.length; i += chunkSize) {
+      const slice = services.slice(i, i + chunkSize);
       const results = await Promise.allSettled(
         slice.map(async (service) => ({
           id: service.id,
@@ -898,6 +898,16 @@ async function renderPackageDetailPage(
         service.assignedTo?.companyName ||
         service.assignedTo?.companyId ||
         "",
+      startDate: formatDisplayDate(snapshot.startDateMs, {
+        timeZone: "America/Sao_Paulo",
+        fallback: "-",
+      }),
+      endDate: formatDisplayDate(snapshot.endDateMs, {
+        timeZone: "America/Sao_Paulo",
+        fallback: "-",
+      }),
+      totalHours: formatHoursValue(resolveServiceHours(service)),
+      oc: service.oc || "",
       dailyUpdates: (service.updates ?? [])
         .slice()
         .sort((left, right) => {
