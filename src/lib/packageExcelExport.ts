@@ -5,6 +5,9 @@ export type PackageServiceExportRow = {
   description: string;
   progress: number;
   company: string;
+  startDate: string;
+  endDate: string;
+  totalHours: string;
   oc: string;
   dailyUpdates: Array<{
     date: string;
@@ -45,6 +48,9 @@ export function buildPackageServicesExcel(rows: PackageServiceExportRow[]): stri
     "Porcentagem Atual",
     "Empresa",
     "O.C",
+    "Data de Início",
+    "Data de Fim",
+    "Quantidade de Horas",
     ...dailyHeaders,
   ]
     .map((label) => textCell(label, "Header"))
@@ -56,7 +62,7 @@ export function buildPackageServicesExcel(rows: PackageServiceExportRow[]): stri
         if (!update) return textCell("", "DailyUpdate");
         return textCell(`Data: ${update.date}\nDescrição: ${update.description}`, "DailyUpdate");
       }).join("");
-      return `<Row>${textCell(row.os)}${textCell(row.tag)}${textCell(row.equipment)}${textCell(row.description)}${progressCell(row.progress)}${textCell(row.company)}${textCell(row.oc)}${dailyCells}</Row>`;
+      return `<Row>${textCell(row.os)}${textCell(row.tag)}${textCell(row.equipment)}${textCell(row.description)}${progressCell(row.progress)}${textCell(row.company)}${textCell(row.oc)}${textCell(row.startDate)}${textCell(row.endDate)}${textCell(row.totalHours)}${dailyCells}</Row>`;
     })
     .join("");
   const dailyColumns = dailyHeaders.map(() => '<Column ss:Width="240"/>').join("");
@@ -73,7 +79,7 @@ export function buildPackageServicesExcel(rows: PackageServiceExportRow[]): stri
  </Styles>
  <Worksheet ss:Name="Andamento dos serviços">
   <Table>
-   <Column ss:Width="110"/><Column ss:Width="110"/><Column ss:Width="190"/><Column ss:Width="260"/><Column ss:Width="120"/><Column ss:Width="190"/><Column ss:Width="110"/>${dailyColumns}
+   <Column ss:Width="110"/><Column ss:Width="110"/><Column ss:Width="190"/><Column ss:Width="260"/><Column ss:Width="120"/><Column ss:Width="190"/><Column ss:Width="110"/><Column ss:Width="110"/><Column ss:Width="110"/><Column ss:Width="130"/>${dailyColumns}
    <Row>${header}</Row>${body}
   </Table>
  </Worksheet>

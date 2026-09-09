@@ -898,6 +898,15 @@ async function renderPackageDetailPage(
         service.assignedTo?.companyName ||
         service.assignedTo?.companyId ||
         "",
+      startDate: formatDisplayDate(snapshot.startDateMs, {
+        timeZone: "America/Sao_Paulo",
+        fallback: "-",
+      }),
+      endDate: formatDisplayDate(snapshot.endDateMs, {
+        timeZone: "America/Sao_Paulo",
+        fallback: "-",
+      }),
+      totalHours: formatHoursValue(resolveServiceHours(service)),
       oc: service.oc || "",
       dailyUpdates: (service.updates ?? [])
         .slice()
