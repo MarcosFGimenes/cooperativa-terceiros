@@ -1,64 +1,13 @@
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-import type { ReactNode } from "react";
 import Link from "next/link";
 
 import { requireFolderAccess } from "@/lib/public-access";
-import type { Service } from "@/lib/types";
 import { AdminDbUnavailableError } from "@/lib/serverDb";
+import { toPublicSubpackageService } from "@/lib/subpackageServices";
 import { mapFirestoreError } from "@/lib/utils/firestoreErrors";
-
-function normaliseStatus(value?: string | null): string {
-  const raw = String(value ?? "").trim().toLowerCase();
-  if (raw.includes("conclu")) return "Concluído";
-  if (raw === "pendente") return "Pendente";
-  if (raw.includes("andamento")) return "Em andamento";
-  return "Aberto";
-}
-
-function deriveStatusLabel(status: Service["status"], progress: number): string {
-  const normalised = normaliseStatus(status);
-  if (normalised === "Pendente") return normalised;
-  if (progress >= 100) return "Concluído";
-  return normalised;
-}
-
-function resolveProgress(service: Service): number {
-  const candidates = [
-    service.realPercent,
-    service.progress,
-    service.andamento,
-    service.previousProgress,
-  ];
-  for (const value of candidates) {
-    if (typeof value === "number" && Number.isFinite(value)) {
-      return Math.min(100, Math.max(0, Math.round(value)));
-    }
-  }
-  return 0;
-}
-
-function serviceTitle(service: Service): string {
-  if (service.os) return `OS ${service.os}`;
-  if (service.tag) return service.tag;
-  if (service.code) return `Código ${service.code}`;
-  return `Serviço ${service.id}`;
-}
-
-function serviceSubtitle(service: Service): string | null {
-  if (service.equipmentName) return service.equipmentName;
-  return null;
-}
-
-function InfoItem({ label, value }: { label: string; value: ReactNode }) {
-  return (
-    <div className="space-y-1">
-      <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</dt>
-      <dd className="text-sm text-foreground">{value}</dd>
-    </div>
-  );
-}
+import SubpackageServicesClient from "./SubpackageServicesClient";
 
 function formatServiceIdList(ids: string[]): string {
   if (ids.length === 0) return "";
@@ -81,9 +30,7 @@ export default async function FolderPublicPage({
   try {
     const { folder, services, unavailableServices } = await requireFolderAccess(token, params.folderId);
 
-    const sortedServices = [...services].sort((a, b) =>
-      serviceTitle(a).localeCompare(serviceTitle(b), "pt-BR", { sensitivity: "base" }),
-    );
+    const publicServices = services.map(toPublicSubpackageService);
 
     const unavailableMessage = unavailableServices.length
       ? `Alguns serviços vinculados ao subpacote não estão disponíveis para exibição (${formatServiceIdList(
@@ -106,64 +53,14 @@ export default async function FolderPublicPage({
             {folder.company ? ` Empresa responsável: ${folder.company}.` : ""}
           </p>
           <p className="mt-2 text-xs text-muted-foreground">
-            {sortedServices.length} serviço{sortedServices.length === 1 ? "" : "s"} disponível{sortedServices.length === 1 ? "" : "s"}.
+            {publicServices.length} serviço{publicServices.length === 1 ? "" : "s"} disponível{publicServices.length === 1 ? "" : "s"}.
           </p>
           {unavailableMessage ? (
             <p className="mt-2 text-xs text-amber-600">{unavailableMessage}</p>
           ) : null}
         </div>
 
-        {sortedServices.length === 0 ? (
-          <div className="mt-6 card p-6 text-sm text-muted-foreground">
-            Nenhum serviço elegível foi encontrado para este subpacote.
-          </div>
-        ) : (
-          <div className="mt-6 space-y-6">
-            {sortedServices.map((service) => {
-              const progress = resolveProgress(service);
-              const statusLabel = deriveStatusLabel(service.status, progress);
-              const subtitle = serviceSubtitle(service);
-              return (
-                <article key={service.id} className="card border shadow-sm">
-                  <div className="flex flex-wrap items-start justify-between gap-4 border-b px-6 py-4">
-                    <div className="min-w-0 space-y-1">
-                      <h2 className="text-lg font-semibold text-foreground">{serviceTitle(service)}</h2>
-                      {subtitle ? <p className="text-sm text-muted-foreground">{subtitle}</p> : null}
-                    </div>
-                    <div className="flex flex-col items-end gap-2 text-sm font-semibold">
-                      <span
-                        className={`rounded-full px-3 py-1 ${
-                          statusLabel === "Concluído"
-                            ? "border border-emerald-200 bg-emerald-100 text-emerald-800 ring-1 ring-emerald-200/70 dark:border-emerald-700/70 dark:bg-emerald-900/40 dark:text-emerald-50 dark:ring-emerald-700/60"
-                            : "border border-primary/40 bg-primary/10 text-primary"
-                        }`}
-                      >
-                        {statusLabel}
-                      </span>
-                      <span className="text-muted-foreground">{progress}% concluído</span>
-                    </div>
-                  </div>
-
-                  <div className="px-6 py-4">
-                    <dl className="grid gap-4">
-                      <InfoItem label="Tag" value={service.tag?.trim() || "—"} />
-                      <InfoItem label="Descrição" value={service.description?.trim() || "—"} />
-                    </dl>
-                  </div>
-
-                  <div className="flex flex-wrap items-center justify-end gap-3 border-t bg-muted/40 px-6 py-4 text-sm">
-                    <Link
-                      href={`/s/${service.id}?token=${encodeURIComponent(token)}`}
-                      className="btn btn-primary"
-                    >
-                      PREENCHER RDO
-                    </Link>
-                  </div>
-                </article>
-              );
-            })}
-          </div>
-        )}
+        <SubpackageServicesClient folderId={params.folderId} token={token} initialServices={publicServices} />
       </div>
     );
   } catch (error) {
