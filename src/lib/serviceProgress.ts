@@ -481,8 +481,21 @@ function coletarAtualizacoesDoServico(
     }
   }
 
-  atualizacoes.sort((a, b) => a.data.getTime() - b.data.getTime());
-  return atualizacoes;
+  // Um serviço pode receber mais de um lançamento para a mesma data operacional.
+  // A curva consolidada do pacote deve representar o maior avanço informado no dia,
+  // independentemente da ordem em que esses lançamentos foram carregados.
+  const maiorAtualizacaoPorDia = new Map<number, AtualizacaoPercentual>();
+  for (const atualizacao of atualizacoes) {
+    const dia = atualizacao.data.getTime();
+    const atual = maiorAtualizacaoPorDia.get(dia);
+    if (!atual || atualizacao.percentual > atual.percentual) {
+      maiorAtualizacaoPorDia.set(dia, atualizacao);
+    }
+  }
+
+  return Array.from(maiorAtualizacaoPorDia.values()).sort(
+    (a, b) => a.data.getTime() - b.data.getTime(),
+  );
 }
 
 function normalizeDescricao(servico: ServicoPlanejado | ServicoDoSubpacote | null | undefined): string | undefined {

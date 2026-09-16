@@ -134,6 +134,29 @@ describe("serviceProgress utilities", () => {
     expect(series).toEqual([{ date: "2026-08-12", percent: 20 }]);
   });
 
+  it("keeps the highest realized percentage when there are multiple entries on the same day", () => {
+    const series = buildRealizedSeries({
+      planned: [{ date: "2026-08-12", percent: 100 }],
+      realizedPercent: 20,
+      updates: [
+        {
+          id: "higher-earlier-entry",
+          submittedAt: new Date("2026-08-12T09:00:00Z").getTime(),
+          date: new Date("2026-08-12T00:00:00Z").getTime(),
+          percent: 60,
+        },
+        {
+          id: "lower-later-entry",
+          submittedAt: new Date("2026-08-12T15:00:00Z").getTime(),
+          date: new Date("2026-08-12T00:00:00Z").getTime(),
+          percent: 20,
+        },
+      ] as any,
+    });
+
+    expect(series).toEqual([{ date: "2026-08-12", percent: 60 }]);
+  });
+
   it("selects snapshot before conclusion preferring values below 100", () => {
     expect(snapshotBeforeConclusion(67, null)).toBe(67);
     expect(snapshotBeforeConclusion(100, 80)).toBe(80);
@@ -723,6 +746,29 @@ describe("serviceProgress utilities", () => {
       const curva = calcularCurvaSRealizada(pacote);
       expect(obterPercentual(curva, "2025-12-28T00:00:00Z")).toBe(30);
       expect(obterPercentual(curva, "2025-12-31T00:00:00Z")).toBe(40);
+    });
+
+    it("usa o maior lançamento do dia na curva realizada do pacote", () => {
+      const pacote = {
+        subpacotes: [
+          {
+            servicos: [
+              {
+                horasPrevistas: 10,
+                dataInicio: "2025-12-27",
+                dataFim: "2025-12-31",
+                updates: [
+                  { percentual: 70, reportDate: "29/12/2025", createdAt: "2025-12-29T09:00:00Z" },
+                  { percentual: 35, reportDate: "29/12/2025", createdAt: "2025-12-29T15:00:00Z" },
+                ],
+              },
+            ],
+          },
+        ],
+      };
+
+      const curva = calcularCurvaSRealizada(pacote);
+      expect(obterPercentual(curva, "2025-12-29T00:00:00Z")).toBe(70);
     });
 
     it("aceita reportDateMillis como data efetiva das atualizações", () => {

@@ -691,8 +691,7 @@ export function buildRealizedSeries(params: {
     const percent = normaliseProgress(percentValue);
     if (!Number.isFinite(percent)) return;
     
-    // Em caso de múltiplos lançamentos no mesmo dia de `date`,
-    // usar submittedAt/createdAt apenas para desempatar qual é o último do dia.
+    // O timestamp mantém uma ordenação determinística entre lançamentos.
     const timestamp = resolveUpdateTimestamp(update) ?? reportDate;
     points.push({ date: day, percent, timestamp });
   });
@@ -701,13 +700,17 @@ export function buildRealizedSeries(params: {
     // Ordenar por timestamp para manter ordem cronológica
     points.sort((a, b) => a.timestamp - b.timestamp);
     
-    // Agrupar por dia, mas manter todos os pontos únicos
-    // Se houver múltiplos updates no mesmo dia, manter o mais recente (maior timestamp)
+    // Se houver múltiplos lançamentos no mesmo dia, manter o maior percentual.
+    // O momento do envio não pode fazer um lançamento menor sobrescrever o maior avanço diário.
     const dayMap = new Map<string, { percent: number; timestamp: number }>();
     
     points.forEach((point) => {
       const existing = dayMap.get(point.date);
-      if (!existing || point.timestamp >= existing.timestamp) {
+      if (
+        !existing ||
+        point.percent > existing.percent ||
+        (point.percent === existing.percent && point.timestamp >= existing.timestamp)
+      ) {
         dayMap.set(point.date, { percent: point.percent, timestamp: point.timestamp });
       }
     });
