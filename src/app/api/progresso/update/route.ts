@@ -6,6 +6,7 @@ import { AdminDbUnavailableError, getAdminDbOrThrow } from "@/lib/serverDb";
 import { mapFirestoreError } from "@/lib/utils/firestoreErrors";
 import { recomputeServiceProgress } from "@/lib/progressHistoryServer";
 import { revalidateTag } from "next/cache";
+import { resolveCurrentProgress } from "@/lib/progressValidation";
 
 type TokenScope =
   | { type: "service"; serviceId: string }
@@ -177,6 +178,22 @@ async function handleWithAdmin(
         return NextResponse.json({ ok: false, error: "forbidden_scope" }, { status: 403 });
       }
     }
+  }
+
+  const submittedPercent = Number(payload.totalPct);
+  if (!Number.isFinite(submittedPercent) || submittedPercent < 0 || submittedPercent > 100) {
+    return NextResponse.json({ ok: false, error: "invalid_percent" }, { status: 400 });
+  }
+  const currentPercent = resolveCurrentProgress(serviceData);
+  if (submittedPercent < currentPercent) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error: `O percentual não pode ser menor que o progresso atual de ${currentPercent}%.`,
+        currentPercent,
+      },
+      { status: 409 },
+    );
   }
 
   const forwarded = req.headers.get("x-forwarded-for");

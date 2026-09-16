@@ -403,6 +403,26 @@ async function addManualUpdate(
       throw new functions.https.HttpsError("not-found", "Serviço não encontrado");
     }
 
+    const serviceData = serviceSnap.data() || {};
+    const currentPercent = [
+      serviceData.realPercent,
+      serviceData.manualPercent,
+      serviceData.andamento,
+      serviceData.progress,
+      serviceData.percent,
+      serviceData.percentualRealAtual,
+      serviceData.realPercentSnapshot,
+    ].reduce((highest, value) => {
+      const parsed = Number(value);
+      return Number.isFinite(parsed) ? Math.max(highest, sanitisePercent(parsed)) : highest;
+    }, 0);
+    if (sanitized < currentPercent) {
+      throw new functions.https.HttpsError(
+        "invalid-argument",
+        `O percentual não pode ser menor que o progresso atual de ${currentPercent}%.`,
+      );
+    }
+
     const updateRef = updatesCol.doc();
     const payload: Record<string, unknown> = {
       manualPercent: sanitized,

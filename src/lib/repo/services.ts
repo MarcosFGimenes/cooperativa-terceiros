@@ -15,6 +15,10 @@ import { recomputeServiceProgress } from "@/lib/progressHistoryServer";
 import { chooseProgressUpdateStrategy, resolveStoredProgressWatermark } from "@/lib/progressUpdateStrategy";
 import { buildServiceSearchFields } from "@/lib/serviceSearch";
 import { buildServiceAssignmentFields } from "@/lib/serviceAssignment";
+import {
+  assertNonDecreasingProgress,
+  resolveCurrentProgress,
+} from "@/lib/progressValidation";
 
 const getDb = () => getAdmin().db;
 const servicesCollection = () => getDb().collection("services");
@@ -366,6 +370,10 @@ function sanitisePercent(value: number) {
   // Preservar o valor exato digitado, apenas garantir que está no range válido
   // Não usar Math.round para evitar alterar valores como 20 para 18
   return Math.min(100, Math.max(0, value));
+}
+
+function resolveCurrentServicePercent(data: Record<string, unknown>): number {
+  return resolveCurrentProgress(data);
 }
 
 type ServiceMapMode = "full" | "summary";
@@ -1449,6 +1457,7 @@ export async function updateChecklistProgress(
     progress: number;
     status?: ChecklistItem["status"];
   }>,
+  opts?: { preventDecrease?: boolean },
 ): Promise<number> {
   if (!updates.length) {
     return computeRealPercentFromChecklist(serviceId);
@@ -1568,6 +1577,11 @@ export async function updateChecklistProgress(
       : 0;
     // Preservar valor calculado exato do checklist, apenas garantir que está no range válido
     const realPercent = sanitisePercent(percent);
+
+    if (opts?.preventDecrease) {
+      const currentPercent = resolveCurrentServicePercent(serviceData);
+      assertNonDecreasingProgress(realPercent, currentPercent);
+    }
 
     // Se houve lançamento manual recente, não sobrescrever o valor digitado ao atualizar o checklist.
     // Regra: quando o último update manual foi no mesmo dia (UTC) da atualização do checklist,
@@ -1860,7 +1874,7 @@ function buildUpdatePayload(serviceId: string, params: ManualUpdateInput & { rea
 export async function addManualUpdate(
   serviceId: string,
   input: ManualUpdateInput,
-  opts?: { skipRecompute?: boolean },
+  opts?: { skipRecompute?: boolean; preventDecrease?: boolean },
 ): Promise<{ realPercent: number; update: ServiceUpdate }> {
   const percent = sanitisePercent(input.manualPercent);
   const description = input.description.trim();
@@ -1877,6 +1891,10 @@ export async function addManualUpdate(
     }
 
     const serviceData = (serviceSnap.data() ?? {}) as Record<string, unknown>;
+    if (opts?.preventDecrease) {
+      const currentPercent = resolveCurrentServicePercent(serviceData);
+      assertNonDecreasingProgress(percent, currentPercent);
+    }
     const previousWatermark = resolveStoredProgressWatermark(toMillis(serviceData.lastProgressUpdateAt));
     const strategy = chooseProgressUpdateStrategy(input.reportDate, previousWatermark);
     const eventMillis = Math.max(input.reportDate ?? Date.now(), previousWatermark ?? 0);

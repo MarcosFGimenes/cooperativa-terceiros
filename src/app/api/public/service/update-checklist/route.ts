@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 
 import { PublicAccessError, requireServiceAccess } from "@/lib/public-access";
 import { addComputedUpdate, updateChecklistProgress } from "@/lib/repo/services";
+import { ProgressDecreaseError } from "@/lib/progressValidation";
 import type { ChecklistItem } from "@/lib/types";
 import { mapFirestoreError } from "@/lib/utils/firestoreErrors";
 
@@ -47,11 +48,17 @@ export async function POST(req: Request) {
 
     const note = typeof body.note === "string" && body.note.trim() ? body.note.trim() : undefined;
 
-    const realPercent = await updateChecklistProgress(service.id, updates);
+    const realPercent = await updateChecklistProgress(service.id, updates, { preventDecrease: true });
     await addComputedUpdate(service.id, realPercent, note, token);
 
     return NextResponse.json({ ok: true, realPercent });
   } catch (err: unknown) {
+    if (err instanceof ProgressDecreaseError) {
+      return NextResponse.json(
+        { ok: false, error: err.message, currentPercent: err.currentPercent },
+        { status: 409 },
+      );
+    }
     if (err instanceof PublicAccessError) {
       return NextResponse.json({ ok: false, error: err.message }, { status: err.status });
     }
