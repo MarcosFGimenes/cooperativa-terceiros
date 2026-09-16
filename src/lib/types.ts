@@ -13,6 +13,8 @@ export type ServiceStatus = BaseServiceStatus;
 export type ChecklistItem = BaseChecklistItem & {
   serviceId?: string;
   updatedAt?: number;
+  lastUpdateDate?: number;
+  lastProgressUpdateAt?: number;
 };
 
 export type ServiceUpdate = BaseServiceUpdate & {

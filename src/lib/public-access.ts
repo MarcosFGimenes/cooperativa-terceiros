@@ -235,6 +235,8 @@ function mapServiceDoc(doc: FirebaseFirestore.DocumentSnapshot): Service {
     cnpj: typeof data.cnpj === "string" ? data.cnpj.trim() || null : undefined,
     createdAt: toMillis(data.createdAt),
     updatedAt: toMillis(data.updatedAt),
+    lastUpdateDate: toMillis(record.lastUpdateDate) ?? undefined,
+    lastProgressUpdateAt: toMillis(record.lastProgressUpdateAt) ?? undefined,
     hasChecklist: data.hasChecklist ?? false,
     realPercent: data.realPercent ?? data.progress ?? data.andamento ?? 0,
     previousProgress:

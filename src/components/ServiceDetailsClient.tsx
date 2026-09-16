@@ -671,6 +671,12 @@ export default function ServiceDetailsClient({
   const handleUpdateSubmit = useCallback(
     async (payload: ServiceUpdateFormPayload) => {
       const initialPercent = clampPercent(payload.percent);
+      const minimumPercent = clampPercent(canonicalProgress);
+      if (initialPercent < minimumPercent) {
+        const message = `O percentual não pode ser menor que o progresso atual de ${minimumPercent}%.`;
+        toast.error(message);
+        throw new Error(message);
+      }
       let percentToSend = initialPercent;
       try {
         const checklistPercent = await submitChecklistUpdates(payload.subactivities);
