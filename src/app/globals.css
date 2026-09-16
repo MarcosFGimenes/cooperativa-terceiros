@@ -242,6 +242,39 @@ input:-webkit-autofill:focus {
     color: #000000 !important;
   }
 
+  /* Impressão isolada acionada pelo botão do Resumo por Subpacote. */
+  body.print-subpackage-summary * {
+    visibility: hidden !important;
+  }
+
+  body.print-subpackage-summary #subpackage-summary-print,
+  body.print-subpackage-summary #subpackage-summary-print * {
+    visibility: visible !important;
+  }
+
+  body.print-subpackage-summary #subpackage-summary-print {
+    position: absolute !important;
+    inset: 0 auto auto 0 !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    zoom: var(--subpackage-print-scale, 1);
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  body.print-subpackage-summary #subpackage-summary-print table {
+    width: 100% !important;
+    margin: 0 !important;
+    font-size: 8pt !important;
+  }
+
+  body.print-subpackage-summary #subpackage-summary-print th,
+  body.print-subpackage-summary #subpackage-summary-print td {
+    padding: 1.5mm !important;
+    line-height: 1.15 !important;
+  }
+
   ul,
   ol {
     list-style: none !important;

@@ -36,6 +36,7 @@ import PackageExcelExportButton from "./PackageExcelExportButton";
 import PackageImportServicesButton from "./PackageImportServicesButton";
 import PackageSCurveSection from "./_components/package-scurve/PackageSCurveSection";
 import PackageReferenceDateSelector from "./PackageReferenceDateSelector.client";
+import SubpackageSummaryPdfButton from "./SubpackageSummaryPdfButton";
 
 const { notFound } = Navigation;
 
@@ -1044,8 +1045,14 @@ async function renderPackageDetailPage(
       </div>
 
       <section className="summary-blocks print-summary-blocks mt-8 rounded-2xl border bg-card/80 p-5 shadow-sm space-y-8 print:mt-4 print:space-y-4 print-no-border print:w-full print:rounded-none print:border-0 print:bg-white print:shadow-none print:p-2 print-no-radius print-full-width">
-        <div className="summary-block-item space-y-3 print-keep-with-next print:space-y-2">
-          <h2 className="text-lg font-semibold print:text-base print:mb-1">Resumo por Subpacote</h2>
+        <div
+          id="subpackage-summary-print"
+          className="summary-block-item space-y-3 print-keep-with-next print:space-y-2"
+        >
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 className="text-lg font-semibold print:text-base print:mb-1">Resumo por Subpacote</h2>
+            <SubpackageSummaryPdfButton />
+          </div>
           {subpackageMetrics.length ? (
             <div className="summary-table-wrapper overflow-x-auto rounded-xl border bg-card print:overflow-visible print:border-0 print:bg-white print:rounded-none print-full-width">
               <table className="summary-table mt-2 min-w-full border-collapse text-center print-plain-table print:mt-0">
