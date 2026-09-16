@@ -10,8 +10,6 @@ import {
   type PublicSubpackageService,
 } from "@/lib/subpackageServices";
 
-const REFRESH_INTERVAL_MS = 5_000;
-
 const STAGE_PRESENTATION: Record<LastUpdateStage, { label: string; className: string }> = {
   today: {
     label: "Hoje",
@@ -83,15 +81,16 @@ export default function SubpackageServicesClient({
 
   useEffect(() => {
     void refreshServices();
-    const interval = window.setInterval(() => void refreshServices(), REFRESH_INTERVAL_MS);
     const refreshWhenVisible = () => {
       if (document.visibilityState === "visible") void refreshServices();
     };
+    const refreshWhenReturning = () => void refreshServices();
     window.addEventListener("focus", refreshWhenVisible);
+    window.addEventListener("pageshow", refreshWhenReturning);
     document.addEventListener("visibilitychange", refreshWhenVisible);
     return () => {
-      window.clearInterval(interval);
       window.removeEventListener("focus", refreshWhenVisible);
+      window.removeEventListener("pageshow", refreshWhenReturning);
       document.removeEventListener("visibilitychange", refreshWhenVisible);
     };
   }, [refreshServices]);
@@ -134,7 +133,7 @@ export default function SubpackageServicesClient({
       <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-card/60 px-4 py-3 text-xs text-muted-foreground">
         <span>{pendingCount} pendente{pendingCount === 1 ? "" : "s"} no topo · concluídos ao final</span>
         <span className={refreshWarning ? "font-medium text-amber-700" : "text-emerald-700"}>
-          {refreshWarning ? "Reconectando atualização automática…" : "● Atualização automática ativa"}
+          {refreshWarning ? "Não foi possível atualizar os dados" : "● Dados atualizados ao abrir ou retornar"}
         </span>
       </div>
 
