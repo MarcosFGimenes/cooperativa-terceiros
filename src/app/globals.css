@@ -221,6 +221,10 @@ input:-webkit-autofill:focus {
   box-shadow: 0 0 0px 1000px hsl(var(--background)) inset;
 }
 
+.subpackage-print-portal {
+  display: none;
+}
+
 @media print {
   :root {
     --border: 0 0% 0%;
@@ -242,19 +246,20 @@ input:-webkit-autofill:focus {
     color: #000000 !important;
   }
 
-  /* Impressão isolada acionada pelo botão do Resumo por Subpacote. */
-  body.print-subpackage-summary * {
-    visibility: hidden !important;
+  /*
+   * Impressão isolada acionada pelo botão do Resumo por Subpacote.
+   * O portal é filho direto do body; remover os demais filhos do fluxo evita
+   * páginas em branco causadas pelo tamanho total da aplicação.
+   */
+  body.print-subpackage-summary > *:not(.subpackage-print-portal) {
+    display: none !important;
   }
 
-  body.print-subpackage-summary #subpackage-summary-print,
-  body.print-subpackage-summary #subpackage-summary-print * {
-    visibility: visible !important;
+  body.print-subpackage-summary > .subpackage-print-portal {
+    display: block !important;
   }
 
-  body.print-subpackage-summary #subpackage-summary-print {
-    position: absolute !important;
-    inset: 0 auto auto 0 !important;
+  body.print-subpackage-summary .subpackage-print-portal {
     width: 100% !important;
     margin: 0 !important;
     padding: 0 !important;
@@ -263,14 +268,14 @@ input:-webkit-autofill:focus {
     page-break-inside: avoid !important;
   }
 
-  body.print-subpackage-summary #subpackage-summary-print table {
+  body.print-subpackage-summary .subpackage-print-portal table {
     width: 100% !important;
     margin: 0 !important;
     font-size: 8pt !important;
   }
 
-  body.print-subpackage-summary #subpackage-summary-print th,
-  body.print-subpackage-summary #subpackage-summary-print td {
+  body.print-subpackage-summary .subpackage-print-portal th,
+  body.print-subpackage-summary .subpackage-print-portal td {
     padding: 1.5mm !important;
     line-height: 1.15 !important;
   }
