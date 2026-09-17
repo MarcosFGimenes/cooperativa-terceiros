@@ -102,6 +102,7 @@ function normaliseEvent(
   const items = includeItems ? normaliseItems(data.items) : [];
   return {
     timestamp: Number(timestamp),
+    revisionTimestamp: toMillis(data.updatedAt) ?? toMillis(data.createdAt) ?? fallbackTimestamp,
     percent,
     items: items.length ? items : undefined,
     explicitDate: Number.isFinite(explicitTimestamp ?? NaN),

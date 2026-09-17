@@ -2,6 +2,8 @@ export type ChecklistWeightInput = Array<{ id?: string | null; itemId?: string |
 
 export type ProgressEvent = {
   timestamp: number;
+  /** Momento da última edição, usado para desempatar lançamentos do mesmo instante operacional. */
+  revisionTimestamp?: number | null;
   percent?: number | null;
   items?: Array<{ id: string; pct: number }>;
   explicitDate?: boolean;
@@ -73,7 +75,15 @@ export function computeProgressFromEvents(
   const totalWeight = options?.totalWeight ?? 0;
   const sorted = events
     .filter((event) => Number.isFinite(event.timestamp))
-    .sort((a, b) => a.timestamp - b.timestamp);
+    .sort((a, b) => {
+      const chronological = a.timestamp - b.timestamp;
+      if (chronological !== 0) return chronological;
+
+      // Um RDO pode existir nas coleções atual e legada com a mesma data. Ao
+      // editar uma dessas cópias, a revisão mais nova precisa prevalecer; caso
+      // contrário, o espelho antigo de 100% volta a sobrescrever os 95%.
+      return (a.revisionTimestamp ?? a.timestamp) - (b.revisionTimestamp ?? b.timestamp);
+    });
 
   const latestPerItem = new Map<string, number>();
   const byDay = new Map<string, number>();

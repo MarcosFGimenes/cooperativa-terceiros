@@ -62,7 +62,9 @@ function toDateTimeLocalInput(value: Date | null): string {
   if (!value) return "";
   const timezoneOffset = value.getTimezoneOffset();
   const localDate = new Date(value.getTime() - timezoneOffset * 60 * 1000);
-  return localDate.toISOString().slice(0, 16);
+  // Preserve os segundos. Truncá-los ao abrir o editor podia deslocar o último
+  // RDO para antes de outro lançamento do mesmo minuto durante o recálculo.
+  return localDate.toISOString().slice(0, 19);
 }
 
 function parseDateTimeLocal(value: string): Date | null {
@@ -1057,6 +1059,7 @@ export default function ServiceEditorClient({ serviceId }: ServiceEditorClientPr
                         </label>
                         <input
                           type="datetime-local"
+                          step={1}
                           value={editDateValue}
                           onChange={(event) => setEditDateValue(event.target.value)}
                           className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm shadow-sm focus-visible:ring-2 focus-visible:ring-primary/40"
