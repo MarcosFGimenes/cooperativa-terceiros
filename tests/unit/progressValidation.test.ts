@@ -29,4 +29,16 @@ describe("progress validation", () => {
       }),
     ).toBe(95);
   });
+
+  it("usa o percentual de reabertura quando o serviço pendente ainda possui campos em 100%", () => {
+    expect(
+      resolveCurrentProgress({
+        status: "Concluído",
+        displayStatus: "Pendente",
+        previousProgress: 95,
+        realPercent: 100,
+        progress: 100,
+      }),
+    ).toBe(95);
+  });
 });

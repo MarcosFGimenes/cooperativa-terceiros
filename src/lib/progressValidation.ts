@@ -29,6 +29,15 @@ export class ProgressDecreaseError extends Error {
 }
 
 export function resolveCurrentProgress(data: Record<string, unknown>): number {
+  const status = String(data.displayStatus ?? data.status ?? "").trim().toLowerCase();
+  if (status === "pendente") {
+    const reopenedFields = ["previousProgress", "progressBeforeConclusion", "previousPercent"] as const;
+    for (const field of reopenedFields) {
+      const value = toFiniteNumber(data[field]);
+      if (value !== null && clampPercent(value) < 100) return clampPercent(value);
+    }
+  }
+
   // Os documentos legados podem conter campos antigos ainda em 100% depois de
   // uma correção para 95%. Use a mesma precedência das telas em vez do maior
   // número, que transformava esse resíduo em um bloqueio permanente de RDOs.
