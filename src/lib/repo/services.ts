@@ -514,8 +514,18 @@ function mapServiceData(
       ? (data.updates as Record<string, unknown>[]).map((item) => mapUpdateData(item))
       : undefined;
 
+  // Campos legados podem ficar com um valor antigo quando a edição atualiza
+  // somente `andamento` ou os campos de percentual mais recentes. Portanto,
+  // não deixe `progress` (frequentemente legado) esconder o valor efetivo.
   const progress = toNumber(
-    data.progress ?? data.realPercent ?? data.andamento ?? data.percentual ?? data.percent,
+    data.andamento ??
+      data.percentualRealAtual ??
+      data.realPercentSnapshot ??
+      data.manualPercent ??
+      data.realPercent ??
+      data.progress ??
+      data.percentual ??
+      data.percent,
   );
   const updatedAt =
     toNumber(
@@ -545,7 +555,7 @@ function mapServiceData(
             return Number.isFinite(numeric) ? numeric : 0;
           })
         : undefined,
-    status: normaliseServiceStatus(data.status),
+    status: normaliseServiceStatus(data.displayStatus ?? data.status),
     code: data.code ? String(data.code) : data.codigo ? String(data.codigo) : undefined,
     assignedTo,
     progress: progress ?? undefined,
@@ -561,6 +571,12 @@ function mapServiceData(
     cnpj: data.cnpj ? String(data.cnpj) : undefined,
     andamento: progress ?? undefined,
     realPercent: progress ?? undefined,
+    realPercentSnapshot: toNumber(data.realPercentSnapshot),
+    percentualRealAtual: toNumber(data.percentualRealAtual),
+    manualPercent: toNumber(data.manualPercent),
+    displayStatus: normaliseServiceStatus(data.displayStatus ?? data.status),
+    lastUpdateDate: toNumber(data.lastUpdateDate),
+    lastProgressUpdateAt: toNumber(data.lastProgressUpdateAt),
     previousProgress:
       toNumber(data.previousProgress ?? data.progressBeforeConclusion ?? data.previousPercent) ?? null,
     importKey: data.importKey ? String(data.importKey) : undefined,

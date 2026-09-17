@@ -102,6 +102,7 @@ function normaliseEvent(
   const items = includeItems ? normaliseItems(data.items) : [];
   return {
     timestamp: Number(timestamp),
+    revisionTimestamp: toMillis(data.updatedAt) ?? toMillis(data.createdAt) ?? fallbackTimestamp,
     percent,
     items: items.length ? items : undefined,
     explicitDate: Number.isFinite(explicitTimestamp ?? NaN),
@@ -168,25 +169,14 @@ export async function loadProgressHistory(
 
 export async function recomputeServiceProgress(serviceId: string) {
   const adminDb = getAdminDbOrThrow();
-  const { events, lastManualUpdate, weights, totalWeight, serviceData } = await loadProgressHistory(adminDb, serviceId);
+  const { events, weights, totalWeight, serviceData } = await loadProgressHistory(adminDb, serviceId);
 
   const computed = computeProgressFromEvents(events, { weights, totalWeight });
   const lastTimestamp = computed.lastTimestamp;
-
-  // Priorizar o lançamento manual mais recente quando ele for o último evento manual registrado.
-  // Isso evita que o checklist "rebaixe" um valor digitado pelo terceiro.
-  const manualPercentValue =
-    lastManualUpdate && typeof lastManualUpdate.percent === "number" && Number.isFinite(lastManualUpdate.percent)
-      ? clampPercent(lastManualUpdate.percent)
-      : null;
-  const manualTimestamp =
-    lastManualUpdate && typeof lastManualUpdate.timestamp === "number" && Number.isFinite(lastManualUpdate.timestamp)
-      ? lastManualUpdate.timestamp
-      : null;
-
-  const shouldUseManual = manualPercentValue !== null && (lastTimestamp === null || (manualTimestamp ?? -1) >= lastTimestamp);
-
-  const currentPercent = shouldUseManual ? manualPercentValue : computed.currentPercent;
+  // `computed` já combina, em ordem cronológica, lançamentos manuais e
+  // legados. Reaplicar `lastManualUpdate` aqui podia restaurar um espelho antigo
+  // de 100% depois que o lançamento mais recente era corrigido para 95%.
+  const currentPercent = computed.currentPercent;
   const previousProgress = [
     serviceData.previousProgress,
     serviceData.progressBeforeConclusion,
@@ -224,12 +214,18 @@ export async function recomputeServiceProgress(serviceId: string) {
     updatedAt: lastTimestamp ? Timestamp.fromMillis(lastTimestamp) : FieldValue.serverTimestamp(),
     lastUpdateDate: lastTimestamp ? Timestamp.fromMillis(lastTimestamp) : FieldValue.serverTimestamp(),
     lastProgressUpdateAt: lastTimestamp ? Timestamp.fromMillis(lastTimestamp) : FieldValue.serverTimestamp(),
+    // O valor manual antigo não pode continuar como um segundo watermark de
+    // progresso; o percentual consolidado acima já foi gravado nos campos
+    // canônicos e o próximo RDO deve validá-lo, não um 100% obsoleto.
+    manualPercent: FieldValue.delete(),
   };
 
-  if (shouldUseManual) {
-    payload.manualPercent = currentPercent;
-  } else {
-    payload.manualPercent = FieldValue.delete();
+  const storedStatus = String(serviceData.status ?? "").trim().toLowerCase();
+  if (currentPercent < 100 && (storedStatus === "concluído" || storedStatus === "concluido" || storedStatus === "encerrado")) {
+    // Ao corrigir o último lançamento para menos de 100%, o serviço deve
+    // voltar a aceitar RDOs; manter o status concluído deixaria a tela bloqueada.
+    payload.status = "Pendente";
+    payload.displayStatus = "Pendente";
   }
 
   await adminDb.collection("services").doc(serviceId).update(payload);

@@ -104,7 +104,14 @@ export function mapThirdService(id: string, data: Record<string, unknown>): Thir
         data.horas,
     ) ?? null;
   const realPercent =
-    toFiniteNumber(data.realPercent ?? data.real_percent ?? data.andamento ?? data.progress) ?? null;
+    toFiniteNumber(
+      data.andamento ??
+        data.percentualRealAtual ??
+        data.realPercentSnapshot ??
+        data.realPercent ??
+        data.real_percent ??
+        data.progress,
+    ) ?? null;
   const manualPercent = toFiniteNumber(data.manualPercent ?? data.manual_percent) ?? null;
   const andamento = toFiniteNumber(data.andamento ?? data.progress) ?? null;
 
