@@ -700,6 +700,19 @@ export default function ServiceEditorClient({ serviceId }: ServiceEditorClientPr
         typeof payload.previousProgress === "number" ? payload.previousProgress : previousProgress,
       );
 
+      // Mantenha todos os campos consumidos pelas telas públicas sincronizados.
+      // Documentos antigos podem conter `progress`/`realPercent` e, se apenas
+      // `andamento` mudar, a listagem do subpacote acaba exibindo o valor antigo.
+      if (nextProgress !== null) {
+        payload.progress = nextProgress;
+        payload.realPercent = nextProgress;
+        payload.realPercentSnapshot = nextProgress;
+        payload.percent = nextProgress;
+        payload.percentualRealAtual = nextProgress;
+        payload.lastProgressUpdateAt = serverTimestamp();
+        payload.lastUpdateDate = serverTimestamp();
+      }
+
       await updateDoc(ref, payload);
       await invalidateServiceDashboardCache();
       setForm((prev) => ({ ...prev, status }));

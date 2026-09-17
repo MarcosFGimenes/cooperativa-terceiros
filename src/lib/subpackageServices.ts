@@ -28,7 +28,15 @@ function toMillis(value: unknown): number | null {
 }
 
 function resolveProgress(service: Service): number {
-  const candidates = [service.realPercent, service.progress, service.andamento, service.previousProgress];
+  const candidates = [
+    service.andamento,
+    service.percentualRealAtual,
+    service.realPercentSnapshot,
+    service.manualPercent,
+    service.realPercent,
+    service.progress,
+    service.previousProgress,
+  ];
   for (const value of candidates) {
     if (typeof value === "number" && Number.isFinite(value)) {
       return Math.min(100, Math.max(0, Math.round(value)));
@@ -54,21 +62,17 @@ function statusLabel(status: Service["status"], progress: number): string {
 
 export function toPublicSubpackageService(service: Service): PublicSubpackageService {
   const progress = resolveProgress(service);
-  const record = service as Service & {
-    lastProgressUpdateAt?: unknown;
-    lastUpdateDate?: unknown;
-  };
   return {
     id: service.id,
     title: serviceTitle(service),
     subtitle: service.equipmentName?.trim() || null,
     tag: service.tag?.trim() || null,
     description: service.description?.trim() || null,
-    status: statusLabel(service.status, progress),
+    status: statusLabel(service.displayStatus ?? service.status, progress),
     progress,
     lastUpdateAt:
-      toMillis(record.lastProgressUpdateAt) ??
-      toMillis(record.lastUpdateDate) ??
+      toMillis(service.lastProgressUpdateAt) ??
+      toMillis(service.lastUpdateDate) ??
       toMillis(service.updatedAt),
   };
 }
