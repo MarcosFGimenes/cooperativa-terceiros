@@ -19,14 +19,26 @@ describe("progress validation", () => {
     );
   });
 
-  it("usa o maior percentual persistido como limite mínimo", () => {
+  it("prioriza o percentual canônico e ignora campos legados obsoletos", () => {
     expect(
       resolveCurrentProgress({
-        realPercent: 35,
-        manualPercent: "42,5",
-        andamento: 40,
-        progress: 41,
+        realPercent: 100,
+        manualPercent: 100,
+        andamento: 95,
+        progress: 100,
       }),
-    ).toBe(42.5);
+    ).toBe(95);
+  });
+
+  it("usa o percentual de reabertura quando o serviço pendente ainda possui campos em 100%", () => {
+    expect(
+      resolveCurrentProgress({
+        status: "Concluído",
+        displayStatus: "Pendente",
+        previousProgress: 95,
+        realPercent: 100,
+        progress: 100,
+      }),
+    ).toBe(95);
   });
 });

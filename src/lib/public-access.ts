@@ -73,6 +73,7 @@ function toNumber(value: unknown): number | undefined {
 }
 
 function resolveProgressFromDoc(data: FirebaseFirestore.DocumentData): number {
+  const record = data as Record<string, unknown>;
   const statusRaw = typeof data.status === "string" ? data.status.trim().toLowerCase() : "";
   const previousProgress = [
     (data as Record<string, unknown>).previousProgress,
@@ -89,7 +90,15 @@ function resolveProgressFromDoc(data: FirebaseFirestore.DocumentData): number {
     }
   }
 
-  const progressCandidates = [data.realPercent, data.progress, data.andamento, previousProgress];
+  const progressCandidates = [
+    data.andamento,
+    record.percentualRealAtual,
+    record.realPercentSnapshot,
+    data.realPercent,
+    data.progress,
+    record.percent,
+    previousProgress,
+  ];
 
   for (const candidate of progressCandidates) {
     const numeric = toNumber(candidate);
@@ -217,6 +226,9 @@ function mapServiceDoc(doc: FirebaseFirestore.DocumentSnapshot): Service {
     record.endDate ??
     "";
 
+  const resolvedProgress = resolveProgressFromDoc(data);
+  const resolvedStatus = (record.displayStatus ?? data.status ?? "aberto") as ServiceStatus;
+
   return {
     id: doc.id,
     os: data.os ?? "",
@@ -229,7 +241,8 @@ function mapServiceDoc(doc: FirebaseFirestore.DocumentSnapshot): Service {
     plannedEnd,
     totalHours: totalHoursCandidate,
     description,
-    status: (data.status ?? "aberto") as ServiceStatus,
+    status: resolvedStatus,
+    displayStatus: resolvedStatus,
     company: normalizeCompany(data),
     empresa: typeof record.empresa === "string" ? record.empresa : typeof record.empresaId === "string" ? record.empresaId : undefined,
     cnpj: typeof data.cnpj === "string" ? data.cnpj.trim() || null : undefined,
@@ -238,7 +251,12 @@ function mapServiceDoc(doc: FirebaseFirestore.DocumentSnapshot): Service {
     lastUpdateDate: toMillis(record.lastUpdateDate) ?? undefined,
     lastProgressUpdateAt: toMillis(record.lastProgressUpdateAt) ?? undefined,
     hasChecklist: data.hasChecklist ?? false,
-    realPercent: data.realPercent ?? data.progress ?? data.andamento ?? 0,
+    progress: resolvedProgress,
+    andamento: resolvedProgress,
+    realPercent: resolvedProgress,
+    realPercentSnapshot: toNumber(record.realPercentSnapshot),
+    percentualRealAtual: toNumber(record.percentualRealAtual),
+    manualPercent: toNumber(record.manualPercent),
     previousProgress:
       toNumber(record.previousProgress ?? record.progressBeforeConclusion ?? record.previousPercent) ?? null,
     packageId: data.packageId ?? record.pacoteId ?? undefined,

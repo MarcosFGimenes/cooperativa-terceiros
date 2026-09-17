@@ -404,18 +404,24 @@ async function addManualUpdate(
     }
 
     const serviceData = serviceSnap.data() || {};
-    const currentPercent = [
-      serviceData.realPercent,
-      serviceData.manualPercent,
-      serviceData.andamento,
-      serviceData.progress,
-      serviceData.percent,
-      serviceData.percentualRealAtual,
-      serviceData.realPercentSnapshot,
-    ].reduce((highest, value) => {
-      const parsed = Number(value);
-      return Number.isFinite(parsed) ? Math.max(highest, sanitisePercent(parsed)) : highest;
-    }, 0);
+    const status = String(serviceData.displayStatus ?? serviceData.status ?? "").trim().toLowerCase();
+    const reopenedProgress = status === "pendente"
+      ? [serviceData.previousProgress, serviceData.progressBeforeConclusion, serviceData.previousPercent]
+        .map((value) => Number(value))
+        .find((value) => Number.isFinite(value) && sanitisePercent(value) < 100)
+      : undefined;
+    const currentPercentRaw = reopenedProgress !== undefined
+      ? sanitisePercent(reopenedProgress)
+      : [
+        serviceData.andamento,
+        serviceData.percentualRealAtual,
+        serviceData.realPercentSnapshot,
+        serviceData.manualPercent,
+        serviceData.realPercent,
+        serviceData.progress,
+        serviceData.percent,
+      ].map((value) => Number(value)).find(Number.isFinite) ?? 0;
+    const currentPercent = sanitisePercent(currentPercentRaw);
     if (sanitized < currentPercent) {
       throw new functions.https.HttpsError(
         "invalid-argument",

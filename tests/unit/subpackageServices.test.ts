@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   resolveLastUpdateStage,
   sortPublicSubpackageServices,
+  toPublicSubpackageService,
   type PublicSubpackageService,
 } from "@/lib/subpackageServices";
 
@@ -16,6 +17,29 @@ function service(
 }
 
 describe("subpackage services", () => {
+  it("prioriza o percentual e o status mais recentes do serviço", () => {
+    const result = toPublicSubpackageService({
+      id: "service-1",
+      os: "123",
+      plannedStart: "2026-09-01",
+      plannedEnd: "2026-09-30",
+      totalHours: 10,
+      createdAt: 1,
+      status: "Aberto",
+      displayStatus: "Pendente",
+      progress: 10,
+      andamento: 45,
+      realPercent: 20,
+      percentualRealAtual: 35,
+      lastProgressUpdateAt: 123456,
+      updatedAt: 100,
+    });
+
+    expect(result.progress).toBe(45);
+    expect(result.status).toBe("Pendente");
+    expect(result.lastUpdateAt).toBe(123456);
+  });
+
   it("lista serviços não concluídos antes dos concluídos", () => {
     const result = sortPublicSubpackageServices([
       service("done-a", "OS A", 100),

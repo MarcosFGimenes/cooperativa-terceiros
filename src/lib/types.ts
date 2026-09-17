@@ -46,9 +46,15 @@ export type Service = BaseService & {
   company?: string | null;
   cnpj?: string | null;
   realPercent?: number;
+  realPercentSnapshot?: number;
+  percentualRealAtual?: number;
+  manualPercent?: number;
+  displayStatus?: ServiceStatus;
   hasChecklist?: boolean;
   packageId?: string;
   updatedAt?: number;
+  lastUpdateDate?: number;
+  lastProgressUpdateAt?: number;
   previousProgress?: number | null;
   hasLegacyServiceUpdates?: boolean;
 };

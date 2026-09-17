@@ -89,4 +89,36 @@ describe("public access", () => {
       message: "Token não possui acesso a este serviço",
     });
   });
+
+  it("expõe percentual e status canônicos apesar de resíduos legados em 100%", async () => {
+    dbState.accessTokens.set("folder-token", {
+      active: true,
+      targetType: "folder",
+      targetId: "folder-1",
+      folderId: "folder-1",
+    });
+    dbState.packageFolders.set("folder-1", { services: ["service-1"] });
+    dbState.services.set("service-1", {
+      os: "2130834",
+      plannedStart: "2026-08-10",
+      plannedEnd: "2026-08-12",
+      totalHours: 10,
+      status: "Concluído",
+      displayStatus: "Pendente",
+      andamento: 95,
+      realPercent: 100,
+      progress: 100,
+      manualPercent: 100,
+    });
+
+    await expect(requireServiceAccess("folder-token", "service-1")).resolves.toMatchObject({
+      service: {
+        status: "Pendente",
+        displayStatus: "Pendente",
+        andamento: 95,
+        realPercent: 95,
+        progress: 95,
+      },
+    });
+  });
 });
