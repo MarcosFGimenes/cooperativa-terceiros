@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { filterUpdatesWithRelevantContent } from "@/app/(pcm)/servicos/[id]/shared";
+import { formatCanonicalProgressLabel } from "@/lib/serviceUpdates";
 import type { ServiceUpdate } from "@/lib/types";
 
 const baseUpdate: ServiceUpdate = {
@@ -40,3 +41,15 @@ describe("filterUpdatesWithRelevantContent", () => {
   });
 });
 
+describe("formatCanonicalProgressLabel", () => {
+  it("exibe o progresso consolidado em vez do snapshot do lançamento", () => {
+    expect(formatCanonicalProgressLabel(35)).toBe("35%");
+    expect(formatCanonicalProgressLabel(35.6)).toBe("36%");
+  });
+
+  it("limita valores inválidos ou fora da faixa", () => {
+    expect(formatCanonicalProgressLabel(Number.NaN)).toBe("0%");
+    expect(formatCanonicalProgressLabel(-10)).toBe("0%");
+    expect(formatCanonicalProgressLabel(120)).toBe("100%");
+  });
+});
