@@ -1732,6 +1732,11 @@ function buildServiceProgressPatch(percent: number, opts?: { manualPercent?: num
     realPercentSnapshot: progressValue,
     updatedAt: timestamp,
     lastUpdateDate: timestamp,
+    // Estes campos são apenas o snapshot usado ao reabrir uma conclusão. Assim
+    // que há um novo progresso válido, não podem continuar sobrepondo o RDO.
+    previousProgress: FieldValue.delete(),
+    progressBeforeConclusion: FieldValue.delete(),
+    previousPercent: FieldValue.delete(),
   };
 
   if (opts?.manualPercent === null) {

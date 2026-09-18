@@ -21,6 +21,7 @@ export async function POST(req: Request) {
     const body = (await req.json().catch(() => ({}))) as {
       updates?: Array<{ id?: unknown; progress?: unknown; status?: unknown }>;
       note?: unknown;
+      recordUpdate?: unknown;
     };
 
     if (!Array.isArray(body.updates)) {
@@ -49,7 +50,12 @@ export async function POST(req: Request) {
     const note = typeof body.note === "string" && body.note.trim() ? body.note.trim() : undefined;
 
     const realPercent = await updateChecklistProgress(service.id, updates, { preventDecrease: true });
-    await addComputedUpdate(service.id, realPercent, note, token);
+    // A tela de RDO atualiza o checklist e, em seguida, grava o lançamento
+    // completo pela rota update-manual. Nesse fluxo não devemos criar antes um
+    // segundo documento mínimo na coleção `updates`.
+    if (body.recordUpdate !== false) {
+      await addComputedUpdate(service.id, realPercent, note, token);
+    }
 
     return NextResponse.json({ ok: true, realPercent });
   } catch (err: unknown) {

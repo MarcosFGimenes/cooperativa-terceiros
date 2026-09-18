@@ -106,6 +106,7 @@ describe("public access", () => {
       status: "Concluído",
       displayStatus: "Pendente",
       andamento: 95,
+      previousProgress: 80,
       realPercent: 100,
       progress: 100,
       manualPercent: 100,

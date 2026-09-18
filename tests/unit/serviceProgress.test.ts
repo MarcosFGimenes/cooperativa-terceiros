@@ -228,6 +228,21 @@ describe("serviceProgress utilities", () => {
 
       expect(percent).toBe(37);
     });
+
+    it("ignores the reopening snapshot after a new progress entry", () => {
+      const percent = resolveServicoRealPercent({
+        status: "pendente",
+        previousProgress: 95,
+        progress: 60,
+        realPercentSnapshot: 60,
+        updates: [
+          { percentual: 95, data: "2026-09-16" },
+          { percentual: 60, data: "2026-09-18" },
+        ],
+      });
+
+      expect(percent).toBe(60);
+    });
   });
 
   describe("resolveServicoPercentualPlanejado", () => {

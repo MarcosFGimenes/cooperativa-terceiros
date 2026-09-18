@@ -927,7 +927,24 @@ export function resolveServicoRealPercent(
     .map((value) => parsePercentual(value))
     .find((value): value is number => value !== null);
 
-  if (rawStatus === "pendente" && previousProgress !== null) {
+  // O snapshot de reabertura só é necessário enquanto os campos canônicos
+  // ainda carregam os 100% da conclusão. Depois de um novo RDO, `progress` já
+  // representa o valor atual e um previousProgress antigo não pode prevalecer.
+  const canonicalStoredProgress = [
+    source.progress,
+    source.realPercent,
+    source.realPercentSnapshot,
+    source.percentualRealAtual,
+    source.andamento,
+  ]
+    .map((value) => parsePercentual(value))
+    .find((value): value is number => value !== null);
+
+  if (
+    rawStatus === "pendente" &&
+    previousProgress !== null &&
+    (canonicalStoredProgress === undefined || canonicalStoredProgress >= 100)
+  ) {
     const clamped = clampProgress(previousProgress);
     if (clamped < 100) {
       return clamped;
