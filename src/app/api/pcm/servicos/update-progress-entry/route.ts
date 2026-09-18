@@ -56,13 +56,24 @@ export async function POST(request: NextRequest) {
 
     const timestamp = Timestamp.fromDate(date);
     const common = { date: timestamp, reportDate: timestamp, updatedAt: Timestamp.now() };
+    // Há telas antigas e novas lendo aliases diferentes do percentual. Atualizar
+    // apenas `percent`/`totalPct` deixava, por exemplo, um `manualPercent` antigo
+    // com precedência durante o recálculo e o valor anterior reaparecia nos
+    // gráficos. Grave todos os aliases existentes nas duas coleções.
+    const percentPatch = {
+      andamento: percent,
+      manualPercent: percent,
+      percent,
+      progress: percent,
+      realPercent: percent,
+      realPercentSnapshot: percent,
+      totalPct: percent,
+    };
     if (source === "updates") {
       const existing = (snapshot.data() ?? {}) as Record<string, unknown>;
       const patch: Record<string, unknown> = {
         ...common,
-        realPercentSnapshot: percent,
-        manualPercent: percent,
-        percent,
+        ...percentPatch,
       };
       // Alguns consumidores legados leem o percentual da auditoria. Mantenha-o
       // coerente sem apagar autor, token, IP ou a data original de envio.
@@ -71,7 +82,7 @@ export async function POST(request: NextRequest) {
       }
       await updateRef.update(patch);
     } else {
-      await updateRef.update({ ...common, totalPct: percent, percent, realPercentSnapshot: percent });
+      await updateRef.update({ ...common, ...percentPatch });
     }
 
     // Recalcula a partir de todo o histórico: editar um lançamento antigo não pode

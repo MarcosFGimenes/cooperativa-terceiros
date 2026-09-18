@@ -16,6 +16,12 @@ export async function POST(request: Request) {
   revalidateTag("services:recent");
   revalidateTag("services:summary");
   revalidateTag("services:detail");
+  revalidateTag("services:available");
+  revalidateTag("packages:detail");
+  revalidateTag("packages:summary");
+  revalidateTag("packages:services");
+  revalidateTag("folders:detail");
+  revalidateTag("folders:by-package");
 
   return NextResponse.json({ ok: true });
 }

@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   requirePcmUser: vi.fn(),
   get: vi.fn(),
+  update: vi.fn(),
   delete: vi.fn(),
   recomputeServiceProgress: vi.fn(),
 }));
@@ -26,7 +27,7 @@ vi.mock("@/lib/serverDb", () => ({
     collection: () => ({
       doc: () => ({
         collection: () => ({
-          doc: () => ({ get: mocks.get, delete: mocks.delete }),
+          doc: () => ({ get: mocks.get, delete: mocks.delete, update: mocks.update }),
         }),
       }),
     }),
@@ -42,7 +43,7 @@ vi.mock("firebase-admin/firestore", () => ({
   },
 }));
 
-import { DELETE } from "@/app/api/pcm/servicos/update-progress-entry/route";
+import { DELETE, POST } from "@/app/api/pcm/servicos/update-progress-entry/route";
 
 describe("DELETE /api/pcm/servicos/update-progress-entry", () => {
   beforeEach(() => {
@@ -50,8 +51,43 @@ describe("DELETE /api/pcm/servicos/update-progress-entry", () => {
     mocks.requirePcmUser.mockResolvedValue({ uid: "pcm-1" });
     mocks.get.mockResolvedValue({ exists: true });
     mocks.delete.mockResolvedValue(undefined);
+    mocks.update.mockResolvedValue(undefined);
     mocks.recomputeServiceProgress.mockResolvedValue({ percent: 35 });
   });
+
+  it.each(["updates", "serviceUpdates"] as const)(
+    "sincroniza todos os aliases de percentual ao editar em %s",
+    async (source) => {
+      mocks.get.mockResolvedValue({ exists: true, data: () => ({ audit: { submittedBy: "terceiro" } }) });
+      mocks.recomputeServiceProgress.mockResolvedValue({ percent: 42 });
+
+      const request = new Request("http://localhost/api/pcm/servicos/update-progress-entry", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          serviceId: "service-1",
+          updateId: "update-1",
+          source,
+          date: "2026-09-18T12:00:00.000Z",
+          percent: 42,
+        }),
+      });
+
+      const response = await POST(request as never);
+
+      expect(response.status).toBe(200);
+      expect(mocks.update).toHaveBeenCalledWith(expect.objectContaining({
+        andamento: 42,
+        manualPercent: 42,
+        percent: 42,
+        progress: 42,
+        realPercent: 42,
+        realPercentSnapshot: 42,
+        totalPct: 42,
+      }));
+      expect(mocks.recomputeServiceProgress).toHaveBeenCalledWith("service-1");
+    },
+  );
 
   it("exclui o lançamento e recalcula o progresso do serviço", async () => {
     const request = new Request("http://localhost/api/pcm/servicos/update-progress-entry", {
