@@ -215,6 +215,18 @@ export type FormattedUpdateSummary = {
   hoursLabel?: string;
 };
 
+/**
+ * Formata o percentual consolidado usado nas visões resumidas.
+ *
+ * O último lançamento fornece data e descrição, mas seu snapshot pode ser uma
+ * cópia legada (inclusive de um lançamento já excluído). Por isso a porcentagem
+ * visível deve vir do progresso canônico usado pelos cálculos e gráficos.
+ */
+export function formatCanonicalProgressLabel(progress: number | null | undefined): string {
+  const numeric = typeof progress === "number" && Number.isFinite(progress) ? progress : 0;
+  return `${Math.round(clampPercent(numeric))}%`;
+}
+
 function formatDateLabel(timestamp: number | null | undefined): string {
   if (typeof timestamp !== "number" || Number.isNaN(timestamp)) {
     return "-";
@@ -260,4 +272,3 @@ export function formatUpdateSummary(update: ServiceUpdate): FormattedUpdateSumma
     hoursLabel,
   };
 }
-

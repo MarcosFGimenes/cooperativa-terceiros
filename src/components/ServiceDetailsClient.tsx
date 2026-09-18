@@ -80,6 +80,11 @@ function resolveReopenedProgress(service: ThirdService): number | null {
   if (rawStatus !== "pendente") return null;
 
   const source = service as Record<string, unknown>;
+  const canonicalProgress = [service.andamento, service.realPercent, service.manualPercent]
+    .find((value) => typeof value === "number" && Number.isFinite(value));
+  if (typeof canonicalProgress === "number" && canonicalProgress < 100) {
+    return null;
+  }
   const candidates = [source.previousProgress, source.progressBeforeConclusion, source.previousPercent];
 
   for (const candidate of candidates) {
@@ -608,7 +613,11 @@ export default function ServiceDetailsClient({
       const response = await fetch(url.toString(), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ updates: updatesPayload }),
+        // O envio completo logo abaixo cria o único RDO deste preenchimento.
+        // Registrar outro documento aqui gerava um espelho com apenas
+        // realPercentSnapshot/token; ao excluir o RDO completo, esse espelho
+        // permanecia e restaurava o percentual antigo.
+        body: JSON.stringify({ updates: updatesPayload, recordUpdate: false }),
       });
 
       const json = (await response.json().catch(() => null)) as

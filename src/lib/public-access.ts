@@ -74,7 +74,8 @@ function toNumber(value: unknown): number | undefined {
 
 function resolveProgressFromDoc(data: FirebaseFirestore.DocumentData): number {
   const record = data as Record<string, unknown>;
-  const statusRaw = typeof data.status === "string" ? data.status.trim().toLowerCase() : "";
+  const statusValue = record.displayStatus ?? data.status;
+  const statusRaw = typeof statusValue === "string" ? statusValue.trim().toLowerCase() : "";
   const previousProgress = [
     (data as Record<string, unknown>).previousProgress,
     (data as Record<string, unknown>).progressBeforeConclusion,
@@ -83,7 +84,22 @@ function resolveProgressFromDoc(data: FirebaseFirestore.DocumentData): number {
     .map((value) => toNumber(value))
     .find((value): value is number => typeof value === "number" && Number.isFinite(value));
 
-  if (statusRaw === "pendente" && typeof previousProgress === "number") {
+  const canonicalProgress = [
+    data.andamento,
+    record.percentualRealAtual,
+    record.realPercentSnapshot,
+    data.realPercent,
+    data.progress,
+    record.percent,
+  ]
+    .map((value) => toNumber(value))
+    .find((value): value is number => typeof value === "number" && Number.isFinite(value));
+
+  if (
+    statusRaw === "pendente" &&
+    typeof previousProgress === "number" &&
+    (canonicalProgress === undefined || canonicalProgress >= 100)
+  ) {
     const clamped = Math.min(100, Math.max(0, Math.round(previousProgress)));
     if (clamped < 100) {
       return clamped;

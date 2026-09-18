@@ -234,6 +234,13 @@ export async function recomputeServiceProgress(serviceId: string) {
 
   // Revalidate caches and pages that consume the service percentage so every surface refreshes immediately after an edit.
   revalidateTag("services:detail");
+  // O bundle da área do terceiro usava historicamente estes tags globais.
+  // Mantenha-os junto dos tags canônicos por serviço para que nenhuma tela
+  // conserve o lançamento anterior após uma edição/exclusão.
+  revalidateTag("services:updates");
+  revalidateTag("services:legacy-updates");
+  revalidateTag(`services:detail:${serviceId}`);
+  revalidateTag(`services:updates:${serviceId}`);
   revalidateTag(`service:${serviceId}:updates`);
   revalidateTag(`service:${serviceId}:legacy-updates`);
   revalidateTag("services:available");

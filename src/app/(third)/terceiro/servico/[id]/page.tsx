@@ -42,6 +42,8 @@ async function getThirdServiceBundle(serviceId: string) {
         "services:legacy-updates",
         `services:detail:${serviceId}`,
         `services:updates:${serviceId}`,
+        `service:${serviceId}:updates`,
+        `service:${serviceId}:legacy-updates`,
       ],
     },
   );

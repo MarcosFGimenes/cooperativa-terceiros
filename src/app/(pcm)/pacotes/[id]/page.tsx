@@ -7,7 +7,7 @@ import { getPackageByIdCached, listPackageServices } from "@/lib/repo/packages";
 import { listPackageFolders } from "@/lib/repo/folders";
 import { getServicesByIds, listAvailableOpenServices, listUpdates } from "@/lib/repo/services";
 import { formatDate as formatDisplayDate } from "@/lib/formatDateTime";
-import { formatUpdateSummary } from "@/lib/serviceUpdates";
+import { formatCanonicalProgressLabel, formatUpdateSummary } from "@/lib/serviceUpdates";
 import {
   calcularCurvaSPlanejada,
   calcularCurvaSRealizada,
@@ -811,7 +811,11 @@ async function renderPackageDetailPage(
       isOpen: statusLabel === "Aberto" || statusLabel === "Pendente",
       lastUpdateMs,
       latestUpdateDescription: latestSummary?.description ?? latestUpdate?.description ?? null,
-      latestUpdatePercentLabel: latestSummary?.percentLabel ?? null,
+      // O texto vem do último RDO, mas a porcentagem deve usar o mesmo valor
+      // consolidado dos cálculos. Assim um snapshot excluído não reaparece no card.
+      latestUpdatePercentLabel: latestUpdate
+        ? formatCanonicalProgressLabel(snapshot.realizedPercent)
+        : null,
     };
   });
 
@@ -856,7 +860,9 @@ async function renderPackageDetailPage(
       isOpen: statusLabel === "Aberto" || statusLabel === "Pendente",
       lastUpdateMs,
       latestUpdateDescription: latestSummary?.description ?? latestUpdate?.description ?? null,
-      latestUpdatePercentLabel: latestSummary?.percentLabel ?? null,
+      latestUpdatePercentLabel: latestUpdate
+        ? formatCanonicalProgressLabel(snapshot.realizedPercent)
+        : null,
     };
   });
 

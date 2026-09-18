@@ -41,4 +41,15 @@ describe("progress validation", () => {
       }),
     ).toBe(95);
   });
+
+  it("ignora o snapshot de reabertura depois de um novo lançamento", () => {
+    expect(
+      resolveCurrentProgress({
+        status: "Pendente",
+        previousProgress: 95,
+        andamento: 60,
+        realPercentSnapshot: 60,
+      }),
+    ).toBe(60);
+  });
 });
