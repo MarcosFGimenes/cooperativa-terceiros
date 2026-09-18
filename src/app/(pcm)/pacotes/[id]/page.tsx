@@ -993,6 +993,9 @@ async function renderPackageDetailPage(
               <Link className="btn btn-secondary" href="/pacotes">
                 Voltar
               </Link>
+              <Link className="btn btn-secondary" href={`/pacotes/${encodedPackageId}/fotos`}>
+                Ver fotos
+              </Link>
               <Link className="btn btn-primary" href={`/pacotes/${encodedPackageId}/editar`}>
                 Editar
               </Link>
