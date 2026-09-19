@@ -1189,7 +1189,11 @@ export function calcularMetricasSubpacote(
   if (!Array.isArray(services) || services.length === 0) return [];
 
   const referencia = toDate(dataReferencia ?? new Date()) ?? new Date();
-  const currentDate = startOfDay(referencia);
+  const referenceDate = startOfDay(referencia);
+  // A data de referência representa o corte do planejamento. O realizado do
+  // resumo, por outro lado, é sempre o progresso atual consolidado e não deve
+  // voltar no tempo quando o usuário consulta outra data de referência.
+  const currentDate = startOfDay(new Date());
 
   const grupos = new Map<
     string,
@@ -1219,7 +1223,7 @@ export function calcularMetricasSubpacote(
       const servicosNormalizados = normalizarServicosParaSubpacote(grupo.servicos);
       const subpacotePlanejado = { servicos: servicosNormalizados };
       const plannedPercentRaw = clampPercentageValue(
-        calcularPercentualSubpacote(subpacotePlanejado, currentDate) ?? 0,
+        calcularPercentualSubpacote(subpacotePlanejado, referenceDate) ?? 0,
       );
       const realizedPercentRaw = clampPercentageValue(
         calcularPercentualRealizadoSubpacote(subpacotePlanejado, currentDate) ?? 0,
