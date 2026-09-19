@@ -15,6 +15,7 @@ export const revalidate = 0;
 type PackagePhoto = ServiceUpdateEvidence & {
   serviceId: string;
   serviceLabel: string;
+  equipmentName: string | null;
   updateId: string;
   updateDate: number;
   description: string | null;
@@ -69,6 +70,7 @@ async function loadPhotos(services: Service[]): Promise<{ photos: PackagePhoto[]
             url: evidence.url.trim(),
             serviceId: service.id,
             serviceLabel: serviceLabel(service),
+            equipmentName: service.equipmentName?.trim() || null,
             updateId: update.id,
             updateDate,
             description: update.description?.trim() || null,
@@ -177,6 +179,9 @@ export default async function PackagePhotosPage({ params }: { params: Promise<{ 
               <div className="space-y-2 p-4">
                 <div>
                   <p className="font-semibold text-foreground">{photo.serviceLabel}</p>
+                  <p className="text-sm text-foreground">
+                    Equipamento: {photo.equipmentName || "Não informado"}
+                  </p>
                   <p className="text-xs text-muted-foreground">
                     {formatDateTime(photo.updateDate, { timeZone: "America/Sao_Paulo", fallback: "Data não informada" })}
                   </p>

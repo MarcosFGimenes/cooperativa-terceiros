@@ -70,6 +70,45 @@ describe("serviceProgress utilities", () => {
       expect(metric.plannedPercent).toBe(54.24);
       expect(metric.plannedPercent).not.toBe(Math.round(metric.plannedPercent));
     });
+
+    it("mantém o percentual atual ao alterar somente a data de referência", () => {
+      const services = [
+        {
+          id: "service-1",
+          os: "OS-1",
+          folderId: "folder-1",
+          folderName: "Subpacote 1",
+          totalHours: 10,
+          status: "Aberto" as const,
+          createdAt: Date.parse("2025-01-01"),
+          plannedStart: "2025-01-01",
+          plannedEnd: "2025-01-11",
+          updates: [
+            {
+              id: "update-1",
+              date: "2025-01-02",
+              createdAt: Date.parse("2025-01-02"),
+              percent: 20,
+              description: "",
+            },
+            {
+              id: "update-2",
+              date: "2025-01-09",
+              createdAt: Date.parse("2025-01-09"),
+              percent: 80,
+              description: "",
+            },
+          ],
+        },
+      ];
+
+      const [earlyReference] = calcularMetricasSubpacote(services, "2025-01-03");
+      const [lateReference] = calcularMetricasSubpacote(services, "2025-01-10");
+
+      expect(earlyReference.realizedPercent).toBe(80);
+      expect(lateReference.realizedPercent).toBe(80);
+      expect(earlyReference.plannedPercent).not.toBe(lateReference.plannedPercent);
+    });
   });
 
   it("parses dd/MM/yyyy date-only strings for updates and ranges", () => {
