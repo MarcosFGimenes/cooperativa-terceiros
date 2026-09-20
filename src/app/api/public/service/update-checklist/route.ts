@@ -49,13 +49,7 @@ export async function POST(req: Request) {
 
     const note = typeof body.note === "string" && body.note.trim() ? body.note.trim() : undefined;
 
-    // O percentual global do RDO é validado e persistido em seguida pela rota
-    // update-manual. O checklist pode precisar ser corrigido para baixo depois
-    // de uma edição do serviço; bloqueá-lo pelo percentual global anterior
-    // impedia inclusive lançamentos com percentual maior que o atual.
-    const realPercent = await updateChecklistProgress(service.id, updates, {
-      preserveServiceProgress: true,
-    });
+    const realPercent = await updateChecklistProgress(service.id, updates, { preventDecrease: true });
     // A tela de RDO atualiza o checklist e, em seguida, grava o lançamento
     // completo pela rota update-manual. Nesse fluxo não devemos criar antes um
     // segundo documento mínimo na coleção `updates`.

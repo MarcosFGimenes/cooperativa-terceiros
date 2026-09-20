@@ -1473,7 +1473,7 @@ export async function updateChecklistProgress(
     progress: number;
     status?: ChecklistItem["status"];
   }>,
-  opts?: { preventDecrease?: boolean; preserveServiceProgress?: boolean },
+  opts?: { preventDecrease?: boolean },
 ): Promise<number> {
   if (!updates.length) {
     return computeRealPercentFromChecklist(serviceId);
@@ -1594,8 +1594,8 @@ export async function updateChecklistProgress(
     // Preservar valor calculado exato do checklist, apenas garantir que está no range válido
     const realPercent = sanitisePercent(percent);
 
-    const currentPercent = resolveCurrentServicePercent(serviceData);
     if (opts?.preventDecrease) {
+      const currentPercent = resolveCurrentServicePercent(serviceData);
       assertNonDecreasingProgress(realPercent, currentPercent);
     }
 
@@ -1621,12 +1621,7 @@ export async function updateChecklistProgress(
     }
 
     const shouldPreserveManual = Boolean(lastManual && isSameUtcDay(lastManual.submittedAt, nowMillis));
-    const calculatedPercent = shouldPreserveManual ? (lastManual?.percent ?? realPercent) : realPercent;
-    // A correção das subatividades não pode reduzir temporariamente o progresso
-    // global antes de o RDO manual registrar o novo percentual informado.
-    const resolvedPercent = opts?.preserveServiceProgress
-      ? Math.max(currentPercent, calculatedPercent)
-      : calculatedPercent;
+    const resolvedPercent = shouldPreserveManual ? (lastManual?.percent ?? realPercent) : realPercent;
 
     // Quando preservando manual, manter manualPercent setado; caso contrário, limpar manualPercent.
     const servicePatch = buildServiceProgressPatch(resolvedPercent, {
