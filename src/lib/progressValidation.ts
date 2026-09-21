@@ -21,13 +21,6 @@ function clampPercent(value: number): number {
   return Math.max(0, Math.min(100, value));
 }
 
-export class ProgressDecreaseError extends Error {
-  constructor(public readonly currentPercent: number) {
-    super(`O percentual não pode ser menor que o progresso atual de ${currentPercent}%.`);
-    this.name = "ProgressDecreaseError";
-  }
-}
-
 export function resolveCurrentProgress(data: Record<string, unknown>): number {
   const status = String(data.displayStatus ?? data.status ?? "").trim().toLowerCase();
   const canonicalProgress = PROGRESS_FIELDS
@@ -49,8 +42,3 @@ export function resolveCurrentProgress(data: Record<string, unknown>): number {
   return 0;
 }
 
-export function assertNonDecreasingProgress(nextPercent: number, currentPercent: number): void {
-  if (clampPercent(nextPercent) < clampPercent(currentPercent)) {
-    throw new ProgressDecreaseError(clampPercent(currentPercent));
-  }
-}

@@ -340,8 +340,6 @@ export default function AcessoPorTokenPage() {
     const normalizedManual =
       manualInput === "" ? undefined : Math.max(0, Math.min(100, Number(parsedManual ?? 0)));
 
-    const currentPercent = Math.max(0, Math.min(100, Number(selectedService.andamento ?? 0)));
-
     if (hasChecklistItems) {
       const itemsPayload = selectedService.checklist.map((item) => ({
         itemId: item.id,
@@ -357,11 +355,6 @@ export default function AcessoPorTokenPage() {
         totalWeight += weight;
       });
       const finalPercent = totalWeight > 0 ? Math.round((calculatedPercent / totalWeight) * 100) : 0;
-      if (finalPercent < currentPercent) {
-        toast.error(`O percentual não pode ser menor que o progresso atual de ${currentPercent}%.`);
-        return;
-      }
-      
       const body: Record<string, unknown> = {
         token: validatedToken,
         serviceId: selectedService.id,
@@ -373,10 +366,6 @@ export default function AcessoPorTokenPage() {
     } else {
       if (typeof normalizedManual !== "number") {
         toast.error("Informe o percentual concluído do serviço (0 a 100%).");
-        return;
-      }
-      if (normalizedManual < currentPercent) {
-        toast.error(`O percentual não pode ser menor que o progresso atual de ${currentPercent}%.`);
         return;
       }
       const body = {
