@@ -1,7 +1,11 @@
 const PROGRESS_FIELDS = [
+  // `realPercentSnapshot` é atualizado ao corrigir um lançamento existente.
+  // Os aliases legados podem continuar em 100% até a próxima reconstrução do
+  // histórico; consultá-los antes do snapshot bloqueava um novo RDO mesmo
+  // depois de a correção ter retornado o serviço para, por exemplo, 70%.
+  "realPercentSnapshot",
   "andamento",
   "percentualRealAtual",
-  "realPercentSnapshot",
   "manualPercent",
   "realPercent",
   "progress",

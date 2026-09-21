@@ -413,9 +413,12 @@ async function addManualUpdate(
     const currentPercentRaw = reopenedProgress !== undefined
       ? sanitisePercent(reopenedProgress)
       : [
+        // A correção de um lançamento grava o snapshot consolidado antes de
+        // todos os aliases legados. Dar prioridade a ele evita que um 100%
+        // antigo mantenha o portal bloqueado após a correção para um valor menor.
+        serviceData.realPercentSnapshot,
         serviceData.andamento,
         serviceData.percentualRealAtual,
-        serviceData.realPercentSnapshot,
         serviceData.manualPercent,
         serviceData.realPercent,
         serviceData.progress,

@@ -30,6 +30,19 @@ describe("progress validation", () => {
     ).toBe(95);
   });
 
+  it("usa o snapshot corrigido antes de aliases legados ainda em 100%", () => {
+    const currentPercent = resolveCurrentProgress({
+      realPercentSnapshot: 70,
+      manualPercent: 100,
+      andamento: 100,
+      percentualRealAtual: 100,
+      progress: 100,
+    });
+
+    expect(currentPercent).toBe(70);
+    expect(() => assertNonDecreasingProgress(71, currentPercent)).not.toThrow();
+  });
+
   it("usa o percentual de reabertura quando o serviço pendente ainda possui campos em 100%", () => {
     expect(
       resolveCurrentProgress({
