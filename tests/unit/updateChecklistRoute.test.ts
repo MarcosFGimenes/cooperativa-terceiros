@@ -54,7 +54,7 @@ describe("POST /api/public/service/update-checklist", () => {
     expect(mocks.updateChecklistProgress).toHaveBeenCalledWith(
       "service-1",
       [{ id: "item-1", progress: 60, status: "andamento" }],
-      { preventDecrease: false },
+      { preserveServiceProgress: true },
     );
     expect(mocks.addComputedUpdate).not.toHaveBeenCalled();
   });
