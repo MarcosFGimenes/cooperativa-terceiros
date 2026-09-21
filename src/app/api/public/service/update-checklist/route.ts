@@ -48,12 +48,21 @@ export async function POST(req: Request) {
     });
 
     const note = typeof body.note === "string" && body.note.trim() ? body.note.trim() : undefined;
+    const isRdoSubmission = body.recordUpdate === false;
 
-    const realPercent = await updateChecklistProgress(service.id, updates, { preventDecrease: true });
+    // No formulário de RDO, o checklist é gravado antes do lançamento manual
+    // completo. A validação de não redução deve ocorrer naquele lançamento,
+    // que usa o percentual final informado pelo terceiro. Validar o percentual
+    // intermediário do checklist aqui pode rejeitar o RDO mesmo quando seu
+    // percentual final é maior que o progresso atual (por exemplo, após uma
+    // correção de 100% para 70%).
+    const realPercent = await updateChecklistProgress(service.id, updates, {
+      preventDecrease: !isRdoSubmission,
+    });
     // A tela de RDO atualiza o checklist e, em seguida, grava o lançamento
     // completo pela rota update-manual. Nesse fluxo não devemos criar antes um
     // segundo documento mínimo na coleção `updates`.
-    if (body.recordUpdate !== false) {
+    if (!isRdoSubmission) {
       await addComputedUpdate(service.id, realPercent, note, token);
     }
 
