@@ -4,6 +4,8 @@ export type ProgressEvent = {
   timestamp: number;
   /** Momento da última edição, usado para desempatar lançamentos do mesmo instante operacional. */
   revisionTimestamp?: number | null;
+  /** Fonte usada apenas para desempatar cópias idênticas do mesmo lançamento. */
+  sourcePriority?: number;
   percent?: number | null;
   items?: Array<{ id: string; pct: number }>;
   explicitDate?: boolean;
@@ -82,7 +84,9 @@ export function computeProgressFromEvents(
       // Um RDO pode existir nas coleções atual e legada com a mesma data. Ao
       // editar uma dessas cópias, a revisão mais nova precisa prevalecer; caso
       // contrário, o espelho antigo de 100% volta a sobrescrever os 95%.
-      return (a.revisionTimestamp ?? a.timestamp) - (b.revisionTimestamp ?? b.timestamp);
+      const revision = (a.revisionTimestamp ?? a.timestamp) - (b.revisionTimestamp ?? b.timestamp);
+      if (revision !== 0) return revision;
+      return (a.sourcePriority ?? 0) - (b.sourcePriority ?? 0);
     });
 
   const latestPerItem = new Map<string, number>();

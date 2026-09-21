@@ -139,7 +139,7 @@ export async function loadProgressHistory(
     const fallbackTimestamp =
       toMillis((data.audit as Record<string, unknown> | undefined)?.submittedAt) ?? toMillis(doc.createTime) ?? null;
     const event = normaliseEvent(data, fallbackTimestamp, false);
-    if (event) events.push(event);
+    if (event) events.push({ ...event, sourcePriority: 1 });
 
     const manualCandidate = typeof data.manualPercent === "number" ? data.manualPercent : Number(data.manualPercent ?? NaN);
     if (
@@ -155,7 +155,7 @@ export async function loadProgressHistory(
   legacySnap.docs.forEach((doc) => {
     const data = (doc.data() ?? {}) as Record<string, unknown>;
     const event = normaliseEvent(data, toMillis(doc.createTime) ?? null, true);
-    if (event) events.push(event);
+    if (event) events.push({ ...event, sourcePriority: 0 });
   });
 
   return {

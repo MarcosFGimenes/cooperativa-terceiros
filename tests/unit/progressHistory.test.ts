@@ -12,4 +12,14 @@ describe("progress history", () => {
 
     expect(result.currentPercent).toBe(95);
   });
+
+  it("prioriza a cópia canônica quando cópias do mesmo lançamento empatam", () => {
+    const timestamp = Date.parse("2026-09-16T12:00:00Z");
+    const result = computeProgressFromEvents([
+      { timestamp, percent: 100, sourcePriority: 0 },
+      { timestamp, percent: 70, sourcePriority: 1 },
+    ]);
+
+    expect(result.currentPercent).toBe(70);
+  });
 });
