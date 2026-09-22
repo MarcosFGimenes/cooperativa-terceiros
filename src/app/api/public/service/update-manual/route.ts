@@ -3,7 +3,6 @@ import { NextResponse } from "next/server";
 
 import { PublicAccessError, requireServiceAccess } from "@/lib/public-access";
 import { addManualUpdate } from "@/lib/repo/services";
-import { ProgressDecreaseError } from "@/lib/progressValidation";
 import { mapFirestoreError } from "@/lib/utils/firestoreErrors";
 import { parseDayFirstDateStringToUtcDate, parsePortugueseDateStringToUtcDate } from "@/lib/dateParsing";
 
@@ -221,16 +220,10 @@ export async function POST(req: Request) {
       justification: justification || undefined,
       previousPercent,
       ip: ipHeader,
-    }, { skipRecompute: true, preventDecrease: true });
+    }, { skipRecompute: true });
 
     return NextResponse.json({ ok: true, realPercent, update });
   } catch (err: unknown) {
-    if (err instanceof ProgressDecreaseError) {
-      return NextResponse.json(
-        { ok: false, error: err.message, currentPercent: err.currentPercent },
-        { status: 409 },
-      );
-    }
     if (err instanceof PublicAccessError) {
       return NextResponse.json({ ok: false, error: err.message }, { status: err.status });
     }

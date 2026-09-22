@@ -3,7 +3,6 @@ import { NextResponse } from "next/server";
 
 import { PublicAccessError, requireServiceAccess } from "@/lib/public-access";
 import { addComputedUpdate, updateChecklistProgress } from "@/lib/repo/services";
-import { ProgressDecreaseError } from "@/lib/progressValidation";
 import type { ChecklistItem } from "@/lib/types";
 import { mapFirestoreError } from "@/lib/utils/firestoreErrors";
 
@@ -49,7 +48,13 @@ export async function POST(req: Request) {
 
     const note = typeof body.note === "string" && body.note.trim() ? body.note.trim() : undefined;
 
-    const realPercent = await updateChecklistProgress(service.id, updates, { preventDecrease: true });
+    // O lançamento manual é salvo logo após esta etapa. Permitir que o checklist
+    // seja corrigido para baixo aqui evita bloquear o RDO quando os itens foram
+    // alterados após uma edição do serviço; o progresso exibido é preservado até
+    // que o lançamento completo seja persistido.
+    const realPercent = await updateChecklistProgress(service.id, updates, {
+      preserveServiceProgress: true,
+    });
     // A tela de RDO atualiza o checklist e, em seguida, grava o lançamento
     // completo pela rota update-manual. Nesse fluxo não devemos criar antes um
     // segundo documento mínimo na coleção `updates`.
@@ -59,12 +64,6 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ ok: true, realPercent });
   } catch (err: unknown) {
-    if (err instanceof ProgressDecreaseError) {
-      return NextResponse.json(
-        { ok: false, error: err.message, currentPercent: err.currentPercent },
-        { status: 409 },
-      );
-    }
     if (err instanceof PublicAccessError) {
       return NextResponse.json({ ok: false, error: err.message }, { status: err.status });
     }

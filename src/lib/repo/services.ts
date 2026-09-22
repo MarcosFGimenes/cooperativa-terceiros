@@ -15,10 +15,7 @@ import { recomputeServiceProgress } from "@/lib/progressHistoryServer";
 import { chooseProgressUpdateStrategy, resolveStoredProgressWatermark } from "@/lib/progressUpdateStrategy";
 import { buildServiceSearchFields } from "@/lib/serviceSearch";
 import { buildServiceAssignmentFields } from "@/lib/serviceAssignment";
-import {
-  assertNonDecreasingProgress,
-  resolveCurrentProgress,
-} from "@/lib/progressValidation";
+import { resolveCurrentProgress } from "@/lib/progressValidation";
 
 const getDb = () => getAdmin().db;
 const servicesCollection = () => getDb().collection("services");
@@ -1473,7 +1470,7 @@ export async function updateChecklistProgress(
     progress: number;
     status?: ChecklistItem["status"];
   }>,
-  opts?: { preventDecrease?: boolean },
+  opts?: { preserveServiceProgress?: boolean },
 ): Promise<number> {
   if (!updates.length) {
     return computeRealPercentFromChecklist(serviceId);
@@ -1594,10 +1591,7 @@ export async function updateChecklistProgress(
     // Preservar valor calculado exato do checklist, apenas garantir que está no range válido
     const realPercent = sanitisePercent(percent);
 
-    if (opts?.preventDecrease) {
-      const currentPercent = resolveCurrentServicePercent(serviceData);
-      assertNonDecreasingProgress(realPercent, currentPercent);
-    }
+    const currentPercent = resolveCurrentServicePercent(serviceData);
 
     // Se houve lançamento manual recente, não sobrescrever o valor digitado ao atualizar o checklist.
     // Regra: quando o último update manual foi no mesmo dia (UTC) da atualização do checklist,
@@ -1621,7 +1615,12 @@ export async function updateChecklistProgress(
     }
 
     const shouldPreserveManual = Boolean(lastManual && isSameUtcDay(lastManual.submittedAt, nowMillis));
-    const resolvedPercent = shouldPreserveManual ? (lastManual?.percent ?? realPercent) : realPercent;
+    const calculatedPercent = shouldPreserveManual ? (lastManual?.percent ?? realPercent) : realPercent;
+    // O RDO manual é persistido logo após o checklist. Enquanto isso, manter o
+    // progresso atual evita uma redução visual temporária entre as duas gravações.
+    const resolvedPercent = opts?.preserveServiceProgress
+      ? Math.max(currentPercent, calculatedPercent)
+      : calculatedPercent;
 
     // Quando preservando manual, manter manualPercent setado; caso contrário, limpar manualPercent.
     const servicePatch = buildServiceProgressPatch(resolvedPercent, {
@@ -1895,7 +1894,7 @@ function buildUpdatePayload(serviceId: string, params: ManualUpdateInput & { rea
 export async function addManualUpdate(
   serviceId: string,
   input: ManualUpdateInput,
-  opts?: { skipRecompute?: boolean; preventDecrease?: boolean },
+  opts?: { skipRecompute?: boolean },
 ): Promise<{ realPercent: number; update: ServiceUpdate }> {
   const percent = sanitisePercent(input.manualPercent);
   const description = input.description.trim();
@@ -1912,10 +1911,6 @@ export async function addManualUpdate(
     }
 
     const serviceData = (serviceSnap.data() ?? {}) as Record<string, unknown>;
-    if (opts?.preventDecrease) {
-      const currentPercent = resolveCurrentServicePercent(serviceData);
-      assertNonDecreasingProgress(percent, currentPercent);
-    }
     const previousWatermark = resolveStoredProgressWatermark(toMillis(serviceData.lastProgressUpdateAt));
     const strategy = chooseProgressUpdateStrategy(input.reportDate, previousWatermark);
     const eventMillis = Math.max(input.reportDate ?? Date.now(), previousWatermark ?? 0);
