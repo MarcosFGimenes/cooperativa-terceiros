@@ -51,7 +51,11 @@ describe("POST /api/public/service/update-checklist", () => {
     const response = await POST(request(false));
 
     expect(response.status).toBe(200);
-    expect(mocks.updateChecklistProgress).toHaveBeenCalledOnce();
+    expect(mocks.updateChecklistProgress).toHaveBeenCalledWith(
+      "service-1",
+      [{ id: "item-1", progress: 60, status: "andamento" }],
+      { preserveServiceProgress: true },
+    );
     expect(mocks.addComputedUpdate).not.toHaveBeenCalled();
   });
 
@@ -59,6 +63,11 @@ describe("POST /api/public/service/update-checklist", () => {
     const response = await POST(request());
 
     expect(response.status).toBe(200);
+    expect(mocks.updateChecklistProgress).toHaveBeenCalledWith(
+      "service-1",
+      [{ id: "item-1", progress: 60, status: "andamento" }],
+      { preventDecrease: true },
+    );
     expect(mocks.addComputedUpdate).toHaveBeenCalledWith("service-1", 60, undefined, "TOKEN");
   });
 });

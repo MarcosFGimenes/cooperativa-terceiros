@@ -213,6 +213,7 @@ const subactivitySchema = z.object({
 
 const formSchema = z
   .object({
+    percent: z.coerce.number({ invalid_type_error: "Informe o percentual realizado" }).min(0, "Mínimo 0%").max(100, "Máximo 100%"),
     date: z.string().min(1, "Data obrigatória"),
     description: z.string().min(1, "Descreva o que foi realizado"),
     declarationAccepted: z.literal(true, {
@@ -296,6 +297,7 @@ export default function ServiceUpdateForm({
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
+      percent: clampPercentValue(lastProgress),
       date: "",
       description: "",
       resources: [],
@@ -320,6 +322,7 @@ export default function ServiceUpdateForm({
   const shiftArray = useFieldArray({ control, name: "shifts" });
 
   const selectedResources = watch("resources");
+  const enteredPercent = watch("percent");
   const subactivityValues = watch("subactivities");
   const declarationCompany = companyName?.trim() || null;
   const declarationCnpjValue = companyCnpj ? normalizeCnpj(companyCnpj).trim() : "";
@@ -341,6 +344,10 @@ export default function ServiceUpdateForm({
   useEffect(() => {
     setValue("subactivities", checklistDefaults, { shouldDirty: false });
   }, [checklistDefaults, setValue]);
+
+  useEffect(() => {
+    setValue("percent", clampPercentValue(lastProgress), { shouldDirty: false });
+  }, [lastProgress, setValue]);
 
   const selectedShifts = useMemo(() => shiftArray.fields.map((item) => item.shift), [shiftArray.fields]);
 
@@ -394,7 +401,10 @@ export default function ServiceUpdateForm({
       })
       .filter((item): item is { id: string; label: string; progress?: number } => Boolean(item));
 
-    const finalPercent = clampPercentValue(computedPercent);
+    // O percentual do serviço é explícito e independente do cálculo parcial
+    // do checklist. Isso impede que um item não alterado reduza o valor enviado
+    // para baixo do progresso atual.
+    const finalPercent = clampPercentValue(values.percent);
 
     await onSubmit({
       percent: finalPercent,
@@ -420,6 +430,7 @@ export default function ServiceUpdateForm({
 
     // Após um envio, permitir que o percentual volte a acompanhar o progresso do serviço
     reset({
+      percent: clampPercentValue(lastProgress),
       date: "",
       description: "",
       resources: [],
@@ -668,6 +679,32 @@ export default function ServiceUpdateForm({
           </ul>
         </div>
       ) : null}
+
+      <div>
+        <label htmlFor={`${serviceId}-percent`} className="text-sm font-medium text-foreground">
+          Percentual realizado do serviço
+        </label>
+        <input
+          id={`${serviceId}-percent`}
+          type="number"
+          min={0}
+          max={100}
+          step={0.01}
+          className="input mt-1 w-full"
+          {...register("percent", {
+            setValueAs: (value) => {
+              if (value === "" || value === null || typeof value === "undefined") return undefined;
+              const numeric = Number(String(value).replace(",", "."));
+              return Number.isFinite(numeric) ? numeric : undefined;
+            },
+          })}
+        />
+        <p className="mt-1 text-xs text-muted-foreground">
+          Informe um valor igual ou maior que o progresso atual de {Math.round(clampPercentValue(lastProgress))}%.
+          {typeof enteredPercent === "number" && Number.isFinite(enteredPercent) ? ` Valor informado: ${enteredPercent}%.` : ""}
+        </p>
+        {errors.percent ? <p className="mt-1 text-xs text-destructive">{errors.percent.message}</p> : null}
+      </div>
 
       <div>
         <label htmlFor={`${serviceId}-description`} className="text-sm font-medium text-foreground">

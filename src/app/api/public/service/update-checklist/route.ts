@@ -48,12 +48,19 @@ export async function POST(req: Request) {
     });
 
     const note = typeof body.note === "string" && body.note.trim() ? body.note.trim() : undefined;
+    const isRdoSubmission = body.recordUpdate === false;
 
-    const realPercent = await updateChecklistProgress(service.id, updates, { preventDecrease: true });
+    // No formulário de RDO, o checklist é gravado antes do lançamento manual
+    // completo. Os valores das subatividades podem compor temporariamente um
+    // total menor que o serviço, mas não devem reduzir o snapshot do serviço
+    // antes de o percentual final informado pelo terceiro ser persistido.
+    const realPercent = await updateChecklistProgress(service.id, updates, {
+      ...(isRdoSubmission ? { preserveServiceProgress: true } : { preventDecrease: true }),
+    });
     // A tela de RDO atualiza o checklist e, em seguida, grava o lançamento
     // completo pela rota update-manual. Nesse fluxo não devemos criar antes um
     // segundo documento mínimo na coleção `updates`.
-    if (body.recordUpdate !== false) {
+    if (!isRdoSubmission) {
       await addComputedUpdate(service.id, realPercent, note, token);
     }
 
